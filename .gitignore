@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.db
+backend/grocery.db
+.env
+
+# Node / Expo
+node_modules/
+mobile/.expo/
+mobile/dist/
+web-build/
+*.log
+
+# Misc
+.DS_Store
+.idea/
+.vscode/

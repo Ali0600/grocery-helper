@@ -1,0 +1,16 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """App configuration, overridable via environment / .env file."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    app_name: str = "Grocery Helper API"
+    # Local dev defaults to SQLite (zero setup). Prod sets DATABASE_URL to Postgres.
+    database_url: str = "sqlite:///./grocery.db"
+    default_plz: str = "10115"  # Berlin Mitte
+    cors_origins: str = "*"  # comma-separated list, or "*"
+
+
+settings = Settings()

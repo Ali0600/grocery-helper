@@ -1,0 +1,121 @@
+import React from 'react';
+import {
+  Image,
+  Linking,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
+import { euro } from '../format';
+import { colors } from '../theme';
+import { Offer } from '../types';
+
+// Lidl's full weekly online leaflet (Prospekt).
+const LIDL_FLYER_URL = 'https://www.lidl.de/c/online-prospekte/s10005610';
+
+export function FlyerModal({ offer, onClose }: { offer: Offer | null; onClose: () => void }) {
+  return (
+    <Modal visible={!!offer} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.backdrop}>
+        <View style={styles.sheet}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Flyer</Text>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Text style={styles.close}>Close</Text>
+            </Pressable>
+          </View>
+
+          {offer && (
+            <ScrollView contentContainerStyle={styles.content}>
+              {offer.image_url ? (
+                <Image source={{ uri: offer.image_url }} style={styles.image} resizeMode="contain" />
+              ) : (
+                <View style={[styles.image, styles.imageEmpty]}>
+                  <Text style={styles.muted}>No flyer image for this offer.</Text>
+                </View>
+              )}
+
+              <Text style={styles.name}>{offer.name}</Text>
+              <Text style={styles.price}>
+                {euro(offer.price_cents)}
+                {offer.regular_price_cents != null && (
+                  <Text style={styles.was}>{`  statt ${euro(offer.regular_price_cents)}`}</Text>
+                )}
+              </Text>
+              {!!(offer.brand || offer.unit) && (
+                <Text style={styles.meta}>
+                  {[offer.brand, offer.unit].filter(Boolean).join(' · ')}
+                </Text>
+              )}
+
+              <Pressable
+                style={({ pressed }) => [styles.flyerBtn, pressed && styles.flyerBtnPressed]}
+                onPress={() => Linking.openURL(LIDL_FLYER_URL)}
+              >
+                <Text style={styles.flyerBtnText}>Open Lidl's full weekly flyer ↗</Text>
+              </Pressable>
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: colors.bg,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingBottom: 28,
+    maxHeight: '88%',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
+  close: { color: colors.accent, fontSize: 15, fontWeight: '600' },
+  content: { padding: 16, alignItems: 'center' },
+  image: {
+    width: '100%',
+    height: 300,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+  },
+  imageEmpty: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card2 },
+  name: { color: colors.text, fontSize: 18, fontWeight: '700', marginTop: 16, textAlign: 'center' },
+  price: { color: colors.text, fontSize: 20, fontWeight: '700', marginTop: 8 },
+  was: { color: colors.muted, fontSize: 14, fontWeight: '400', textDecorationLine: 'line-through' },
+  meta: { color: colors.muted, fontSize: 13, marginTop: 6 },
+  muted: { color: colors.muted, fontSize: 14 },
+  flyerBtn: {
+    marginTop: 22,
+    backgroundColor: colors.card2,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  flyerBtnPressed: { opacity: 0.7 },
+  flyerBtnText: { color: colors.accent, fontSize: 15, fontWeight: '600' },
+});
