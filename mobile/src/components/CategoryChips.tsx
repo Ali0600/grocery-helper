@@ -27,6 +27,7 @@ export function CategoryChips({ categories, selected, onSelect }: Props) {
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
       contentContainerStyle={styles.row}
     >
       <Chip label="All" value={null} />
@@ -38,14 +39,18 @@ export function CategoryChips({ categories, selected, onSelect }: Props) {
 }
 
 const styles = StyleSheet.create({
-  row: { paddingHorizontal: 12, gap: 8, paddingVertical: 10 },
+  // flexGrow:0 + maxHeight stop the strip from expanding to fill the column.
+  scroll: { flexGrow: 0, maxHeight: 56 },
+  row: { paddingHorizontal: 12, gap: 8, paddingVertical: 10, alignItems: 'center' },
   chip: {
+    height: 36,
     paddingHorizontal: 14,
-    paddingVertical: 8,
     borderRadius: 999,
     backgroundColor: colors.card2,
     borderWidth: 1,
     borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   chipText: { color: colors.muted, fontSize: 13, fontWeight: '500' },

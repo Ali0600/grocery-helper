@@ -71,6 +71,7 @@ export default function DealsScreen() {
         </View>
       ) : (
         <FlatList
+          style={styles.listFill}
           data={offers}
           keyExtractor={(o) => String(o.id)}
           renderItem={({ item }) => (
@@ -102,6 +103,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   title: { color: colors.text, fontSize: 24, fontWeight: '700' },
   subtitle: { color: colors.muted, fontSize: 13, marginTop: 2 },
+  listFill: { flex: 1 },
   list: { paddingVertical: 6, paddingBottom: 24 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   error: { color: colors.badge, fontSize: 14, textAlign: 'center', lineHeight: 20 },
