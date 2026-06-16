@@ -35,6 +35,7 @@ class StoreOut(BaseModel):
     chain: str
     name: str
     plz: str
+    market_code: Optional[str] = None
 
 
 class OptimizeRequest(BaseModel):

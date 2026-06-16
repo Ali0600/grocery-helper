@@ -75,7 +75,10 @@ def list_categories(session: SessionDep, plz: Optional[str] = None):
 @router.get("/stores", response_model=List[StoreOut])
 def list_stores(session: SessionDep):
     stores = session.scalars(select(Store)).all()
-    return [StoreOut(id=s.id, chain=s.chain, name=s.name, plz=s.plz) for s in stores]
+    return [
+        StoreOut(id=s.id, chain=s.chain, name=s.name, plz=s.plz, market_code=s.market_code)
+        for s in stores
+    ]
 
 
 @router.post("/optimize", response_model=OptimizeResponse)
@@ -86,11 +89,24 @@ def optimize(req: OptimizeRequest, session: SessionDep):
 
 @router.post("/scrape")
 def trigger_scrape(session: SessionDep, plz: Optional[str] = None):
-    """Dev convenience: re-run scrapers on demand for a postal code."""
+    """Scrape a postal code on demand and return the resolved store(s).
+
+    Used by the app when the user sets/changes their PLZ. A store with a null
+    `market_code` means no real store resolved (sample-data fallback).
+    """
     from ..scrapers.run import run_scrapers
 
     target = plz or settings.default_plz
-    return {"scraped": run_scrapers(session, target), "plz": target}
+    scraped = run_scrapers(session, target)
+    stores = session.scalars(select(Store).where(Store.plz == target)).all()
+    return {
+        "plz": target,
+        "scraped": scraped,
+        "stores": [
+            StoreOut(id=s.id, chain=s.chain, name=s.name, plz=s.plz, market_code=s.market_code)
+            for s in stores
+        ],
+    }
 
 
 @router.post("/recategorize")

@@ -21,3 +21,17 @@ export type CategoryCount = {
   label: string;
   count: number;
 };
+
+export type Store = {
+  id: number;
+  chain: string;
+  name: string;
+  plz: string;
+  market_code: string | null;
+};
+
+export type ScrapeResult = {
+  plz: string;
+  scraped: number;
+  stores: Store[];
+};
