@@ -147,6 +147,7 @@ re-scraping. Guard cases live in [`tests/test_categories.py`](backend/tests/test
 - [x] Live Lidl scraper (Lidl Plus store + offers endpoints; PLZ → nearest store)
 - [x] React Native app: live deals by category, ranked by % off, with per-offer
       flyer images + tap-to-view (links to Lidl's full weekly Prospekt)
+- [x] Set your postal code in-app — resolves the nearest Lidl and persists it
 - [ ] Rewe scraper (Cloudflare / market resolution by PLZ)
 - [ ] In-app basket optimizer screen (1 vs 2 stores)
 - [ ] Scheduled weekly scrape + deploy to PaaS with monitoring/alerts
