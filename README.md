@@ -113,6 +113,7 @@ docker compose up --build
 | GET    | `/api/stores`     | Known stores                                     |
 | POST   | `/api/optimize`   | Cheapest basket across 1–2 stores                |
 | POST   | `/api/scrape`     | Re-run scrapers on demand (dev)                  |
+| POST   | `/api/recategorize` | Re-apply the classifier to stored offers (dev) |
 
 ## Scrapers
 
@@ -128,11 +129,16 @@ so the app stays up. (Endpoints adapted from
 from its app (`mobile-api.rewe.de/api/v3/all-offers?marketCode=…`).
 
 **Categorization.** Offer names are German and brand-heavy, so
-[`categories.py`](backend/app/categories.py) classifies them with an ordered
-German-keyword map, tuned against a real Berlin Lidl snapshot — it categorizes
-100% of that week's offers, routing Lidl's non-food brands (Crelando, Livarno,
-Ultimate Speed, …) into "Household & Non-food". Re-tune the keyword lists as new
-products appear.
+[`categories.py`](backend/app/categories.py) classifies each offer in three
+layers (first match wins): an **unambiguous brand → category map** (e.g. Allini →
+beverages, Mister Choc → sweets, Iglo → frozen, Parkside/Esmara/… → non-food),
+then **high-priority override tokens** (sekt, frizzante, secco… → beverages) so a
+flavour word like "Mango" can't beat the real category, then the ordered
+**German-keyword ruleset**. Categories are computed at scrape time and stored, so
+after tuning the rules run the backfill — `python -m app.scripts.recategorize`
+(or `POST /api/recategorize`) — to re-apply them to existing rows without
+re-scraping. Guard cases live in [`tests/test_categories.py`](backend/tests/test_categories.py)
+(`pytest`).
 
 ## Roadmap
 

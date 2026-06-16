@@ -58,7 +58,7 @@ def run_scrapers(session: Session, plz: str) -> int:
                 offer = Offer(store_id=store.id, external_id=raw.external_id)
             offer.name = raw.name
             offer.brand = raw.brand
-            offer.category = categories.classify(raw.name)
+            offer.category = categories.classify(raw.name, raw.brand)
             offer.price_cents = raw.price_cents
             offer.regular_price_cents = raw.regular_price_cents
             offer.discount_pct = _discount_pct(raw.price_cents, raw.regular_price_cents)

@@ -91,3 +91,11 @@ def trigger_scrape(session: SessionDep, plz: Optional[str] = None):
 
     target = plz or settings.default_plz
     return {"scraped": run_scrapers(session, target), "plz": target}
+
+
+@router.post("/recategorize")
+def trigger_recategorize(session: SessionDep):
+    """Dev convenience: re-apply the classifier to all stored offers."""
+    from ..scripts.recategorize import recategorize
+
+    return {"recategorized": recategorize(session)}

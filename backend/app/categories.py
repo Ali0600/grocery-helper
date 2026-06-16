@@ -1,9 +1,10 @@
 """Canonical product categories and a German-keyword classifier.
 
-Lidl/Rewe offer names are in German, so the classifier matches German keywords.
-Rules are checked top-to-bottom and the first hit wins, so more specific buckets
-(frozen, individual meats, butter) are listed before broader ones. Tune the
-keyword lists against real scraped data during test runs.
+Lidl/Rewe offer names are in German. `classify()` applies three layers in order:
+an unambiguous brand -> category map, high-priority override tokens, then an
+ordered German-keyword ruleset (first hit wins, specific buckets before broad
+ones). The layering stops a flavour/brand word from winning over the real
+category (e.g. "Mango" in a sparkling-wine name). Tune against real scraped data.
 """
 from __future__ import annotations
 
@@ -51,9 +52,57 @@ _RULES: list[tuple[str, list[str]]] = [
 ]
 
 
-def classify(name: str) -> str:
-    """Map a raw product name to a canonical category slug."""
-    text = f" {name.lower()} "
+# Unambiguous brand -> category, checked first (highest priority). Only brands
+# that map to exactly one category belong here; multi-category house brands
+# (Milbona = milk/cheese/butter, Metzgerfrisch = any meat) are left to _RULES.
+BRAND_CATEGORY: dict[str, str] = {
+    "allini": "beverages",  # Sekt / Secco / Frizzante
+    "mister choc": "sweets",  # chocolate
+    "ritter sport": "sweets",
+    "milka": "sweets",
+    "iglo": "frozen",  # frozen-food brand
+    # non-food house brands
+    "parkside": "household",
+    "esmara": "household",
+    "livarno": "household",
+    "crelando": "household",
+    "vileda": "household",
+    "ultimate speed": "household",
+    "tapedesign": "household",
+    "jes collection": "household",
+    "silvercrest": "household",
+    "crivit": "household",
+    "w5": "household",
+}
+
+# High-priority tokens checked before the generic _RULES, so a flavour/type word
+# can't win over the real category. Short tokens are space-padded to avoid false
+# hits (e.g. " gin " vs "ginger").
+_OVERRIDES: list[tuple[str, list[str]]] = [
+    ("beverages", ["sekt", "frizzante", "secco", "prosecco", "hugo", "aperol",
+                   "likör", "aperitif", "glühwein", "wodka", "whisky", " gin ", " rum "]),
+    ("sweets", ["mister choc", "choco"]),
+]
+
+
+def classify(name: str, brand: str | None = None) -> str:
+    """Map a raw product (name + optional brand) to a canonical category slug.
+
+    Precedence: unambiguous brand map -> high-priority override tokens ->
+    ordered German-keyword rules -> "other".
+    """
+    text = f" {name.lower()} {(brand or '').lower()} "
+
+    brand_text = (brand or "").lower()
+    for brand_key, slug in BRAND_CATEGORY.items():
+        if brand_key in brand_text or brand_key in text:
+            return slug
+
+    for slug, tokens in _OVERRIDES:
+        for token in tokens:
+            if token in text:
+                return slug
+
     for slug, keywords in _RULES:
         for kw in keywords:
             if kw in text:
