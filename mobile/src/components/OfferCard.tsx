@@ -1,12 +1,12 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { euro, pct } from '../format';
+import { cleanUnit, euro, formatBrand, pct } from '../format';
 import { colors } from '../theme';
 import { Offer } from '../types';
 
 export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => void }) {
-  const meta = [offer.brand, offer.unit].filter(Boolean).join(' · ');
+  const meta = [formatBrand(offer.brand), cleanUnit(offer.unit)].filter(Boolean).join(' · ');
   return (
     <Pressable
       onPress={onPress}

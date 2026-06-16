@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 
-import { euro } from '../format';
+import { cleanUnit, euro, formatBrand } from '../format';
 import { colors } from '../theme';
 import { Offer } from '../types';
 
@@ -48,7 +48,9 @@ export function FlyerModal({ offer, onClose }: { offer: Offer | null; onClose: (
               </Text>
               {!!(offer.brand || offer.unit) && (
                 <Text style={styles.meta}>
-                  {[offer.brand, offer.unit].filter(Boolean).join(' · ')}
+                  {[formatBrand(offer.brand), cleanUnit(offer.unit)]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </Text>
               )}
 
