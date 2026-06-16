@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   RefreshControl,
   SafeAreaView,
@@ -15,6 +17,7 @@ import { CategoryChips } from '../components/CategoryChips';
 import { FlyerModal } from '../components/FlyerModal';
 import { OfferCard } from '../components/OfferCard';
 import { PlzModal } from '../components/PlzModal';
+import { SearchBar } from '../components/SearchBar';
 import { getStoredPlz, setStoredPlz } from '../storage';
 import { colors } from '../theme';
 import { CategoryCount, Offer } from '../types';
@@ -29,6 +32,7 @@ export default function DealsScreen() {
 
   const [cats, setCats] = useState<CategoryCount[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -78,55 +82,79 @@ export default function DealsScreen() {
     await setStoredPlz(newPlz);
     setStoreName(name);
     setSelected(null);
+    setQuery('');
     setPlz(newPlz);
     setPlzModal(false);
   }, []);
 
+  // Client-side text search over the loaded (category-filtered) offers.
+  const q = query.trim().toLowerCase();
+  const visibleOffers = q
+    ? offers.filter(
+        (o) =>
+          o.name.toLowerCase().includes(q) ||
+          (o.brand ?? '').toLowerCase().includes(q),
+      )
+    : offers;
+
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Grocery deals</Text>
-        <Pressable onPress={() => setPlzModal(true)} hitSlop={6}>
-          <Text style={styles.subtitle} numberOfLines={1}>
-            PLZ {plz}
-            {storeName ? ` · ${storeName}` : ''} <Text style={styles.change}>Change</Text>
-          </Text>
-        </Pressable>
-      </View>
-
-      <CategoryChips categories={cats} selected={selected} onSelect={setSelected} />
-
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.accent} />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Grocery deals</Text>
+          <Pressable onPress={() => setPlzModal(true)} hitSlop={6}>
+            <Text style={styles.subtitle} numberOfLines={1}>
+              PLZ {plz}
+              {storeName ? ` · ${storeName}` : ''} <Text style={styles.change}>Change</Text>
+            </Text>
+          </Pressable>
         </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>{error}</Text>
-        </View>
-      ) : (
-        <FlatList
-          style={styles.listFill}
-          data={offers}
-          keyExtractor={(o) => String(o.id)}
-          renderItem={({ item }) => (
-            <OfferCard offer={item} onPress={() => setActive(item)} />
-          )}
-          contentContainerStyle={styles.list}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.muted}
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.center}>
-              <Text style={styles.muted}>No deals for this PLZ / category yet.</Text>
-            </View>
-          }
-        />
-      )}
+
+        <CategoryChips categories={cats} selected={selected} onSelect={setSelected} />
+
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        ) : error ? (
+          <View style={styles.center}>
+            <Text style={styles.error}>{error}</Text>
+          </View>
+        ) : (
+          <FlatList
+            style={styles.listFill}
+            data={visibleOffers}
+            keyExtractor={(o) => String(o.id)}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            renderItem={({ item }) => (
+              <OfferCard offer={item} onPress={() => setActive(item)} />
+            )}
+            contentContainerStyle={styles.list}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.muted}
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.center}>
+                <Text style={styles.muted}>
+                  {q
+                    ? `No deals match “${query.trim()}”.`
+                    : 'No deals for this PLZ / category yet.'}
+                </Text>
+              </View>
+            }
+          />
+        )}
+
+        <SearchBar value={query} onChange={setQuery} />
+      </KeyboardAvoidingView>
 
       <FlyerModal offer={active} onClose={() => setActive(null)} />
       <PlzModal
@@ -141,6 +169,7 @@ export default function DealsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   title: { color: colors.text, fontSize: 24, fontWeight: '700' },
   subtitle: { color: colors.muted, fontSize: 13, marginTop: 2 },
@@ -149,5 +178,5 @@ const styles = StyleSheet.create({
   list: { paddingVertical: 6, paddingBottom: 24 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   error: { color: colors.badge, fontSize: 14, textAlign: 'center', lineHeight: 20 },
-  muted: { color: colors.muted, fontSize: 14 },
+  muted: { color: colors.muted, fontSize: 14, textAlign: 'center' },
 });
