@@ -14,6 +14,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 - Backend tests: `cd backend && source .venv/bin/activate && python -m pytest -q`
 - Mobile typecheck: `cd mobile && npx tsc --noEmit`
 - Mobile run: `cd mobile && npx expo start` (open on the iOS simulator).
+- Web run: `cd mobile && npm run web` (Expo Web / react-native-web; serves the
+  **same** app at `http://localhost:8081`). `App.tsx` centers a max-width column on
+  web; the backend already sends permissive CORS, so it talks to the local API.
 
 ## Important notes / gotchas
 - **Local API port is 8001**, not 8000 (8000 is usually already taken on the dev

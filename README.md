@@ -21,8 +21,10 @@ build the cheapest basket across one or two stores.
 - **Discount-ranking & multi-store basket optimization API** — a FastAPI service
   exposing endpoints to filter offers by category, rank by % discount, and
   compute the cheapest basket across one or two stores.
-- **Cross-platform mobile client** — a React Native (Expo) app consuming the API
-  to browse local deals by category, sorted by savings.
+- **Cross-platform client (iOS + web, one codebase)** — a React Native (Expo)
+  app consuming the API to browse local deals by category, sorted by savings;
+  the same code runs in the browser via Expo Web / react-native-web
+  (`npm run web`).
 - **Containerized, deployable stack** — Dockerized backend with Docker Compose +
   PostgreSQL, designed for CI/CD deployment to a PaaS with scraper health
   monitoring and alerting.
