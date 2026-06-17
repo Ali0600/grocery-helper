@@ -14,16 +14,20 @@ import { cleanUnit, euro, fmtPricePerUnit, formatBrand } from '../format';
 import { colors } from '../theme';
 import { Offer } from '../types';
 
-// Lidl's full weekly online leaflet (Prospekt).
-const LIDL_FLYER_URL = 'https://www.lidl.de/c/online-prospekte/s10005610';
+// Per-chain link to the full weekly online leaflet (Prospekt).
+const FLYER_LINKS: Record<string, { label: string; url: string }> = {
+  lidl: { label: 'Lidl', url: 'https://www.lidl.de/c/online-prospekte/s10005610' },
+  rewe: { label: 'REWE', url: 'https://www.meinprospekt.de/rewe-de' },
+};
 
 export function FlyerModal({ offer, onClose }: { offer: Offer | null; onClose: () => void }) {
+  const flyer = offer ? FLYER_LINKS[offer.chain] : null;
   return (
     <Modal visible={!!offer} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Flyer</Text>
+            <Text style={styles.headerTitle}>{flyer ? `${flyer.label} flyer` : 'Flyer'}</Text>
             <Pressable onPress={onClose} hitSlop={10}>
               <Text style={styles.close}>Close</Text>
             </Pressable>
@@ -60,12 +64,14 @@ export function FlyerModal({ offer, onClose }: { offer: Offer | null; onClose: (
                 <Text style={styles.bonus}>{`Mit Kundenkarte: ${offer.loyalty_note}`}</Text>
               )}
 
-              <Pressable
-                style={({ pressed }) => [styles.flyerBtn, pressed && styles.flyerBtnPressed]}
-                onPress={() => Linking.openURL(LIDL_FLYER_URL)}
-              >
-                <Text style={styles.flyerBtnText}>Open Lidl's full weekly flyer ↗</Text>
-              </Pressable>
+              {flyer && (
+                <Pressable
+                  style={({ pressed }) => [styles.flyerBtn, pressed && styles.flyerBtnPressed]}
+                  onPress={() => Linking.openURL(flyer.url)}
+                >
+                  <Text style={styles.flyerBtnText}>{`Open ${flyer.label}'s weekly flyer ↗`}</Text>
+                </Pressable>
+              )}
             </ScrollView>
           )}
         </View>
