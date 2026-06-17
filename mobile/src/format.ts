@@ -22,17 +22,24 @@ export const cleanUnit = (unit: string | null): string | null => {
 };
 
 /**
- * Format a source per-unit price ("1 kg = 13.33") for display -> "13,33 €/kg".
- * Strips the leading "1 " from the base unit, uses a German decimal comma, and
- * for multi-variant ranges ("1 kg = 9.97/10.83") shows the first value.
+ * Format a source per-unit price for display -> "13,32 €/kg". Handles both shapes
+ * the scrapers produce: "1 kg = 13.33" (strip the leading "1 ", German comma) and
+ * the bare "22.79 €/kg" / "0.46 €/Stk.". Multi-variant ranges show the first value.
  */
 export const fmtPricePerUnit = (ppu: string | null): string | null => {
   if (!ppu) return null;
-  const parts = ppu.split('=');
-  if (parts.length !== 2) return null;
-  const unit = parts[0].trim().replace(/^1\s+/, ''); // "1 kg" -> "kg"; "100 g" stays
-  const value = parts[1].trim().split('/')[0].trim().replace('.', ','); // first, comma
-  return unit && value ? `${value} €/${unit}` : null;
+  if (ppu.includes('=')) {
+    const [left, right] = ppu.split('=');
+    const unit = left.trim().replace(/^1\s+/, ''); // "1 kg" -> "kg"; "100 g" stays
+    const value = right.trim().split('/')[0].trim().replace('.', ',');
+    return unit && value ? `${value} €/${unit}` : null;
+  }
+  // Already "<value> €/<unit>" (e.g. "22.79 €/kg", "0.46 €/Stk.").
+  const m = ppu.match(/(-?\d+(?:[.,]\d+)?)\s*€?\s*\/\s*(\S+)/);
+  if (!m) return null;
+  const value = m[1].replace('.', ',');
+  const unit = m[2].replace(/[.,]$/, ''); // drop a trailing "." in "Stk."
+  return `${value} €/${unit}`;
 };
 
 /**

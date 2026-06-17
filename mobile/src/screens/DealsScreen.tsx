@@ -18,19 +18,31 @@ import { FlyerModal } from '../components/FlyerModal';
 import { OfferCard } from '../components/OfferCard';
 import { PlzModal } from '../components/PlzModal';
 import { SearchBar } from '../components/SearchBar';
+import { SortToggle } from '../components/SortToggle';
 import { StoresModal } from '../components/StoresModal';
 import {
   getStoredMyStores,
   getStoredPlz,
   getStoredShowNonFood,
+  getStoredSortMode,
   setStoredMyStores,
   setStoredPlz,
   setStoredShowNonFood,
+  setStoredSortMode,
+  SortMode,
 } from '../storage';
 import { colors } from '../theme';
 import { CategoryCount, MyStore, Offer } from '../types';
 
 const DEFAULT_PLZ = '10115';
+
+// Compare two values, sending nulls to the end regardless of direction.
+function byNullsLast(a: number | null, b: number | null, dir: 'asc' | 'desc'): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return dir === 'asc' ? a - b : b - a;
+}
 
 export default function DealsScreen() {
   const [plz, setPlz] = useState(DEFAULT_PLZ);
@@ -49,6 +61,7 @@ export default function DealsScreen() {
   const [showNonFood, setShowNonFood] = useState(false);
   const [storesModal, setStoresModal] = useState(false);
   const [myStores, setMyStores] = useState<MyStore[]>([]);
+  const [sortMode, setSortMode] = useState<SortMode>('discount');
 
   // Hydrate saved prefs once on mount, then let `load` run.
   useEffect(() => {
@@ -57,6 +70,7 @@ export default function DealsScreen() {
       if (stored) setPlz(stored);
       setShowNonFood(await getStoredShowNonFood());
       setMyStores(await getStoredMyStores());
+      setSortMode(await getStoredSortMode());
       setReady(true);
     })();
   }, []);
@@ -105,6 +119,11 @@ export default function DealsScreen() {
     setStoredMyStores(next);
   }, []);
 
+  const onChangeSort = useCallback((mode: SortMode) => {
+    setSortMode(mode);
+    setStoredSortMode(mode);
+  }, []);
+
   const onToggleNonFood = useCallback(() => {
     setShowNonFood((prev) => {
       const next = !prev;
@@ -128,6 +147,14 @@ export default function DealsScreen() {
     : selected
       ? base.filter((o) => o.category === selected)
       : base;
+
+  // Re-sort the filtered view by the active mode (data arrives discount-sorted).
+  // "Cheapest €/kg" ranks by normalized per-unit price; items without one sink.
+  const sorted = [...visibleOffers].sort((a, b) =>
+    sortMode === 'unit'
+      ? byNullsLast(a.unit_price_cents, b.unit_price_cents, 'asc')
+      : byNullsLast(a.discount_pct, b.discount_pct, 'desc'),
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -162,6 +189,8 @@ export default function DealsScreen() {
           onToggleNonFood={onToggleNonFood}
         />
 
+        <SortToggle mode={sortMode} onChange={onChangeSort} />
+
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator color={colors.accent} />
@@ -173,7 +202,7 @@ export default function DealsScreen() {
         ) : (
           <FlatList
             style={styles.listFill}
-            data={visibleOffers}
+            data={sorted}
             keyExtractor={(o) => String(o.id)}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"

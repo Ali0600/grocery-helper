@@ -3,6 +3,7 @@ from __future__ import annotations
 from .categories import label
 from .models import Offer
 from .schemas import OfferOut
+from .unit_price import unit_price_cents
 
 
 def offer_to_out(offer: Offer) -> OfferOut:
@@ -22,6 +23,7 @@ def offer_to_out(offer: Offer) -> OfferOut:
         discount_pct=offer.discount_pct,
         unit=offer.unit,
         price_per_unit=offer.price_per_unit,
+        unit_price_cents=unit_price_cents(offer.price_per_unit),
         loyalty_note=offer.loyalty_note,
         image_url=offer.image_url,
         valid_from=offer.valid_from,

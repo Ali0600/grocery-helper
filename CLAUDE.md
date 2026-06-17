@@ -71,4 +71,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `Offer.loyalty_note` = a REWE card bonus ("1,00 € Bonus"), parsed from an `OTHER`
   deal's description/conditions by `bonial.py` `_loyalty_note` (most bonuses lack
   the `isCard` flag, so match on the "€ Bonus" text, not `isCard`).
+- **"Cheapest €/kg" sort** uses `OfferOut.unit_price_cents` — `app/unit_price.py`
+  `unit_price_cents()` normalizes `price_per_unit` to cents per **kg or litre** on
+  one comparable axis (German Grundpreis; per-`Stück`/`wl`/`m`/malformed → None).
+  It's **computed in the serializer** (no DB column/migration); the app sorts the
+  loaded set client-side (`DealsScreen` `SortToggle`), nulls sink to the bottom.
 - **Commits**: author as the user only — no `Co-Authored-By: Claude` trailer.

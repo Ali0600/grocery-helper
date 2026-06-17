@@ -192,6 +192,8 @@ them without re-scraping. The app **hides non-food by default** with a
 - [x] Per-unit price (€/kg, €/l) shown on every offer that has one, plus REWE
       loyalty-card bonus badges ("1,00 € Bonus") — both pulled from data we
       already fetched but had been discarding
+- [x] "Cheapest €/kg" sort — ranks the current view by normalized per-unit price
+      (e.g. find the best-value beef per kg, independent of pack size)
 - [ ] In-app basket optimizer screen (1 vs 2 stores)
 - [ ] Scheduled weekly scrape + deploy to PaaS with monitoring/alerts
 - [ ] Recipes from on-sale + pantry items (later phase)

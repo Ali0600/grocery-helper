@@ -13,6 +13,7 @@ export type Offer = {
   discount_pct: number | null;
   unit: string | null;
   price_per_unit: string | null; // "1 kg = 13.33" (formatted client-side)
+  unit_price_cents: number | null; // normalized cents per kg/l, for the €/kg sort
   loyalty_note: string | null; // REWE card bonus, e.g. "1,00 € Bonus"
   image_url: string | null;
   valid_from: string | null;

@@ -5,6 +5,9 @@ import { MyStore } from './types';
 const PLZ_KEY = 'plz';
 const NONFOOD_KEY = 'showNonFood';
 const MYSTORES_KEY = 'myStores';
+const SORT_KEY = 'sortMode';
+
+export type SortMode = 'discount' | 'unit';
 
 export async function getStoredPlz(): Promise<string | null> {
   try {
@@ -50,6 +53,22 @@ export async function getStoredMyStores(): Promise<MyStore[]> {
 export async function setStoredMyStores(stores: MyStore[]): Promise<void> {
   try {
     await AsyncStorage.setItem(MYSTORES_KEY, JSON.stringify(stores));
+  } catch {
+    // best-effort
+  }
+}
+
+export async function getStoredSortMode(): Promise<SortMode> {
+  try {
+    return (await AsyncStorage.getItem(SORT_KEY)) === 'unit' ? 'unit' : 'discount';
+  } catch {
+    return 'discount';
+  }
+}
+
+export async function setStoredSortMode(mode: SortMode): Promise<void> {
+  try {
+    await AsyncStorage.setItem(SORT_KEY, mode);
   } catch {
     // best-effort
   }
