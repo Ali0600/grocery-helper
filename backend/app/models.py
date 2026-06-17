@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     func,
 )
@@ -54,6 +55,9 @@ class Offer(Base):
     name: Mapped[str] = mapped_column(String(256))
     brand: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     category: Mapped[str] = mapped_column(String(48), index=True)
+    # JSON-encoded source taxonomy path (Bonial), kept so the recategorize
+    # backfill can reproduce path-based categories without re-scraping.
+    category_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     price_cents: Mapped[int] = mapped_column(Integer)
     regular_price_cents: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     discount_pct: Mapped[Optional[float]] = mapped_column(Float, index=True, nullable=True)

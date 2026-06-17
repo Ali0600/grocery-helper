@@ -24,10 +24,49 @@ from app.categories import CATEGORIES, classify
         ("Ehrmann Almighurt", "EHRMANN", "dairy"),
         ("Valensina Saft/Nektar", "VALENSINA", "beverages"),
         ("PARKSIDE Akku-Bohrschrauber", "PARKSIDE", "household"),
+        # --- flyer-catalog keyword expansion ---
+        ("DELUXE Irisches Angus Rumpsteak", "DELUXE", "beef"),
+        ("Sol & Mar Chorizo Klassik", "Sol & Mar", "pork"),
+        ("Dulano Delikatess Bacon", "Dulano", "pork"),
+        ("Gelatelli Premium Stieleis", "Gelatelli", "frozen"),
+        ("Ferrero Hanuta", "Ferrero", "sweets"),
+        ("Moët & Chandon Impérial Champagner", "Moët & Chandon", "beverages"),
+        ("Milbona Edamer", "Milbona", "cheese"),
+        ("TRONIC Standventilator", "TRONIC", "household"),
+        # --- substring / flavour-word regressions caught in review ---
+        ("Frisches Schweinegulasch", None, "pork"),  # not beef ("gulasch")
+        ("Metzgerfrisch Schweine-Nackensteak", None, "pork"),  # not beef ("steak")
+        ("Volvic Touch Zitrone Limette", "Volvic", "beverages"),  # "limette" != Mett
+        ("Lipton Ice Tea Pfirsich", "Lipton", "beverages"),  # not fruit ("pfirsich")
+        ("Trumpf Schogetten Freeze Mango", "Trumpf", "sweets"),  # not fruit ("mango")
+        ("Häagen-Dazs Belgian Chocolate", "Häagen-Dazs", "frozen"),  # ice cream, not sweets
     ],
 )
 def test_classify(name, brand, expected):
     assert classify(name, brand) == expected
+
+
+# Bonial taxonomy paths (level-1 + product/brand nodes).
+_NONFOOD = ["Elektronik und Technik", "Marken", "Marken Möbel und Wohnen"]
+_FOOD = "Lebensmittel und Getränke"
+
+
+@pytest.mark.parametrize(
+    "name, brand, path, expected",
+    [
+        # non-food path wins even when the name has a food word ("Käse")
+        ("Käse-Reibe Edelstahl", None, _NONFOOD, "household"),
+        # product taxonomy nodes map directly
+        ("x", None, [_FOOD, "Produkte", "Lebensmittel", "Milchprodukte", "Käse", "Weichkäse"], "cheese"),
+        ("x", None, [_FOOD, "Produkte", "Lebensmittel", "Fleisch", "Wurstwaren"], "pork"),
+        ("x", None, [_FOOD, "Produkte", "Getränke", "Alkoholische Getränke"], "beverages"),
+        ("x", None, [_FOOD, "Produkte", "Lebensmittel", "Obst", "Kernobst"], "fruits"),
+        # brand-only food path -> falls back to keyword classifier on the name
+        ("Eberswalder Rostbratwurst", "Eberswalder", [_FOOD, "Marken", "Marken Lebensmittel"], "pork"),
+    ],
+)
+def test_classify_with_path(name, brand, path, expected):
+    assert classify(name, brand, path) == expected
 
 
 def test_classify_name_only_still_works():

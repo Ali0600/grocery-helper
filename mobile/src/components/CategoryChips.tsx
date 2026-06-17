@@ -4,24 +4,34 @@ import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { colors } from '../theme';
 import { CategoryCount } from '../types';
 
+const NON_FOOD = 'household';
+
 type Props = {
   categories: CategoryCount[];
   selected: string | null;
   onSelect: (slug: string | null) => void;
+  showNonFood: boolean;
+  onToggleNonFood: () => void;
 };
 
-export function CategoryChips({ categories, selected, onSelect }: Props) {
+export function CategoryChips({
+  categories,
+  selected,
+  onSelect,
+  showNonFood,
+  onToggleNonFood,
+}: Props) {
   const Chip = ({ label, value }: { label: string; value: string | null }) => {
     const active = selected === value;
     return (
-      <Pressable
-        onPress={() => onSelect(value)}
-        style={[styles.chip, active && styles.chipActive]}
-      >
+      <Pressable onPress={() => onSelect(value)} style={[styles.chip, active && styles.chipActive]}>
         <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
       </Pressable>
     );
   };
+
+  const food = categories.filter((c) => c.category !== NON_FOOD);
+  const nonFood = categories.find((c) => c.category === NON_FOOD);
 
   return (
     <ScrollView
@@ -31,9 +41,15 @@ export function CategoryChips({ categories, selected, onSelect }: Props) {
       contentContainerStyle={styles.row}
     >
       <Chip label="All" value={null} />
-      {categories.map((c) => (
+      {food.map((c) => (
         <Chip key={c.category} label={`${c.label} (${c.count})`} value={c.category} />
       ))}
+      {showNonFood && nonFood && (
+        <Chip label={`${nonFood.label} (${nonFood.count})`} value={NON_FOOD} />
+      )}
+      <Pressable onPress={onToggleNonFood} style={[styles.chip, styles.toggle]}>
+        <Text style={styles.toggleText}>{showNonFood ? '− Non-food' : '+ Non-food'}</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -55,4 +71,6 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   chipText: { color: colors.muted, fontSize: 13, fontWeight: '500' },
   chipTextActive: { color: '#08130c' },
+  toggle: { backgroundColor: 'transparent', borderStyle: 'dashed' },
+  toggleText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
 });

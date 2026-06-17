@@ -10,6 +10,8 @@ Usage:
 """
 from __future__ import annotations
 
+import json
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,7 +24,8 @@ def recategorize(session: Session) -> int:
     """Re-classify all offers in place. Returns the number of rows changed."""
     changed = 0
     for offer in session.scalars(select(Offer)).all():
-        new_category = classify(offer.name, offer.brand)
+        path = json.loads(offer.category_path) if offer.category_path else None
+        new_category = classify(offer.name, offer.brand, path)
         if new_category != offer.category:
             offer.category = new_category
             changed += 1

@@ -138,18 +138,23 @@ app stays up.
 **Rewe — next.** Same idea, but behind Cloudflare and may require a client cert
 from its app (`mobile-api.rewe.de/api/v3/all-offers?marketCode=…`).
 
-**Categorization.** Offer names are German and brand-heavy, so
-[`categories.py`](backend/app/categories.py) classifies each offer in three
-layers (first match wins): an **unambiguous brand → category map** (e.g. Allini →
-beverages, Mister Choc → sweets, Iglo → frozen, Parkside/Esmara/… → non-food),
-then **high-priority override tokens** (sekt, frizzante, secco… → beverages) so a
-flavour word like "Mango" can't beat the real category, then the ordered
-**German-keyword ruleset**. Categories are computed at scrape time and stored, so
-after tuning the rules run the backfill — `python -m app.scripts.recategorize`
-(or `POST /api/recategorize`) — to re-apply them to existing rows without
-re-scraping. Guard cases live in [`tests/test_categories.py`](backend/tests/test_categories.py)
-(`pytest`). The much larger flyer catalog still drops a chunk of items into
-"Other" — the keyword lists want further expansion.
+**Categorization.** [`categories.py`](backend/app/categories.py) classifies each
+offer with a path-aware, deterministic pipeline:
+
+1. **Source taxonomy** — for flyer offers, Bonial's structured `categoryPaths`:
+   a non-food level-1 node → "Household & Non-food"; otherwise the most specific
+   product node (`…> Käse > Weichkäse` → cheese). This handles the bulk of the
+   diverse flyer catalog.
+2. **Brand map → override tokens → German-keyword rules** — for coupons and
+   brand-only flyer food (a flavour word like "Mango"/"Pfirsich" can't beat the
+   real category; substring traps like "li**mett**e" are space-guarded).
+
+Reviewing all offers cut **"Other" from ~190 to ~2 of 482**. Categories are
+computed at scrape time and stored (with the path), so after tuning, the backfill
+— `python -m app.scripts.recategorize` (or `POST /api/recategorize`) — re-applies
+them without re-scraping. The app **hides non-food by default** with a
+"+ Non-food" toggle. Guards live in
+[`tests/test_categories.py`](backend/tests/test_categories.py) (`pytest`).
 
 ## Roadmap
 

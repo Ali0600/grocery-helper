@@ -152,6 +152,9 @@ class BonialScraper:
         regular = _deal(c, "REGULAR_PRICE")
         if regular is None:
             regular = _regular_from_label(sales, c.get("discountLabel"))
+        category_path = [
+            cp["name"] for cp in (product.get("categoryPaths") or []) if cp.get("name")
+        ]
         return ScrapedOffer(
             external_id=str(c.get("id")),
             name=name,
@@ -162,6 +165,7 @@ class BonialScraper:
             image_url=c.get("image"),
             valid_from=valid_from,
             valid_to=valid_to,
+            category_path=category_path,
         )
 
     # -- fallback sample ------------------------------------------------------

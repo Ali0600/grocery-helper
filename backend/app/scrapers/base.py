@@ -18,6 +18,9 @@ class ScrapedOffer:
     image_url: Optional[str] = None
     valid_from: Optional[date] = None
     valid_to: Optional[date] = None
+    # Source taxonomy nodes (Bonial categoryPaths), used as a categorization
+    # signal; empty for sources that don't provide one (e.g. Lidl Plus coupons).
+    category_path: List[str] = field(default_factory=list)
 
 
 @dataclass

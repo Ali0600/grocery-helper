@@ -18,7 +18,12 @@ import { FlyerModal } from '../components/FlyerModal';
 import { OfferCard } from '../components/OfferCard';
 import { PlzModal } from '../components/PlzModal';
 import { SearchBar } from '../components/SearchBar';
-import { getStoredPlz, setStoredPlz } from '../storage';
+import {
+  getStoredPlz,
+  getStoredShowNonFood,
+  setStoredPlz,
+  setStoredShowNonFood,
+} from '../storage';
 import { colors } from '../theme';
 import { CategoryCount, Offer } from '../types';
 
@@ -38,12 +43,14 @@ export default function DealsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<Offer | null>(null);
+  const [showNonFood, setShowNonFood] = useState(false);
 
-  // Hydrate the saved PLZ once on mount, then let `load` run for it.
+  // Hydrate saved prefs once on mount, then let `load` run.
   useEffect(() => {
     (async () => {
       const stored = await getStoredPlz();
       if (stored) setPlz(stored);
+      setShowNonFood(await getStoredShowNonFood());
       setReady(true);
     })();
   }, []);
@@ -87,15 +94,25 @@ export default function DealsScreen() {
     setPlzModal(false);
   }, []);
 
-  // Client-side text search over the loaded (category-filtered) offers.
+  const onToggleNonFood = useCallback(() => {
+    setShowNonFood((prev) => {
+      const next = !prev;
+      setStoredShowNonFood(next);
+      if (!next && selected === 'household') setSelected(null);
+      return next;
+    });
+  }, [selected]);
+
+  // Non-food is hidden by default; then a client-side text search.
   const q = query.trim().toLowerCase();
+  const base = showNonFood ? offers : offers.filter((o) => o.category !== 'household');
   const visibleOffers = q
-    ? offers.filter(
+    ? base.filter(
         (o) =>
           o.name.toLowerCase().includes(q) ||
           (o.brand ?? '').toLowerCase().includes(q),
       )
-    : offers;
+    : base;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -113,7 +130,13 @@ export default function DealsScreen() {
           </Pressable>
         </View>
 
-        <CategoryChips categories={cats} selected={selected} onSelect={setSelected} />
+        <CategoryChips
+          categories={cats}
+          selected={selected}
+          onSelect={setSelected}
+          showNonFood={showNonFood}
+          onToggleNonFood={onToggleNonFood}
+        />
 
         {loading ? (
           <View style={styles.center}>

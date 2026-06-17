@@ -9,6 +9,7 @@ scraper needs (its offers are location-gated).
 """
 from __future__ import annotations
 
+import json
 from typing import List, Optional
 
 from sqlalchemy import select
@@ -65,7 +66,8 @@ def _upsert(session: Session, store: Store, offers: List[ScrapedOffer], source: 
         offer.source = source
         offer.name = raw.name
         offer.brand = raw.brand
-        offer.category = categories.classify(raw.name, raw.brand)
+        offer.category_path = json.dumps(raw.category_path) if raw.category_path else None
+        offer.category = categories.classify(raw.name, raw.brand, raw.category_path)
         offer.price_cents = raw.price_cents
         offer.regular_price_cents = raw.regular_price_cents
         offer.discount_pct = _discount_pct(raw.price_cents, raw.regular_price_cents)
