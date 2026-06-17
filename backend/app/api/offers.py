@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+from collections import Counter
 from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, Query
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from ..categories import CATEGORIES, label
 from ..core.config import settings
 from ..db import SessionDep
+from ..dedup import dedup_offers
 from ..models import Offer, Store
 from ..schemas import (
     CategoryCount,
@@ -52,25 +54,30 @@ def list_offers(
         stmt = stmt.where(Offer.discount_pct >= min_discount)
     # Drop offers whose validity window has passed.
     stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= date.today()))
-    # In SQLite/Postgres, DESC orders NULLs last, so null-discount items sink.
-    stmt = stmt.order_by(
-        Offer.discount_pct.desc() if sort == "discount" else Offer.price_cents.asc()
-    ).limit(limit)
-    return [offer_to_out(o) for o in session.scalars(stmt).all()]
+    # Collapse the same product repeated across brochures/sources, then sort +
+    # limit in Python (dedup changes the count, so SQL LIMIT can't go first).
+    rows = dedup_offers(session.scalars(stmt).all())
+    if sort == "discount":
+        rows.sort(key=lambda o: o.discount_pct if o.discount_pct is not None else -1.0, reverse=True)
+    else:
+        rows.sort(key=lambda o: o.price_cents)
+    return [offer_to_out(o) for o in rows[:limit]]
 
 
 @router.get("/categories", response_model=List[CategoryCount])
 def list_categories(session: SessionDep, plz: Optional[str] = None):
-    """Categories that currently have offers, with counts (for filter chips)."""
-    stmt = select(Offer.category, func.count(Offer.id)).join(Store).group_by(
-        Offer.category
+    """Categories that currently have offers, with counts (for filter chips).
+
+    Counts distinct products (deduped) so the chip number matches the deduped list.
+    """
+    stmt = select(Offer).join(Store).where(
+        (Offer.valid_to.is_(None)) | (Offer.valid_to >= date.today())
     )
     if plz:
         stmt = stmt.where(Store.plz == plz)
-    stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= date.today()))
-    counts = {cat: cnt for cat, cnt in session.execute(stmt).all()}
+    counts = Counter(o.category for o in dedup_offers(session.scalars(stmt).all()))
     return [
-        CategoryCount(category=slug, label=lbl, count=counts.get(slug, 0))
+        CategoryCount(category=slug, label=lbl, count=counts[slug])
         for slug, lbl in CATEGORIES.items()
         if counts.get(slug, 0) > 0
     ]

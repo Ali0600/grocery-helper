@@ -32,6 +32,17 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   chains push a Berlin PLZ to ~1300 offers, so `/api/offers` `limit` cap and the
   app's load are **2000** (not 1000); a 3rd chain → move search server-side
   (`q` param) rather than raising it again.
+- **Offers are de-duplicated at serve time** (`app/dedup.py`, used by both
+  `/api/offers` and `/api/categories` so list and chip counts agree). A chain
+  publishes several weekly brochures, so the flyer feed repeats a product across
+  them (distinct content ids → distinct `external_id`s in the DB), and a product
+  can be in both a coupon and the flyer. `dedup_offers` collapses by
+  `(store, normalized-name, price_cents)` — name norm unifies curly/straight
+  apostrophes ("Butcher's"/"Butcher’s") — keeping the **richest** copy (has
+  `price_per_unit`, then a discount, then flyer). Cut a Berlin PLZ ~1322→~738 live
+  offers. The DB still stores the dups (serve-time only); a scrape-time
+  reconcile/purge would also shrink the table but risks wiping real data on a
+  sample-fallback, so it's deferred.
 - **Nearby-stores directory is separate from deal scraping** (`app/services/
   store_locator.py`, `GET /api/nearby-stores`): finds the nearest branch of each
   allowlisted chain (lidl/rewe/edeka/aldi/netto/penny/kaufland) via **OpenStreetMap
