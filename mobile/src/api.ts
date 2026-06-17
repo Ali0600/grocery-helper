@@ -19,12 +19,13 @@ async function post<T>(path: string): Promise<T> {
 export const api = {
   base: BASE,
 
-  offers(params: { plz?: string; category?: string; sort?: 'discount' | 'price' } = {}) {
+  // Load the whole PLZ set; the app does category/search/non-food filtering
+  // client-side, so search covers every deal (not just the top-ranked ones).
+  offers(params: { plz?: string; sort?: 'discount' | 'price' } = {}) {
     const q = new URLSearchParams();
     if (params.plz) q.set('plz', params.plz);
-    if (params.category) q.set('category', params.category);
     q.set('sort', params.sort ?? 'discount');
-    q.set('limit', '200');
+    q.set('limit', '1000');
     return get<Offer[]>(`/api/offers?${q.toString()}`);
   },
 

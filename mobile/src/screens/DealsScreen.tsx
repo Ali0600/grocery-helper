@@ -60,7 +60,7 @@ export default function DealsScreen() {
     setError(null);
     try {
       const [o, c, stores] = await Promise.all([
-        api.offers({ plz, category: selected ?? undefined }),
+        api.offers({ plz }),
         api.categories(plz),
         api.stores(),
       ]);
@@ -72,7 +72,7 @@ export default function DealsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [plz, selected, ready]);
+  }, [plz, ready]);
 
   useEffect(() => {
     setLoading(true);
@@ -103,7 +103,9 @@ export default function DealsScreen() {
     });
   }, [selected]);
 
-  // Non-food is hidden by default; then a client-side text search.
+  // Everything is filtered client-side from the full PLZ set. Non-food is hidden
+  // unless toggled on; a search matches name/brand across all categories (it
+  // ignores the selected chip), otherwise the selected category filters.
   const q = query.trim().toLowerCase();
   const base = showNonFood ? offers : offers.filter((o) => o.category !== 'household');
   const visibleOffers = q
@@ -112,7 +114,9 @@ export default function DealsScreen() {
           o.name.toLowerCase().includes(q) ||
           (o.brand ?? '').toLowerCase().includes(q),
       )
-    : base;
+    : selected
+      ? base.filter((o) => o.category === selected)
+      : base;
 
   return (
     <SafeAreaView style={styles.safe}>
