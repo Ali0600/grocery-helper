@@ -1,7 +1,7 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { cleanUnit, euro, formatBrand, pct } from '../format';
+import { cleanUnit, euro, fmtPricePerUnit, formatBrand, pct } from '../format';
 import { colors } from '../theme';
 import { Offer } from '../types';
 
@@ -14,6 +14,7 @@ function chainLabel(chain: string): string {
 export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => void }) {
   const meta = [formatBrand(offer.brand), cleanUnit(offer.unit)].filter(Boolean).join(' · ');
   const isRewe = offer.chain === 'rewe';
+  const perUnit = fmtPricePerUnit(offer.price_per_unit);
   return (
     <Pressable
       onPress={onPress}
@@ -59,6 +60,11 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
               {offer.source === 'flyer' ? 'Prospekt' : 'Coupon'}
             </Text>
           </View>
+          {offer.loyalty_note ? (
+            <View style={styles.loyaltyPill}>
+              <Text style={styles.loyaltyText}>{offer.loyalty_note}</Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -67,6 +73,7 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
         {offer.regular_price_cents != null && (
           <Text style={styles.was}>{euro(offer.regular_price_cents)}</Text>
         )}
+        {perUnit ? <Text style={styles.ppu}>{perUnit}</Text> : null}
       </View>
     </Pressable>
   );
@@ -115,7 +122,14 @@ const styles = StyleSheet.create({
   srcFlyer: { backgroundColor: 'rgba(240,180,60,0.16)' },
   srcTextCoupon: { color: '#7da7ff' },
   srcTextFlyer: { color: '#e6b34d' },
-  priceCol: { alignItems: 'flex-end', minWidth: 64 },
+  loyaltyPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(61,220,132,0.16)',
+  },
+  loyaltyText: { color: colors.accent, fontSize: 10, fontWeight: '700' },
+  priceCol: { alignItems: 'flex-end', minWidth: 72 },
   price: { color: colors.text, fontSize: 17, fontWeight: '700' },
   was: {
     color: colors.muted,
@@ -123,4 +137,5 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
     marginTop: 2,
   },
+  ppu: { color: colors.muted, fontSize: 11, marginTop: 3 },
 });

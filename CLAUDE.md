@@ -60,7 +60,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   After re-seeding the file, touch a backend `.py`
   (`python3 -c "import os; os.utime('app/main.py', None)"`) to force a reload +
   fresh pool.
-- **DB schema**: dev uses SQLite and recreates the file on first run; new columns
-  (`Offer.source`, `Offer.category_path`) mean **Postgres needs a real migration**
-  (no Alembic yet).
+- **DB schema**: new `Offer` columns (`source`, `category_path`, `price_per_unit`,
+  `loyalty_note`) need the table rebuilt — `create_all()` only creates missing
+  *tables*, not columns. Dev: `ALTER TABLE offers ADD COLUMN …` (or delete
+  `grocery.db`) then re-scrape; **Postgres needs a real migration** (no Alembic yet).
+- **Per-unit price & loyalty bonus are display-only fields** pulled from data we
+  used to discard: `Offer.price_per_unit` = the source's per-unit string
+  ("1 kg = 13.33"), from the flyer `priceByBaseUnit` / Lidl `pricePerUnit`
+  (formatted client-side by `mobile/src/format.ts` `fmtPricePerUnit`).
+  `Offer.loyalty_note` = a REWE card bonus ("1,00 € Bonus"), parsed from an `OTHER`
+  deal's description/conditions by `bonial.py` `_loyalty_note` (most bonuses lack
+  the `isCard` flag, so match on the "€ Bonus" text, not `isCard`).
 - **Commits**: author as the user only — no `Co-Authored-By: Claude` trailer.

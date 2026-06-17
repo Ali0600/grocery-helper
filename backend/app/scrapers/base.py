@@ -15,6 +15,11 @@ class ScrapedOffer:
     regular_price_cents: Optional[int] = None
     brand: Optional[str] = None
     unit: Optional[str] = None
+    # Per-unit price as the source gives it, e.g. "1 kg = 13.33" (flyer
+    # priceByBaseUnit / Lidl pricePerUnit). Formatted for display in the app.
+    price_per_unit: Optional[str] = None
+    # A loyalty-card bonus line, e.g. "1,00 € Bonus" (REWE flyer only).
+    loyalty_note: Optional[str] = None
     image_url: Optional[str] = None
     valid_from: Optional[date] = None
     valid_to: Optional[date] = None

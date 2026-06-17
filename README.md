@@ -189,6 +189,9 @@ them without re-scraping. The app **hides non-food by default** with a
 - [x] Nearby-stores directory ("Stores"): nearest Lidl/REWE/Edeka/Aldi/Netto/
       Penny/Kaufland with addresses (OpenStreetMap), add non-active chains to a
       saved "My stores" list — groundwork for onboarding more chains
+- [x] Per-unit price (€/kg, €/l) shown on every offer that has one, plus REWE
+      loyalty-card bonus badges ("1,00 € Bonus") — both pulled from data we
+      already fetched but had been discarding
 - [ ] In-app basket optimizer screen (1 vs 2 stores)
 - [ ] Scheduled weekly scrape + deploy to PaaS with monitoring/alerts
 - [ ] Recipes from on-sale + pantry items (later phase)

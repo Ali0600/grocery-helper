@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 
-import { cleanUnit, euro, formatBrand } from '../format';
+import { cleanUnit, euro, fmtPricePerUnit, formatBrand } from '../format';
 import { colors } from '../theme';
 import { Offer } from '../types';
 
@@ -52,6 +52,12 @@ export function FlyerModal({ offer, onClose }: { offer: Offer | null; onClose: (
                     .filter(Boolean)
                     .join(' · ')}
                 </Text>
+              )}
+              {!!offer.price_per_unit && (
+                <Text style={styles.meta}>Grundpreis: {fmtPricePerUnit(offer.price_per_unit)}</Text>
+              )}
+              {!!offer.loyalty_note && (
+                <Text style={styles.bonus}>{`Mit Kundenkarte: ${offer.loyalty_note}`}</Text>
               )}
 
               <Pressable
@@ -106,6 +112,7 @@ const styles = StyleSheet.create({
   price: { color: colors.text, fontSize: 20, fontWeight: '700', marginTop: 8 },
   was: { color: colors.muted, fontSize: 14, fontWeight: '400', textDecorationLine: 'line-through' },
   meta: { color: colors.muted, fontSize: 13, marginTop: 6 },
+  bonus: { color: colors.accent, fontSize: 14, fontWeight: '600', marginTop: 8 },
   muted: { color: colors.muted, fontSize: 14 },
   flyerBtn: {
     marginTop: 22,

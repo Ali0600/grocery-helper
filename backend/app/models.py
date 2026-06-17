@@ -62,6 +62,10 @@ class Offer(Base):
     regular_price_cents: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     discount_pct: Mapped[Optional[float]] = mapped_column(Float, index=True, nullable=True)
     unit: Mapped[Optional[str]] = mapped_column(String(48), nullable=True)
+    # Per-unit price string from the source ("1 kg = 13.33"); display-only.
+    price_per_unit: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    # Loyalty-card bonus ("1,00 € Bonus"), REWE flyer only; display-only.
+    loyalty_note: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     image_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     valid_from: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     valid_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

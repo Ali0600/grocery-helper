@@ -182,6 +182,8 @@ class MeinprospektScraper:
             regular_price_cents=round(regular * 100) if regular else None,
             brand=brand,
             unit=unit,
+            price_per_unit=_base_unit(c),
+            loyalty_note=_loyalty_note(c),
             image_url=c.get("image"),
             valid_from=valid_from,
             valid_to=valid_to,
@@ -254,6 +256,38 @@ def _deal(content: dict, deal_type: str) -> Optional[float]:
     for d in content.get("deals") or []:
         if d.get("type") == deal_type and d.get("max") is not None:
             return float(d["max"])
+    return None
+
+
+def _base_unit(content: dict) -> Optional[str]:
+    """The sale per-unit price string ("1 kg = 13.33") off the SALES_PRICE deal,
+    when the flyer provides one (it's empty for ~25% of offers)."""
+    for d in content.get("deals") or []:
+        if d.get("type") == "SALES_PRICE":
+            value = (d.get("priceByBaseUnit") or "").strip()
+            if value:
+                return value
+    return None
+
+
+_BONUS_RE = re.compile(r"\d+[.,]\d{2}\s*€\s*Bonus", re.IGNORECASE)
+
+
+def _loyalty_note(content: dict) -> Optional[str]:
+    """A REWE bonus ("1,00 € Bonus") on an OTHER deal — collected with the loyalty
+    card/app. The amount sits in the deal description or a condition's free-text
+    `other` field, often amid noise, so pull just the canonical "X,XX € Bonus"."""
+    for d in content.get("deals") or []:
+        if d.get("type") != "OTHER":
+            continue
+        candidates = list((d.get("description") or "").splitlines())
+        for cond in d.get("conditions") or []:
+            if isinstance(cond.get("other"), str):
+                candidates.append(cond["other"])
+        for text in candidates:
+            m = _BONUS_RE.search(text)
+            if m:
+                return m.group(0).strip()
     return None
 
 

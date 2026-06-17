@@ -20,6 +20,8 @@ class OfferOut(BaseModel):
     regular_price_cents: Optional[int] = None
     discount_pct: Optional[float] = None
     unit: Optional[str] = None
+    price_per_unit: Optional[str] = None  # "1 kg = 13.33", formatted client-side
+    loyalty_note: Optional[str] = None  # REWE card bonus, e.g. "1,00 € Bonus"
     image_url: Optional[str] = None
     valid_from: Optional[date] = None
     valid_to: Optional[date] = None

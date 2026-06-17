@@ -121,6 +121,9 @@ class LidlScraper:
             regular_price_cents=round(float(regular) * 100) if regular is not None else None,
             brand=o.get("brand") or None,
             unit=self._unit(o),
+            # The sale per-unit price (e.g. "1 kg = 1.93"); separate from `unit`,
+            # which still falls back to this string only when packaging is absent.
+            price_per_unit=(o.get("pricePerUnit") or "").strip() or None,
             image_url=o.get("imageUrl"),
             valid_from=self._parse_date(o.get("startValidityDate")),
             valid_to=self._parse_date(o.get("endValidityDate")),
