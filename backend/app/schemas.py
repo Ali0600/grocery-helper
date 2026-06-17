@@ -11,6 +11,7 @@ class OfferOut(BaseModel):
     store_id: int
     chain: str
     store_name: str
+    source: str  # "coupon" (Lidl Plus) or "flyer" (Prospekt)
     name: str
     brand: Optional[str] = None
     category: str

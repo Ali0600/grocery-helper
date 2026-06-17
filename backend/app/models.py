@@ -48,7 +48,9 @@ class Offer(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
-    external_id: Mapped[str] = mapped_column(String(128))
+    external_id: Mapped[str] = mapped_column(String(160))
+    # Where the offer came from: "coupon" (Lidl Plus app) or "flyer" (Prospekt).
+    source: Mapped[str] = mapped_column(String(16), default="coupon", index=True)
     name: Mapped[str] = mapped_column(String(256))
     brand: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     category: Mapped[str] = mapped_column(String(48), index=True)

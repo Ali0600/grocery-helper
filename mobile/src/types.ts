@@ -3,6 +3,7 @@ export type Offer = {
   store_id: number;
   chain: string;
   store_name: string;
+  source: 'coupon' | 'flyer';
   name: string;
   brand: string | null;
   category: string;

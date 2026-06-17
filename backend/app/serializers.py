@@ -12,6 +12,7 @@ def offer_to_out(offer: Offer) -> OfferOut:
         store_id=offer.store_id,
         chain=offer.store.chain,
         store_name=offer.store.name,
+        source=offer.source,
         name=offer.name,
         brand=offer.brand,
         category=offer.category,

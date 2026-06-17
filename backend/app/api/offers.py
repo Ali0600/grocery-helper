@@ -29,9 +29,10 @@ def list_offers(
     category: Optional[str] = None,
     chain: Optional[str] = None,
     plz: Optional[str] = None,
+    source: Optional[str] = Query(None, pattern="^(coupon|flyer)$"),
     min_discount: Optional[float] = Query(None, ge=0, le=100),
     sort: str = Query("discount", pattern="^(discount|price)$"),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(200, ge=1, le=1000),
 ):
     """List offers, filterable by category/chain/plz/min-discount.
 
@@ -44,6 +45,8 @@ def list_offers(
         stmt = stmt.where(Store.chain == chain)
     if plz:
         stmt = stmt.where(Store.plz == plz)
+    if source:
+        stmt = stmt.where(Offer.source == source)
     if min_discount is not None:
         stmt = stmt.where(Offer.discount_pct >= min_discount)
     # Drop offers whose validity window has passed.

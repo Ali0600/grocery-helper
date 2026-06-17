@@ -32,7 +32,21 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
         {meta ? <Text style={styles.meta}>{meta}</Text> : null}
         <View style={styles.tagRow}>
           <Text style={styles.tag}>{offer.category_label}</Text>
-          <Text style={styles.store}>{offer.chain.toUpperCase()}</Text>
+          <View
+            style={[
+              styles.srcPill,
+              offer.source === 'flyer' ? styles.srcFlyer : styles.srcCoupon,
+            ]}
+          >
+            <Text
+              style={[
+                styles.srcText,
+                offer.source === 'flyer' ? styles.srcTextFlyer : styles.srcTextCoupon,
+              ]}
+            >
+              {offer.source === 'flyer' ? 'Prospekt' : 'Coupon'}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -77,7 +91,12 @@ const styles = StyleSheet.create({
   meta: { color: colors.muted, fontSize: 12, marginTop: 2 },
   tagRow: { flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center' },
   tag: { color: colors.accent, fontSize: 11, fontWeight: '600' },
-  store: { color: colors.muted, fontSize: 11, letterSpacing: 0.5 },
+  srcPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  srcText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
+  srcCoupon: { backgroundColor: 'rgba(61,139,253,0.16)' },
+  srcFlyer: { backgroundColor: 'rgba(240,180,60,0.16)' },
+  srcTextCoupon: { color: '#7da7ff' },
+  srcTextFlyer: { color: '#e6b34d' },
   priceCol: { alignItems: 'flex-end', minWidth: 64 },
   price: { color: colors.text, fontSize: 17, fontWeight: '700' },
   was: {

@@ -1,0 +1,460 @@
+{
+ "contents": [
+  {
+   "number": 1,
+   "offers": [
+    {
+     "placement": "",
+     "adFormat": null,
+     "content": {
+      "id": "28295514-4d52-41ca-8211-6263d56b6c56",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-1013",
+       "name": "Lidl",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/28295514-4d52-41ca-8211-6263d56b6c56/main.jpg",
+      "discountLabel": {
+       "value": "0.50",
+       "type": "DISCOUNT_AMOUNT"
+      },
+      "parentContent": {
+       "id": "444f5e62-64b7-4791-8415-327b6f3f275b",
+       "legacyId": 2501149708,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.9782972,
+          "y": 0.719764
+         },
+         "topLeft": {
+          "x": 0.6627713,
+          "y": 0.32350048
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Rostbratwurst",
+        "brandName": "Eberswalder",
+        "description": [
+         {
+          "paragraph": "Ohne Darm 300 g"
+         }
+        ],
+        "images": [
+         {
+          "url": "https://content-media.bonial.biz/28295514-4d52-41ca-8211-6263d56b6c56/ab0dd61f-4b0d-409f-b4a4-0c23f026c84a.jpg",
+          "dimensions": {
+           "width": 356,
+           "height": 506
+          }
+         },
+         {
+          "url": "https://content-media.bonial.biz/28295514-4d52-41ca-8211-6263d56b6c56/58b019b3-f3f2-4c92-9ab0-890b8d96c727.jpg",
+          "dimensions": {
+           "width": 337,
+           "height": 542
+          }
+         }
+        ],
+        "categoryPaths": [
+         {
+          "id": "DE-104",
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "id": "DE-48989303",
+          "name": "Marken"
+         },
+         {
+          "id": "DE-106949053",
+          "name": "Marken Lebensmittel"
+         },
+         {
+          "id": "DE-493605373",
+          "name": "Eberswalder"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 1.99,
+        "min": 1.99,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 kg = 6.63",
+        "description": ""
+       },
+       {
+        "type": "REGULAR_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 2.49,
+        "min": 2.49,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 kg = 6.63",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-06-14T22:00:00.000+0000",
+         "endDate": "2026-06-20T18:00:00.000+0000"
+        }
+       }
+      ]
+     },
+     "externalTracking": {
+      "impression": [],
+      "click": []
+     }
+    },
+    {
+     "placement": "",
+     "adFormat": null,
+     "content": {
+      "id": "657248b6-ae94-48db-a9b0-ece9e8787724",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-1013",
+       "name": "Lidl",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/657248b6-ae94-48db-a9b0-ece9e8787724/main.jpg",
+      "discountLabel": {
+       "value": "0.16",
+       "type": "DISCOUNT_AMOUNT"
+      },
+      "parentContent": {
+       "id": "444f5e62-64b7-4791-8415-327b6f3f275b",
+       "legacyId": 2501149708,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.6627713,
+          "y": 0.719764
+         },
+         "topLeft": {
+          "x": 0.3338898,
+          "y": 0.32350048
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Senf mittelscharf",
+        "brandName": "Bautz'ner",
+        "description": [
+         {
+          "paragraph": "200 ml"
+         }
+        ],
+        "images": [
+         {
+          "url": "https://content-media.bonial.biz/657248b6-ae94-48db-a9b0-ece9e8787724/ab0dd61f-4b0d-409f-b4a4-0c23f026c84a.jpg",
+          "dimensions": {
+           "width": 356,
+           "height": 506
+          }
+         },
+         {
+          "url": "https://content-media.bonial.biz/657248b6-ae94-48db-a9b0-ece9e8787724/78689d5d-4dfc-48b9-8515-8e5cf836ad3a.jpg",
+          "dimensions": {
+           "width": 331,
+           "height": 323
+          }
+         }
+        ],
+        "categoryPaths": [
+         {
+          "id": "DE-104",
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "id": "DE-48989303",
+          "name": "Marken"
+         },
+         {
+          "id": "DE-106949053",
+          "name": "Marken Lebensmittel"
+         },
+         {
+          "id": "DE-23586807",
+          "name": "Bautzner"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 0.39,
+        "min": 0.39,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 l = 1.95",
+        "description": ""
+       },
+       {
+        "type": "REGULAR_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 0.55,
+        "min": 0.55,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-06-14T22:00:00.000+0000",
+         "endDate": "2026-06-20T18:00:00.000+0000"
+        }
+       }
+      ]
+     },
+     "externalTracking": {
+      "impression": [],
+      "click": []
+     }
+    },
+    {
+     "placement": "",
+     "adFormat": null,
+     "content": {
+      "id": "f391edb2-e930-4423-9b72-52b4ba27da40",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-1013",
+       "name": "Lidl",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/f391edb2-e930-4423-9b72-52b4ba27da40/main.jpg",
+      "parentContent": {
+       "id": "444f5e62-64b7-4791-8415-327b6f3f275b",
+       "legacyId": 2501149708,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.6627713,
+          "y": 0.93706983
+         },
+         "topLeft": {
+          "x": 0.3338898,
+          "y": 0.74237955
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Original",
+        "brandName": "Rondo",
+        "description": [
+         {
+          "paragraph": "Vollmundig-kräftiger Geschmack durch handverlesene Bohnen - ein echtes Original 500 g"
+         }
+        ],
+        "images": [
+         {
+          "url": "https://content-media.bonial.biz/f391edb2-e930-4423-9b72-52b4ba27da40/82dc7d92-5547-4064-9ab1-24b858a7ec24.jpg",
+          "dimensions": {
+           "width": 203,
+           "height": 357
+          }
+         }
+        ],
+        "categoryPaths": [
+         {
+          "id": "DE-104",
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "id": "DE-48989303",
+          "name": "Marken"
+         },
+         {
+          "id": "DE-106949053",
+          "name": "Marken Lebensmittel"
+         },
+         {
+          "id": "DE-131705610",
+          "name": "Rondo"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [
+         {
+          "other": "Je"
+         }
+        ],
+        "currencyCode": "EUR",
+        "max": 5.49,
+        "min": 5.49,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 kg = 10.98",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-06-14T22:00:00.000+0000",
+         "endDate": "2026-06-20T18:00:00.000+0000"
+        }
+       }
+      ]
+     },
+     "externalTracking": {
+      "impression": [],
+      "click": []
+     }
+    },
+    {
+     "placement": "",
+     "adFormat": null,
+     "content": {
+      "id": "c5c79454-5702-4ba1-9f18-a8c31a7a5568",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-1013",
+       "name": "Lidl",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/c5c79454-5702-4ba1-9f18-a8c31a7a5568/main.jpg",
+      "discountLabel": {
+       "value": "0.50",
+       "type": "DISCOUNT_AMOUNT"
+      },
+      "parentContent": {
+       "id": "444f5e62-64b7-4791-8415-327b6f3f275b",
+       "legacyId": 2501149708,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.3338898,
+          "y": 0.93706983
+         },
+         "topLeft": {
+          "x": 0.008347246,
+          "y": 0.74237955
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Hexenkerze Vanille",
+        "description": [
+         {
+          "paragraph": "Vanillegeschmack, Milchproteineis mit knackiger Schokolade 320 ml 8 x 40 ml"
+         }
+        ],
+        "images": [
+         {
+          "url": "https://content-media.bonial.biz/c5c79454-5702-4ba1-9f18-a8c31a7a5568/53c21bd6-5390-4bd0-a05d-93f264bf8703.jpg",
+          "dimensions": {
+           "width": 300,
+           "height": 191
+          }
+         }
+        ],
+        "categoryPaths": [
+         {
+          "id": "DE-104",
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "id": "DE-105",
+          "name": "Produkte"
+         },
+         {
+          "id": "DE-48921103",
+          "name": "Lebensmittel"
+         },
+         {
+          "id": "DE-13927",
+          "name": "Dessert"
+         },
+         {
+          "id": "DE-5881",
+          "name": "Eis"
+         },
+         {
+          "id": "DE-103703041",
+          "name": "Stieleis"
+         },
+         {
+          "id": "DE-235144917",
+          "name": "Eis am Stiel"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 1.99,
+        "min": 1.99,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 l = 6.22",
+        "description": ""
+       },
+       {
+        "type": "REGULAR_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 2.49,
+        "min": 2.49,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-06-14T22:00:00.000+0000",
+         "endDate": "2026-06-20T18:00:00.000+0000"
+        }
+       }
+      ]
+     },
+     "externalTracking": {
+      "impression": [],
+      "click": []
+     }
+    }
+   ]
+  }
+ ]
+}

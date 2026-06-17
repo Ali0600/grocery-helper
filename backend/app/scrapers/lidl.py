@@ -38,6 +38,7 @@ BERLIN_LAT, BERLIN_LNG = 52.52, 13.405
 class LidlScraper:
     chain = "lidl"
     country = "DE"
+    source = "coupon"  # Lidl Plus app coupons
 
     def __init__(self, client: Optional[httpx.Client] = None) -> None:
         self._client = client
@@ -45,11 +46,14 @@ class LidlScraper:
     def fetch(self, plz: str) -> ScrapeResult:
         try:
             store, offers = self._fetch_live(plz)
+            loc = store.get("location") or {}
             return ScrapeResult(
                 chain=self.chain,
                 store_name=store.get("name") or f"Lidl {plz}",
                 plz=plz,
                 market_code=store.get("storeKey"),
+                lat=loc.get("latitude"),
+                lng=loc.get("longitude"),
                 offers=offers,
             )
         except Exception:

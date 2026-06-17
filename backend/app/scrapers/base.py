@@ -28,4 +28,6 @@ class ScrapeResult:
     store_name: str
     plz: str
     market_code: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     offers: List[ScrapedOffer] = field(default_factory=list)

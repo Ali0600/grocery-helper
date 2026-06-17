@@ -117,13 +117,23 @@ docker compose up --build
 
 ## Scrapers
 
-**Lidl — live.** [`backend/app/scrapers/lidl.py`](backend/app/scrapers/lidl.py)
-resolves the nearest store for a postal code via the Lidl Plus store-autocomplete
-endpoint, then pulls that store's current offers from `offers.lidlplus.com`. Each
-offer carries a struck-through regular price, so exact % discounts are computed
-directly. If the endpoint changes or is unreachable, it falls back to sample data
-so the app stays up. (Endpoints adapted from
-[EvickaStudio/lidl-discounts](https://github.com/EvickaStudio/lidl-discounts).)
+Two sources feed each Lidl store, tagged by `Offer.source`:
+
+**Lidl Plus coupons** (`source="coupon"`) —
+[`lidl.py`](backend/app/scrapers/lidl.py): resolves the nearest store for a postal
+code via the Lidl Plus store-autocomplete endpoint, then pulls that store's app
+coupons from `offers.lidlplus.com` (clean prices + exact discounts; ~50 items).
+Endpoints adapted from
+[EvickaStudio/lidl-discounts](https://github.com/EvickaStudio/lidl-discounts).
+
+**Weekly Aktionsprospekt** (`source="flyer"`) —
+[`bonial.py`](backend/app/scrapers/bonial.py): the full printed weekly leaflet via
+meinprospekt (a Bonial property). Discovers Lidl's current brochure from the
+publisher page (`__NEXT_DATA__`) using the store's coordinates, then pulls ~430
+**structured** offers — name, brand, `SALES_PRICE` + `REGULAR_PRICE` (→ exact %),
+image, validity. No OCR needed; the data is already structured. Runs weekly with
+backoff (Bonial soft-throttles bursts). Both feeds fall back to sample data so the
+app stays up.
 
 **Rewe — next.** Same idea, but behind Cloudflare and may require a client cert
 from its app (`mobile-api.rewe.de/api/v3/all-offers?marketCode=…`).
@@ -138,16 +148,20 @@ flavour word like "Mango" can't beat the real category, then the ordered
 after tuning the rules run the backfill — `python -m app.scripts.recategorize`
 (or `POST /api/recategorize`) — to re-apply them to existing rows without
 re-scraping. Guard cases live in [`tests/test_categories.py`](backend/tests/test_categories.py)
-(`pytest`).
+(`pytest`). The much larger flyer catalog still drops a chunk of items into
+"Other" — the keyword lists want further expansion.
 
 ## Roadmap
 
 - [x] Backend pipeline: scrape → normalize → categorize → discount % → store
 - [x] API: offers, categories, stores, basket optimizer
 - [x] Live Lidl scraper (Lidl Plus store + offers endpoints; PLZ → nearest store)
+- [x] Weekly Aktionsprospekt via Bonial/meinprospekt — ~430 structured flyer
+      offers alongside the coupons, each tagged `coupon`/`flyer` in the app
 - [x] React Native app: live deals by category, ranked by % off, with per-offer
       flyer images + tap-to-view (links to Lidl's full weekly Prospekt)
 - [x] Set your postal code in-app — resolves the nearest Lidl and persists it
+- [x] In-app search bar + Coupon/Prospekt source badges
 - [ ] Rewe scraper (Cloudflare / market resolution by PLZ)
 - [ ] In-app basket optimizer screen (1 vs 2 stores)
 - [ ] Scheduled weekly scrape + deploy to PaaS with monitoring/alerts
