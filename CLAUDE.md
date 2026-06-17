@@ -32,6 +32,16 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   chains push a Berlin PLZ to ~1300 offers, so `/api/offers` `limit` cap and the
   app's load are **2000** (not 1000); a 3rd chain → move search server-side
   (`q` param) rather than raising it again.
+- **Nearby-stores directory is separate from deal scraping** (`app/services/
+  store_locator.py`, `GET /api/nearby-stores`): finds the nearest branch of each
+  allowlisted chain (lidl/rewe/edeka/aldi/netto/penny/kaufland) via **OpenStreetMap
+  Overpass** — `node/way["shop"="supermarket"]` + haversine, brand-prefix
+  normalization (Aldi Nord→aldi, Netto Marken-Discount→netto). `active` = chain in
+  `ACTIVE_CHAINS` (the ones we scrape). Public Overpass instances 504 a lot → tries
+  mirrors in order + caches per-area (24h) + returns `[]` on total failure. These
+  are **not** persisted as `Store` rows; the app's "My stores" saved list lives
+  client-side (`mobile/src/storage.ts`, key `myStores`). Pure selection logic
+  (`_select_nearest`) is fixture-tested — no live API in tests.
 - **Categorization is path-aware** (`app/categories.py`): for flyer offers,
   Bonial's `categoryPaths` is the primary signal (non-food level-1 node →
   household; product node → category); coupons + brand-only flyer food fall back

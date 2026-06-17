@@ -12,6 +12,7 @@ from ..db import SessionDep
 from ..models import Offer, Store
 from ..schemas import (
     CategoryCount,
+    NearbyStoreOut,
     OfferOut,
     OptimizeRequest,
     OptimizeResponse,
@@ -82,6 +83,53 @@ def list_stores(session: SessionDep):
         StoreOut(id=s.id, chain=s.chain, name=s.name, plz=s.plz, market_code=s.market_code)
         for s in stores
     ]
+
+
+@router.get("/nearby-stores", response_model=List[NearbyStoreOut])
+def list_nearby_stores(
+    session: SessionDep,
+    plz: Optional[str] = None,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+):
+    """Nearest store of each known chain around the PLZ (or explicit lat/lng).
+
+    Lidl/REWE come back `active=True` (we scrape them); the rest are address-only
+    placeholders the app can add to a "My stores" list. Data is OpenStreetMap via
+    Overpass; an empty list means all mirrors were unreachable.
+    """
+    from ..services.store_locator import nearby_stores
+
+    if lat is None or lng is None:
+        target = plz or settings.default_plz
+        # A scraped store for this PLZ already has coordinates; reuse them.
+        store = session.scalar(
+            select(Store).where(Store.plz == target, Store.lat.is_not(None)).limit(1)
+        )
+        if store is not None:
+            lat, lng = store.lat, store.lng
+        else:
+            lat, lng = _resolve_plz_coords(target)
+    if lat is None or lng is None:
+        return []  # couldn't locate the PLZ; app shows a "set your PLZ" message
+
+    return [NearbyStoreOut(**vars(s)) for s in nearby_stores(lat, lng)]
+
+
+def _resolve_plz_coords(plz: str) -> tuple[Optional[float], Optional[float]]:
+    """Best-effort PLZ -> lat/lng via the Lidl Plus store autocomplete (the same
+    lookup the scraper uses), for PLZs not yet scraped."""
+    import httpx
+
+    from ..scrapers.lidl import HEADERS as LIDL_HEADERS, LidlScraper
+
+    try:
+        with httpx.Client(timeout=20, follow_redirects=True, headers=LIDL_HEADERS) as c:
+            store = LidlScraper()._nearest_store(c, plz)
+        loc = store.get("location") or {}
+        return loc.get("latitude"), loc.get("longitude")
+    except Exception:
+        return None, None
 
 
 @router.post("/optimize", response_model=OptimizeResponse)

@@ -18,14 +18,17 @@ import { FlyerModal } from '../components/FlyerModal';
 import { OfferCard } from '../components/OfferCard';
 import { PlzModal } from '../components/PlzModal';
 import { SearchBar } from '../components/SearchBar';
+import { StoresModal } from '../components/StoresModal';
 import {
+  getStoredMyStores,
   getStoredPlz,
   getStoredShowNonFood,
+  setStoredMyStores,
   setStoredPlz,
   setStoredShowNonFood,
 } from '../storage';
 import { colors } from '../theme';
-import { CategoryCount, Offer } from '../types';
+import { CategoryCount, MyStore, Offer } from '../types';
 
 const DEFAULT_PLZ = '10115';
 
@@ -44,6 +47,8 @@ export default function DealsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<Offer | null>(null);
   const [showNonFood, setShowNonFood] = useState(false);
+  const [storesModal, setStoresModal] = useState(false);
+  const [myStores, setMyStores] = useState<MyStore[]>([]);
 
   // Hydrate saved prefs once on mount, then let `load` run.
   useEffect(() => {
@@ -51,6 +56,7 @@ export default function DealsScreen() {
       const stored = await getStoredPlz();
       if (stored) setPlz(stored);
       setShowNonFood(await getStoredShowNonFood());
+      setMyStores(await getStoredMyStores());
       setReady(true);
     })();
   }, []);
@@ -94,6 +100,11 @@ export default function DealsScreen() {
     setPlzModal(false);
   }, []);
 
+  const onChangeMyStores = useCallback((next: MyStore[]) => {
+    setMyStores(next);
+    setStoredMyStores(next);
+  }, []);
+
   const onToggleNonFood = useCallback(() => {
     setShowNonFood((prev) => {
       const next = !prev;
@@ -125,7 +136,16 @@ export default function DealsScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Grocery deals</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Grocery deals</Text>
+            <Pressable
+              onPress={() => setStoresModal(true)}
+              style={({ pressed }) => [styles.storesBtn, pressed && styles.storesBtnPressed]}
+              hitSlop={6}
+            >
+              <Text style={styles.storesBtnText}>Stores</Text>
+            </Pressable>
+          </View>
           <Pressable onPress={() => setPlzModal(true)} hitSlop={6}>
             <Text style={styles.subtitle} numberOfLines={1}>
               PLZ {plz}
@@ -190,6 +210,13 @@ export default function DealsScreen() {
         onClose={() => setPlzModal(false)}
         onApplied={onApplied}
       />
+      <StoresModal
+        visible={storesModal}
+        plz={plz}
+        myStores={myStores}
+        onChangeMyStores={onChangeMyStores}
+        onClose={() => setStoresModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -198,7 +225,18 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { color: colors.text, fontSize: 24, fontWeight: '700' },
+  storesBtn: {
+    backgroundColor: colors.card2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  storesBtnPressed: { opacity: 0.7 },
+  storesBtnText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   subtitle: { color: colors.muted, fontSize: 13, marginTop: 2 },
   change: { color: colors.accent, fontWeight: '600' },
   listFill: { flex: 1 },

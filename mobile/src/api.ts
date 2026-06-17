@@ -1,4 +1,4 @@
-import { CategoryCount, Offer, ScrapeResult, Store } from './types';
+import { CategoryCount, NearbyStore, Offer, ScrapeResult, Store } from './types';
 
 // Override per-environment via mobile/.env (EXPO_PUBLIC_API_URL). On a physical
 // phone, localhost won't resolve — set this to your machine's LAN IP.
@@ -40,6 +40,14 @@ export const api = {
 
   stores() {
     return get<Store[]>('/api/stores');
+  },
+
+  // Nearest store of each known chain around the PLZ (OSM); active=true for
+  // chains we scrape deals for. Empty list => store data was unreachable.
+  nearbyStores(plz?: string) {
+    const q = new URLSearchParams();
+    if (plz) q.set('plz', plz);
+    return get<NearbyStore[]>(`/api/nearby-stores?${q.toString()}`);
   },
 
   // Scrape the nearest store for a PLZ on demand and return the resolved store(s).

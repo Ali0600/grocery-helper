@@ -39,6 +39,17 @@ class StoreOut(BaseModel):
     market_code: Optional[str] = None
 
 
+class NearbyStoreOut(BaseModel):
+    chain: str
+    label: str
+    name: str
+    address: Optional[str] = None
+    lat: float
+    lng: float
+    distance_m: int
+    active: bool  # True for chains we scrape deals for (lidl/rewe)
+
+
 class OptimizeRequest(BaseModel):
     categories: List[str]
     store_count: int = 1  # 1 = single best store, 2+ = cherry-pick across stores

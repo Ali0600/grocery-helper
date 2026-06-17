@@ -31,6 +31,26 @@ export type Store = {
   market_code: string | null;
 };
 
+// A nearby store of a known chain, from /api/nearby-stores (OSM).
+export type NearbyStore = {
+  chain: string;
+  label: string;
+  name: string;
+  address: string | null;
+  lat: number;
+  lng: number;
+  distance_m: number;
+  active: boolean; // chains we already scrape deals for (lidl/rewe)
+};
+
+// A store the user saved to "My stores" (persisted locally; address-only for now).
+export type MyStore = {
+  chain: string;
+  label: string;
+  name: string;
+  address: string | null;
+};
+
 export type ScrapeResult = {
   plz: string;
   scraped: number;

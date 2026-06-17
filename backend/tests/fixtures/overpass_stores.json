@@ -1,0 +1,55 @@
+{
+  "elements": [
+    {
+      "type": "node", "id": 1, "lat": 52.5010, "lon": 13.4010,
+      "tags": {"shop": "supermarket", "brand": "Edeka", "name": "EDEKA Müller",
+               "addr:street": "Hauptstraße", "addr:housenumber": "10",
+               "addr:postcode": "10115", "addr:city": "Berlin"}
+    },
+    {
+      "type": "node", "id": 2, "lat": 52.5100, "lon": 13.4100,
+      "tags": {"shop": "supermarket", "brand": "EDEKA", "name": "EDEKA Far",
+               "addr:street": "Weitweg", "addr:housenumber": "99", "addr:postcode": "10119"}
+    },
+    {
+      "type": "node", "id": 3, "lat": 52.4995, "lon": 13.3995,
+      "tags": {"shop": "supermarket", "brand": "REWE", "name": "REWE City"}
+    },
+    {
+      "type": "node", "id": 4, "lat": 52.5005, "lon": 13.4008,
+      "tags": {"shop": "supermarket", "brand": "Lidl", "name": "Lidl",
+               "addr:street": "Kleiststraße", "addr:housenumber": "3-6",
+               "addr:postcode": "10115", "addr:city": "Berlin"}
+    },
+    {
+      "type": "node", "id": 5, "lat": 52.4990, "lon": 13.3990,
+      "tags": {"shop": "supermarket", "brand": "Aldi Nord", "name": "ALDI",
+               "addr:street": "Richardstraße", "addr:housenumber": "2", "addr:postcode": "10115"}
+    },
+    {
+      "type": "node", "id": 6, "lat": 52.5012, "lon": 13.4015,
+      "tags": {"shop": "supermarket", "brand": "Netto Marken-Discount",
+               "name": "Netto Marken-Discount", "addr:street": "Martin-Luther-Str.",
+               "addr:housenumber": "24", "addr:postcode": "10115"}
+    },
+    {
+      "type": "node", "id": 7, "lat": 52.4985, "lon": 13.4020,
+      "tags": {"shop": "supermarket", "brand": "Penny", "name": "Penny",
+               "addr:street": "Grunewaldstraße", "addr:housenumber": "36", "addr:postcode": "10115"}
+    },
+    {
+      "type": "way", "id": 8, "center": {"lat": 52.5030, "lon": 13.3970},
+      "tags": {"shop": "supermarket", "brand": "Kaufland", "name": "Kaufland",
+               "addr:street": "Storkower Str.", "addr:housenumber": "1", "addr:postcode": "10115"}
+    },
+    {
+      "type": "node", "id": 9, "lat": 52.5002, "lon": 13.4002,
+      "tags": {"shop": "supermarket", "brand": "Denns BioMarkt", "name": "Denns BioMarkt",
+               "addr:street": "Ökostraße", "addr:housenumber": "1"}
+    },
+    {
+      "type": "node", "id": 10, "lat": 52.5003, "lon": 13.4001,
+      "tags": {"shop": "supermarket", "name": "Go Asia", "addr:street": "Asienweg"}
+    }
+  ]
+}

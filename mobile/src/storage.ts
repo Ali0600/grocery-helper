@@ -1,7 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { MyStore } from './types';
+
 const PLZ_KEY = 'plz';
 const NONFOOD_KEY = 'showNonFood';
+const MYSTORES_KEY = 'myStores';
 
 export async function getStoredPlz(): Promise<string | null> {
   try {
@@ -30,6 +33,23 @@ export async function getStoredShowNonFood(): Promise<boolean> {
 export async function setStoredShowNonFood(value: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(NONFOOD_KEY, value ? '1' : '0');
+  } catch {
+    // best-effort
+  }
+}
+
+export async function getStoredMyStores(): Promise<MyStore[]> {
+  try {
+    const raw = await AsyncStorage.getItem(MYSTORES_KEY);
+    return raw ? (JSON.parse(raw) as MyStore[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function setStoredMyStores(stores: MyStore[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(MYSTORES_KEY, JSON.stringify(stores));
   } catch {
     // best-effort
   }

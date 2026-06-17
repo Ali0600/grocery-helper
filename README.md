@@ -30,6 +30,10 @@ build the cheapest basket across one or two stores.
   publisher-parameterized engine normalizes two German chains (Lidl + REWE) from
   three feeds (a private mobile coupon API and structured weekly-flyer data) into
   one schema, tagged by chain/source, powering a cross-store basket optimizer.
+- **Geospatial store discovery** — an OpenStreetMap Overpass integration that
+  finds the nearest branch of each major chain around a postal code (haversine
+  ranking, multi-mirror failover, response caching), powering an in-app
+  "nearby stores" directory with a saved-stores list.
 - **Resilient scraping design** — store-agnostic normalization layer and
   fall-back data paths so a single upstream change never takes the app down.
 
@@ -116,6 +120,7 @@ docker compose up --build
 | GET    | `/api/offers`     | Offers; filter by `category`/`chain`/`plz`/`min_discount`, `sort=discount\|price` |
 | GET    | `/api/categories` | Categories that currently have offers, w/ counts |
 | GET    | `/api/stores`     | Known stores                                     |
+| GET    | `/api/nearby-stores` | Nearest branch of each major chain near a PLZ (OSM); `active` flag for chains we scrape |
 | POST   | `/api/optimize`   | Cheapest basket across 1–2 stores                |
 | POST   | `/api/scrape`     | Re-run scrapers on demand (dev)                  |
 | POST   | `/api/recategorize` | Re-apply the classifier to stored offers (dev) |
@@ -181,6 +186,9 @@ them without re-scraping. The app **hides non-food by default** with a
 - [x] In-app search bar + Coupon/Prospekt source badges
 - [x] REWE as a second chain (meinprospekt "Dein Markt" flyer, publisher
       `DE-1062`), with a per-offer store badge (Lidl/REWE) in the app
+- [x] Nearby-stores directory ("Stores"): nearest Lidl/REWE/Edeka/Aldi/Netto/
+      Penny/Kaufland with addresses (OpenStreetMap), add non-active chains to a
+      saved "My stores" list — groundwork for onboarding more chains
 - [ ] In-app basket optimizer screen (1 vs 2 stores)
 - [ ] Scheduled weekly scrape + deploy to PaaS with monitoring/alerts
 - [ ] Recipes from on-sale + pantry items (later phase)
