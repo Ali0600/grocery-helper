@@ -1,0 +1,340 @@
+{
+ "contents": [
+  {
+   "number": 1,
+   "offers": [
+    {
+     "content": {
+      "id": "29e553ec-eee9-4fe0-a266-acefbd826030",
+      "publisher": {
+       "id": "DE-1062",
+       "name": "REWE"
+      },
+      "image": "https://content-media.bonial.biz/29e553ec-eee9-4fe0-a266-acefbd826030/main.jpg",
+      "discountLabel": null,
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [
+         {
+          "other": "Je"
+         }
+        ],
+        "currencyCode": "EUR",
+        "max": 1.11,
+        "min": 1.11,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": ""
+       }
+      ],
+      "products": [
+       {
+        "name": "Wassermelone",
+        "brandName": null,
+        "description": [
+         {
+          "paragraph": "Italien Kl. I, kernarm je 1 kg"
+         }
+        ],
+        "categoryPaths": [
+         {
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "name": "Produkte"
+         },
+         {
+          "name": "Lebensmittel"
+         },
+         {
+          "name": "Obst"
+         },
+         {
+          "name": "Melone"
+         },
+         {
+          "name": "Wassermelone"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "content": {
+      "id": "185f3183-a7b3-42f7-bda7-82dfc11a7e30",
+      "publisher": {
+       "id": "DE-1062",
+       "name": "REWE"
+      },
+      "image": "https://content-media.bonial.biz/185f3183-a7b3-42f7-bda7-82dfc11a7e30/main.jpg",
+      "discountLabel": null,
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 1.79,
+        "min": 1.79,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 kg = 13.77",
+        "description": "Cheddar Käse Scheiben"
+       }
+      ],
+      "products": [
+       {
+        "name": "Cheddar Käse Scheiben",
+        "brandName": "Kerrygold",
+        "description": [
+         {
+          "paragraph": "130 g"
+         }
+        ],
+        "categoryPaths": [
+         {
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "name": "Produkte"
+         },
+         {
+          "name": "Lebensmittel"
+         },
+         {
+          "name": "Milchprodukte"
+         },
+         {
+          "name": "Käse"
+         },
+         {
+          "name": "Hartkäse"
+         },
+         {
+          "name": "Cheddar"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "content": {
+      "id": "406ee4cb-e6dc-4454-8a15-f859e6659222",
+      "publisher": {
+       "id": "DE-1062",
+       "name": "REWE"
+      },
+      "image": "https://content-media.bonial.biz/406ee4cb-e6dc-4454-8a15-f859e6659222/main.jpg",
+      "discountLabel": null,
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 1.11,
+        "min": 1.11,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 kg = 7.40",
+        "description": "Französische Kräuter"
+       }
+      ],
+      "products": [
+       {
+        "name": "Französische Kräuter",
+        "brandName": "Mirée",
+        "description": [
+         {
+          "paragraph": "65% Fett i.Tr. je 150-g-Becher"
+         }
+        ],
+        "categoryPaths": [
+         {
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "name": "Marken"
+         },
+         {
+          "name": "Marken Lebensmittel"
+         },
+         {
+          "name": "Miree"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "content": {
+      "id": "50444e4e-9a04-40e8-bd87-4d225273ed04",
+      "publisher": {
+       "id": "DE-1062",
+       "name": "REWE"
+      },
+      "image": "https://content-media.bonial.biz/50444e4e-9a04-40e8-bd87-4d225273ed04/main.jpg",
+      "discountLabel": null,
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 1.49,
+        "min": 1.49,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 kg = 11.92",
+        "description": ""
+       }
+      ],
+      "products": [
+       {
+        "name": "Teewurst oder Leberwurst",
+        "brandName": "Rügenwalder",
+        "description": [
+         {
+          "paragraph": "versch. Sorten 125-g-Becher"
+         }
+        ],
+        "categoryPaths": [
+         {
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "name": "Produkte"
+         },
+         {
+          "name": "Lebensmittel"
+         },
+         {
+          "name": "Wurstwaren"
+         },
+         {
+          "name": "Wurst"
+         },
+         {
+          "name": "Streichwurst"
+         },
+         {
+          "name": "Leberwurst"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "content": {
+      "id": "20d19090-7aab-434f-b316-91ee72aff423",
+      "publisher": {
+       "id": "DE-1062",
+       "name": "REWE"
+      },
+      "image": "https://content-media.bonial.biz/20d19090-7aab-434f-b316-91ee72aff423/main.jpg",
+      "discountLabel": null,
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 1.49,
+        "min": 1.49,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 kg = 3.24",
+        "description": ""
+       }
+      ],
+      "products": [
+       {
+        "name": "Activia Joghurt",
+        "brandName": "Danone",
+        "description": [
+         {
+          "paragraph": "versch. Sorten 4 x 115-g-Becher"
+         }
+        ],
+        "categoryPaths": [
+         {
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "name": "Marken"
+         },
+         {
+          "name": "Marken Lebensmittel"
+         },
+         {
+          "name": "Danone"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "content": {
+      "id": "1493d7de-fb5a-4de1-a3b1-3abda17d525c",
+      "publisher": {
+       "id": "DE-1062",
+       "name": "REWE"
+      },
+      "image": "https://content-media.bonial.biz/1493d7de-fb5a-4de1-a3b1-3abda17d525c/main.jpg",
+      "discountLabel": null,
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 10.99,
+        "min": 10.99,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 l = 15.70",
+        "description": "Carta Blanca Superior"
+       }
+      ],
+      "products": [
+       {
+        "name": "Carta Blanca Superior",
+        "brandName": "Bacardi",
+        "description": [
+         {
+          "paragraph": "37,5% Vol. 0,7-l-Fl."
+         }
+        ],
+        "categoryPaths": [
+         {
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "name": "Produkte"
+         },
+         {
+          "name": "Getränke"
+         },
+         {
+          "name": "Alkoholische Getränke"
+         },
+         {
+          "name": "Spirituosen"
+         },
+         {
+          "name": "Rum"
+         },
+         {
+          "name": "Rum-Marken"
+         },
+         {
+          "name": "Bacardi"
+         },
+         {
+          "name": "Bacardi Razz"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

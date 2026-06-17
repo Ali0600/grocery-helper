@@ -1,11 +1,13 @@
 """Scrape -> normalize -> persist orchestration.
 
-Two sources feed the same Lidl store, tagged by ``Offer.source``:
+Two sources tagged by ``Offer.source`` feed the Lidl store:
   - "coupon": Lidl Plus app coupons (clean, exact discounts; smaller set)
   - "flyer":  the weekly Aktionsprospekt via Bonial/meinprospekt (full breadth)
 
-The Lidl Plus lookup also resolves the store's coordinates, which the flyer
-scraper needs (its offers are location-gated).
+REWE is added as a second chain (its own store) from the same meinprospekt
+"flyer" pipeline. The Lidl Plus lookup resolves the postal code's coordinates,
+which both flyer scrapers need (their offers are location-gated); REWE reuses
+them, since a Berlin PLZ resolves to one brochure region.
 """
 from __future__ import annotations
 
@@ -18,7 +20,7 @@ from sqlalchemy.orm import Session
 from .. import categories
 from ..models import Offer, Store
 from .base import ScrapedOffer, ScrapeResult
-from .bonial import BonialScraper
+from .bonial import BonialScraper, ReweScraper
 from .lidl import LidlScraper
 
 
@@ -91,10 +93,16 @@ def run_scrapers(session: Session, plz: str) -> int:
     store = _get_or_create_store(session, result)
     total += _upsert(session, store, result.offers, source=lidl.source)
 
-    # 2. Weekly Aktionsprospekt via Bonial, using the resolved coordinates.
+    # 2. Weekly Aktionsprospekt via meinprospekt, using the resolved coordinates.
     if store.lat is not None and store.lng is not None:
         flyer = BonialScraper().fetch(plz, store.lat, store.lng)
         total += _upsert(session, store, flyer.offers, source="flyer")
+
+        # 3. REWE's weekly flyer (same pipeline, second chain + store).
+        rewe_scraper = ReweScraper()
+        rewe = rewe_scraper.fetch(plz, store.lat, store.lng)
+        rewe_store = _get_or_create_store(session, rewe)
+        total += _upsert(session, rewe_store, rewe.offers, source=rewe_scraper.source)
 
     session.commit()
     return total

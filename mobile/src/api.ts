@@ -21,11 +21,14 @@ export const api = {
 
   // Load the whole PLZ set; the app does category/search/non-food filtering
   // client-side, so search covers every deal (not just the top-ranked ones).
+  // Two chains (Lidl + REWE) push a Berlin PLZ past ~1300 offers, so the limit
+  // is generous; if a 3rd chain pushes a PLZ over this, move search server-side
+  // (a `q` param on /api/offers) rather than raising it further.
   offers(params: { plz?: string; sort?: 'discount' | 'price' } = {}) {
     const q = new URLSearchParams();
     if (params.plz) q.set('plz', params.plz);
     q.set('sort', params.sort ?? 'discount');
-    q.set('limit', '1000');
+    q.set('limit', '2000');
     return get<Offer[]>(`/api/offers?${q.toString()}`);
   },
 

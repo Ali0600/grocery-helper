@@ -5,8 +5,15 @@ import { cleanUnit, euro, formatBrand, pct } from '../format';
 import { colors } from '../theme';
 import { Offer } from '../types';
 
+const CHAIN_LABELS: Record<string, string> = { lidl: 'Lidl', rewe: 'REWE' };
+
+function chainLabel(chain: string): string {
+  return CHAIN_LABELS[chain] ?? chain.charAt(0).toUpperCase() + chain.slice(1);
+}
+
 export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => void }) {
   const meta = [formatBrand(offer.brand), cleanUnit(offer.unit)].filter(Boolean).join(' · ');
+  const isRewe = offer.chain === 'rewe';
   return (
     <Pressable
       onPress={onPress}
@@ -32,6 +39,11 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
         {meta ? <Text style={styles.meta}>{meta}</Text> : null}
         <View style={styles.tagRow}>
           <Text style={styles.tag}>{offer.category_label}</Text>
+          <View style={[styles.chainPill, isRewe ? styles.chainRewe : styles.chainLidl]}>
+            <Text style={[styles.chainText, isRewe ? styles.chainTextRewe : styles.chainTextLidl]}>
+              {chainLabel(offer.chain)}
+            </Text>
+          </View>
           <View
             style={[
               styles.srcPill,
@@ -89,8 +101,14 @@ const styles = StyleSheet.create({
   body: { flex: 1, paddingRight: 8 },
   name: { color: colors.text, fontSize: 15, fontWeight: '600' },
   meta: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  tagRow: { flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center' },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6, alignItems: 'center' },
   tag: { color: colors.accent, fontSize: 11, fontWeight: '600' },
+  chainPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  chainText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
+  chainLidl: { backgroundColor: 'rgba(0,90,200,0.18)' },
+  chainRewe: { backgroundColor: 'rgba(204,12,45,0.18)' },
+  chainTextLidl: { color: '#6ea8ff' },
+  chainTextRewe: { color: '#ff8597' },
   srcPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   srcText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
   srcCoupon: { backgroundColor: 'rgba(61,139,253,0.16)' },

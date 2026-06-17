@@ -1,21 +1,29 @@
-"""Bonial / meinprospekt scraper — Lidl's weekly Aktionsprospekt (the real flyer).
+"""Meinprospekt / Bonial scraper — the weekly Aktionsprospekt (the real flyer).
 
 The Lidl Plus scraper (`lidl.py`) returns app *coupons*; this returns the full
 printed weekly leaflet, which meinprospekt (a Bonial property) exposes as
-STRUCTURED offers — name, brand, sales + regular price, image, validity — so no
-OCR is needed.
+STRUCTURED offers — name, brand, sales (+ sometimes regular) price, image,
+validity — so no OCR is needed.
+
+It started Lidl-only but the pipeline is publisher-agnostic, so it's now a
+generic engine (`MeinprospektScraper`) parameterized by publisher; each chain is
+a thin subclass:
+  - Lidl (publisher ``DE-1013``) -> :class:`BonialScraper`
+  - REWE (publisher ``DE-1062``) -> :class:`ReweScraper`
 
 Flow:
-  1. discover Lidl's currently-valid weekly brochure(s) from the publisher page
-     (the page embeds them in a Next.js ``__NEXT_DATA__`` blob)
+  1. discover the publisher's currently-valid weekly brochure(s) from its
+     meinprospekt page (the page embeds them in a Next.js ``__NEXT_DATA__`` blob)
   2. fetch each brochure's pages -> structured offers
   3. map to ScrapedOffer; the discount comes from SALES_PRICE vs REGULAR_PRICE,
-     falling back to the offer's discountLabel to recover more discounts
+     falling back to the offer's discountLabel to recover more discounts. (Lidl
+     flyers carry regular prices; REWE's "Dein Markt" flyer usually does not, so
+     most REWE offers list a price without a % discount.)
 
 Offers are location-gated, so a store lat/lng is required (we reuse the one the
-Lidl Plus store lookup already resolves). Bonial soft-throttles bursts, so this
-is meant to run weekly with caching; on any failure we fall back to sample data
-so the rest of the app keeps working.
+Lidl Plus store lookup already resolves for the postal code). Bonial soft-
+throttles bursts, so this is meant to run weekly with caching; on any failure we
+fall back to sample data so the rest of the app keeps working.
 """
 from __future__ import annotations
 
@@ -28,8 +36,6 @@ import httpx
 
 from .base import ScrapedOffer, ScrapeResult
 
-PUBLISHER_ID = "DE-1013"  # Lidl (the page also embeds other retailers' brochures)
-PUBLISHER_PAGE = "https://www.meinprospekt.de/lidl"
 BE = "https://content-viewer-be.meinprospekt.de"
 CONSUMER = "meinprospekt"
 HEADERS = {
@@ -48,25 +54,36 @@ _NEXT_DATA_RE = re.compile(
 )
 
 
-class BonialScraper:
-    chain = "lidl"
+class MeinprospektScraper:
+    """Generic engine: discover one publisher's current weekly brochure(s) from
+    its meinprospekt page, then pull each brochure's structured offers.
+
+    Subclasses set the publisher config (``publisher_id``, ``publisher_page``,
+    ``chain``, ``store_label``) and a ``_sample`` fallback.
+    """
+
     source = "flyer"  # weekly Aktionsprospekt
+    publisher_id: str = ""
+    publisher_page: str = ""
+    chain: str = ""
+    store_label: str = ""
 
     def __init__(self, client: Optional[httpx.Client] = None) -> None:
         self._client = client
 
     def fetch(self, plz: str, lat: float, lng: float) -> ScrapeResult:
+        store_name = f"{self.store_label} {plz}"
         try:
             offers = self._fetch_live(lat, lng)
             if not offers:
-                raise RuntimeError("Bonial returned no flyer offers")
+                raise RuntimeError(f"{self.chain}: meinprospekt returned no flyer offers")
             return ScrapeResult(
-                chain=self.chain, store_name=f"Lidl {plz}", plz=plz,
+                chain=self.chain, store_name=store_name, plz=plz,
                 lat=lat, lng=lng, offers=offers,
             )
         except Exception:
             return ScrapeResult(
-                chain=self.chain, store_name=f"Lidl {plz}", plz=plz,
+                chain=self.chain, store_name=store_name, plz=plz,
                 lat=lat, lng=lng, offers=self._sample(),
             )
 
@@ -92,7 +109,7 @@ class BonialScraper:
                 client.close()
 
     def _current_brochures(self, client: httpx.Client) -> List[dict]:
-        resp = client.get(PUBLISHER_PAGE, headers={"Accept": "text/html"})
+        resp = client.get(self.publisher_page, headers={"Accept": "text/html"})
         resp.raise_for_status()
         m = _NEXT_DATA_RE.search(resp.text)
         if not m:
@@ -106,25 +123,28 @@ class BonialScraper:
             if vf and vu and vf <= now <= vu and (vu - vf).days <= MAX_FLYER_DAYS:
                 active.append({"id": bid, "valid_from": vf.date(), "valid_to": vu.date()})
         if not active:
-            raise RuntimeError("no active weekly Lidl brochure found")
+            raise RuntimeError(f"no active weekly brochure for {self.chain}")
         return active
 
-    @staticmethod
-    def _collect_brochures(node, out: dict) -> None:
+    def _collect_brochures(self, node, out: dict) -> None:
+        """Walk the page blob collecting brochures published by *this* chain
+        (the page also embeds competitors' brochures)."""
         if isinstance(node, dict):
-            publisher = (node.get("publisher") or {}).get("id")
+            pub = node.get("publisher")
+            # `publisher` is usually a dict, but some nodes carry a list — guard it.
+            pub_id = pub.get("id") if isinstance(pub, dict) else None
             if (
                 node.get("pageCount")
                 and node.get("validUntil")
                 and node.get("id") is not None
-                and publisher == PUBLISHER_ID  # Lidl only, not embedded competitors
+                and pub_id == self.publisher_id
             ):
                 out.setdefault(str(node["id"]), node)
             for v in node.values():
-                BonialScraper._collect_brochures(v, out)
+                self._collect_brochures(v, out)
         elif isinstance(node, list):
             for v in node:
-                BonialScraper._collect_brochures(v, out)
+                self._collect_brochures(v, out)
 
     # -- parsing (pure; unit-tested against a saved fixture) ------------------
 
@@ -146,7 +166,7 @@ class BonialScraper:
             return None  # not a priced offer
         product = (c.get("products") or [{}])[0]
         brand = product.get("brandName") or None
-        name = " ".join(x for x in [brand, product.get("name")] if x) or "Lidl Angebot"
+        name = " ".join(x for x in [brand, product.get("name")] if x) or "Angebot"
         desc = product.get("description") or []
         unit = (desc[0] or {}).get("paragraph") if desc else None
         regular = _deal(c, "REGULAR_PRICE")
@@ -168,7 +188,19 @@ class BonialScraper:
             category_path=category_path,
         )
 
-    # -- fallback sample ------------------------------------------------------
+    # -- fallback sample (overridden per chain) -------------------------------
+
+    def _sample(self) -> List[ScrapedOffer]:
+        return []
+
+
+class BonialScraper(MeinprospektScraper):
+    """Lidl's weekly Aktionsprospekt (kept as the original class name)."""
+
+    publisher_id = "DE-1013"  # Lidl
+    publisher_page = "https://www.meinprospekt.de/lidl"
+    chain = "lidl"
+    store_label = "Lidl"
 
     def _sample(self) -> List[ScrapedOffer]:
         today = date.today()
@@ -184,6 +216,37 @@ class BonialScraper:
             o("fl-002", "Heinz Tomatenketchup", 179, 279, "800 ml", "Heinz"),
             o("fl-003", "Brunch Kräuter", 129, 189, "250 g", "Brunch"),
             o("fl-004", "Nautica Räucherlachs", 349, 429, "200 g", "Nautica"),
+        ]
+
+
+class ReweScraper(MeinprospektScraper):
+    """REWE's weekly "Dein Markt" Prospekt (publisher ``DE-1062``).
+
+    Same structured meinprospekt pipeline as Lidl, but REWE's flyer carries no
+    struck-through regular price, so most offers list a price without a discount %.
+    """
+
+    publisher_id = "DE-1062"  # REWE
+    publisher_page = "https://www.meinprospekt.de/rewe-de"
+    chain = "rewe"
+    store_label = "REWE"
+
+    def _sample(self) -> List[ScrapedOffer]:
+        today = date.today()
+        end = today + timedelta(days=6)
+
+        def o(ext, name, price, regular, unit, brand=None):
+            return ScrapedOffer(external_id=ext, name=name, price_cents=price,
+                                regular_price_cents=regular, unit=unit, brand=brand,
+                                valid_from=today, valid_to=end)
+
+        # REWE flyer prices have no "old" price, so these mirror reality: no regular.
+        return [
+            o("rw-001", "Rauch Happy Day Saft", 199, None, "1 l", "Rauch"),
+            o("rw-002", "Radeberger Pilsner", 999, None, "20x0,5 l", "Radeberger"),
+            o("rw-003", "Wagner Steinofen Pizza Salami", 199, None, "320 g", "Wagner"),
+            o("rw-004", "Milram Gewürzquark", 99, None, "200 g", "Milram"),
+            o("rw-005", "Rügenwalder Teewurst", 149, None, "125 g", "Rügenwalder"),
         ]
 
 

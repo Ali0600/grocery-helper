@@ -19,10 +19,19 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 - **Local API port is 8001**, not 8000 (8000 is usually already taken on the dev
   machine). `mobile/.env` → `EXPO_PUBLIC_API_URL=http://localhost:8001`. The iOS
   simulator reaches the Mac via `localhost`; a physical phone needs the LAN IP.
-- **Two data sources, tagged `Offer.source`**: `coupon` (Lidl Plus app endpoints,
-  `app/scrapers/lidl.py`) and `flyer` (Bonial/meinprospekt weekly Prospekt,
-  `app/scrapers/bonial.py`). Both attach to the same Lidl store; the flyer feed is
-  location-gated and reuses the lat/lng the Lidl Plus lookup resolves.
+- **Two sources × two chains, tagged `Offer.source` / `Store.chain`**: `coupon`
+  (Lidl Plus app endpoints, `app/scrapers/lidl.py`) and `flyer`
+  (meinprospekt weekly Prospekt, `app/scrapers/bonial.py`). `bonial.py` is a
+  publisher-parameterized engine (`MeinprospektScraper`): `BonialScraper` =
+  **Lidl** (publisher `DE-1013`, page `/lidl`), `ReweScraper` = **REWE**
+  (publisher `DE-1062`, page `/rewe-de`). The flyer feed is location-gated and
+  reuses the lat/lng the Lidl Plus lookup resolves; REWE is a **separate store**
+  (`chain="rewe"`) reusing those PLZ coords (a Berlin PLZ → one brochure region).
+  **REWE's flyer has no regular price** → most REWE offers have no `discount_pct`
+  (they sink under discount-sort but the optimizer ranks by absolute price). Two
+  chains push a Berlin PLZ to ~1300 offers, so `/api/offers` `limit` cap and the
+  app's load are **2000** (not 1000); a 3rd chain → move search server-side
+  (`q` param) rather than raising it again.
 - **Categorization is path-aware** (`app/categories.py`): for flyer offers,
   Bonial's `categoryPaths` is the primary signal (non-food level-1 node →
   household; product node → category); coupons + brand-only flyer food fall back

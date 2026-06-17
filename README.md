@@ -5,9 +5,10 @@ weekly offers ("Angebote") from local supermarket chains, normalizes and
 categorizes them, computes the **% discount** for every item, and helps you
 build the cheapest basket across one or two stores.
 
-> **Status:** v1 in progress. **Live Lidl offers** + API + the React Native app
-> work end-to-end — real Berlin prices, resolved from your postal code via the
-> Lidl Plus endpoints. Rewe is next. See [Roadmap](#roadmap).
+> **Status:** v1 in progress. **Live Lidl + REWE offers** + API + the React
+> Native app work end-to-end — real Berlin prices, resolved from your postal
+> code via the Lidl Plus endpoints and the meinprospekt weekly-flyer feed. Two
+> chains make the basket optimizer meaningful. See [Roadmap](#roadmap).
 
 ## Highlights
 
@@ -25,6 +26,10 @@ build the cheapest basket across one or two stores.
 - **Containerized, deployable stack** — Dockerized backend with Docker Compose +
   PostgreSQL, designed for CI/CD deployment to a PaaS with scraper health
   monitoring and alerting.
+- **Multi-retailer ingestion across heterogeneous sources** — a single
+  publisher-parameterized engine normalizes two German chains (Lidl + REWE) from
+  three feeds (a private mobile coupon API and structured weekly-flyer data) into
+  one schema, tagged by chain/source, powering a cross-store basket optimizer.
 - **Resilient scraping design** — store-agnostic normalization layer and
   fall-back data paths so a single upstream change never takes the app down.
 
@@ -135,8 +140,15 @@ image, validity. No OCR needed; the data is already structured. Runs weekly with
 backoff (Bonial soft-throttles bursts). Both feeds fall back to sample data so the
 app stays up.
 
-**Rewe — next.** Same idea, but behind Cloudflare and may require a client cert
-from its app (`mobile-api.rewe.de/api/v3/all-offers?marketCode=…`).
+**REWE weekly flyer** (`source="flyer"`, `chain="rewe"`) — the same
+[`bonial.py`](backend/app/scrapers/bonial.py) engine, parameterized for REWE's
+meinprospekt publisher (`DE-1062`, "Dein Markt"). Reusing the structured flyer
+pipeline sidesteps REWE's Cloudflare-gated app API (`mobile-api.rewe.de`)
+entirely. ~400 structured offers with names, brands, images, and `categoryPaths`
+attach to a separate REWE store, giving the optimizer a real second chain to
+compare. Caveat: REWE's flyer carries no struck-through "old" price, so most REWE
+items show a price (and per-unit price) **without a % discount** — the optimizer
+ranks by absolute price, so this doesn't affect it.
 
 **Categorization.** [`categories.py`](backend/app/categories.py) classifies each
 offer with a path-aware, deterministic pipeline:
@@ -167,7 +179,8 @@ them without re-scraping. The app **hides non-food by default** with a
       flyer images + tap-to-view (links to Lidl's full weekly Prospekt)
 - [x] Set your postal code in-app — resolves the nearest Lidl and persists it
 - [x] In-app search bar + Coupon/Prospekt source badges
-- [ ] Rewe scraper (Cloudflare / market resolution by PLZ)
+- [x] REWE as a second chain (meinprospekt "Dein Markt" flyer, publisher
+      `DE-1062`), with a per-offer store badge (Lidl/REWE) in the app
 - [ ] In-app basket optimizer screen (1 vs 2 stores)
 - [ ] Scheduled weekly scrape + deploy to PaaS with monitoring/alerts
 - [ ] Recipes from on-sale + pantry items (later phase)

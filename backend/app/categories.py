@@ -70,8 +70,10 @@ _PATH_MAP: dict[str, str] = {
     # frozen / sweets / bakery / snacks
     "eis": "frozen", "stieleis": "frozen", "eis am stiel": "frozen", "speiseeis": "frozen",
     "süßigkeiten": "sweets", "schokolade": "sweets", "pralinen": "sweets", "bonbons": "sweets",
+    "fruchtgummi": "sweets",
     "backwaren": "bakery", "gebäck": "bakery", "feingebäck": "bakery", "brot": "bakery",
-    "snacks": "snacks", "knabberartikel": "snacks",
+    "snacks": "snacks", "knabberartikel": "snacks", "knabberzeug": "snacks",
+    "salzgebäck": "snacks", "cracker": "snacks", "proteinriegel": "snacks",
     # produce
     "obst": "fruits", "kernobst": "fruits", "steinobst": "fruits", "beeren": "fruits",
     "zitrusfrüchte": "fruits", "gemüse": "vegetables", "salat": "vegetables",
@@ -79,11 +81,12 @@ _PATH_MAP: dict[str, str] = {
     "öl": "pantry", "öl, essig, salatdressig": "pantry", "essig": "pantry",
     "brotaufstrich": "pantry", "honig": "pantry", "antipasti": "pantry", "tapas": "pantry",
     "feinkost": "pantry", "feinkostlebensmittel": "pantry",
+    "teigwaren": "pantry", "nudeln": "pantry", "cerealien": "pantry", "haferbrei": "pantry",
 }
 
 # (slug, [German keywords]); first matching rule wins.
 _RULES: list[tuple[str, list[str]]] = [
-    ("frozen", ["tiefkühl", "tiefkuehl", "tk-", "tk ", "gefrier", "eiscreme", "speiseeis",
+    ("frozen", ["tiefkühl", "tiefkuehl", "tk-", "tk ", "gefrier", "eiscreme", "speiseeis", "ice cream",
                 "stieleis", "eis am stiel", "gelatelli", "gelati", "langnese", "cornetto", "magnum", "plombir",
                 "pizza", "steinofen"]),
     ("fish", ["fisch", "lachs", "thunfisch", "garnele", "forelle", "hering", "sardin", "sardelle",
@@ -91,7 +94,8 @@ _RULES: list[tuple[str, list[str]]] = [
     ("poultry", ["hähnchen", "haehnchen", "huhn", "hühner", "pute", "puten", "geflügel", "chicken", "corned turkey"]),
     # "gulasch"/"steak" are intentionally NOT here — they appear in Schweinegulasch
     # / Schweinesteak (pork); beef relies on "rind" and beef-specific cuts.
-    ("beef", ["rind", "rinder", "tafelspitz", "angus", "t-bone", "rumpsteak", "rib eye", "hüftsteak"]),
+    ("beef", ["rind", "rinder", "tafelspitz", "angus", "t-bone", "rumpsteak", "rib eye", "hüftsteak",
+              "burger patties", "smash burger"]),
     ("pork", ["schwein", "schnitzel", "hackfleisch", "hack ", " mett", "bratwurst", "wurst", "würstchen",
               "speck", "schinken", "salami", "kasseler", "leberkäse", "chorizo", "jamón", "jamon", "serrano",
               "fuet", "lyoner", "frikadelle", "kaminwurzerl", "bacon", "kebab", "cevapcici", "corned", "kaninchen", "rügenwalder"]),
@@ -100,25 +104,26 @@ _RULES: list[tuple[str, list[str]]] = [
                 "emmentaler", "edamer", "grana", "manchego", "obazda", "zottarella", "queso", "brunch"]),
     ("dairy", ["milch", "joghurt", "jogurt", "quark", "sahne", "schmand", "buttermilch", "pudding", "skyr",
                "almighurt", "ehrmann", "kefir", "ayran", "grütze", "milchreis", "fruchtzwerge", "monte ", "paradies creme"]),
-    ("fruits", ["apfel", "äpfel", "banane", "erdbeer", "traube", "orange", "zitrone", "birne", "kiwi", "beere",
+    ("fruits", ["apfel", "äpfel", "banane", "erdbeer", "traube", "orange", "zitrone", "limette", "birne", "kiwi", "beere",
                 "mango", "ananas", "melone", "pfirsich", "nektarine", "clementine", "mandarine", "avocado",
                 "aprikose", "physalis", "pflaume", "kirsche"]),
     ("vegetables", ["tomate", "gurke", "salat", "kartoffel", "zwiebel", "paprika", "möhre", "moehre", "karotte",
                     "brokkoli", "blumenkohl", "spinat", "zucchini", "champignon", "pilz", "knoblauch", "lauch",
                     "sellerie", "kürbis", "rucola", "spargel"]),
     ("bakery", ["brot", "brötchen", "broetchen", "baguette", "croissant", "toast", "kuchen", "gebäck", "brezel",
-                "crusti", "donut", "törtchen", "nata", "magdalena", "muffin", "torte", "linzeraugen", "nusshappen"]),
+                "crusti", "donut", "törtchen", "nata", "magdalena", "muffin", "torte", "linzeraugen", "nusshappen",
+                "buns", "laugen", "lauge"]),
     ("sweets", ["schokolade", "schoko", "praline", "keks", "bonbon", "gummibär", "riegel", "waffel", "nutella",
                 "milka", "haribo", "ritter sport", "toffifee", "duplo", "snickers", "twix", "ferrero", "hanuta",
                 "loacker", "celebrations", "nudossi", "kinder cards", "fritt", "sondey", "tenerezze"]),
     ("snacks", ["chips", "cracker", "nüsse", "nuesse", "erdnuss", "popcorn", "salzstange", "flips", "tortilla",
                 "studentenfutter", "alesto", "trockenfrüchte", "knabber", "bake rolls", "snackmix", "knusper"]),
-    ("beverages", ["wasser", "cola", "limo", "saft", " bier", "wein", "kaffee", " tee", "energy", "schorle",
+    ("beverages", ["wasser", "cola", "limo", "saft", " bier", "lagerbier", " pils", "wein", "kaffee", " tee", "energy", "schorle",
                    "spezi", "fanta", "sprite", "nektar", "vodka", "champagner", "pilsener", "sangria", "doppelkorn",
                    "goldkrone", "weinbrand", "licor", "pepsi", "solevita", "san miguel", "holsten", "moët", "moet",
                    "absolut", "korol", "cimarosa", "sauvignon", "espresso", "caffè", "caffe", "lavazza", "dallmayr",
                    "latte", "aloe vera"]),
-    ("pantry", ["nudel", "pasta", "teigwaren", "reis", "mehl", "zucker", " öl", "olivenöl", "essig", "konserve",
+    ("pantry", ["nudel", "noodles", "pasta", "teigwaren", "porridge", "reis", "mehl", "zucker", " öl", "olivenöl", "essig", "konserve",
                 "sauce", "soße", "gewürz", "müsli", "haferflocken", "honig", "marmelade", "ketchup", "senf",
                 "oliven", "kichererbsen", "aioli", "artischocken", "paella", "lupinen", "antipasti", "tapas"]),
     ("household", ["spülmittel", "spuelmittel", "waschmittel", "toilettenpapier", "küchenrolle", "reiniger",
@@ -140,6 +145,11 @@ BRAND_CATEGORY: dict[str, str] = {
     "dulano": "pork", "meica": "pork", "brunch": "cheese", "kerrygold": "butter",
     "valensina": "beverages", "lipton": "beverages", "volvic": "beverages",
     "schogetten": "sweets", "berggold": "sweets", "häagen-dazs": "frozen",
+    # REWE flyer brands (paths are often brand-only -> no taxonomy node to use)
+    "mirée": "cheese", "miree": "cheese", "salakis": "cheese", "leerdammer": "cheese",
+    "bergader": "cheese", "violife": "cheese", "rotkäppchen": "beverages",
+    "deutsche see": "fish", "katjes": "sweets", "lay's": "snacks", "lorenz": "snacks",
+    "nuii": "frozen", "danone": "dairy",
     # non-food house / appliance / care / fashion brands
     "parkside": "household", "esmara": "household", "livarno": "household", "crelando": "household",
     "vileda": "household", "ultimate speed": "household", "tapedesign": "household",

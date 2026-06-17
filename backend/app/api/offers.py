@@ -32,7 +32,7 @@ def list_offers(
     source: Optional[str] = Query(None, pattern="^(coupon|flyer)$"),
     min_discount: Optional[float] = Query(None, ge=0, le=100),
     sort: str = Query("discount", pattern="^(discount|price)$"),
-    limit: int = Query(200, ge=1, le=1000),
+    limit: int = Query(200, ge=1, le=2000),
 ):
     """List offers, filterable by category/chain/plz/min-discount.
 
