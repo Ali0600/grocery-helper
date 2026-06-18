@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from .categories import label
 from .models import Offer
+from .product_group import product_group
 from .schemas import OfferOut
 from .unit_price import unit_price_cents
 
 
 def offer_to_out(offer: Offer) -> OfferOut:
     """Build the API representation of an Offer (pulls chain/name from its store)."""
+    group, group_label = product_group(offer.name, offer.brand, offer.category)
     return OfferOut(
         id=offer.id,
         store_id=offer.store_id,
@@ -18,6 +20,8 @@ def offer_to_out(offer: Offer) -> OfferOut:
         brand=offer.brand,
         category=offer.category,
         category_label=label(offer.category),
+        group=group,
+        group_label=group_label,
         price_cents=offer.price_cents,
         regular_price_cents=offer.regular_price_cents,
         discount_pct=offer.discount_pct,

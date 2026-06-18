@@ -8,6 +8,8 @@ export type Offer = {
   brand: string | null;
   category: string;
   category_label: string;
+  group: string | null; // product sub-group key within the category, e.g. "avocado"
+  group_label: string | null; // its display label, e.g. "Avocado"
   price_cents: number;
   regular_price_cents: number | null;
   discount_pct: number | null;

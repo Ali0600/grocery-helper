@@ -7,6 +7,8 @@ import {
   Pressable,
   RefreshControl,
   SafeAreaView,
+  SectionList,
+  SectionListData,
   StyleSheet,
   Text,
   View,
@@ -15,6 +17,7 @@ import {
 import { api } from '../api';
 import { CategoryChips } from '../components/CategoryChips';
 import { FlyerModal } from '../components/FlyerModal';
+import { GroupHeader } from '../components/GroupHeader';
 import { OfferCard } from '../components/OfferCard';
 import { PlzModal } from '../components/PlzModal';
 import { SearchBar } from '../components/SearchBar';
@@ -42,6 +45,77 @@ function byNullsLast(a: number | null, b: number | null, dir: 'asc' | 'desc'): n
   if (a == null) return 1;
   if (b == null) return -1;
   return dir === 'asc' ? a - b : b - a;
+}
+
+// Per-section metadata for the grouped (category) view. `label === null` renders no
+// header; `muted` is the small "More" header above the trailing single-offer bucket.
+type SectionMeta = {
+  label: string | null;
+  count: number;
+  fromCents: number | null;
+  muted: boolean;
+};
+type DealSection = SectionListData<Offer, SectionMeta>;
+
+// Within a comparison group, order by what's being compared: cheapest €/kg in 'unit'
+// mode (no-€/kg items sink), else cheapest absolute price.
+function withinGroup(items: Offer[], mode: SortMode): Offer[] {
+  return [...items].sort((a, b) =>
+    mode === 'unit'
+      ? byNullsLast(a.unit_price_cents, b.unit_price_cents, 'asc')
+      : a.price_cents - b.price_cents,
+  );
+}
+
+// Turn the already-filtered + sorted category view into sections: each product with
+// 2+ offers becomes a headed comparison group (biggest first, then A–Z); single-offer
+// and ungrouped items collect into one trailing bucket sorted by the active toggle.
+function buildSections(sorted: Offer[], mode: SortMode): DealSection[] {
+  const byGroup = new Map<string, Offer[]>();
+  const tail: Offer[] = [];
+  for (const o of sorted) {
+    if (o.group) {
+      const arr = byGroup.get(o.group);
+      if (arr) arr.push(o);
+      else byGroup.set(o.group, [o]);
+    } else {
+      tail.push(o);
+    }
+  }
+
+  const groups: DealSection[] = [];
+  byGroup.forEach((items, key) => {
+    if (items.length >= 2) {
+      groups.push({
+        key,
+        data: withinGroup(items, mode),
+        label: items[0].group_label ?? key,
+        count: items.length,
+        fromCents: Math.min(...items.map((o) => o.price_cents)),
+        muted: false,
+      });
+    } else {
+      tail.push(items[0]); // a lone product has nothing to compare — send it down
+    }
+  });
+  groups.sort((x, y) => y.count - x.count || (x.label ?? '').localeCompare(y.label ?? ''));
+
+  const tailSorted = [...tail].sort((a, b) =>
+    mode === 'unit'
+      ? byNullsLast(a.unit_price_cents, b.unit_price_cents, 'asc')
+      : byNullsLast(a.discount_pct, b.discount_pct, 'desc'),
+  );
+  if (tailSorted.length) {
+    groups.push({
+      key: '__rest__',
+      data: tailSorted,
+      label: groups.length ? 'More' : null, // only label the bucket when groups sit above
+      count: tailSorted.length,
+      fromCents: null,
+      muted: true,
+    });
+  }
+  return groups;
 }
 
 export default function DealsScreen() {
@@ -156,6 +230,11 @@ export default function DealsScreen() {
       : byNullsLast(a.discount_pct, b.discount_pct, 'desc'),
   );
 
+  // Inside a selected category (and not searching), cluster offers by product so
+  // competing prices sit together; the flat list stays for "All" and search.
+  const grouped = !!selected && !q;
+  const sections = grouped ? buildSections(sorted, sortMode) : [];
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
@@ -199,6 +278,41 @@ export default function DealsScreen() {
           <View style={styles.center}>
             <Text style={styles.error}>{error}</Text>
           </View>
+        ) : grouped ? (
+          <SectionList
+            style={styles.listFill}
+            sections={sections}
+            keyExtractor={(o) => String(o.id)}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            stickySectionHeadersEnabled={false}
+            renderItem={({ item }: { item: Offer }) => (
+              <OfferCard offer={item} onPress={() => setActive(item)} />
+            )}
+            renderSectionHeader={({ section }: { section: DealSection }) =>
+              section.label ? (
+                <GroupHeader
+                  label={section.label}
+                  count={section.muted ? undefined : section.count}
+                  fromCents={section.fromCents}
+                  muted={section.muted}
+                />
+              ) : null
+            }
+            contentContainerStyle={styles.list}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.muted}
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.center}>
+                <Text style={styles.muted}>No deals for this PLZ / category yet.</Text>
+              </View>
+            }
+          />
         ) : (
           <FlatList
             style={styles.listFill}

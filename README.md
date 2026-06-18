@@ -202,6 +202,9 @@ them without re-scraping. The app **hides non-food by default** with a
       already fetched but had been discarding
 - [x] "Cheapest €/kg" sort — ranks the current view by normalized per-unit price
       (e.g. find the best-value beef per kg, independent of pack size)
+- [x] Group similar products inside a category — pick Fruits/Beef/etc. and offers
+      cluster by product (Avocado, Pfirsich, …) under a header so competing prices
+      sit together (e.g. Avocado: REWE 0,88 € vs Lidl 1,99 €)
 - [ ] In-app basket optimizer screen (1 vs 2 stores)
 - [ ] Scheduled weekly scrape + deploy to PaaS with monitoring/alerts
 - [ ] Recipes from on-sale + pantry items (later phase)

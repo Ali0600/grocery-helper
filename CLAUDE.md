@@ -76,6 +76,20 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   backfill (`python -m app.scripts.recategorize` / `POST /api/recategorize`)
   reproduces results without re-scraping. Watch for substring traps (e.g. "li**mett**e")
   and flavour words ("Mango"/"Pfirsich") stealing categories — guard them.
+- **Product sub-grouping within a category** (`app/product_group.py`): a *second*,
+  coarser layer under `category` — `product_group(name, brand, category) ->
+  (group_key, group_label)` keys an offer to a product (e.g. fruits → "avocado")
+  from the **name** (the `category_path` leaf is too unreliable: "Aprikosen"→
+  Steinobst, "Mix Tafeltrauben"→an attribute node, coupons→no path). Curated
+  per-category keyword→German-label map, specific→generic (so "Seelachs" beats
+  "Lachs"); only produce/meat/fish/cheese/dairy/bakery are mapped, everything else
+  → `(None, None)`. Computed in the serializer → `OfferOut.group`/`group_label`
+  (**no DB column / migration**, like `unit_price_cents`). The app renders a
+  `SectionList` **only in a selected category** (not All/search): products with ≥2
+  offers get a header and float up (`mobile/.../DealsScreen.tsx` `buildSections`,
+  `components/GroupHeader.tsx`); singletons sink to a "More" bucket. Grouping makes
+  category mis-classification *visible* (a peach-flavoured drink lands under
+  "Pfirsich"), so it's a good lens for tuning `categories.py`.
 - **Aggregators soft-throttle bursts** (marktguru, Bonial): they return empty
   after many quick requests. Scrape weekly with backoff; both scrapers fall back
   to sample data on failure.

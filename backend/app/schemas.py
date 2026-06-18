@@ -16,6 +16,10 @@ class OfferOut(BaseModel):
     brand: Optional[str] = None
     category: str
     category_label: str
+    # Product sub-group within the category (e.g. "avocado" inside fruits), so the
+    # app can cluster competing offers under a header. None = doesn't group.
+    group: Optional[str] = None
+    group_label: Optional[str] = None
     price_cents: int
     regular_price_cents: Optional[int] = None
     discount_pct: Optional[float] = None
