@@ -117,4 +117,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   one comparable axis (German Grundpreis; per-`Stück`/`wl`/`m`/malformed → None).
   It's **computed in the serializer** (no DB column/migration); the app sorts the
   loaded set client-side (`DealsScreen` `SortToggle`), nulls sink to the bottom.
+- **Missing Grundpreis is recovered at serve time** (`unit_price.py`
+  `derive_price_per_unit(unit, price_cents)`, used by the serializer when
+  `Offer.price_per_unit` is null): the flyer often omits the per-unit price for
+  produce **sold per 1 kg / 1 l** (the price *is* the €/kg, e.g. "Klasse I 1 kg")
+  and sometimes embeds the Grundpreis in the description ("…1 kg = 5.67 150 g"). It
+  only fires on those two safe cases — a *second* quantity ("500 g 1 kg" where 1 kg
+  is a base ref, "1 kg 20 Stück"), an approximate "Ca. 1,1 kg", or multi-variant
+  ranges → None (a wrong €/kg is worse than none). Feeds the card display +
+  `unit_price_cents`. Covers ~108 otherwise-blank flyer offers. A general
+  divide-by-net-weight (e.g. "500 g" → ×2) is deferred — multipack "20 × 10 g" and
+  "Ca." traps make it riskier.
 - **Commits**: author as the user only — no `Co-Authored-By: Claude` trailer.

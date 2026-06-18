@@ -40,3 +40,46 @@ def unit_price_cents(ppu: Optional[str]) -> Optional[int]:
     except ValueError:
         return None
     return round(v * 100) if v > 0 else None
+
+
+# A Grundpreis the source embedded in the description but never lifted into
+# `price_per_unit` (e.g. "… 1 kg = 5.67 150 g"); the amount is always 1 kg / 1 l.
+_INLINE_GRUNDPREIS = re.compile(r"\b1\s*(kg|l)\s*=\s*(\d+(?:[.,]\d+)?)", re.IGNORECASE)
+# A numeric quantity + its unit. "kg" before "g" and "ml"/"cl"/"liter" before "l" so
+# the longest unit wins; count units (Stück/Stk/St) are included so a *second*
+# quantity disqualifies the 1-kg shortcut. The trailing \b keeps "Kl."/"Liter" sane.
+_QTY = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*-?\s*(kg|g|ml|cl|liter|l|stück|stk|st)\b", re.IGNORECASE
+)
+
+
+def derive_price_per_unit(unit: Optional[str], price_cents: int) -> Optional[str]:
+    """Recover a "1 kg = X" / "1 l = X" string when the source omitted the Grundpreis.
+
+    Two safe cases only: (1) the unit string *embeds* a Grundpreis the scraper didn't
+    extract; (2) the item is sold as a single 1 kg / 1 l quantity ("Klasse I 1 kg",
+    "je 1-kg-Schale"), so the price itself is the per-unit price. Anything ambiguous —
+    a second quantity ("500 g 1 kg" where 1 kg is only a base reference, "1 kg 20
+    Stück"), an approximate "Ca. 1,1 kg", or multi-variant ranges — returns None,
+    because a wrong €/kg is worse than none. The result feeds `unit_price_cents` and
+    the card's `fmtPricePerUnit`.
+    """
+    if not unit or not price_cents or price_cents <= 0:
+        return None
+    text = unit.strip()
+
+    inline = _INLINE_GRUNDPREIS.search(text)
+    if inline:
+        return f"1 {inline.group(1).lower()} = {inline.group(2)}"
+
+    tokens = _QTY.findall(text)
+    if len(tokens) == 1:
+        num_s, raw_unit = tokens[0]
+        try:
+            num = float(num_s.replace(",", "."))
+        except ValueError:
+            return None
+        u = "l" if raw_unit.lower() in ("l", "liter") else raw_unit.lower()
+        if u in ("kg", "l") and abs(num - 1.0) < 1e-9:
+            return f"1 {u} = {price_cents / 100:.2f}"
+    return None

@@ -4,12 +4,17 @@ from .categories import label
 from .models import Offer
 from .product_group import product_group
 from .schemas import OfferOut
-from .unit_price import unit_price_cents
+from .unit_price import derive_price_per_unit, unit_price_cents
 
 
 def offer_to_out(offer: Offer) -> OfferOut:
     """Build the API representation of an Offer (pulls chain/name from its store)."""
     group, group_label = product_group(offer.name, offer.brand, offer.category)
+    # Fall back to a per-unit price derived from the quantity when the source omitted
+    # the Grundpreis (e.g. produce sold per "1 kg") so the card + €/kg sort still work.
+    price_per_unit = offer.price_per_unit or derive_price_per_unit(
+        offer.unit, offer.price_cents
+    )
     return OfferOut(
         id=offer.id,
         store_id=offer.store_id,
@@ -26,8 +31,8 @@ def offer_to_out(offer: Offer) -> OfferOut:
         regular_price_cents=offer.regular_price_cents,
         discount_pct=offer.discount_pct,
         unit=offer.unit,
-        price_per_unit=offer.price_per_unit,
-        unit_price_cents=unit_price_cents(offer.price_per_unit),
+        price_per_unit=price_per_unit,
+        unit_price_cents=unit_price_cents(price_per_unit),
         loyalty_note=offer.loyalty_note,
         image_url=offer.image_url,
         valid_from=offer.valid_from,
