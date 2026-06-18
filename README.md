@@ -39,9 +39,10 @@ build the cheapest basket across one or two stores.
 - **Resilient scraping design** — store-agnostic normalization layer and
   fall-back data paths so a single upstream change never takes the app down.
 - **Outbound-call observability** — every request to an upstream site is
-  instrumented (httpx event hooks) and tallied by source/host, exposed at
-  `GET /api/scrape-stats` (total + last run) to keep an eye on scrape volume and
-  avoid tripping the sites' burst throttling.
+  instrumented (httpx event hooks) and tallied by source/host, plus a timestamped
+  log of the latest calls, exposed at `GET /api/scrape-stats` with a live `/stats`
+  dashboard — to keep an eye on scrape volume and avoid tripping the sites' burst
+  throttling.
 
 ## Architecture
 
@@ -130,7 +131,7 @@ docker compose up --build
 | POST   | `/api/optimize`   | Cheapest basket across 1–2 stores                |
 | POST   | `/api/scrape`     | Re-run scrapers on demand (dev)                  |
 | POST   | `/api/recategorize` | Re-apply the classifier to stored offers (dev) |
-| GET    | `/api/scrape-stats` | Outbound calls to the scraped sites, by source/host (total + last run); live dashboard at `/stats` |
+| GET    | `/api/scrape-stats` | Outbound calls to the scraped sites, by source/host (total + a timestamped recent-calls log); live dashboard at `/stats` |
 
 ## Scrapers
 

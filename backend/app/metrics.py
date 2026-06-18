@@ -9,14 +9,15 @@ soft-throttle bursts. Counts are process-local and reset on restart.
 from __future__ import annotations
 
 import threading
-from collections import Counter
+from collections import Counter, deque
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Deque, Dict
+
+_RECENT_MAX = 20  # how many of the latest calls /api/scrape-stats keeps
 
 _lock = threading.Lock()
 _total: Counter = Counter()  # host -> calls since server start
-_run: Counter = Counter()  # host -> calls in the most recent scrape run
-_run_started_at: Optional[datetime] = None
+_recent: Deque[dict] = deque(maxlen=_RECENT_MAX)  # latest calls, oldest -> newest
 _started_at = datetime.now(timezone.utc)
 
 
@@ -24,15 +25,9 @@ def record(host: str) -> None:
     """Count one outbound request to `host` (called from the httpx request hook)."""
     with _lock:
         _total[host] += 1
-        _run[host] += 1
-
-
-def begin_run() -> None:
-    """Mark the start of a scrape run so its outbound calls can be reported alone."""
-    global _run, _run_started_at
-    with _lock:
-        _run = Counter()
-        _run_started_at = datetime.now(timezone.utc)
+        _recent.append(
+            {"at": datetime.now(timezone.utc), "host": host, "source": _source(host)}
+        )
 
 
 def _source(host: str) -> str:
@@ -55,17 +50,16 @@ def _by_source(counter: Counter) -> Dict[str, int]:
 
 
 def snapshot() -> dict:
-    """Totals since startup plus the most recent scrape run, by source and host."""
+    """Totals since startup plus the latest individual calls, newest first."""
     with _lock:
+        recent = [
+            {"at": e["at"].isoformat(), "host": e["host"], "source": e["source"]}
+            for e in reversed(_recent)
+        ]
         return {
             "since": _started_at.isoformat(),
             "total_calls": sum(_total.values()),
             "by_source": _by_source(_total),
             "by_host": dict(_total),
-            "last_run": {
-                "at": _run_started_at.isoformat() if _run_started_at else None,
-                "total_calls": sum(_run.values()),
-                "by_source": _by_source(_run),
-                "by_host": dict(_run),
-            },
+            "recent": recent,
         }

@@ -32,16 +32,12 @@ STATS_HTML = """<!doctype html>
     align-items:center; }
   .row .label { font-weight:600; }
   .row .count { font-variant-numeric:tabular-nums; font-weight:700; color:var(--accent); }
-  .lastrun { background:var(--card); border:1px solid var(--border); border-radius:12px;
-    padding:14px 16px; }
-  .lastrun .when { color:var(--muted); font-size:12px; margin-bottom:8px; }
-  .lastrun .line { display:flex; justify-content:space-between; padding:3px 0; }
-  .lastrun .line span:last-child { color:var(--accent); font-weight:700;
-    font-variant-numeric:tabular-nums; }
   table { width:100%; border-collapse:collapse; }
   td { padding:7px 4px; border-bottom:1px solid var(--border); font-size:13px; }
   td.host { color:var(--muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
   td.c { text-align:right; font-variant-numeric:tabular-nums; color:var(--accent); font-weight:700; }
+  td.when { white-space:nowrap; font-variant-numeric:tabular-nums; width:1%; padding-right:14px; }
+  td.src { font-weight:600; }
   .hint { color:var(--muted); font-size:12px; margin-top:24px; line-height:1.6; }
   .dot { display:inline-block; width:7px; height:7px; border-radius:50%;
     background:var(--accent); margin-right:7px; vertical-align:middle; opacity:.85; }
@@ -62,8 +58,8 @@ STATS_HTML = """<!doctype html>
     <h2>By source</h2>
     <div id="by_source"></div>
 
-    <h2>Most recent scrape run</h2>
-    <div class="lastrun" id="last_run"></div>
+    <h2>Most recent calls</h2>
+    <table id="recent"></table>
 
     <h2>By host</h2>
     <table id="by_host"></table>
@@ -85,6 +81,25 @@ function rows(obj) {
     '<div class="row"><span class="label"><span class="dot"></span>'+k+'</span><span class="count">'+obj[k]+'</span></div>'
   ).join('');
 }
+function ago(iso) {
+  if (!iso) return "";
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return s + "s ago";
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + "m ago";
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + "h ago";
+  return Math.floor(h / 24) + "d ago";
+}
+function recentRows(list) {
+  if (!list || !list.length)
+    return '<tr><td class="host" style="border:none">no calls yet — scrape or open “Stores”</td></tr>';
+  return list.map(c =>
+    '<tr><td class="when" title="'+fmtDate(c.at)+'">'+ago(c.at)+'</td>'+
+    '<td class="src"><span class="dot"></span>'+c.source+'</td>'+
+    '<td class="host">'+c.host+'</td></tr>'
+  ).join('');
+}
 let lastTotal = null;
 async function load() {
   let d;
@@ -98,12 +113,7 @@ async function load() {
   lastTotal = d.total_calls;
   document.getElementById('since').textContent = fmtDate(d.since);
   document.getElementById('by_source').innerHTML = rows(d.by_source);
-  const lr = d.last_run || {};
-  const lrLines = Object.keys(lr.by_source || {}).sort((a,b)=>lr.by_source[b]-lr.by_source[a])
-    .map(k => '<div class="line"><span>'+k+'</span><span>'+lr.by_source[k]+'</span></div>').join('');
-  document.getElementById('last_run').innerHTML =
-    '<div class="when">'+fmtDate(lr.at)+' · '+(lr.total_calls||0)+' calls</div>'+
-    (lrLines || '<div class="line"><span style="color:var(--muted)">no scrape run yet</span><span></span></div>');
+  document.getElementById('recent').innerHTML = recentRows(d.recent);
   const hosts = d.by_host || {};
   document.getElementById('by_host').innerHTML =
     Object.keys(hosts).sort((a,b)=>hosts[b]-hosts[a]).map(h =>

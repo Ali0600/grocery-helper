@@ -97,7 +97,8 @@ def scrape_stats():
     """Count of outbound calls to the scraped sites (Lidl Plus / meinprospekt /
     Overpass), by source and host. Browsing the app makes **none** of these — they
     happen only when we scrape (cold start, set-PLZ) or resolve nearby stores.
-    `last_run` is the most recent scrape; counts reset on server restart.
+    `recent` is the latest individual calls (newest first, with timestamps);
+    counts reset on server restart.
     """
     from ..metrics import snapshot
 

@@ -1,38 +1,47 @@
 """Tests for outbound-call metrics and the tracked httpx client."""
+from datetime import datetime
+
 import httpx
 
 from app import metrics
 from app.http import _on_request, tracked_client
 
 
-def test_record_groups_by_source():
-    metrics.begin_run()
+def test_record_tallies_total_and_groups_by_source():
+    before = metrics.snapshot()["total_calls"]
     metrics.record("offers.lidlplus.com")
     metrics.record("stores.lidlplus.com")
     metrics.record("www.meinprospekt.de")
-    metrics.record("content-viewer-be.meinprospekt.de")
     metrics.record("overpass-api.de")
-    lr = metrics.snapshot()["last_run"]
-    assert lr["total_calls"] == 5
-    assert lr["by_source"]["Lidl Plus (coupons)"] == 2
-    assert lr["by_source"]["meinprospekt (flyer)"] == 2
-    assert lr["by_source"]["OpenStreetMap Overpass (stores)"] == 1
-    assert metrics.snapshot()["total_calls"] >= 5
-
-
-def test_begin_run_resets_last_run_only():
-    metrics.record("offers.lidlplus.com")
-    before_total = metrics.snapshot()["total_calls"]
-    metrics.begin_run()
     snap = metrics.snapshot()
-    assert snap["last_run"]["total_calls"] == 0
-    assert snap["total_calls"] == before_total  # cumulative is unaffected
+    assert snap["total_calls"] == before + 4  # cumulative, never reset
+    assert snap["by_source"]["Lidl Plus (coupons)"] >= 2
+    assert snap["by_source"]["meinprospekt (flyer)"] >= 1
+    assert snap["by_source"]["OpenStreetMap Overpass (stores)"] >= 1
+    assert snap["by_host"]["offers.lidlplus.com"] >= 1
+
+
+def test_recent_is_newest_first_with_source_and_timestamp():
+    metrics.record("www.meinprospekt.de")
+    metrics.record("overpass-api.de")  # e.g. opening "Stores"
+    recent = metrics.snapshot()["recent"]
+    assert recent[0]["host"] == "overpass-api.de"  # newest first
+    assert recent[0]["source"] == "OpenStreetMap Overpass (stores)"
+    assert recent[1]["host"] == "www.meinprospekt.de"
+    datetime.fromisoformat(recent[0]["at"])  # every call carries an ISO timestamp
+
+
+def test_recent_is_capped():
+    for _ in range(metrics._RECENT_MAX + 5):
+        metrics.record("overpass-api.de")
+    assert len(metrics.snapshot()["recent"]) == metrics._RECENT_MAX
 
 
 def test_request_hook_records_host():
-    metrics.begin_run()
     _on_request(httpx.Request("GET", "https://offers.lidlplus.com/app/api/x"))
-    assert metrics.snapshot()["last_run"]["by_host"]["offers.lidlplus.com"] == 1
+    snap = metrics.snapshot()
+    assert snap["recent"][0]["host"] == "offers.lidlplus.com"
+    assert snap["by_host"]["offers.lidlplus.com"] >= 1
 
 
 def test_tracked_client_attaches_the_request_hook():
