@@ -61,9 +61,10 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   each call by host. `GET /api/scrape-stats` (JSON) shows totals (since startup) +
   `recent` — the latest ~20 individual calls (newest first, each with a UTC
   timestamp + friendly source), so a standalone Overpass call (opening Stores)
-  shows up too, not just scrape runs; `GET /stats` is a live HTML dashboard for it
+  shows up too, not just scrape runs; `GET /stats` is an HTML dashboard for it
   (`app/stats_page.py`, served from `main.py`), rendering the recent-calls log with
-  relative "Xs ago" times. Counts are in-memory (reset on restart). **Reference numbers**: browsing = 0
+  relative "Xs ago" times; it fetches on demand via a **Refresh** button (loads once
+  on open, then no auto-poll). Counts are in-memory (reset on restart). **Reference numbers**: browsing = 0
   external calls; one scrape run = **7** (2 Lidl Plus + 5 meinprospekt: 2 publisher
   pages + ~3 brochure-pages, varies with active-brochure count); opening Stores = 1
   Overpass call, then cached 24h. New external client code should use

@@ -1,7 +1,8 @@
 """A tiny self-contained dashboard for the outbound-call metrics.
 
-Served at GET /stats; it polls GET /api/scrape-stats and renders the counts so you
-can watch how many calls each scrape makes. No build step, no template engine.
+Served at GET /stats; it fetches GET /api/scrape-stats on demand (a Refresh button)
+and renders the counts so you can see how many calls each scrape makes. No build
+step, no template engine.
 """
 
 STATS_HTML = """<!doctype html>
@@ -22,7 +23,7 @@ STATS_HTML = """<!doctype html>
   h1 { font-size:22px; margin:0 0 4px; }
   h2 { font-size:13px; text-transform:uppercase; letter-spacing:.5px;
     color:var(--muted); margin:26px 0 10px; }
-  .sub { color:var(--muted); font-size:13px; margin:0 0 22px; }
+  .sub { color:var(--muted); font-size:13px; margin:0 0 14px; }
   .total { background:var(--card); border:1px solid var(--border); border-radius:16px;
     padding:20px 22px; display:flex; align-items:baseline; gap:14px; }
   .total .n { font-size:44px; font-weight:800; color:var(--accent); line-height:1; }
@@ -43,6 +44,13 @@ STATS_HTML = """<!doctype html>
     background:var(--accent); margin-right:7px; vertical-align:middle; opacity:.85; }
   .pulse { animation:p .4s ease; }
   @keyframes p { from { opacity:.3; } to { opacity:1; } }
+  .bar { display:flex; align-items:center; gap:12px; margin:0 0 22px; }
+  button { background:var(--card2); color:var(--text); border:1px solid var(--border);
+    border-radius:10px; padding:9px 16px; font-size:14px; font-weight:600; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button:active { transform:scale(.97); }
+  button:disabled { opacity:.6; cursor:default; }
+  .stamp { color:var(--muted); font-size:12px; }
 </style>
 </head>
 <body>
@@ -50,7 +58,12 @@ STATS_HTML = """<!doctype html>
     <h1>Outbound calls to the scraped sites</h1>
     <p class="sub">Browsing the app makes <b>none</b> of these — they happen only when
       we scrape (cold start / set&nbsp;PLZ) or open “Stores” (Overpass, cached 24h).
-      Live, refreshes every 3s.</p>
+      Press <b>Refresh</b> to update.</p>
+
+    <div class="bar">
+      <button id="refresh" type="button" onclick="load()">↻ Refresh</button>
+      <span class="stamp" id="stamp">loading…</span>
+    </div>
 
     <div class="total"><span class="n" id="total">–</span>
       <small>total calls since the server started<br /><span id="since"></span></small></div>
@@ -102,9 +115,18 @@ function recentRows(list) {
 }
 let lastTotal = null;
 async function load() {
+  const btn = document.getElementById('refresh');
+  const stamp = document.getElementById('stamp');
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Refreshing…';
   let d;
   try { d = await (await fetch('/api/scrape-stats')).json(); }
-  catch (e) { document.getElementById('total').textContent = '?'; return; }
+  catch (e) {
+    document.getElementById('total').textContent = '?';
+    stamp.textContent = "couldn't reach the API";
+    btn.disabled = false; btn.textContent = label;
+    return;
+  }
   const tot = document.getElementById('total');
   tot.textContent = d.total_calls;
   if (lastTotal !== null && d.total_calls !== lastTotal) {
@@ -119,8 +141,10 @@ async function load() {
     Object.keys(hosts).sort((a,b)=>hosts[b]-hosts[a]).map(h =>
       '<tr><td class="host">'+h+'</td><td class="c">'+hosts[h]+'</td></tr>').join('')
     || '<tr><td class="host" style="border:none">no calls yet</td></tr>';
+  stamp.textContent = 'Refreshed at ' + new Date().toLocaleTimeString();
+  btn.disabled = false; btn.textContent = label;
 }
-load(); setInterval(load, 3000);
+load();
 </script>
 </body>
 </html>
