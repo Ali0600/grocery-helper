@@ -17,7 +17,7 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import categories
+from .. import categories, metrics
 from ..models import Offer, Store
 from .base import ScrapedOffer, ScrapeResult
 from .bonial import BonialScraper, ReweScraper
@@ -87,6 +87,7 @@ def _upsert(session: Session, store: Store, offers: List[ScrapedOffer], source: 
 
 def run_scrapers(session: Session, plz: str) -> int:
     """Scrape both sources for a postal code, upserting offers. Returns rows touched."""
+    metrics.begin_run()  # so /api/scrape-stats can report this run's outbound calls
     total = 0
 
     # 1. Lidl Plus coupons (also resolves the store + its coordinates).

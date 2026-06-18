@@ -92,6 +92,18 @@ def list_stores(session: SessionDep):
     ]
 
 
+@router.get("/scrape-stats")
+def scrape_stats():
+    """Count of outbound calls to the scraped sites (Lidl Plus / meinprospekt /
+    Overpass), by source and host. Browsing the app makes **none** of these — they
+    happen only when we scrape (cold start, set-PLZ) or resolve nearby stores.
+    `last_run` is the most recent scrape; counts reset on server restart.
+    """
+    from ..metrics import snapshot
+
+    return snapshot()
+
+
 @router.get("/nearby-stores", response_model=List[NearbyStoreOut])
 def list_nearby_stores(
     session: SessionDep,
@@ -126,12 +138,11 @@ def list_nearby_stores(
 def _resolve_plz_coords(plz: str) -> tuple[Optional[float], Optional[float]]:
     """Best-effort PLZ -> lat/lng via the Lidl Plus store autocomplete (the same
     lookup the scraper uses), for PLZs not yet scraped."""
-    import httpx
-
+    from ..http import tracked_client
     from ..scrapers.lidl import HEADERS as LIDL_HEADERS, LidlScraper
 
     try:
-        with httpx.Client(timeout=20, follow_redirects=True, headers=LIDL_HEADERS) as c:
+        with tracked_client(timeout=20, headers=LIDL_HEADERS) as c:
             store = LidlScraper()._nearest_store(c, plz)
         loc = store.get("location") or {}
         return loc.get("latitude"), loc.get("longitude")

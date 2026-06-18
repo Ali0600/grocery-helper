@@ -19,6 +19,7 @@ from typing import List, Optional, Tuple
 
 import httpx
 
+from ..http import tracked_client
 from .base import ScrapedOffer, ScrapeResult
 
 STORES_URL = "https://stores.lidlplus.com/api"
@@ -70,9 +71,7 @@ class LidlScraper:
 
     def _fetch_live(self, plz: str) -> Tuple[dict, List[ScrapedOffer]]:
         own = self._client is None
-        client = self._client or httpx.Client(
-            timeout=25, follow_redirects=True, headers=HEADERS
-        )
+        client = self._client or tracked_client(timeout=25, headers=HEADERS)
         try:
             store = self._nearest_store(client, plz)
             store_key = store.get("storeKey")

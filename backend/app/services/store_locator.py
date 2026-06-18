@@ -19,6 +19,8 @@ from typing import Dict, List, Optional, Tuple
 
 import httpx
 
+from ..http import tracked_client
+
 # canonical slug -> (display label, OSM brand/name prefixes that map to it).
 # Prefixes are matched against the lowercased `brand` (then `name`) tag, so
 # "Aldi Nord"/"Aldi Süd" -> aldi and "Netto Marken-Discount" -> netto.
@@ -147,7 +149,7 @@ def nearby_stores(
         return cached[1]
 
     own = client is None
-    client = client or httpx.Client(timeout=30, follow_redirects=True, headers=HEADERS)
+    client = client or tracked_client(timeout=30, headers=HEADERS)
     try:
         elements = _fetch_overpass(_overpass_query(lat, lng, radius_m), client)
     finally:

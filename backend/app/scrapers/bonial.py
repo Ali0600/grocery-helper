@@ -34,6 +34,7 @@ from typing import List, Optional
 
 import httpx
 
+from ..http import tracked_client
 from .base import ScrapedOffer, ScrapeResult
 
 BE = "https://content-viewer-be.meinprospekt.de"
@@ -91,9 +92,7 @@ class MeinprospektScraper:
 
     def _fetch_live(self, lat: float, lng: float) -> List[ScrapedOffer]:
         own = self._client is None
-        client = self._client or httpx.Client(
-            timeout=30, follow_redirects=True, headers=HEADERS
-        )
+        client = self._client or tracked_client(timeout=30, headers=HEADERS)
         try:
             offers: dict = {}
             for b in self._current_brochures(client):

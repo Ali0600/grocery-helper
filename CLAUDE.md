@@ -56,6 +56,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   are **not** persisted as `Store` rows; the app's "My stores" saved list lives
   client-side (`mobile/src/storage.ts`, key `myStores`). Pure selection logic
   (`_select_nearest`) is fixture-tested — no live API in tests.
+- **Outbound calls are counted** (`app/metrics.py` + `app/http.py`): every scraper/
+  locator builds its httpx client via `tracked_client()`, whose request hook tallies
+  each call by host. `GET /api/scrape-stats` shows totals (since startup) + the
+  `last_run` (a scrape run, marked by `metrics.begin_run()` in `run_scrapers`).
+  Counts are in-memory (reset on restart). **Reference numbers**: browsing = 0
+  external calls; one scrape run = **7** (2 Lidl Plus + 5 meinprospekt: 2 publisher
+  pages + ~3 brochure-pages, varies with active-brochure count); opening Stores = 1
+  Overpass call, then cached 24h. New external client code should use
+  `tracked_client` so it's counted.
 - **Categorization is path-aware** (`app/categories.py`): for flyer offers,
   Bonial's `categoryPaths` is the primary signal (non-food level-1 node →
   household; product node → category); coupons + brand-only flyer food fall back
