@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 
 from .api.offers import router as offers_router
@@ -41,3 +42,11 @@ app.include_router(offers_router, prefix="/api")
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/stats", response_class=HTMLResponse)
+def stats_page():
+    """A tiny live dashboard for the outbound-call metrics (polls /api/scrape-stats)."""
+    from .stats_page import STATS_HTML
+
+    return STATS_HTML

@@ -130,7 +130,7 @@ docker compose up --build
 | POST   | `/api/optimize`   | Cheapest basket across 1–2 stores                |
 | POST   | `/api/scrape`     | Re-run scrapers on demand (dev)                  |
 | POST   | `/api/recategorize` | Re-apply the classifier to stored offers (dev) |
-| GET    | `/api/scrape-stats` | Outbound calls to the scraped sites, by source/host (total + last run) |
+| GET    | `/api/scrape-stats` | Outbound calls to the scraped sites, by source/host (total + last run); live dashboard at `/stats` |
 
 ## Scrapers
 
