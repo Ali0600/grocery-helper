@@ -54,11 +54,13 @@ read-only API, lock it down once there's auth/private data.
 
 ### Bundle ID vs app name
 The app **name** (under the icon) is changeable anytime; the **bundle identifier**
-(`com.groceryhelper.app`) is the permanent technical ID — editable until the
+(`com.groceryhelper.berlin`) is the permanent technical ID — editable until the
 first App Store Connect upload, then locked. It's internal, so it needn't match the
-name.
-**Takeaway:** pick a name-independent bundle ID before the first upload; rename the
-app freely after.
+name. It must also be **globally unique across all Apple accounts**, so generic ones
+like `com.groceryhelper.app` are often already taken (Apple rejects them at build
+setup) — add a distinctive segment.
+**Takeaway:** pick a name-independent, distinctive bundle ID before the first upload;
+rename the app freely after.
 
 ### EAS Build → TestFlight
 EAS builds the app in the cloud (`eas build`, handling Apple signing) and uploads it
