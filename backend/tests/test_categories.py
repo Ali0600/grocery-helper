@@ -110,6 +110,40 @@ def test_classify_rewe_flyer(name, brand, path, expected):
     assert classify(name, brand, path) == expected
 
 
+@pytest.mark.parametrize(
+    "name, brand, expected",
+    [
+        # --- EDEKA flyer products that landed in "Other" before tuning ---
+        ("Wiesenhof Bruzzzler", "Wiesenhof", "poultry"),          # brand
+        ("Steinhaus Original Krustenbraten", "Steinhaus", "pork"),
+        ("Citterio Italienische Mortadella", "Citterio", "pork"),
+        ("Hein Original Pastrami New York", "Hein", "pork"),      # keyword "pastrami"
+        ("Lammkeule in Scheiben", None, "pork"),                  # keyword " lamm"
+        ("Houdek Kabanos", "Houdek", "pork"),
+        ("Bauern Gut Spareribs", "Bauern Gut", "pork"),
+        ("Schäfer's Delikatess Plunder", "Schäfer's", "bakery"),  # brand
+        ("EDEKA Herzstücke 8 Protein-Wraps", "EDEKA", "bakery"),  # keyword "wrap"
+        ("Gut&Günstig Blätterteig-Vanillestange", "Gut&Günstig", "bakery"),
+        ("Alnatura Bio Penne, Fusilli oder Spaghetti", "Alnatura", "pantry"),
+        ("EDEKA Bio My Veggie Falafel", "EDEKA Bio", "pantry"),
+        ("Mövenpick Edle Komposition", "Mövenpick", "frozen"),    # brand
+        ("Frosta Fertiggerichte", "Frosta", "frozen"),
+        ("McCain Pickers", "McCain", "frozen"),
+        ("Hochland Sandwich Scheiben", "Hochland", "cheese"),
+        ("Trolli Fruchtgummi", "Trolli", "sweets"),
+        ("Nescafé frappé", "Nescafé", "beverages"),
+        ("Chio Dip!", None, "snacks"),                            # brand in name
+        ("EDEKA zuhause Holzkohle", "EDEKA zuhause", "household"),
+        ("Gut & Günstig Grillbriketts", "Gut & Günstig", "household"),
+        # --- non-regression guards for the new keywords ---
+        ("Original Elsässer Flammkuchen", None, "bakery"),  # " lamm" must NOT catch Fla(mm)kuchen
+        ("Müllermilch Erdbeere", "Müller", "dairy"),        # "müll*" must NOT catch Müller
+    ],
+)
+def test_classify_edeka_flyer(name, brand, expected):
+    assert classify(name, brand) == expected
+
+
 def test_classify_name_only_still_works():
     # brand is optional
     assert classify("Tiefkühl Pizza Salami") == "frozen"

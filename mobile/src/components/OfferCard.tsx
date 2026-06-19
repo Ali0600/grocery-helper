@@ -5,15 +5,24 @@ import { cleanUnit, euro, fmtPricePerUnit, formatBrand, pct } from '../format';
 import { colors } from '../theme';
 import { Offer } from '../types';
 
-const CHAIN_LABELS: Record<string, string> = { lidl: 'Lidl', rewe: 'REWE' };
+const CHAIN_LABELS: Record<string, string> = { lidl: 'Lidl', rewe: 'REWE', edeka: 'Edeka' };
+const CHAIN_PILL: Record<string, { bg: string; fg: string }> = {
+  lidl: { bg: 'rgba(0,90,200,0.18)', fg: '#6ea8ff' }, // Lidl blue
+  rewe: { bg: 'rgba(204,12,45,0.18)', fg: '#ff8597' }, // REWE red
+  edeka: { bg: 'rgba(255,205,0,0.16)', fg: '#ffd84d' }, // EDEKA yellow
+};
 
 function chainLabel(chain: string): string {
   return CHAIN_LABELS[chain] ?? chain.charAt(0).toUpperCase() + chain.slice(1);
 }
 
+function chainPill(chain: string): { bg: string; fg: string } {
+  return CHAIN_PILL[chain] ?? { bg: colors.card2, fg: colors.muted };
+}
+
 export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => void }) {
   const meta = [formatBrand(offer.brand), cleanUnit(offer.unit)].filter(Boolean).join(' · ');
-  const isRewe = offer.chain === 'rewe';
+  const pill = chainPill(offer.chain);
   const perUnit = fmtPricePerUnit(offer.price_per_unit);
   return (
     <Pressable
@@ -40,10 +49,8 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
         {meta ? <Text style={styles.meta}>{meta}</Text> : null}
         <View style={styles.tagRow}>
           <Text style={styles.tag}>{offer.category_label}</Text>
-          <View style={[styles.chainPill, isRewe ? styles.chainRewe : styles.chainLidl]}>
-            <Text style={[styles.chainText, isRewe ? styles.chainTextRewe : styles.chainTextLidl]}>
-              {chainLabel(offer.chain)}
-            </Text>
+          <View style={[styles.chainPill, { backgroundColor: pill.bg }]}>
+            <Text style={[styles.chainText, { color: pill.fg }]}>{chainLabel(offer.chain)}</Text>
           </View>
           <View
             style={[
@@ -112,10 +119,6 @@ const styles = StyleSheet.create({
   tag: { color: colors.accent, fontSize: 11, fontWeight: '600' },
   chainPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   chainText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
-  chainLidl: { backgroundColor: 'rgba(0,90,200,0.18)' },
-  chainRewe: { backgroundColor: 'rgba(204,12,45,0.18)' },
-  chainTextLidl: { color: '#6ea8ff' },
-  chainTextRewe: { color: '#ff8597' },
   srcPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   srcText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
   srcCoupon: { backgroundColor: 'rgba(61,139,253,0.16)' },

@@ -10,6 +10,7 @@ generic engine (`MeinprospektScraper`) parameterized by publisher; each chain is
 a thin subclass:
   - Lidl (publisher ``DE-1013``) -> :class:`BonialScraper`
   - REWE (publisher ``DE-1062``) -> :class:`ReweScraper`
+  - EDEKA (publisher ``DE-220164``) -> :class:`EdekaScraper`
 
 Flow:
   1. discover the publisher's currently-valid weekly brochure(s) from its
@@ -248,6 +249,39 @@ class ReweScraper(MeinprospektScraper):
             o("rw-003", "Wagner Steinofen Pizza Salami", 199, None, "320 g", "Wagner"),
             o("rw-004", "Milram Gewürzquark", 99, None, "200 g", "Milram"),
             o("rw-005", "Rügenwalder Teewurst", 149, None, "125 g", "Rügenwalder"),
+        ]
+
+
+class EdekaScraper(MeinprospektScraper):
+    """EDEKA's weekly Prospekt (national publisher ``DE-220164``).
+
+    EDEKA is a regional co-op; ``DE-220164`` is the national publisher and the
+    brochure pages are location-gated (lat/lng), so a Berlin PLZ gets Berlin-ish
+    offers. Like REWE's "Dein Markt", the flyer usually carries no struck-through
+    regular price, so most offers list a price without a discount %.
+    """
+
+    publisher_id = "DE-220164"  # EDEKA
+    publisher_page = "https://www.meinprospekt.de/edeka"
+    chain = "edeka"
+    store_label = "Edeka"
+
+    def _sample(self) -> List[ScrapedOffer]:
+        today = date.today()
+        end = today + timedelta(days=6)
+
+        def o(ext, name, price, regular, unit, brand=None):
+            return ScrapedOffer(external_id=ext, name=name, price_cents=price,
+                                regular_price_cents=regular, unit=unit, brand=brand,
+                                valid_from=today, valid_to=end)
+
+        # EDEKA flyer prices have no "old" price, so these mirror reality: no regular.
+        return [
+            o("ed-001", "Gut&Günstig Weizenmehl Type 405", 49, None, "1 kg", "Gut&Günstig"),
+            o("ed-002", "EDEKA Bio Freilandeier", 299, None, "10 Stück", "EDEKA Bio"),
+            o("ed-003", "Wiesenhof Hähnchenbrustfilet", 599, None, "400 g", "Wiesenhof"),
+            o("ed-004", "Gut&Günstig Sonnenblumenöl", 199, None, "1 l", "Gut&Günstig"),
+            o("ed-005", "Bauern Gut Schweinenackensteaks", 399, None, "1 kg", "Bauern Gut"),
         ]
 
 

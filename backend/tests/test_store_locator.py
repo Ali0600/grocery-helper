@@ -49,8 +49,8 @@ def test_store_without_address_is_still_listed():
 
 def test_active_flags():
     by = {s.chain: s for s in _stores()}
-    assert by["lidl"].active and by["rewe"].active
-    assert not by["edeka"].active and not by["kaufland"].active
+    assert by["lidl"].active and by["rewe"].active and by["edeka"].active
+    assert not by["kaufland"].active and not by["aldi"].active  # not scraped yet
 
 
 def test_way_element_parsed_via_center():

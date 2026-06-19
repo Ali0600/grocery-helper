@@ -28,6 +28,7 @@ function fmtDist(m: number): string {
 function badgeColors(chain: string): { bg: string; fg: string } {
   if (chain === 'lidl') return { bg: 'rgba(0,90,200,0.18)', fg: '#6ea8ff' };
   if (chain === 'rewe') return { bg: 'rgba(204,12,45,0.18)', fg: '#ff8597' };
+  if (chain === 'edeka') return { bg: 'rgba(255,205,0,0.16)', fg: '#ffd84d' };
   return { bg: colors.card2, fg: colors.muted };
 }
 
