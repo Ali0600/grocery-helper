@@ -121,6 +121,36 @@ curl -X POST http://localhost:8000/api/optimize \
 docker compose up --build
 ```
 
+### Deploy to Render (free HTTPS, for TestFlight)
+
+The backend ships an **Infrastructure-as-Code** [`render.yaml`](render.yaml)
+Blueprint that deploys [`backend/Dockerfile`](backend/Dockerfile) as a Render web
+service with a free managed HTTPS URL (`https://<name>.onrender.com`) — which is what
+the iOS/TestFlight build talks to (a real device can't reach `localhost`, and iOS
+requires HTTPS). Apply it via the Render dashboard → **New → Blueprint** (it reads
+`render.yaml` from the repo). The container binds to Render's `$PORT`; `/health` is
+the health check. The mobile production build points at this URL via
+`EXPO_PUBLIC_API_URL` in [`mobile/eas.json`](mobile/eas.json).
+
+> Free-tier note: the instance sleeps after ~15 min idle and cold-starts on the next
+> request (the app re-seeds via a scrape on boot, so the first call after a sleep is
+> slow). For durable data, attach a Render Postgres / persistent disk and set
+> `DATABASE_URL` (the app already supports Postgres — see `docker-compose.yml`).
+
+### Build for iOS / TestFlight (EAS)
+
+```bash
+cd mobile
+eas login                              # your Expo account
+eas init                               # links the EAS project
+eas build -p ios --profile production  # cloud build (first run sets up Apple signing)
+eas submit -p ios --latest             # upload the .ipa to TestFlight
+```
+
+Config lives in [`mobile/eas.json`](mobile/eas.json) (remote auto-incrementing build
+numbers) and `mobile/app.json` (`ios.bundleIdentifier`). Set
+`EXPO_PUBLIC_API_URL` in `eas.json` to your deployed backend URL before building.
+
 ## API
 
 | Method | Path              | Purpose                                          |
