@@ -119,3 +119,45 @@ def test_chain_branches_filters_to_one_chain_and_limits(monkeypatch):
 
 def test_chain_branches_unknown_chain_is_empty():
     assert sl.chain_branches("denns", *CENTER, client=object()) == []
+
+
+# --- PLZ centroid geocoding (picker centre) — no live API --------------------
+
+
+class _FakeResp:
+    def __init__(self, data):
+        self._data = data
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._data
+
+
+class _FakeClient:
+    def __init__(self, data):
+        self._data = data
+        self.calls = 0
+
+    def get(self, url, params=None):
+        self.calls += 1
+        return _FakeResp(self._data)
+
+    def close(self):
+        pass
+
+
+def test_plz_centroid_parses_and_caches():
+    sl._PLZ_CACHE.clear()
+    fc = _FakeClient([{"lat": "52.48509", "lon": "13.31325"}])
+    assert sl.plz_centroid("10713", client=fc) == (52.48509, 13.31325)
+    assert fc.calls == 1
+    # second lookup is served from cache (no request), even with a would-be-empty client
+    assert sl.plz_centroid("10713", client=_FakeClient([])) == (52.48509, 13.31325)
+
+
+def test_plz_centroid_empty_or_bad_is_none():
+    sl._PLZ_CACHE.clear()
+    assert sl.plz_centroid("99999", client=_FakeClient([])) is None
+    assert sl.plz_centroid("00000", client=_FakeClient([{"lat": "x", "lon": "y"}])) is None

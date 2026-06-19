@@ -39,6 +39,8 @@ def _source(host: str) -> str:
         return "meinprospekt (flyer)"
     if "overpass" in h or "maps.mail.ru" in h:
         return "OpenStreetMap Overpass (stores)"
+    if "nominatim" in h:
+        return "OpenStreetMap Nominatim (PLZ lookup)"
     return host
 
 

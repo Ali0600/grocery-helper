@@ -57,10 +57,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   client-side (`mobile/src/storage.ts`, key `myStores`, **one entry per chain** —
   the branch the user picked). `GET /api/nearby-stores?chain=<slug>` returns **every
   branch of one chain** near the PLZ (nearest first, wider 6 km radius, deduped
-  node/way) — the app's "Change" picker (`StoresModal`), so the user can choose the
-  store actually near them, not just nearest the PLZ centroid; without `chain` it's
-  the nearest-per-chain list as before. Pure selection logic (`_select_nearest`,
-  `_all_branches`) is fixture-tested — no live API in tests.
+  node/way) — the app's "Change" picker (`StoresModal`); without `chain` it's the
+  nearest-per-chain list as before. **The picker (`chain` set) centres on the PLZ's
+  real centroid via Nominatim** (`plz_centroid`, cached), NOT the scraped-store
+  coords: the scraped Store reuses the nearest *Lidl*, which can sit a district away
+  (10713/Wilmersdorf → a Schöneberg Lidl ~3 km off), which buried the user's actual
+  local Edeka past the 12-cap. The **general list keeps the scraped-store coords** so
+  its Lidl/REWE stay consistent with the deals (deliberate split). Pure logic
+  (`_select_nearest`, `_all_branches`, `plz_centroid` parsing) is fixture/fake-client
+  tested — no live API in tests.
 - **Outbound calls are counted** (`app/metrics.py` + `app/http.py`): every scraper/
   locator builds its httpx client via `tracked_client()`, whose request hook tallies
   each call by host. `GET /api/scrape-stats` (JSON) shows totals (since startup) +
@@ -72,7 +77,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   on open, then no auto-poll). Counts are in-memory (reset on restart). **Reference numbers**: browsing = 0
   external calls; one scrape run = **7** (2 Lidl Plus + 5 meinprospekt: 2 publisher
   pages + ~3 brochure-pages, varies with active-brochure count); opening Stores = 1
-  Overpass call, then cached 24h. New external client code should use
+  Overpass call; tapping **Change** = 1 Nominatim (PLZ centroid) + 1 Overpass, all
+  cached 24h. New external client code should use
   `tracked_client` so it's counted.
 - **Categorization is path-aware** (`app/categories.py`): for flyer offers,
   Bonial's `categoryPaths` is the primary signal (non-food level-1 node →
