@@ -54,7 +54,7 @@ read-only API, lock it down once there's auth/private data.
 
 ### Bundle ID vs app name
 The app **name** (under the icon) is changeable anytime; the **bundle identifier**
-(`com.alihassan.groceryhelper`) is the permanent technical ID — editable until the
+(`com.groceryhelper.app`) is the permanent technical ID — editable until the
 first App Store Connect upload, then locked. It's internal, so it needn't match the
 name.
 **Takeaway:** pick a name-independent bundle ID before the first upload; rename the
