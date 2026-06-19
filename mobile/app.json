@@ -8,7 +8,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.groceryhelper.app",
+      "bundleIdentifier": "com.groceryhelper.berlin",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
