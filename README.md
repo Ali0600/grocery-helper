@@ -196,7 +196,9 @@ them without re-scraping. The app **hides non-food by default** with a
       `DE-1062`), with a per-offer store badge (Lidl/REWE) in the app
 - [x] Nearby-stores directory ("Stores"): nearest Lidl/REWE/Edeka/Aldi/Netto/
       Penny/Kaufland with addresses (OpenStreetMap), add non-active chains to a
-      saved "My stores" list — groundwork for onboarding more chains
+      saved "My stores" list — groundwork for onboarding more chains; a "Change"
+      picker lists every branch of a chain near the PLZ so you can pick the one
+      actually near you (not just nearest the PLZ centroid)
 - [x] Per-unit price (€/kg, €/l) shown on every offer that has one, plus REWE
       loyalty-card bonus badges ("1,00 € Bonus") — both pulled from data we
       already fetched but had been discarding

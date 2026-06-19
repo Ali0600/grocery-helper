@@ -111,14 +111,17 @@ def list_nearby_stores(
     plz: Optional[str] = None,
     lat: Optional[float] = None,
     lng: Optional[float] = None,
+    chain: Optional[str] = None,
 ):
-    """Nearest store of each known chain around the PLZ (or explicit lat/lng).
+    """Nearby stores around the PLZ (or explicit lat/lng), from OpenStreetMap.
 
-    Lidl/REWE come back `active=True` (we scrape them); the rest are address-only
-    placeholders the app can add to a "My stores" list. Data is OpenStreetMap via
-    Overpass; an empty list means all mirrors were unreachable.
+    Without `chain`: the nearest store of each known chain (Lidl/REWE come back
+    `active=True`; the rest are address-only placeholders the app can save). With
+    `chain=<slug>`: every branch of that one chain near the PLZ, nearest first — the
+    "Change branch" picker, so the user can pick the store actually near them rather
+    than the one merely nearest the PLZ centroid. Empty list = mirrors unreachable.
     """
-    from ..services.store_locator import nearby_stores
+    from ..services.store_locator import CHAINS, chain_branches, nearby_stores
 
     if lat is None or lng is None:
         target = plz or settings.default_plz
@@ -133,7 +136,11 @@ def list_nearby_stores(
     if lat is None or lng is None:
         return []  # couldn't locate the PLZ; app shows a "set your PLZ" message
 
-    return [NearbyStoreOut(**vars(s)) for s in nearby_stores(lat, lng)]
+    if chain:
+        stores = chain_branches(chain, lat, lng) if chain in CHAINS else []
+    else:
+        stores = nearby_stores(lat, lng)
+    return [NearbyStoreOut(**vars(s)) for s in stores]
 
 
 def _resolve_plz_coords(plz: str) -> tuple[Optional[float], Optional[float]]:

@@ -44,6 +44,8 @@ OVERPASS_MIRRORS = [
 HEADERS = {"User-Agent": "grocery-helper/1.0 (personal project; Berlin grocery deals)"}
 
 _CACHE: Dict[Tuple[float, float, int], Tuple[float, List["NearbyStore"]]] = {}
+# All in-scope branches per area (for the "Change branch" picker), same TTL.
+_BRANCH_CACHE: Dict[Tuple[float, float, int], Tuple[float, List["NearbyStore"]]] = {}
 _CACHE_TTL = 24 * 3600  # store locations are static; cache aggressively
 
 
@@ -116,6 +118,78 @@ def _select_nearest(elements: List[dict], lat: float, lng: float) -> List[Nearby
                 active=slug in ACTIVE_CHAINS,
             )
     return sorted(best.values(), key=lambda s: s.distance_m)
+
+
+def _all_branches(elements: List[dict], lat: float, lng: float) -> List[NearbyStore]:
+    """Pure: every in-scope store (not just the nearest per chain), sorted by
+    distance and de-duplicated. One physical store can appear in OSM as both a node
+    and a building way, so collapse by (chain, address) — or by coarse coordinates
+    (~11 m) when an address is missing — keeping the nearest copy. Backs the picker.
+    """
+    out: List[NearbyStore] = []
+    for el in elements:
+        tags = el.get("tags") or {}
+        slug = _chain_for(tags.get("brand"), tags.get("name"))
+        if not slug:
+            continue
+        elat = el.get("lat") or (el.get("center") or {}).get("lat")  # node vs way
+        elng = el.get("lon") or (el.get("center") or {}).get("lon")
+        if elat is None or elng is None:
+            continue
+        out.append(
+            NearbyStore(
+                chain=slug,
+                label=CHAINS[slug][0],
+                name=tags.get("name") or CHAINS[slug][0],
+                address=_assemble_address(tags),
+                lat=float(elat),
+                lng=float(elng),
+                distance_m=int(round(_haversine(lat, lng, elat, elng))),
+                active=slug in ACTIVE_CHAINS,
+            )
+        )
+    out.sort(key=lambda s: s.distance_m)
+    seen = set()
+    deduped: List[NearbyStore] = []
+    for s in out:
+        key = (s.chain, s.address) if s.address else (s.chain, round(s.lat, 4), round(s.lng, 4))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(s)
+    return deduped
+
+
+def chain_branches(
+    chain: str,
+    lat: float,
+    lng: float,
+    radius_m: int = 6000,
+    limit: int = 12,
+    client: Optional[httpx.Client] = None,
+) -> List[NearbyStore]:
+    """Branches of one chain around (lat, lng), nearest first. [] if all mirrors fail
+    or the chain isn't one we list. Wider radius than the nearest-scan so a branch a
+    few km out (the one actually near the user) is included."""
+    if chain not in CHAINS:
+        return []
+    key = (round(lat, 3), round(lng, 3), radius_m)
+    cached = _BRANCH_CACHE.get(key)
+    if cached and time.time() - cached[0] < _CACHE_TTL:
+        branches = cached[1]
+    else:
+        own = client is None
+        client = client or tracked_client(timeout=30, headers=HEADERS)
+        try:
+            elements = _fetch_overpass(_overpass_query(lat, lng, radius_m), client)
+        finally:
+            if own:
+                client.close()
+        if elements is None:
+            return []  # all mirrors failed; don't cache, let the caller retry
+        branches = _all_branches(elements, lat, lng)
+        _BRANCH_CACHE[key] = (time.time(), branches)
+    return [s for s in branches if s.chain == chain][:limit]
 
 
 def _overpass_query(lat: float, lng: float, radius_m: int) -> str:

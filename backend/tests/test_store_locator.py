@@ -10,10 +10,13 @@ FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "overpass_stores.j
 CENTER = (52.5, 13.4)  # the fixture's coords are laid out relative to this
 
 
-def _stores():
+def _elements():
     with open(FIXTURE, encoding="utf-8") as f:
-        elements = json.load(f)["elements"]
-    return _select_nearest(elements, *CENTER)
+        return json.load(f)["elements"]
+
+
+def _stores():
+    return _select_nearest(_elements(), *CENTER)
 
 
 def test_one_entry_per_known_chain():
@@ -77,3 +80,42 @@ def test_returns_empty_when_all_mirrors_fail(monkeypatch):
     monkeypatch.setattr(sl, "_fetch_overpass", lambda query, client: None)
     # Uncached coords + an injected (unused) client so no real network happens.
     assert nearby_stores(1.234, 5.678, client=object()) == []
+
+
+# --- "Change branch" picker: list every branch of a chain ---------------------
+
+
+def test_all_branches_keeps_every_store_sorted_by_distance():
+    branches = sl._all_branches(_elements(), *CENTER)
+    edeka = [s for s in branches if s.chain == "edeka"]
+    assert len(edeka) == 2  # the ~130 m branch AND "EDEKA Far" (nearest-scan keeps 1)
+    dists = [s.distance_m for s in branches]
+    assert dists == sorted(dists)
+
+
+def test_all_branches_dedupes_one_store_mapped_as_node_and_way():
+    els = _elements()
+    near = min(
+        (e for e in els if _chain_for((e.get("tags") or {}).get("brand"),
+                                      (e.get("tags") or {}).get("name")) == "edeka"),
+        key=lambda e: _haversine(*CENTER, e["lat"], e["lon"]),
+    )
+    # The same store re-mapped as a building way (center at the same coords/tags).
+    dup = {"type": "way", "center": {"lat": near["lat"], "lon": near["lon"]}, "tags": near["tags"]}
+    edeka = [s for s in sl._all_branches(els + [dup], *CENTER) if s.chain == "edeka"]
+    assert len(edeka) == 2  # the dup collapses; still just the near branch + "Far"
+
+
+def test_chain_branches_filters_to_one_chain_and_limits(monkeypatch):
+    monkeypatch.setattr(sl, "_fetch_overpass", lambda query, client: _elements())
+    sl._BRANCH_CACHE.clear()
+    res = sl.chain_branches("edeka", *CENTER, client=object())
+    assert res and all(s.chain == "edeka" for s in res)
+    assert [s.distance_m for s in res] == sorted(s.distance_m for s in res)
+    assert len(res) == 2
+    one = sl.chain_branches("edeka", *CENTER, limit=1, client=object())
+    assert len(one) == 1 and one[0].distance_m == res[0].distance_m  # nearest kept
+
+
+def test_chain_branches_unknown_chain_is_empty():
+    assert sl.chain_branches("denns", *CENTER, client=object()) == []

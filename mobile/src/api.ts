@@ -50,6 +50,15 @@ export const api = {
     return get<NearbyStore[]>(`/api/nearby-stores?${q.toString()}`);
   },
 
+  // Every branch of one chain near the PLZ (nearest first) — the "Change" picker,
+  // so the user can choose the store actually near them, not just nearest the PLZ.
+  chainBranches(plz: string | undefined, chain: string) {
+    const q = new URLSearchParams();
+    if (plz) q.set('plz', plz);
+    q.set('chain', chain);
+    return get<NearbyStore[]>(`/api/nearby-stores?${q.toString()}`);
+  },
+
   // Scrape the nearest store for a PLZ on demand and return the resolved store(s).
   scrape(plz: string) {
     return post<ScrapeResult>(`/api/scrape?plz=${encodeURIComponent(plz)}`);

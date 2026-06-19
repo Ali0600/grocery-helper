@@ -48,12 +48,15 @@ export type NearbyStore = {
   active: boolean; // chains we already scrape deals for (lidl/rewe)
 };
 
-// A store the user saved to "My stores" (persisted locally; address-only for now).
+// A store the user saved to "My stores" (persisted locally; one per chain — the
+// specific branch they picked). Coords are kept for a future directions link.
 export type MyStore = {
   chain: string;
   label: string;
   name: string;
   address: string | null;
+  lat?: number;
+  lng?: number;
 };
 
 export type ScrapeResult = {

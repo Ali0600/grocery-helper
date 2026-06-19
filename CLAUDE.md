@@ -54,8 +54,13 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `ACTIVE_CHAINS` (the ones we scrape). Public Overpass instances 504 a lot → tries
   mirrors in order + caches per-area (24h) + returns `[]` on total failure. These
   are **not** persisted as `Store` rows; the app's "My stores" saved list lives
-  client-side (`mobile/src/storage.ts`, key `myStores`). Pure selection logic
-  (`_select_nearest`) is fixture-tested — no live API in tests.
+  client-side (`mobile/src/storage.ts`, key `myStores`, **one entry per chain** —
+  the branch the user picked). `GET /api/nearby-stores?chain=<slug>` returns **every
+  branch of one chain** near the PLZ (nearest first, wider 6 km radius, deduped
+  node/way) — the app's "Change" picker (`StoresModal`), so the user can choose the
+  store actually near them, not just nearest the PLZ centroid; without `chain` it's
+  the nearest-per-chain list as before. Pure selection logic (`_select_nearest`,
+  `_all_branches`) is fixture-tested — no live API in tests.
 - **Outbound calls are counted** (`app/metrics.py` + `app/http.py`): every scraper/
   locator builds its httpx client via `tracked_client()`, whose request hook tallies
   each call by host. `GET /api/scrape-stats` (JSON) shows totals (since startup) +
