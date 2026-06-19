@@ -67,6 +67,15 @@ to Apple (`eas submit`); TestFlight distributes the beta to testers. Config live
 **Takeaway:** EAS = managed mobile CI/CD; TestFlight = Apple's beta channel (needs a
 paid Apple Developer account).
 
+### Expo slug vs name vs bundle ID
+Three different identifiers: `expo.slug` names the project on Expo/EAS
+(`@account/slug`); `expo.name` is the display name under the icon; the iOS
+`bundleIdentifier` is Apple's app id. `eas init` proposed `@mhassan0600/mobile`
+because the `create-expo-app` scaffold left `slug: "mobile"` (the folder name);
+changed it to `grocery-helper` before creating the project.
+**Takeaway:** set a meaningful `expo.slug` *before* `eas init` — it's your project's
+name on Expo and is annoying to change after it's created.
+
 ## App architecture (specific to this project)
 
 ### Serve-time computed fields (no DB migration)

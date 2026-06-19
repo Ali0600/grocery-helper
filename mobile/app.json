@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Grocery Helper",
-    "slug": "mobile",
+    "slug": "grocery-helper",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
