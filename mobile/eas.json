@@ -11,7 +11,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://grocery-helper-api.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://grocery-helper-sw6c.onrender.com"
       }
     }
   },
