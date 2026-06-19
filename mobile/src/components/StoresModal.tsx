@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { api } from '../api';
+import { chainColors } from '../chains';
 import { colors } from '../theme';
 import { MyStore, NearbyStore } from '../types';
 
@@ -23,13 +24,6 @@ type Props = {
 
 function fmtDist(m: number): string {
   return m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`;
-}
-
-function badgeColors(chain: string): { bg: string; fg: string } {
-  if (chain === 'lidl') return { bg: 'rgba(0,90,200,0.18)', fg: '#6ea8ff' };
-  if (chain === 'rewe') return { bg: 'rgba(204,12,45,0.18)', fg: '#ff8597' };
-  if (chain === 'edeka') return { bg: 'rgba(255,205,0,0.16)', fg: '#ffd84d' };
-  return { bg: colors.card2, fg: colors.muted };
 }
 
 // A saved store reconstructed for display (no fresh distance until re-picked).
@@ -214,7 +208,7 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
                   {stores.map((s) => {
                     const chain = s.chain;
                     const disp = selected[chain] ?? s;
-                    const b = badgeColors(chain);
+                    const b = chainColors(chain);
                     const isSaved = !!savedFor(chain);
                     return (
                       <View key={chain} style={styles.row}>

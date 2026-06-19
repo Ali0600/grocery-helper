@@ -22,6 +22,7 @@ import { OfferCard } from '../components/OfferCard';
 import { PlzModal } from '../components/PlzModal';
 import { SearchBar } from '../components/SearchBar';
 import { SortToggle } from '../components/SortToggle';
+import { StoreFilter } from '../components/StoreFilter';
 import { StoresModal } from '../components/StoresModal';
 import {
   getStoredMyStores,
@@ -38,6 +39,8 @@ import { colors } from '../theme';
 import { CategoryCount, MyStore, Offer } from '../types';
 
 const DEFAULT_PLZ = '10115';
+// Preferred order for the store filter; any other chains follow, alphabetically.
+const CHAIN_ORDER = ['lidl', 'rewe', 'edeka'];
 
 // Compare two values, sending nulls to the end regardless of direction.
 function byNullsLast(a: number | null, b: number | null, dir: 'asc' | 'desc'): number {
@@ -136,6 +139,7 @@ export default function DealsScreen() {
   const [storesModal, setStoresModal] = useState(false);
   const [myStores, setMyStores] = useState<MyStore[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>('discount');
+  const [storeFilter, setStoreFilter] = useState<string | null>(null); // session lens; resets each launch
 
   // Hydrate saved prefs once on mount, then let `load` run.
   useEffect(() => {
@@ -184,6 +188,7 @@ export default function DealsScreen() {
     setStoreName(name);
     setSelected(null);
     setQuery('');
+    setStoreFilter(null);
     setPlz(newPlz);
     setPlzModal(false);
   }, []);
@@ -207,11 +212,23 @@ export default function DealsScreen() {
     });
   }, [selected]);
 
-  // Everything is filtered client-side from the full PLZ set. Non-food is hidden
-  // unless toggled on; a search matches name/brand across all categories (it
-  // ignores the selected chip), otherwise the selected category filters.
+  // Chains present for this PLZ, in a preferred order, for the store filter.
+  const presentChains = (() => {
+    const set = new Set(offers.map((o) => o.chain));
+    const ordered = CHAIN_ORDER.filter((c) => set.has(c));
+    const extra = [...set].filter((c) => !CHAIN_ORDER.includes(c)).sort();
+    return [...ordered, ...extra];
+  })();
+  // Ignore a stale pick (e.g. the chain vanished after a PLZ change) -> show All.
+  const effectiveStore = storeFilter && presentChains.includes(storeFilter) ? storeFilter : null;
+
+  // Everything is filtered client-side from the full PLZ set. The store filter is a
+  // global lens (applies to both category and search); non-food is hidden unless
+  // toggled on; a search matches name/brand across all categories (it ignores the
+  // selected chip), otherwise the selected category filters.
   const q = query.trim().toLowerCase();
-  const base = showNonFood ? offers : offers.filter((o) => o.category !== 'household');
+  const foodBase = showNonFood ? offers : offers.filter((o) => o.category !== 'household');
+  const base = effectiveStore ? foodBase.filter((o) => o.chain === effectiveStore) : foodBase;
   const visibleOffers = q
     ? base.filter(
         (o) =>
@@ -267,6 +284,10 @@ export default function DealsScreen() {
           showNonFood={showNonFood}
           onToggleNonFood={onToggleNonFood}
         />
+
+        {presentChains.length >= 2 && (
+          <StoreFilter chains={presentChains} value={effectiveStore} onChange={setStoreFilter} />
+        )}
 
         <SortToggle mode={sortMode} onChange={onChangeSort} />
 

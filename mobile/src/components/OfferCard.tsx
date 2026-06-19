@@ -1,28 +1,14 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { chainColors, chainLabel } from '../chains';
 import { cleanUnit, euro, fmtPricePerUnit, formatBrand, pct } from '../format';
 import { colors } from '../theme';
 import { Offer } from '../types';
 
-const CHAIN_LABELS: Record<string, string> = { lidl: 'Lidl', rewe: 'REWE', edeka: 'Edeka' };
-const CHAIN_PILL: Record<string, { bg: string; fg: string }> = {
-  lidl: { bg: 'rgba(0,90,200,0.18)', fg: '#6ea8ff' }, // Lidl blue
-  rewe: { bg: 'rgba(204,12,45,0.18)', fg: '#ff8597' }, // REWE red
-  edeka: { bg: 'rgba(255,205,0,0.16)', fg: '#ffd84d' }, // EDEKA yellow
-};
-
-function chainLabel(chain: string): string {
-  return CHAIN_LABELS[chain] ?? chain.charAt(0).toUpperCase() + chain.slice(1);
-}
-
-function chainPill(chain: string): { bg: string; fg: string } {
-  return CHAIN_PILL[chain] ?? { bg: colors.card2, fg: colors.muted };
-}
-
 export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => void }) {
   const meta = [formatBrand(offer.brand), cleanUnit(offer.unit)].filter(Boolean).join(' · ');
-  const pill = chainPill(offer.chain);
+  const pill = chainColors(offer.chain);
   const perUnit = fmtPricePerUnit(offer.price_per_unit);
   return (
     <Pressable
