@@ -5,10 +5,11 @@ weekly offers ("Angebote") from local supermarket chains, normalizes and
 categorizes them, computes the **% discount** for every item, and helps you
 build the cheapest basket across one or two stores.
 
-> **Status:** v1 in progress. **Live Lidl + REWE offers** + API + the React
+> **Status:** v1 in progress. **Live Lidl + REWE + EDEKA offers** + API + the React
 > Native app work end-to-end — real Berlin prices, resolved from your postal
-> code via the Lidl Plus endpoints and the meinprospekt weekly-flyer feed. Two
-> chains make the basket optimizer meaningful. See [Roadmap](#roadmap).
+> code via the Lidl Plus endpoints and the meinprospekt weekly-flyer feed. Three
+> chains make the basket optimizer and per-product price comparison meaningful.
+> See [Roadmap](#roadmap).
 
 ## Highlights
 
@@ -163,6 +164,11 @@ compare. Caveat: REWE's flyer carries no struck-through "old" price, so most REW
 items show a price (and per-unit price) **without a % discount** — the optimizer
 ranks by absolute price, so this doesn't affect it.
 
+**EDEKA weekly flyer** (`source="flyer"`, `chain="edeka"`) — the same engine again
+for EDEKA's national meinprospekt publisher (`DE-220164`). ~300 structured Berlin
+offers attach to a separate EDEKA store, giving a third chain to compare per product
+(e.g. avocado across Lidl/REWE/EDEKA). Same no-regular-price caveat as REWE.
+
 **Categorization.** [`categories.py`](backend/app/categories.py) classifies each
 offer with a path-aware, deterministic pipeline:
 
@@ -194,6 +200,8 @@ them without re-scraping. The app **hides non-food by default** with a
 - [x] In-app search bar + Coupon/Prospekt source badges
 - [x] REWE as a second chain (meinprospekt "Dein Markt" flyer, publisher
       `DE-1062`), with a per-offer store badge (Lidl/REWE) in the app
+- [x] EDEKA as a third chain (meinprospekt flyer, publisher `DE-220164`) — ~300
+      Berlin offers, an Edeka badge, and three-way per-product price comparison
 - [x] Nearby-stores directory ("Stores"): nearest Lidl/REWE/Edeka/Aldi/Netto/
       Penny/Kaufland with addresses (OpenStreetMap), add non-active chains to a
       saved "My stores" list — groundwork for onboarding more chains; a "Change"

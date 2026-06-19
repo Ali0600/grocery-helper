@@ -22,19 +22,21 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 - **Local API port is 8001**, not 8000 (8000 is usually already taken on the dev
   machine). `mobile/.env` → `EXPO_PUBLIC_API_URL=http://localhost:8001`. The iOS
   simulator reaches the Mac via `localhost`; a physical phone needs the LAN IP.
-- **Two sources × two chains, tagged `Offer.source` / `Store.chain`**: `coupon`
+- **Two sources × three chains, tagged `Offer.source` / `Store.chain`**: `coupon`
   (Lidl Plus app endpoints, `app/scrapers/lidl.py`) and `flyer`
   (meinprospekt weekly Prospekt, `app/scrapers/bonial.py`). `bonial.py` is a
   publisher-parameterized engine (`MeinprospektScraper`): `BonialScraper` =
   **Lidl** (publisher `DE-1013`, page `/lidl`), `ReweScraper` = **REWE**
-  (publisher `DE-1062`, page `/rewe-de`). The flyer feed is location-gated and
-  reuses the lat/lng the Lidl Plus lookup resolves; REWE is a **separate store**
-  (`chain="rewe"`) reusing those PLZ coords (a Berlin PLZ → one brochure region).
-  **REWE's flyer has no regular price** → most REWE offers have no `discount_pct`
-  (they sink under discount-sort but the optimizer ranks by absolute price). Two
-  chains push a Berlin PLZ to ~1300 offers, so `/api/offers` `limit` cap and the
-  app's load are **2000** (not 1000); a 3rd chain → move search server-side
-  (`q` param) rather than raising it again.
+  (publisher `DE-1062`, page `/rewe-de`), `EdekaScraper` = **EDEKA** (publisher
+  `DE-220164`, page `/edeka`). The flyer feed is location-gated and reuses the
+  lat/lng the Lidl Plus lookup resolves; REWE and EDEKA are **separate stores**
+  (`chain="rewe"`/`"edeka"`) reusing those PLZ coords (a Berlin PLZ → one brochure
+  region). **REWE's and EDEKA's flyers have no regular price** → most of their
+  offers have no `discount_pct` (they sink under discount-sort but the optimizer
+  ranks by absolute price). Three chains push a Berlin PLZ to ~1600 raw / **~1050
+  deduped** offers, so `/api/offers` `limit` cap and the app's load are **2000**;
+  a 4th chain (or a denser PLZ crossing 2000) → move search server-side (`q` param)
+  rather than raising it again.
 - **Offers are de-duplicated at serve time** (`app/dedup.py`, used by both
   `/api/offers` and `/api/categories` so list and chip counts agree). A chain
   publishes several weekly brochures, so the flyer feed repeats a product across
@@ -51,7 +53,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   allowlisted chain (lidl/rewe/edeka/aldi/netto/penny/kaufland) via **OpenStreetMap
   Overpass** — `node/way["shop"="supermarket"]` + haversine, brand-prefix
   normalization (Aldi Nord→aldi, Netto Marken-Discount→netto). `active` = chain in
-  `ACTIVE_CHAINS` (the ones we scrape). Public Overpass instances 504 a lot → tries
+  `ACTIVE_CHAINS` (lidl/rewe/edeka — the ones we scrape). Public Overpass instances 504 a lot → tries
   mirrors in order + caches per-area (24h) + returns `[]` on total failure. These
   are **not** persisted as `Store` rows; the app's "My stores" saved list lives
   client-side (`mobile/src/storage.ts`, key `myStores`, **one entry per chain** —
@@ -75,8 +77,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   (`app/stats_page.py`, served from `main.py`), rendering the recent-calls log with
   relative "Xs ago" times; it fetches on demand via a **Refresh** button (loads once
   on open, then no auto-poll). Counts are in-memory (reset on restart). **Reference numbers**: browsing = 0
-  external calls; one scrape run = **7** (2 Lidl Plus + 5 meinprospekt: 2 publisher
-  pages + ~3 brochure-pages, varies with active-brochure count); opening Stores = 1
+  external calls; one scrape run = **~9** (2 Lidl Plus + ~7 meinprospekt: 3 publisher
+  pages — Lidl/REWE/EDEKA — + ~4 brochure-pages, varies with active-brochure count);
+  opening Stores = 1
   Overpass call; tapping **Change** = 1 Nominatim (PLZ centroid) + 1 Overpass, all
   cached 24h. New external client code should use
   `tracked_client` so it's counted.

@@ -1,0 +1,555 @@
+{
+ "contents": [
+  {
+   "offers": [
+    {
+     "content": {
+      "id": "b37ea4d0-55c8-41af-8cf2-77eda04ea735",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-220164",
+       "name": "EDEKA",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/b37ea4d0-55c8-41af-8cf2-77eda04ea735/main.jpg",
+      "parentContent": {
+       "id": "fd3e3092-c617-4716-893a-bfa454d05521",
+       "legacyId": 2501149947,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.50417364,
+          "y": 0.4792833
+         },
+         "topLeft": {
+          "x": 0.02003339,
+          "y": 0.18701008
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Weizenbrötchen / Schrippen",
+        "brandName": "Gut&Günstig",
+        "description": [
+         {
+          "paragraph": "besonders fein im Geschmack, außen knusprig, innen locker\nStück"
+         }
+        ],
+        "images": [],
+        "categoryPaths": [
+         {
+          "id": "DE-104",
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "id": "DE-105",
+          "name": "Produkte"
+         },
+         {
+          "id": "DE-48921103",
+          "name": "Lebensmittel"
+         },
+         {
+          "id": "DE-103639363",
+          "name": "Backwaren"
+         },
+         {
+          "id": "DE-12137",
+          "name": "Brötchen"
+         },
+         {
+          "id": "DE-194073551",
+          "name": "Weizenbrötchen"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 0.11,
+        "min": 0.11,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-06-14T22:00:00.000+0000",
+         "endDate": "2026-06-20T20:00:00.000+0000"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "content": {
+      "id": "175e1cd7-6df9-49ad-bfdd-c97d0a5b1b76",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-220164",
+       "name": "EDEKA",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/175e1cd7-6df9-49ad-bfdd-c97d0a5b1b76/main.jpg",
+      "parentContent": {
+       "id": "fd3e3092-c617-4716-893a-bfa454d05521",
+       "legacyId": 2501149947,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.9766277,
+          "y": 0.4792833
+         },
+         "topLeft": {
+          "x": 0.50417364,
+          "y": 0.23516238
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Schweinenackensteaks mariniert",
+        "brandName": "Bauern Gut",
+        "description": [
+         {
+          "paragraph": "Der Klassiker für die Zubereitung auf dem Grill, auch in der Geschmacksrichtung 'Sweet Bacon' erhältlich"
+         }
+        ],
+        "images": [],
+        "categoryPaths": [
+         {
+          "id": "DE-104",
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "id": "DE-48989303",
+          "name": "Marken"
+         },
+         {
+          "id": "DE-106949053",
+          "name": "Marken Lebensmittel"
+         },
+         {
+          "id": "DE-168731854",
+          "name": "Bauern Gut"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SPECIAL_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 6.29,
+        "min": 6.29,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "je 1kg = 12,90",
+        "description": ""
+       },
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 6.99,
+        "min": 6.99,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-06-14T22:00:00.000+0000",
+         "endDate": "2026-06-19T22:00:00.000+0000"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "content": {
+      "id": "175f0b52-bd7b-4d53-a245-076e05b03966",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-220164",
+       "name": "EDEKA",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/175f0b52-bd7b-4d53-a245-076e05b03966/main.jpg",
+      "parentContent": {
+       "id": "fd3e3092-c617-4716-893a-bfa454d05521",
+       "legacyId": 2501149947,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.9766277,
+          "y": 0.67973125
+         },
+         "topLeft": {
+          "x": 0.50417364,
+          "y": 0.4792833
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Salatgurken",
+        "brandName": "GUT&GÜNSTIG",
+        "description": [
+         {
+          "paragraph": "Niederlande / Deutschland KL. I, Stück"
+         }
+        ],
+        "images": [],
+        "categoryPaths": [
+         {
+          "id": "DE-104",
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "id": "DE-48989303",
+          "name": "Marken"
+         },
+         {
+          "id": "DE-106949053",
+          "name": "Marken Lebensmittel"
+         },
+         {
+          "id": "DE-819436",
+          "name": "Gut & Günstig"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 0.49,
+        "min": 0.49,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-06-14T22:00:00.000+0000",
+         "endDate": "2026-06-20T20:00:00.000+0000"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "content": {
+      "id": "77446946-22c7-43f8-85bb-79792b8c692c",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-220164",
+       "name": "EDEKA",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/77446946-22c7-43f8-85bb-79792b8c692c/main.jpg",
+      "parentContent": {
+       "id": "fd3e3092-c617-4716-893a-bfa454d05521",
+       "legacyId": 2501149947,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.26043406,
+          "y": 0.86450166
+         },
+         "topLeft": {
+          "x": 0.02003339,
+          "y": 0.67973125
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Butter oder Die Streichzarte",
+        "brandName": "Weihenstephan",
+        "description": [
+         {
+          "paragraph": "versch. Sorten 235/250g Stück/Becher"
+         }
+        ],
+        "images": [],
+        "categoryPaths": [
+         {
+          "id": "DE-104",
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "id": "DE-105",
+          "name": "Produkte"
+         },
+         {
+          "id": "DE-48921103",
+          "name": "Lebensmittel"
+         },
+         {
+          "id": "DE-128",
+          "name": "Milchprodukte"
+         },
+         {
+          "id": "DE-1349",
+          "name": "Butter"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SPECIAL_PRICE",
+        "conditions": [
+         {
+          "other": "APP-PREIS"
+         }
+        ],
+        "currencyCode": "EUR",
+        "max": 0.99,
+        "min": 0.99,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": ""
+       },
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 1.29,
+        "min": 1.29,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1kg = 5,49/5,16",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-06-14T22:00:00.000+0000",
+         "endDate": "2026-06-20T20:00:00.000+0000"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "content": {
+      "id": "364f9f34-82bb-4672-a4bf-f3ef9a5c6181",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-220164",
+       "name": "EDEKA",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/364f9f34-82bb-4672-a4bf-f3ef9a5c6181/main.jpg",
+      "parentContent": {
+       "id": "fd3e3092-c617-4716-893a-bfa454d05521",
+       "legacyId": 2501149947,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.312187,
+          "y": 0.67973125
+         },
+         "topLeft": {
+          "x": 0.02003339,
+          "y": 0.4792833
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Mai-Gouda",
+        "description": [
+         {
+          "paragraph": "holl. Schnittkäse, besonders mild im Geschmack, 48% Fett i. Tr., 100 g"
+         }
+        ],
+        "images": [],
+        "categoryPaths": [
+         {
+          "id": "DE-104",
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "id": "DE-105",
+          "name": "Produkte"
+         },
+         {
+          "id": "DE-48921103",
+          "name": "Lebensmittel"
+         },
+         {
+          "id": "DE-128",
+          "name": "Milchprodukte"
+         },
+         {
+          "id": "DE-227643",
+          "name": "Käse"
+         },
+         {
+          "id": "DE-227671",
+          "name": "Schnittkäse"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 0.59,
+        "min": 0.59,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 kg = 5.90",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-06-14T22:00:00.000+0000",
+         "endDate": "2026-06-20T20:00:00.000+0000"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "content": {
+      "id": "347eeb60-f997-4adf-a2c2-62d15398bc91",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-220164",
+       "name": "EDEKA",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/347eeb60-f997-4adf-a2c2-62d15398bc91/main.jpg",
+      "parentContent": {
+       "id": "fd3e3092-c617-4716-893a-bfa454d05521",
+       "legacyId": 2501149947,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.7378965,
+          "y": 0.86450166
+         },
+         "topLeft": {
+          "x": 0.50417364,
+          "y": 0.67973125
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Fischstäbchen",
+        "brandName": "Iglo",
+        "description": [
+         {
+          "paragraph": "versch. Sorten, z. B.: Fischstäbchen 450g"
+         }
+        ],
+        "images": [],
+        "categoryPaths": [
+         {
+          "id": "DE-104",
+          "name": "Lebensmittel und Getränke"
+         },
+         {
+          "id": "DE-48989303",
+          "name": "Marken"
+         },
+         {
+          "id": "DE-106949053",
+          "name": "Marken Lebensmittel"
+         },
+         {
+          "id": "DE-71865",
+          "name": "Iglo"
+         },
+         {
+          "id": "DE-304258260",
+          "name": "Iglo Fischstäbchen"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SPECIAL_PRICE",
+        "conditions": [
+         {
+          "other": "Nur mit App"
+         }
+        ],
+        "currencyCode": "EUR",
+        "max": 2.49,
+        "min": 2.49,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": ""
+       },
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 2.99,
+        "min": 2.99,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1kg = 6.64",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-06-14T22:00:00.000+0000",
+         "endDate": "2026-06-20T20:00:00.000+0000"
+        }
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

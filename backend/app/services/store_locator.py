@@ -34,7 +34,7 @@ CHAINS: Dict[str, Tuple[str, List[str]]] = {
     "kaufland": ("Kaufland", ["kaufland"]),
 }
 # Chains we actually scrape deals for; everything else is a placeholder.
-ACTIVE_CHAINS = {"lidl", "rewe"}
+ACTIVE_CHAINS = {"lidl", "rewe", "edeka"}
 
 OVERPASS_MIRRORS = [
     "https://overpass-api.de/api/interpreter",
