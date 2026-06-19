@@ -121,18 +121,27 @@ def list_nearby_stores(
     "Change branch" picker, so the user can pick the store actually near them rather
     than the one merely nearest the PLZ centroid. Empty list = mirrors unreachable.
     """
-    from ..services.store_locator import CHAINS, chain_branches, nearby_stores
+    from ..services.store_locator import CHAINS, chain_branches, nearby_stores, plz_centroid
 
     if lat is None or lng is None:
         target = plz or settings.default_plz
-        # A scraped store for this PLZ already has coordinates; reuse them.
-        store = session.scalar(
-            select(Store).where(Store.plz == target, Store.lat.is_not(None)).limit(1)
-        )
-        if store is not None:
-            lat, lng = store.lat, store.lng
-        else:
-            lat, lng = _resolve_plz_coords(target)
+        # The "Change branch" picker centres on the PLZ's real centroid so it lists
+        # the user's neighbourhood, not the scraped Lidl's (which can be a district
+        # away). The general nearest-per-chain list keeps the scraped-store coords so
+        # its Lidl/REWE stay consistent with the deals.
+        if chain:
+            centroid = plz_centroid(target)
+            if centroid is not None:
+                lat, lng = centroid
+        if lat is None or lng is None:
+            # A scraped store for this PLZ already has coordinates; reuse them.
+            store = session.scalar(
+                select(Store).where(Store.plz == target, Store.lat.is_not(None)).limit(1)
+            )
+            if store is not None:
+                lat, lng = store.lat, store.lng
+            else:
+                lat, lng = _resolve_plz_coords(target)
     if lat is None or lng is None:
         return []  # couldn't locate the PLZ; app shows a "set your PLZ" message
 
