@@ -1,0 +1,20 @@
+# Render Blueprint (Infrastructure-as-Code). Deploys the FastAPI backend as a Docker
+# web service with a free managed HTTPS URL (https://<name>.onrender.com), so the
+# TestFlight build can reach the API. Apply via Render Dashboard → New → Blueprint
+# (it reads this file from the repo). Free tier: HTTPS included; the instance sleeps
+# after ~15 min idle and cold-starts on the next request (re-seeds via a scrape).
+services:
+  - type: web
+    name: grocery-helper-api
+    runtime: docker
+    branch: main
+    region: frankfurt
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - key: DEFAULT_PLZ
+        value: "10115"
+      - key: CORS_ORIGINS
+        value: "*"
