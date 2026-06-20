@@ -126,6 +126,13 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `Offer.loyalty_note` = a REWE card bonus ("1,00 € Bonus"), parsed from an `OTHER`
   deal's description/conditions by `bonial.py` `_loyalty_note` (most bonuses lack
   the `isCard` flag, so match on the "€ Bonus" text, not `isCard`).
+  `Offer.app_price_cents` = a chain's **app-coupon price** (EDEKA "App-Preis" 2,99 €,
+  the Milka example), parsed by `bonial.py` `_app_price` from a `SPECIAL_PRICE` deal
+  whose `conditions[].other` contains "app" — **app markers only** (APP-PREIS / NUR
+  MIT APP / …); Payback / "6 für" multibuy / "ab 2 Kisten" bulk / day-only specials
+  are skipped (not a simple per-item price). Shown as a yellow "App X,XX €" pill on
+  the card (`OfferCard`); ~24 EDEKA offers/PLZ. Display-only (doesn't touch
+  sort/optimizer — those keep the guaranteed flyer price).
 - **"Cheapest €/kg" sort** uses `OfferOut.unit_price_cents` — `app/unit_price.py`
   `unit_price_cents()` normalizes `price_per_unit` to cents per **kg or litre** on
   one comparable axis (German Grundpreis; per-`Stück`/`wl`/`m`/malformed → None).

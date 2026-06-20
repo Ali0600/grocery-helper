@@ -63,6 +63,9 @@ export function FlyerModal({ offer, onClose }: { offer: Offer | null; onClose: (
               {!!offer.loyalty_note && (
                 <Text style={styles.bonus}>{`Mit Kundenkarte: ${offer.loyalty_note}`}</Text>
               )}
+              {offer.app_price_cents != null && offer.app_price_cents < offer.price_cents && (
+                <Text style={styles.app}>{`Mit App: ${euro(offer.app_price_cents)}`}</Text>
+              )}
 
               {flyer && (
                 <Pressable
@@ -119,6 +122,7 @@ const styles = StyleSheet.create({
   was: { color: colors.muted, fontSize: 14, fontWeight: '400', textDecorationLine: 'line-through' },
   meta: { color: colors.muted, fontSize: 13, marginTop: 6 },
   bonus: { color: colors.accent, fontSize: 14, fontWeight: '600', marginTop: 8 },
+  app: { color: '#ffd84d', fontSize: 14, fontWeight: '600', marginTop: 8 }, // EDEKA app price
   muted: { color: colors.muted, fontSize: 14 },
   flyerBtn: {
     marginTop: 22,

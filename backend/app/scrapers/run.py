@@ -76,6 +76,7 @@ def _upsert(session: Session, store: Store, offers: List[ScrapedOffer], source: 
         offer.unit = raw.unit
         offer.price_per_unit = raw.price_per_unit
         offer.loyalty_note = raw.loyalty_note
+        offer.app_price_cents = raw.app_price_cents
         offer.image_url = raw.image_url
         offer.valid_from = raw.valid_from
         offer.valid_to = raw.valid_to

@@ -66,6 +66,8 @@ class Offer(Base):
     price_per_unit: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     # Loyalty-card bonus ("1,00 € Bonus"), REWE flyer only; display-only.
     loyalty_note: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    # App-coupon price in cents (EDEKA "App-Preis" etc.), below price_cents; display-only.
+    app_price_cents: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     image_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     valid_from: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     valid_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

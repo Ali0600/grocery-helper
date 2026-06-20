@@ -58,6 +58,11 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
               <Text style={styles.loyaltyText}>{offer.loyalty_note}</Text>
             </View>
           ) : null}
+          {offer.app_price_cents != null && offer.app_price_cents < offer.price_cents ? (
+            <View style={styles.appPill}>
+              <Text style={styles.appText}>App {euro(offer.app_price_cents)}</Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -118,6 +123,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(61,220,132,0.16)',
   },
   loyaltyText: { color: colors.accent, fontSize: 10, fontWeight: '700' },
+  appPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,205,0,0.16)', // EDEKA yellow
+  },
+  appText: { color: '#ffd84d', fontSize: 10, fontWeight: '700' },
   priceCol: { alignItems: 'flex-end', minWidth: 72 },
   price: { color: colors.text, fontSize: 17, fontWeight: '700' },
   was: {

@@ -29,6 +29,7 @@ class OfferOut(BaseModel):
     # per-unit basis isn't comparable (per-piece, etc.).
     unit_price_cents: Optional[int] = None
     loyalty_note: Optional[str] = None  # REWE card bonus, e.g. "1,00 € Bonus"
+    app_price_cents: Optional[int] = None  # EDEKA app-coupon price (below price_cents)
     image_url: Optional[str] = None
     valid_from: Optional[date] = None
     valid_to: Optional[date] = None
