@@ -9,7 +9,9 @@ build the cheapest basket across one or two stores.
 > Native app work end-to-end — real Berlin prices, resolved from your postal
 > code via the Lidl Plus endpoints and the meinprospekt weekly-flyer feed. Three
 > chains make the basket optimizer and per-product price comparison meaningful.
-> See [Roadmap](#roadmap).
+> The **backend is deployed on Render** (HTTPS), and the iOS app is wired for
+> **EAS → TestFlight**. See [Deploy](#deploy-to-render-free-https-for-testflight)
+> and [Roadmap](#roadmap).
 
 ## Highlights
 
