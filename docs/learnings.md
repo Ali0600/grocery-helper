@@ -50,6 +50,18 @@ build and the `/stats` page; the native TestFlight app doesn't care.
 **Takeaway:** CORS errors are always browser↔server; `*` is fine for a public,
 read-only API, lock it down once there's auth/private data.
 
+### Free-tier PaaS: cold starts + ephemeral disk
+Free PaaS tiers **sleep after idle** — the first request then cold-starts the
+container (slow) — and give an **ephemeral filesystem** that resets on every
+deploy/restart. Our Render backend re-runs its boot scrape on each cold start, and
+its SQLite is wiped + recreated by `create_all` on deploy (so new columns auto-apply
+there, unlike local).
+**Why it came up:** the first `/health` after a sleep took 22 s; a new `Offer` column
+needed no migration on Render (fresh schema each deploy) but did need a local DB
+recreate.
+**Takeaway:** on a free PaaS, never rely on local disk for persistence and expect a
+slow first request after idle — use a managed DB / persistent disk for real data.
+
 ## iOS / mobile
 
 ### Bundle ID vs app name
@@ -110,3 +122,24 @@ was sitting in an ignored `SPECIAL_PRICE` deal the whole time — a field-level 
 surfaced it and confirmed what's genuinely unused (page position, variants) vs empty.
 **Takeaway:** enumerate every field the source returns; "we already fetch it" ≠ "we
 use it."
+
+### Additive API changes are forward-compatible
+Adding a new field to a JSON API response doesn't break existing clients — they
+ignore keys they don't know — so you can ship a backend change *before* the client
+that uses it.
+**Why it came up:** adding `app_price_cents` to `/api/offers` and redeploying didn't
+break the already-installed TestFlight build (it ignores the field); the badge only
+appears once a new app build reads it.
+**Takeaway:** additive API changes deploy safely on their own; only *removing* or
+*renaming* fields breaks old clients.
+
+### Client-side faceted filtering
+Load the full dataset once and filter/sort it in the client across several axes,
+instead of a server round-trip per filter change. The app fetches all of a PLZ's
+offers (cap 2000) and does category, search, store, and sort filtering in JS —
+instant, and search covers everything.
+**Why it came up:** the category chip, €/kg sort, store filter, and search bar all
+derive from one loaded list; the plan is to move search server-side only if a 4th
+chain pushes a PLZ past the 2000 cap.
+**Takeaway:** for a bounded dataset, client-side faceting is simplest and snappiest;
+switch to server-side queries once it outgrows a single fetch.
