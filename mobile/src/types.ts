@@ -60,6 +60,18 @@ export type MyStore = {
   lng?: number;
 };
 
+// An item on the user's basket / shopping list (persisted locally). Only the wishlist
+// persists; the matched deals are recomputed each session (offer ids churn weekly).
+// `keywords` are German name-stems matched against offer names; `exclude` guards the
+// substring traps (e.g. leek must not match "Knoblauch"). Catalog adds carry the
+// curated lists; a free-text add gets a single normalized keyword and no exclude.
+export type BasketItem = {
+  key: string; // stable id (catalog key, or "free:<normalized text>")
+  label: string; // display label (English chrome, e.g. "Strawberry"; or the typed text)
+  keywords: string[];
+  exclude?: string[];
+};
+
 export type ScrapeResult = {
   plz: string;
   scraped: number;

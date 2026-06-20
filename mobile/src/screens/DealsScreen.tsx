@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 
 import { api } from '../api';
+import { BasketModal } from '../components/BasketModal';
 import { CategoryChips } from '../components/CategoryChips';
 import { FlyerModal } from '../components/FlyerModal';
 import { GroupHeader } from '../components/GroupHeader';
@@ -25,10 +26,12 @@ import { SortToggle } from '../components/SortToggle';
 import { StoreFilter } from '../components/StoreFilter';
 import { StoresModal } from '../components/StoresModal';
 import {
+  getStoredBasket,
   getStoredMyStores,
   getStoredPlz,
   getStoredShowNonFood,
   getStoredSortMode,
+  setStoredBasket,
   setStoredMyStores,
   setStoredPlz,
   setStoredShowNonFood,
@@ -36,7 +39,7 @@ import {
   SortMode,
 } from '../storage';
 import { colors } from '../theme';
-import { CategoryCount, MyStore, Offer } from '../types';
+import { BasketItem, CategoryCount, MyStore, Offer } from '../types';
 
 const DEFAULT_PLZ = '10115';
 // Preferred order for the store filter; any other chains follow, alphabetically.
@@ -140,6 +143,8 @@ export default function DealsScreen() {
   const [myStores, setMyStores] = useState<MyStore[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>('discount');
   const [storeFilter, setStoreFilter] = useState<string | null>(null); // session lens; resets each launch
+  const [basket, setBasket] = useState<BasketItem[]>([]);
+  const [basketModal, setBasketModal] = useState(false);
 
   // Hydrate saved prefs once on mount, then let `load` run.
   useEffect(() => {
@@ -149,6 +154,7 @@ export default function DealsScreen() {
       setShowNonFood(await getStoredShowNonFood());
       setMyStores(await getStoredMyStores());
       setSortMode(await getStoredSortMode());
+      setBasket(await getStoredBasket());
       setReady(true);
     })();
   }, []);
@@ -196,6 +202,11 @@ export default function DealsScreen() {
   const onChangeMyStores = useCallback((next: MyStore[]) => {
     setMyStores(next);
     setStoredMyStores(next);
+  }, []);
+
+  const onChangeBasket = useCallback((next: BasketItem[]) => {
+    setBasket(next);
+    setStoredBasket(next);
   }, []);
 
   const onChangeSort = useCallback((mode: SortMode) => {
@@ -261,13 +272,27 @@ export default function DealsScreen() {
         <View style={styles.header}>
           <View style={styles.titleRow}>
             <Text style={styles.title}>Grocery deals</Text>
-            <Pressable
-              onPress={() => setStoresModal(true)}
-              style={({ pressed }) => [styles.storesBtn, pressed && styles.storesBtnPressed]}
-              hitSlop={6}
-            >
-              <Text style={styles.storesBtnText}>Stores</Text>
-            </Pressable>
+            <View style={styles.headerActions}>
+              <Pressable
+                onPress={() => setBasketModal(true)}
+                style={({ pressed }) => [styles.storesBtn, pressed && styles.storesBtnPressed]}
+                hitSlop={6}
+              >
+                <Text style={styles.storesBtnText}>Basket</Text>
+                {basket.length > 0 ? (
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countText}>{basket.length}</Text>
+                  </View>
+                ) : null}
+              </Pressable>
+              <Pressable
+                onPress={() => setStoresModal(true)}
+                style={({ pressed }) => [styles.storesBtn, pressed && styles.storesBtnPressed]}
+                hitSlop={6}
+              >
+                <Text style={styles.storesBtnText}>Stores</Text>
+              </Pressable>
+            </View>
           </View>
           <Pressable onPress={() => setPlzModal(true)} hitSlop={6}>
             <Text style={styles.subtitle} numberOfLines={1}>
@@ -381,6 +406,13 @@ export default function DealsScreen() {
         onChangeMyStores={onChangeMyStores}
         onClose={() => setStoresModal(false)}
       />
+      <BasketModal
+        visible={basketModal}
+        offers={offers}
+        basket={basket}
+        onChangeBasket={onChangeBasket}
+        onClose={() => setBasketModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -391,7 +423,11 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { color: colors.text, fontSize: 24, fontWeight: '700' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   storesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: colors.card2,
     borderWidth: 1,
     borderColor: colors.border,
@@ -401,6 +437,16 @@ const styles = StyleSheet.create({
   },
   storesBtnPressed: { opacity: 0.7 },
   storesBtnText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+  countBadge: {
+    backgroundColor: colors.accent,
+    borderRadius: 999,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countText: { color: '#08130c', fontSize: 11, fontWeight: '800' },
   subtitle: { color: colors.muted, fontSize: 13, marginTop: 2 },
   change: { color: colors.accent, fontWeight: '600' },
   listFill: { flex: 1 },
