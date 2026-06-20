@@ -14,6 +14,27 @@ type Props = {
   onToggleNonFood: () => void;
 };
 
+// A single category pill. Hoisted to module scope (not defined inside the parent's
+// render) so its component identity is stable across renders.
+function Chip({
+  label,
+  value,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  value: string | null;
+  selected: string | null;
+  onSelect: (slug: string | null) => void;
+}) {
+  const active = selected === value;
+  return (
+    <Pressable onPress={() => onSelect(value)} style={[styles.chip, active && styles.chipActive]}>
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function CategoryChips({
   categories,
   selected,
@@ -21,15 +42,6 @@ export function CategoryChips({
   showNonFood,
   onToggleNonFood,
 }: Props) {
-  const Chip = ({ label, value }: { label: string; value: string | null }) => {
-    const active = selected === value;
-    return (
-      <Pressable onPress={() => onSelect(value)} style={[styles.chip, active && styles.chipActive]}>
-        <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-      </Pressable>
-    );
-  };
-
   const food = categories.filter((c) => c.category !== NON_FOOD);
   const nonFood = categories.find((c) => c.category === NON_FOOD);
 
@@ -40,12 +52,23 @@ export function CategoryChips({
       style={styles.scroll}
       contentContainerStyle={styles.row}
     >
-      <Chip label="All" value={null} />
+      <Chip label="All" value={null} selected={selected} onSelect={onSelect} />
       {food.map((c) => (
-        <Chip key={c.category} label={`${c.label} (${c.count})`} value={c.category} />
+        <Chip
+          key={c.category}
+          label={`${c.label} (${c.count})`}
+          value={c.category}
+          selected={selected}
+          onSelect={onSelect}
+        />
       ))}
       {showNonFood && nonFood && (
-        <Chip label={`${nonFood.label} (${nonFood.count})`} value={NON_FOOD} />
+        <Chip
+          label={`${nonFood.label} (${nonFood.count})`}
+          value={NON_FOOD}
+          selected={selected}
+          onSelect={onSelect}
+        />
       )}
       <Pressable onPress={onToggleNonFood} style={[styles.chip, styles.toggle]}>
         <Text style={styles.toggleText}>{showNonFood ? '− Non-food' : '+ Non-food'}</Text>
