@@ -12,7 +12,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 ## Common commands
 - Backend: `cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --port 8001`
 - Backend tests: `cd backend && source .venv/bin/activate && python -m pytest -q`
+- Backend lint: `cd backend && source .venv/bin/activate && ruff check .` (`--fix` to autofix)
 - Mobile typecheck: `cd mobile && npx tsc --noEmit`
+- Mobile lint: `cd mobile && npm run lint` (ESLint, `eslint-config-expo` flat config)
 - Mobile run: `cd mobile && npx expo start` (open on the iOS simulator).
 - Web run: `cd mobile && npm run web` (Expo Web / react-native-web; serves the
   **same** app at `http://localhost:8081`). `App.tsx` centers a max-width column on
@@ -160,4 +162,16 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   the Render URL) + `mobile/app.json` (`ios.bundleIdentifier` `com.groceryhelper.berlin`,
   EAS project `@mhassan0600/grocery-helper`, `extra.eas.projectId`). `eas
   login`/`build`/`submit` are **user-run** (their Apple/Expo creds + build credits).
+- **CI/CD is GitHub Actions** (`.github/workflows/`): `ci.yml` (backend `ruff`+`pytest`,
+  mobile ESLint+`tsc`, backend Docker build; on green `main` pushes a `deploy` job curls
+  the Render deploy hook), `eas-update.yml` (OTA via `eas update --branch production` on
+  `mobile/**` pushes), `scrape.yml` (weekly cron → `POST /api/scrape`). Deploy + OTA
+  **skip gracefully** until their secrets exist (`RENDER_DEPLOY_HOOK_URL`, `EXPO_TOKEN`),
+  so CI stays green; gated deploy assumes Render **auto-deploy is off**. CI Python is
+  **3.12** (Dockerfile/Render) but the local venv is **3.9** — `backend/ruff.toml` targets
+  `py39` so lint never pushes 3.10+ syntax that breaks local. **Lint must pass** before a
+  push: `ruff check .` + `npm run lint`; `react-hooks/set-state-in-effect` is intentionally
+  a **warning** (legit modal fetch/reset effects), keep real errors at zero. OTA only
+  reaches a build embedding `expo-updates` at the matching `runtimeVersion` (app.json
+  `appVersion` policy) → bump `expo.version` when native deps change.
 - **Commits**: author as the user only — no `Co-Authored-By: Claude` trailer.
