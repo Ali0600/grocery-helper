@@ -143,3 +143,27 @@ derive from one loaded list; the plan is to move search server-side only if a 4t
 chain pushes a PLZ past the 2000 cap.
 **Takeaway:** for a bounded dataset, client-side faceting is simplest and snappiest;
 switch to server-side queries once it outgrows a single fetch.
+
+### Validate fuzzy matching against the real dataset
+Substring keyword matching is only as good as the data you test it on — German
+compound words make short keywords match unrelated products you'd never guess from
+reasoning alone.
+**Why it came up:** the Basket matches a wishlist item's German keywords against offer
+names; running it against the *live* offers (not just imagining cases) exposed real
+traps — `tee` matched "**Tee**wurst" (a sausage), `weizen` matched "**Weizen**mehl"
+(flour), `birne` matched "Glüh**birne**" (a lightbulb). The fixes were a category
+pre-filter (drop non-food → kills a whole class at once) plus a few targeted `exclude`
+guards — both discoverable only by testing on real data.
+**Takeaway:** for fuzzy/substring matching, run it against the actual dataset early;
+the false positives you find *are* the spec for your guard list.
+
+### Separate display labels from match keywords (bilingual data)
+When the UI language differs from the data language, keep two things apart: the
+human-facing labels (for display + search) and the native-language keywords (for
+matching).
+**Why it came up:** the app's chrome is English but the deals are German, so the
+Basket catalog carries an English label ("Strawberry"), a German label ("Erdbeere"),
+and the German name-stems ("erdbeer") that actually match offers — a user can quick-add
+in either language while matching always happens in the data's language.
+**Takeaway:** decouple what you show from what you match on; conflating them forces the
+user to speak the database's language.

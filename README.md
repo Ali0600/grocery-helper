@@ -24,6 +24,12 @@ build the cheapest basket across one or two stores.
 - **Discount-ranking & multi-store basket optimization API** — a FastAPI service
   exposing endpoints to filter offers by category, rank by % discount, and
   compute the cheapest basket across one or two stores.
+- **In-app shopping-list basket with cross-store price optimization** — users build
+  a grocery list (bilingual quick-add: "Strawberry" or "Erdbeere") that is matched
+  **per-product** against the live deal set entirely client-side, surfacing the
+  cheapest offer per item and a store-by-store shopping plan with the savings vs.
+  shopping at a single store — deterministic keyword matching (no LLM), reusing the
+  already-loaded in-memory faceted dataset for instant results.
 - **Cross-platform client (iOS + web, one codebase)** — a React Native (Expo)
   app consuming the API to browse local deals by category, sorted by savings;
   the same code runs in the browser via Expo Web / react-native-web
@@ -251,7 +257,10 @@ them without re-scraping. The app **hides non-food by default** with a
       sit together (e.g. Avocado: REWE 0,88 € vs Lidl 1,99 €)
 - [x] Filter by store (All / Lidl / REWE / EDEKA) — a session lens that narrows the
       whole list (and search) to one chain, with the brand colour on the active pill
-- [ ] In-app basket optimizer screen (1 vs 2 stores)
+- [x] **Basket** — a shopping list you build from common items (bilingual quick-add:
+      type "Strawberry" or "Erdbeere"); each item shows its cheapest current deal plus
+      a store-by-store shopping plan with the savings vs. one store (matched
+      per-product against the live deals, client-side)
 - [ ] Scheduled weekly scrape + deploy to PaaS with monitoring/alerts
 - [ ] Recipes from on-sale + pantry items (later phase)
 

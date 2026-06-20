@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { MyStore } from './types';
+import { BasketItem, MyStore } from './types';
 
 const PLZ_KEY = 'plz';
 const NONFOOD_KEY = 'showNonFood';
 const MYSTORES_KEY = 'myStores';
 const SORT_KEY = 'sortMode';
+const BASKET_KEY = 'basket';
 
 export type SortMode = 'discount' | 'unit';
 
@@ -69,6 +70,23 @@ export async function getStoredSortMode(): Promise<SortMode> {
 export async function setStoredSortMode(mode: SortMode): Promise<void> {
   try {
     await AsyncStorage.setItem(SORT_KEY, mode);
+  } catch {
+    // best-effort
+  }
+}
+
+export async function getStoredBasket(): Promise<BasketItem[]> {
+  try {
+    const raw = await AsyncStorage.getItem(BASKET_KEY);
+    return raw ? (JSON.parse(raw) as BasketItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function setStoredBasket(items: BasketItem[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(BASKET_KEY, JSON.stringify(items));
   } catch {
     // best-effort
   }
