@@ -1,0 +1,33 @@
+name: Weekly scrape
+
+# Refreshes deals on the deployed backend once a week (flyers are weekly).
+# NOTE: Render free-tier SQLite is ephemeral (wiped on the next idle sleep), so this
+# is transient until the backend moves to a persistent DB — but it demonstrates the
+# scheduled data-refresh automation and keeps deals fresh between cold starts.
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      plz:
+        description: Postal code to scrape
+        default: '10115'
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  scrape:
+    name: Trigger scrape
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: POST /api/scrape
+        env:
+          PLZ: ${{ github.event.inputs.plz || '10115' }}
+        run: |
+          echo "Triggering scrape for PLZ $PLZ (free-tier cold start can take ~30s)…"
+          curl -fsS --max-time 300 -X POST \
+            "https://grocery-helper-sw6c.onrender.com/api/scrape?plz=${PLZ}" \
+            -w "HTTP %{http_code} in %{time_total}s\n"
