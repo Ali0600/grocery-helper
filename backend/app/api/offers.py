@@ -7,7 +7,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Query
 from sqlalchemy import select
 
-from ..categories import CATEGORIES, label
+from ..categories import CATEGORIES
 from ..core.config import settings
 from ..db import SessionDep
 from ..dedup import dedup_offers
@@ -156,7 +156,8 @@ def _resolve_plz_coords(plz: str) -> tuple[Optional[float], Optional[float]]:
     """Best-effort PLZ -> lat/lng via the Lidl Plus store autocomplete (the same
     lookup the scraper uses), for PLZs not yet scraped."""
     from ..http import tracked_client
-    from ..scrapers.lidl import HEADERS as LIDL_HEADERS, LidlScraper
+    from ..scrapers.lidl import HEADERS as LIDL_HEADERS
+    from ..scrapers.lidl import LidlScraper
 
     try:
         with tracked_client(timeout=20, headers=LIDL_HEADERS) as c:
