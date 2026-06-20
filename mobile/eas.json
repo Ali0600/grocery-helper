@@ -9,6 +9,7 @@
       "ios": { "simulator": true }
     },
     "production": {
+      "channel": "production",
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://grocery-helper-sw6c.onrender.com"

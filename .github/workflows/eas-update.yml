@@ -1,0 +1,69 @@
+name: EAS Update (OTA)
+
+# Publishes an over-the-air JS/asset update to the production channel on mobile
+# changes. OTA only reaches a build that embeds expo-updates at the matching
+# runtimeVersion (app.json `runtimeVersion.policy: appVersion`) — so a fresh
+# `eas build` is required once before updates land on installed apps.
+on:
+  push:
+    branches: [main]
+    paths: ['mobile/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eas-update-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update:
+    name: Publish OTA update
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # Skip gracefully until the Expo token is configured, so the workflow stays
+      # green before EAS Update is enabled (mirrors the Render deploy gate).
+      - name: Check for EXPO_TOKEN
+        id: check
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN not set — skipping OTA publish. Add the secret to enable EAS Update."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.check.outputs.has_token == 'true'
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        if: steps.check.outputs.has_token == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup EAS
+        if: steps.check.outputs.has_token == 'true'
+        uses: expo/expo-github-action@v9
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        if: steps.check.outputs.has_token == 'true'
+        working-directory: mobile
+        run: npm ci
+
+      - name: Publish update to the production channel
+        if: steps.check.outputs.has_token == 'true'
+        working-directory: mobile
+        env:
+          UPDATE_MSG: ${{ github.event.head_commit.message || format('Manual OTA from {0}', github.sha) }}
+        run: eas update --branch production --message "$UPDATE_MSG" --non-interactive
