@@ -37,6 +37,11 @@ build the cheapest basket across one or two stores.
 - **Containerized, deployable stack** — Dockerized backend with Docker Compose +
   PostgreSQL, designed for CI/CD deployment to a PaaS with scraper health
   monitoring and alerting.
+- **CI/CD pipeline (GitHub Actions)** — parallel test / lint / type-check /
+  Docker-build gates on every push and PR, green-gated production deploys to Render
+  via deploy hooks, over-the-air mobile delivery through EAS Update, and a scheduled
+  weekly data-refresh cron — with least-privilege permissions, dependency caching,
+  and concurrency control.
 - **Multi-retailer ingestion across heterogeneous sources** — a single
   publisher-parameterized engine normalizes two German chains (Lidl + REWE) from
   three feeds (a private mobile coupon API and structured weekly-flyer data) into
@@ -225,6 +230,41 @@ them without re-scraping. The app **hides non-food by default** with a
 "+ Non-food" toggle. Guards live in
 [`tests/test_categories.py`](backend/tests/test_categories.py) (`pytest`).
 
+## CI/CD (GitHub Actions)
+
+Three workflows under [`.github/workflows/`](.github/workflows/):
+
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| `ci.yml` | push / PR to `main` | Backend `ruff` + `pytest`, mobile ESLint + `tsc`, and a backend Docker image build. On green pushes to `main` it triggers the Render deploy. |
+| `eas-update.yml` | push to `main` (`mobile/**`) + manual | Publishes an EAS Update (OTA) to the `production` channel. |
+| `scrape.yml` | weekly cron + manual | POSTs to `/api/scrape` to refresh deals. |
+
+Least-privilege permissions, dependency caching, and concurrency cancellation
+throughout. CI is hermetic (tests use JSON fixtures — no network or secrets).
+
+### One-time setup (to activate deploy + OTA)
+
+The deploy and EAS Update steps **skip gracefully** until their secrets exist, so CI
+is green out of the box. To turn them on:
+
+**Gated Render deploy** (deploy only when CI is green):
+1. Render dashboard → service → **Settings → turn OFF Auto-Deploy** (else it deploys
+   on every push, bypassing the gate).
+2. Settings → **Deploy Hook** → copy the URL.
+3. GitHub repo → Settings → Secrets and variables → Actions → add
+   **`RENDER_DEPLOY_HOOK_URL`**.
+
+**EAS Update (OTA):**
+1. expo.dev → Account → **Access Tokens** → create one.
+2. Add it as the GitHub secret **`EXPO_TOKEN`**.
+3. Run a fresh `eas build -p ios --profile production` once — OTA only reaches a build
+   that embeds `expo-updates` at the matching runtime version, so the current
+   TestFlight build won't receive updates until rebuilt.
+
+**Branch protection (optional):** require the `Backend` and `Mobile` checks on PRs
+(Settings → Branches).
+
 ## Roadmap
 
 - [x] Backend pipeline: scrape → normalize → categorize → discount % → store
@@ -261,7 +301,9 @@ them without re-scraping. The app **hides non-food by default** with a
       type "Strawberry" or "Erdbeere"); each item shows its cheapest current deal plus
       a store-by-store shopping plan with the savings vs. one store (matched
       per-product against the live deals, client-side)
-- [ ] Scheduled weekly scrape + deploy to PaaS with monitoring/alerts
+- [x] CI/CD pipeline (GitHub Actions) — test / lint / typecheck / Docker-build gates,
+      gated Render deploy (deploy hook), EAS Update OTA, and a weekly scrape cron
+- [ ] Production monitoring/alerting (uptime + scraper health) on a persistent DB
 - [ ] Recipes from on-sale + pantry items (later phase)
 
 ## Legal

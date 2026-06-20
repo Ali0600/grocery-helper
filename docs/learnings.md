@@ -167,3 +167,36 @@ and the German name-stems ("erdbeer") that actually match offers — a user can 
 in either language while matching always happens in the data's language.
 **Takeaway:** decouple what you show from what you match on; conflating them forces the
 user to speak the database's language.
+
+### Green-gated deployment (deploy on a passing build)
+Deploy only after CI passes, not on every push. With a PaaS that auto-deploys on push
+(Render), turn its auto-deploy OFF and trigger a **deploy hook** from a CI job that
+`needs` the test jobs and runs on the default branch only.
+**Why it came up:** Render redeployed on every push regardless of test results; a
+`deploy` job gated on `[backend, docker-build]` that curls the Render deploy hook makes
+a red build block the deploy.
+**Takeaway:** "deploy on green" means CI owns the deploy trigger — disable the
+platform's push-auto-deploy so it can't bypass the gate.
+
+### EAS Update (OTA) vs EAS Build
+EAS **Build** compiles a new native binary (App Store/TestFlight); EAS **Update** pushes
+JS/asset changes over-the-air to already-installed apps — no rebuild, no review. OTA only
+reaches a build that embeds `expo-updates` at a matching `runtimeVersion`, so you still
+need one build to "activate" updates, and any native-dependency change needs a fresh
+build (bump `expo.version` under the `appVersion` runtime policy).
+**Why it came up:** wired `eas update --branch production` into CI so mobile JS changes
+ship without a full rebuild; the existing TestFlight build won't receive them until
+rebuilt with expo-updates.
+**Takeaway:** OTA-able = JS/asset-only on a matching runtime; anything native still needs
+a build.
+
+### Make secret-gated CI steps skip gracefully
+A workflow step that needs a secret (deploy hook, API token) shouldn't fail on a repo
+where the secret isn't set yet. Check for it first and exit 0 (or gate later steps on a
+step output) so the pipeline is green from day one and "activates" once the secret is
+added.
+**Why it came up:** the Render deploy and EAS Update steps no-op with a clear log message
+until `RENDER_DEPLOY_HOOK_URL` / `EXPO_TOKEN` exist — so CI passed on the very first run,
+before any secrets were configured.
+**Takeaway:** gate optional integrations on secret-presence and skip cleanly; a missing
+secret is "not enabled yet," not a failure.
