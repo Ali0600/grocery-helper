@@ -149,4 +149,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `unit_price_cents`. Covers ~108 otherwise-blank flyer offers. A general
   divide-by-net-weight (e.g. "500 g" → ×2) is deferred — multipack "20 × 10 g" and
   "Ca." traps make it riskier.
+- **Deployment**: backend is live on **Render** (free tier) at
+  `https://grocery-helper-sw6c.onrender.com` via the IaC `render.yaml` Blueprint
+  (Docker, `backend/Dockerfile`, binds `$PORT`, `/health` check). Render free tier
+  **sleeps after ~15 min idle** → cold start re-runs the boot scrape (slow first
+  request) and its SQLite is **ephemeral**, so `create_all` recreates the schema on
+  every deploy — meaning **new `Offer` columns auto-apply on Render** (no migration
+  there) while local dev still needs a `grocery.db` recreate + re-scrape. iOS /
+  TestFlight config: `mobile/eas.json` (production profile; `EXPO_PUBLIC_API_URL` →
+  the Render URL) + `mobile/app.json` (`ios.bundleIdentifier` `com.groceryhelper.berlin`,
+  EAS project `@mhassan0600/grocery-helper`, `extra.eas.projectId`). `eas
+  login`/`build`/`submit` are **user-run** (their Apple/Expo creds + build credits).
 - **Commits**: author as the user only — no `Co-Authored-By: Claude` trailer.
