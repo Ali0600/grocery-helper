@@ -101,3 +101,12 @@ substring traps (`" lamm"` must not match "Fla**mm**kuchen"; no bare `"müll"` s
 "Müller" stays dairy).
 **Takeaway:** for bounded, repeatable classification, rules beat an LLM — until the
 long tail makes them brittle.
+
+### Audit the source's full payload — you may be dropping value
+Structured data sources often carry more than you parse; periodically dump the raw
+response and diff it against what you read.
+**Why it came up:** the EDEKA flyer's app price (Milka 2,99 € vs the 3,29 € we showed)
+was sitting in an ignored `SPECIAL_PRICE` deal the whole time — a field-level audit
+surfaced it and confirmed what's genuinely unused (page position, variants) vs empty.
+**Takeaway:** enumerate every field the source returns; "we already fetch it" ≠ "we
+use it."

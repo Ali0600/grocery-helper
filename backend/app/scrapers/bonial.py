@@ -184,6 +184,7 @@ class MeinprospektScraper:
             unit=unit,
             price_per_unit=_base_unit(c),
             loyalty_note=_loyalty_note(c),
+            app_price_cents=_app_price(c),
             image_url=c.get("image"),
             valid_from=valid_from,
             valid_to=valid_to,
@@ -321,6 +322,25 @@ def _loyalty_note(content: dict) -> Optional[str]:
             m = _BONUS_RE.search(text)
             if m:
                 return m.group(0).strip()
+    return None
+
+
+def _app_price(content: dict) -> Optional[int]:
+    """The app-coupon price (cents) from a `SPECIAL_PRICE` deal whose condition marks
+    it as app-gated ("APP-PREIS", "Nur mit App", "Exklusiv mit der App", …) — the
+    lower price you pay with the chain's app. None otherwise: Payback, "6 für"
+    multibuy, "ab 2 Kisten" bulk and day-only specials are excluded on purpose (they
+    aren't a simple per-item price)."""
+    for d in content.get("deals") or []:
+        if d.get("type") != "SPECIAL_PRICE" or d.get("max") is None:
+            continue
+        for cond in d.get("conditions") or []:
+            other = cond.get("other")
+            if isinstance(other, str) and "app" in other.lower():
+                try:
+                    return round(float(d["max"]) * 100)
+                except (TypeError, ValueError):
+                    return None
     return None
 
 

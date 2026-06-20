@@ -4,7 +4,13 @@ import json
 import os
 from datetime import date
 
-from app.scrapers.bonial import BonialScraper, _loyalty_note, _parse_dt, _regular_from_label
+from app.scrapers.bonial import (
+    BonialScraper,
+    _app_price,
+    _loyalty_note,
+    _parse_dt,
+    _regular_from_label,
+)
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "bonial_pages.json")
 VALID_FROM, VALID_TO = date(2026, 6, 14), date(2026, 6, 20)
@@ -105,3 +111,40 @@ def test_parse_offer_without_extras_is_none():
     o = BonialScraper._parse_offer(content, VALID_FROM, VALID_TO)
     assert o.price_per_unit is None
     assert o.loyalty_note is None
+    assert o.app_price_cents is None
+
+
+# Real EDEKA shape: an app-coupon SPECIAL_PRICE alongside the regular SALES_PRICE.
+_MILKA = {
+    "id": "milka1",
+    "image": "https://content-media.example/milka.jpg",
+    "deals": [
+        {"type": "SPECIAL_PRICE", "conditions": [{"other": "APP-PREIS"}],
+         "max": 2.99, "min": 2.99, "priceByBaseUnit": "", "description": ""},
+        {"type": "SALES_PRICE", "conditions": [], "max": 3.29, "min": 3.29,
+         "priceByBaseUnit": "1 kg = 13.16-10.97", "description": ""},
+    ],
+    "products": [{"brandName": "Milka", "name": "Schokolade",
+                  "description": [{"paragraph": "versch. Sorten 250/276/300 g"}], "categoryPaths": []}],
+}
+
+
+def test_parse_offer_extracts_app_price():
+    o = BonialScraper._parse_offer(_MILKA, VALID_FROM, VALID_TO)
+    assert o.price_cents == 329       # the regular SALES_PRICE stays the headline
+    assert o.app_price_cents == 299   # the APP-PREIS SPECIAL_PRICE
+
+
+def test_app_price_only_for_app_markers():
+    def sp(marker):
+        return {"deals": [{"type": "SPECIAL_PRICE", "max": 2.49, "conditions": [{"other": marker}]}]}
+
+    assert _app_price(sp("APP-PREIS")) == 249
+    assert _app_price(sp("Nur mit App")) == 249               # case-insensitive
+    assert _app_price(sp("Exklusiv mit der App")) == 249
+    assert _app_price(sp("NUR MIT PAYBACK")) is None          # loyalty program, not the app
+    assert _app_price(sp("6 FÜR")) is None                    # multibuy
+    assert _app_price(sp("AB 2 KISTEN, JE KISTE")) is None    # bulk
+    # no SPECIAL_PRICE deal, or one with no condition marker
+    assert _app_price({"deals": [{"type": "SALES_PRICE", "max": 1.99}]}) is None
+    assert _app_price({"deals": [{"type": "SPECIAL_PRICE", "max": 1.99, "conditions": []}]}) is None

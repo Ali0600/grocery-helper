@@ -34,6 +34,7 @@ def offer_to_out(offer: Offer) -> OfferOut:
         price_per_unit=price_per_unit,
         unit_price_cents=unit_price_cents(price_per_unit),
         loyalty_note=offer.loyalty_note,
+        app_price_cents=offer.app_price_cents,
         image_url=offer.image_url,
         valid_from=offer.valid_from,
         valid_to=offer.valid_to,

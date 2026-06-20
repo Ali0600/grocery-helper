@@ -20,6 +20,8 @@ class ScrapedOffer:
     price_per_unit: Optional[str] = None
     # A loyalty-card bonus line, e.g. "1,00 € Bonus" (REWE flyer only).
     loyalty_note: Optional[str] = None
+    # App-coupon price in cents (e.g. EDEKA "App-Preis" 2,99 €); display-only.
+    app_price_cents: Optional[int] = None
     image_url: Optional[str] = None
     valid_from: Optional[date] = None
     valid_to: Optional[date] = None

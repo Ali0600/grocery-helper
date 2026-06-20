@@ -240,6 +240,8 @@ them without re-scraping. The app **hides non-food by default** with a
 - [x] Per-unit price (€/kg, €/l) shown on every offer that has one, plus REWE
       loyalty-card bonus badges ("1,00 € Bonus") — both pulled from data we
       already fetched but had been discarding
+- [x] EDEKA app-coupon prices — a yellow "App 2,99 €" badge surfacing the
+      app-exclusive price (`SPECIAL_PRICE` + "App-Preis"), ~24 EDEKA offers/PLZ
 - [x] "Cheapest €/kg" sort — ranks the current view by normalized per-unit price
       (e.g. find the best-value beef per kg, independent of pack size)
 - [x] Group similar products inside a category — pick Fruits/Beef/etc. and offers
