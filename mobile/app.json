@@ -6,6 +6,12 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f8ac05b8-3600-4f71-865f-c4b721adcbdb"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.groceryhelper.berlin",
