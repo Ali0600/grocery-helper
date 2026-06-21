@@ -25,12 +25,16 @@ import { SearchBar } from '../components/SearchBar';
 import { SortToggle } from '../components/SortToggle';
 import { StoreFilter } from '../components/StoreFilter';
 import { StoresModal } from '../components/StoresModal';
+import { UpdateStatus } from '../components/UpdateStatus';
+import { dealsStale } from '../format';
 import {
+  getDealsCache,
   getStoredBasket,
   getStoredMyStores,
   getStoredPlz,
   getStoredShowNonFood,
   getStoredSortMode,
+  setDealsCache,
   setStoredBasket,
   setStoredMyStores,
   setStoredPlz,
@@ -145,6 +149,10 @@ export default function DealsScreen() {
   const [storeFilter, setStoreFilter] = useState<string | null>(null); // session lens; resets each launch
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [basketModal, setBasketModal] = useState(false);
+  // Deals-cache / refresh status (stale-while-revalidate over the sleepy free backend).
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const [refreshFailed, setRefreshFailed] = useState(false);
 
   // Hydrate saved prefs once on mount, then let `load` run.
   useEffect(() => {
@@ -159,35 +167,72 @@ export default function DealsScreen() {
     })();
   }, []);
 
-  const load = useCallback(async () => {
-    if (!ready) return;
-    setError(null);
-    try {
-      const [o, c, stores] = await Promise.all([
-        api.offers({ plz }),
-        api.categories(plz),
-        api.stores(),
-      ]);
-      setOffers(o);
-      setCats(c);
-      setStoreName(stores.find((s) => s.plz === plz)?.name ?? null);
-    } catch {
-      setError(`Couldn't reach the API at ${api.base}.\nIs the backend running?`);
-    } finally {
-      setLoading(false);
-    }
-  }, [plz, ready]);
+  // Fetch fresh deals, update the view + re-cache. `hadData` = something is already on
+  // screen (cache hit or a prior load), so a failure stays silent (no error screen).
+  const revalidate = useCallback(
+    async (hadData: boolean) => {
+      setUpdating(true);
+      setRefreshFailed(false);
+      if (!hadData) setError(null);
+      try {
+        const [o, c, stores] = await Promise.all([
+          api.offers({ plz }),
+          api.categories(plz),
+          api.stores(),
+        ]);
+        const name = stores.find((s) => s.plz === plz)?.name ?? null;
+        setOffers(o);
+        setCats(c);
+        setStoreName(name);
+        const now = Date.now();
+        setUpdatedAt(now);
+        setError(null);
+        setDealsCache({ plz, offers: o, cats: c, storeName: name, cachedAt: now });
+      } catch {
+        setRefreshFailed(true);
+        if (!hadData) setError(`Couldn't reach the API at ${api.base}.\nIs the backend running?`);
+      } finally {
+        setLoading(false);
+        setUpdating(false);
+      }
+    },
+    [plz],
+  );
 
+  // On launch / PLZ change: show the cached deals for this PLZ instantly (no spinner),
+  // then refresh in the background. Only a true cold start (no cache) shows the spinner.
   useEffect(() => {
-    setLoading(true);
-    load();
-  }, [load]);
+    if (!ready) return;
+    let cancelled = false;
+    (async () => {
+      const cached = await getDealsCache();
+      if (cancelled) return;
+      const hit = !!cached && cached.plz === plz;
+      if (hit && cached) {
+        setOffers(cached.offers);
+        setCats(cached.cats);
+        setStoreName(cached.storeName);
+        setUpdatedAt(cached.cachedAt);
+        setError(null);
+        setLoading(false);
+      } else {
+        setOffers([]);
+        setCats([]);
+        setUpdatedAt(null);
+        setLoading(true);
+      }
+      revalidate(hit);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [plz, ready, revalidate]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await load();
+    await revalidate(true);
     setRefreshing(false);
-  }, [load]);
+  }, [revalidate]);
 
   const onApplied = useCallback(async (newPlz: string, name: string | null) => {
     await setStoredPlz(newPlz);
@@ -301,6 +346,13 @@ export default function DealsScreen() {
             </Text>
           </Pressable>
         </View>
+
+        <UpdateStatus
+          updatedAt={updatedAt}
+          updating={updating}
+          stale={dealsStale(updatedAt)}
+          offline={refreshFailed}
+        />
 
         <CategoryChips
           categories={cats}
