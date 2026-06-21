@@ -200,3 +200,16 @@ until `RENDER_DEPLOY_HOOK_URL` / `EXPO_TOKEN` exist — so CI passed on the very
 before any secrets were configured.
 **Takeaway:** gate optional integrations on secret-presence and skip cleanly; a missing
 secret is "not enabled yet," not a failure.
+
+### Stale-while-revalidate (cache-first UI over a slow/sleepy backend)
+Render the last cached data instantly, then fetch fresh in the background and swap it in
+— instead of blocking the UI on the network. As a bonus the cache makes the app work
+offline.
+**Why it came up:** Render free tier sleeps after ~15 min, so a cold open showed a ~30s
+spinner; caching the last deals per PLZ (AsyncStorage) and rendering them immediately
+killed the spinner, with a small "Updating…" hint while revalidating and a weekly
+(Sunday) expiry banner when the cache is old. A failed refresh keeps the cached list
+instead of erroring.
+**Takeaway:** for read-mostly data that's slow or flaky to fetch, cache-first +
+background refresh beats a spinner; give the cache a domain-driven freshness boundary
+(here, the weekly flyer expiry) rather than an arbitrary TTL.
