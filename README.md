@@ -303,6 +303,9 @@ is green out of the box. To turn them on:
       per-product against the live deals, client-side)
 - [x] CI/CD pipeline (GitHub Actions) — test / lint / typecheck / Docker-build gates,
       gated Render deploy (deploy hook), EAS Update OTA, and a weekly scrape cron
+- [x] Offline deals cache — instant open from an on-device cache + stale-while-revalidate
+      refresh (no cold-start spinner; works offline), with a weekly-expiry "may be
+      expired" banner and a "Deals as of <time>" stamp
 - [ ] Production monitoring/alerting (uptime + scraper health) on a persistent DB
 - [ ] Recipes from on-sale + pantry items (later phase)
 
