@@ -52,3 +52,39 @@ export const formatBrand = (brand: string | null): string | null => {
   if (brand !== brand.toUpperCase()) return brand; // already styled
   return brand.toLowerCase().replace(/\b\p{L}/gu, (c) => c.toUpperCase());
 };
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Compact "as of" label for a cached-deals timestamp (device-local): "just now",
+ * "5m ago", "9:14" (today), "Mon 9:00" (this week), "18 Jun" (older).
+ */
+export const fmtAsOf = (ts: number | null): string => {
+  if (ts == null) return '';
+  const now = new Date();
+  const d = new Date(ts);
+  const diffMs = now.getTime() - ts;
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  const hhmm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  if (d.toDateString() === now.toDateString()) return hhmm;
+  if (diffMs < 7 * 24 * 60 * 60 * 1000) return `${DAYS[d.getDay()]} ${hhmm}`;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+};
+
+// Sunday 23:59:59.999 (device-local) of the week containing `ts` — German weekly
+// flyers expire by Sunday, so this is when the cached deals stop being current.
+function endOfDealWeek(ts: number): number {
+  const d = new Date(ts);
+  const daysUntilSunday = (7 - d.getDay()) % 7; // getDay: 0=Sun..6=Sat; 0 if already Sun
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() + daysUntilSunday);
+  sunday.setHours(23, 59, 59, 999);
+  return sunday.getTime();
+}
+
+/** True once the cached deals are past their weekly (Sunday) expiry. */
+export const dealsStale = (cachedAt: number | null): boolean =>
+  cachedAt != null && Date.now() > endOfDealWeek(cachedAt);

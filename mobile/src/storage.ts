@@ -1,12 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { BasketItem, MyStore } from './types';
+import { BasketItem, CategoryCount, MyStore, Offer } from './types';
 
 const PLZ_KEY = 'plz';
 const NONFOOD_KEY = 'showNonFood';
 const MYSTORES_KEY = 'myStores';
 const SORT_KEY = 'sortMode';
 const BASKET_KEY = 'basket';
+const DEALS_CACHE_KEY = 'dealsCache';
 
 export type SortMode = 'discount' | 'unit';
 
@@ -89,5 +90,33 @@ export async function setStoredBasket(items: BasketItem[]): Promise<void> {
     await AsyncStorage.setItem(BASKET_KEY, JSON.stringify(items));
   } catch {
     // best-effort
+  }
+}
+
+// The last good deals payload, cached so the app shows something instantly while the
+// (free-tier, sleepy) backend cold-starts. One key = only the most recently loaded PLZ
+// is cached, which bounds the size to ~1 MB (the app is overwhelmingly single-PLZ).
+export type CachedDeals = {
+  plz: string;
+  offers: Offer[];
+  cats: CategoryCount[];
+  storeName: string | null;
+  cachedAt: number; // ms epoch of the fetch
+};
+
+export async function getDealsCache(): Promise<CachedDeals | null> {
+  try {
+    const raw = await AsyncStorage.getItem(DEALS_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as CachedDeals) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setDealsCache(data: CachedDeals): Promise<void> {
+  try {
+    await AsyncStorage.setItem(DEALS_CACHE_KEY, JSON.stringify(data));
+  } catch {
+    // best-effort (e.g. storage quota) — the app still works without the cache
   }
 }
