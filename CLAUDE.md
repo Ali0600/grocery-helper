@@ -98,6 +98,14 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   backfill (`python -m app.scripts.recategorize` / `POST /api/recategorize`)
   reproduces results without re-scraping. Watch for substring traps (e.g. "li**mett**e")
   and flavour words ("Mango"/"Pfirsich") stealing categories — guard them.
+  **`_PATH_MAP` was expanded from a live taxonomy survey** (beverage spirit/…marken
+  nodes, bread types, produce, sausage subtypes, würzmittel/salatdressing, …) + more
+  single-category brands → **"Other" ~11% → ~1%** (12/1056 live). The leaf is *often a
+  brand* (Lidl/EDEKA dump into a `Marken > Marken Lebensmittel > {brand}` subtree), so
+  the path only helps when an *intermediate* node is a real category; brand-leaf paths
+  stay on the brand/keyword layers (multi-category house brands like Gut&Günstig /
+  Deluxe / Dr.Oetker / Milbona are deliberately left there). To re-survey, fetch a
+  publisher's brochure pages and tally `products[].categoryPaths`.
 - **Product sub-grouping within a category** (`app/product_group.py`): a *second*,
   coarser layer under `category` — `product_group(name, brand, category) ->
   (group_key, group_label)` keys an offer to a product (e.g. fruits → "avocado")
