@@ -234,3 +234,16 @@ on relaunch. Fix: never replace shown data with an empty result, only cache non-
 payloads, add request timeouts, and trigger an on-demand repopulate (scrape) when empty.
 **Takeaway:** in SWR, treat empty/error as "keep what you have," not "new truth" — only
 the happy path updates the cache; and add a timeout so a hung request can't stall the UI.
+
+### A taxonomy breadcrumb's leaf is often a brand, not a category
+Third-party category paths (here Bonial `categoryPaths`) look authoritative but the
+**leaf is frequently a brand node** (`… > Marken > Marken Lebensmittel > Heinz`), useless
+for "what kind of product is this." The category usually lives in an **intermediate**
+node, and only for some chains — others bury everything under a brands subtree.
+**Why it came up:** asked to "use all categoryPaths," I surveyed the live taxonomy across
+all 3 chains, mapped every real intermediate node (scanning the path most-specific-first,
+not just the leaf), and added single-category brands for the brand-leaf cases — cutting
+"Other" from ~11% to ~1% with zero test regressions.
+**Takeaway:** don't trust a path's leaf — survey the real vocabulary, map the
+intermediate nodes, and fall back to brand/keyword logic where the path bottoms out at a
+brand; measure the win on the actual dataset, not a few hand-picked examples.
