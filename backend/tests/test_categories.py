@@ -144,6 +144,60 @@ def test_classify_edeka_flyer(name, brand, expected):
     assert classify(name, brand) == expected
 
 
+@pytest.mark.parametrize(
+    "path, expected",
+    [
+        # real taxonomy nodes added from the live survey (the leaf is often a brand, so
+        # the *intermediate* node carries the category)
+        ([_FOOD, "Produkte", "Lebensmittel", "Würzmittel"], "pantry"),
+        ([_FOOD, "Produkte", "Lebensmittel", "Salatdressing"], "pantry"),
+        ([_FOOD, "Produkte", "Getränke", "Wasser"], "beverages"),
+        ([_FOOD, "Produkte", "Getränke", "Schaumwein"], "beverages"),
+        ([_FOOD, "Marken", "Marken Getränke", "Softdrinkmarken"], "beverages"),
+        ([_FOOD, "Produkte", "Lebensmittel", "Melone"], "fruits"),
+        ([_FOOD, "Produkte", "Lebensmittel", "Zwiebeln"], "vegetables"),
+        ([_FOOD, "Produkte", "Lebensmittel", "Weißbrot"], "bakery"),
+        ([_FOOD, "Produkte", "Lebensmittel", "Ciabatta"], "bakery"),
+        ([_FOOD, "Produkte", "Lebensmittel", "Fleisch", "Leberwurst"], "pork"),
+        ([_FOOD, "Produkte", "Lebensmittel", "Fisch", "Räucherlachs"], "fish"),
+        ([_FOOD, "Produkte", "Lebensmittel", "Vegane Lebensmittel", "Veganes Schnitzel"], "pantry"),
+        ([_FOOD, "Produkte", "Lebensmittel", "Baked Beans"], "pantry"),
+    ],
+)
+def test_classify_expanded_paths(path, expected):
+    assert classify("x", None, path) == expected
+
+
+@pytest.mark.parametrize(
+    "name, brand, expected",
+    [
+        # new single-category brands
+        ("Knorr Fix für Spaghetti Bolognese", "Knorr", "pantry"),
+        ("Harry Grillkruste", "Harry", "bakery"),
+        ("Wasa Original Sesam", "Wasa", "snacks"),
+        ("Saint Agur Blauschimmel", "Saint Agur", "cheese"),
+        ("Becel Original", "Becel", "butter"),
+        ("Rapso Reines Rapsöl", "Rapso", "pantry"),
+        ("Nestlé PURINA ONE Adult", None, "household"),
+        # new keywords (no usable path -> name only)
+        ("Grapefruit rosa", None, "fruits"),
+        ("Kohlrabi", None, "vegetables"),
+        ("Burrata di Bufala", None, "cheese"),
+        ("Bürger Maultaschen", "Bürger", "pantry"),
+        ("EDEKA Bio Smoothie", "EDEKA Bio", "beverages"),
+        ("Costa Pacific Prawns", "Costa", "fish"),
+        ("Kalbs-Hals", None, "beef"),
+        ("ja! Delikatess Mayonnaise", "ja!", "pantry"),
+        ("Floristenstrauß der Saison", None, "household"),
+        # non-regression guards: the new short tokens must not steal real categories
+        ("Steinhaus Original Krustenbraten", "Steinhaus", "pork"),  # not bakery (grill/tigerkruste)
+        ("Champagner Brut", None, "beverages"),  # "pane " must not catch it
+    ],
+)
+def test_classify_expanded_names(name, brand, expected):
+    assert classify(name, brand) == expected
+
+
 def test_classify_name_only_still_works():
     # brand is optional
     assert classify("Tiefkühl Pizza Salami") == "frozen"
