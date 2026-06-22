@@ -174,12 +174,27 @@ export default function DealsScreen() {
       setUpdating(true);
       setRefreshFailed(false);
       if (!hadData) setError(null);
+
+      const fetchAll = () => Promise.all([api.offers({ plz }), api.categories(plz), api.stores()]);
+
       try {
-        const [o, c, stores] = await Promise.all([
-          api.offers({ plz }),
-          api.categories(plz),
-          api.stores(),
-        ]);
+        // Plain read first. On a sleepy free-tier cold start this can fail (timeout) or come
+        // back empty — the ephemeral DB only boot-scrapes the default PLZ — so if there's
+        // nothing, force an on-demand scrape for this PLZ (like the picker) and refetch.
+        let result = await fetchAll().catch(() => null);
+        if (!result || result[0].length === 0) {
+          await api.scrape(plz);
+          result = await fetchAll();
+        }
+        const [o, c, stores] = result;
+
+        // Never clobber good cached deals with an empty result, and never cache empty —
+        // otherwise a cold-backend refresh wipes the deals + poisons the cache.
+        if (o.length === 0 && hadData) {
+          setRefreshFailed(true);
+          return;
+        }
+
         const name = stores.find((s) => s.plz === plz)?.name ?? null;
         setOffers(o);
         setCats(c);
@@ -187,7 +202,9 @@ export default function DealsScreen() {
         const now = Date.now();
         setUpdatedAt(now);
         setError(null);
-        setDealsCache({ plz, offers: o, cats: c, storeName: name, cachedAt: now });
+        if (o.length > 0) {
+          setDealsCache({ plz, offers: o, cats: c, storeName: name, cachedAt: now });
+        }
       } catch {
         setRefreshFailed(true);
         if (!hadData) setError(`Couldn't reach the API at ${api.base}.\nIs the backend running?`);
