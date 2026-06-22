@@ -6,17 +6,23 @@ import { CategoryCount, NearbyStore, Offer, ScrapeResult, Store } from './types'
 // NOT read eas.json's build-profile `env`, so production OTA bundles fall back to this.
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'https://grocery-helper-sw6c.onrender.com';
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return (await res.json()) as T;
+// Abort a request after `timeoutMs` so a sleepy free-tier cold start fails fast (and can
+// fall back to an on-demand scrape) instead of hanging the UI for minutes.
+async function request<T>(path: string, init: RequestInit, timeoutMs: number): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${BASE}${path}`, { ...init, signal: controller.signal });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-async function post<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { method: 'POST' });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  return (await res.json()) as T;
-}
+const get = <T>(path: string, timeoutMs = 30000): Promise<T> => request<T>(path, {}, timeoutMs);
+const post = <T>(path: string, timeoutMs = 30000): Promise<T> =>
+  request<T>(path, { method: 'POST' }, timeoutMs);
 
 export const api = {
   base: BASE,
@@ -62,7 +68,8 @@ export const api = {
   },
 
   // Scrape the nearest store for a PLZ on demand and return the resolved store(s).
+  // A cold start + full scrape is slow, so allow a generous timeout.
   scrape(plz: string) {
-    return post<ScrapeResult>(`/api/scrape?plz=${encodeURIComponent(plz)}`);
+    return post<ScrapeResult>(`/api/scrape?plz=${encodeURIComponent(plz)}`, 120000);
   },
 };
