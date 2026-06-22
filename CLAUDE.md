@@ -169,9 +169,12 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   EAS project `@mhassan0600/grocery-helper`, `extra.eas.projectId`). `eas
   login`/`build`/`submit` are **user-run** (their Apple/Expo creds + build credits).
 - **Deals are cached client-side** (`mobile/src/storage.ts` `dealsCache` **single key** +
-  `DealsScreen` stale-while-revalidate): the app shows the last good offers/cats/storeName
-  for the PLZ **instantly**, then refreshes in the background — so Render free-tier cold
-  starts don't block the UI and the app works offline. Only the **last** PLZ is cached
+  `DealsScreen`): the app shows the last good offers/cats/storeName for the PLZ
+  **instantly**. **Flyers are weekly, so the cache is authoritative for the week**: a fresh
+  cache (not past the cached week's Sunday) is served with **no backend call at all** — the
+  app only fetches when there's no cache or the cache is stale, or on pull-to-refresh. So
+  Render free-tier cold starts don't block the UI, the app works offline, and a typical
+  mid-week open never touches the backend. Only the **last** PLZ is cached
   (one key, ~1 MB cap). Staleness = past the cached week's **Sunday** (`format.ts`
   `dealsStale`, the weekly flyer expiry), surfaced with a "may be expired" banner by
   `components/UpdateStatus.tsx`; a failed refresh keeps the cached list (no error screen).

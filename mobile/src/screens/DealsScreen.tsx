@@ -225,6 +225,10 @@ export default function DealsScreen() {
       const cached = await getDealsCache();
       if (cancelled) return;
       const hit = !!cached && cached.plz === plz;
+      // Flyers are weekly, so a cache from the current flyer week is still current: serve
+      // it and skip the (sleepy) backend entirely. Only fetch when there's no cache or it's
+      // past the cached week's Sunday. Pull-to-refresh always forces a fetch.
+      const fresh = hit && cached != null && !dealsStale(cached.cachedAt);
       if (hit && cached) {
         setOffers(cached.offers);
         setCats(cached.cats);
@@ -238,7 +242,7 @@ export default function DealsScreen() {
         setUpdatedAt(null);
         setLoading(true);
       }
-      revalidate(hit);
+      if (!fresh) revalidate(hit);
     })();
     return () => {
       cancelled = true;
