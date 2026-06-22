@@ -59,7 +59,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # Build-only (no push) so a broken Dockerfile/dependency fails here, not on Render.
-      - run: docker build -f backend/Dockerfile backend
+      # Retry transient registry hiccups (e.g. Docker Hub 503 pulling the base image) so
+      # an upstream blip doesn't fail the build.
+      - name: Build backend image
+        run: |
+          for attempt in 1 2 3; do
+            if docker build -f backend/Dockerfile backend; then
+              exit 0
+            fi
+            echo "::warning::docker build attempt $attempt failed — retrying in 15s"
+            sleep 15
+          done
+          echo "::error::docker build failed after 3 attempts"
+          exit 1
 
   deploy:
     name: Deploy to Render
