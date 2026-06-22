@@ -24,6 +24,12 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 - **Local API port is 8001**, not 8000 (8000 is usually already taken on the dev
   machine). `mobile/.env` → `EXPO_PUBLIC_API_URL=http://localhost:8001`. The iOS
   simulator reaches the Mac via `localhost`; a physical phone needs the LAN IP.
+  **`api.ts` defaults to the Render URL** (not localhost) when `EXPO_PUBLIC_API_URL` is
+  unset, so device/OTA builds reach production out of the box — `.env` overrides it for
+  local dev. This default is load-bearing because **`eas update` does NOT read eas.json's
+  build-profile `env`** (Expo SDK 55+), so OTA bundles have no injected URL and fall back
+  to it; eas.json's `env` only applies to `eas build`. A "Couldn't reach the API at
+  localhost:8000" on a device = a build/OTA made before this default (rebuild fixes it).
 - **Two sources × three chains, tagged `Offer.source` / `Store.chain`**: `coupon`
   (Lidl Plus app endpoints, `app/scrapers/lidl.py`) and `flyer`
   (meinprospekt weekly Prospekt, `app/scrapers/bonial.py`). `bonial.py` is a
