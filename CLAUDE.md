@@ -182,4 +182,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   a **warning** (legit modal fetch/reset effects), keep real errors at zero. OTA only
   reaches a build embedding `expo-updates` at the matching `runtimeVersion` (app.json
   `appVersion` policy) → bump `expo.version` when native deps change.
+- **In-app OTA prompt** (`mobile/src/useOtaUpdates.ts`, called once in `App.tsx`): checks
+  for an EAS Update on launch + on every app foreground and, if one is ready, downloads it
+  and alerts the user to reload now (`Updates.reloadAsync`). Inert in dev / Expo Go / web
+  (`__DEV__` / `Platform.OS` / `Updates.isEnabled` guards), best-effort, once per session.
+  Only fires in a build embedding `expo-updates` at the matching `runtimeVersion`.
 - **Commits**: author as the user only — no `Co-Authored-By: Claude` trailer.

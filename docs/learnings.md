@@ -213,3 +213,13 @@ instead of erroring.
 **Takeaway:** for read-mostly data that's slow or flaky to fetch, cache-first +
 background refresh beats a spinner; give the cache a domain-driven freshness boundary
 (here, the weekly flyer expiry) rather than an arbitrary TTL.
+
+### Prompt-to-reload for OTA updates (expo-updates)
+By default EAS Updates download silently and apply on the *next* cold start. To offer an
+immediate update, check imperatively (`Updates.checkForUpdateAsync` → `fetchUpdateAsync`)
+and, when one is ready, prompt the user and call `Updates.reloadAsync()` on confirm.
+**Why it came up:** added an "Update available — Reload now?" alert (on launch + on
+foreground) so users get the latest JS without a full relaunch.
+**Takeaway:** expo-updates is **inert in dev / Expo Go / web** (the fetch API rejects in
+dev) — guard with `__DEV__` / `Platform.OS` / `Updates.isEnabled`; and it only runs in a
+build that embeds expo-updates at the matching runtimeVersion.
