@@ -1,8 +1,10 @@
 import { CategoryCount, NearbyStore, Offer, ScrapeResult, Store } from './types';
 
-// Override per-environment via mobile/.env (EXPO_PUBLIC_API_URL). On a physical
-// phone, localhost won't resolve — set this to your machine's LAN IP.
-const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+// Default to the deployed backend so device + OTA builds work out of the box. Override
+// via mobile/.env (EXPO_PUBLIC_API_URL) for local dev — e.g. http://localhost:8001, or
+// your Mac's LAN IP on a physical phone. The default matters because `eas update` does
+// NOT read eas.json's build-profile `env`, so production OTA bundles fall back to this.
+const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'https://grocery-helper-sw6c.onrender.com';
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
