@@ -223,3 +223,14 @@ foreground) so users get the latest JS without a full relaunch.
 **Takeaway:** expo-updates is **inert in dev / Expo Go / web** (the fetch API rejects in
 dev) — guard with `__DEV__` / `Platform.OS` / `Updates.isEnabled`; and it only runs in a
 build that embeds expo-updates at the matching runtimeVersion.
+
+### Don't cache empty/failed responses in stale-while-revalidate
+A cache-first UI must only commit a *good* refresh to the cache. If the background fetch
+can return empty or fail transiently, writing that result overwrites the cached data and
+poisons it — the next launch shows the cache (deals), then the refresh wipes it.
+**Why it came up:** on a sleepy free-tier backend, `/api/offers` returns `[]` during a
+cold start (empty ephemeral DB); the revalidate was caching the `[]`, so deals vanished
+on relaunch. Fix: never replace shown data with an empty result, only cache non-empty
+payloads, add request timeouts, and trigger an on-demand repopulate (scrape) when empty.
+**Takeaway:** in SWR, treat empty/error as "keep what you have," not "new truth" — only
+the happy path updates the cache; and add a timeout so a hung request can't stall the UI.

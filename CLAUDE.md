@@ -176,6 +176,13 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `dealsStale`, the weekly flyer expiry), surfaced with a "may be expired" banner by
   `components/UpdateStatus.tsx`; a failed refresh keeps the cached list (no error screen).
   The full-screen spinner only shows on a true cold start (no cache for that PLZ).
+  **Cold-start gotcha**: Render's ephemeral DB only boot-scrapes `DEFAULT_PLZ`, so
+  `/api/offers` returns **`[]` for any other (unscraped) PLZ** until a scrape runs.
+  `DealsScreen` `revalidate` therefore **scrapes on demand when the read is empty** (like
+  `PlzModal` does via `api.scrape`) then refetches, and — critically — **never caches or
+  displays an empty result over good data** (an empty cold-backend refresh used to wipe
+  the deals + poison the cache). Fetches have AbortController timeouts (30s reads / 120s
+  scrape) so a cold start fails fast instead of hanging.
 - **CI/CD is GitHub Actions** (`.github/workflows/`): `ci.yml` (backend `ruff`+`pytest`,
   mobile ESLint+`tsc`, backend Docker build; on green `main` pushes a `deploy` job curls
   the Render deploy hook), `eas-update.yml` (OTA via `eas update --branch production` on
