@@ -17,12 +17,16 @@ from .models import Offer
 
 
 def _norm_name(name: str | None) -> str:
-    # Different brochures spell the same product slightly differently — most often
-    # a curly vs straight apostrophe ("Butcher's" / "Butcher’s"). Normalize unicode,
-    # unify apostrophe variants, and collapse whitespace so they match.
+    # Different brochures spell the same product slightly differently — a curly vs
+    # straight apostrophe ("Butcher's"/"Butcher’s"), decorative German quotes around a
+    # word ("…Avocado »Hass«"), or an extra produce quality-grade ("…Hass, Kl. I" vs
+    # "…Hass"). Normalize unicode, drop apostrophes, strip the grade token, turn any
+    # remaining punctuation into spaces, and collapse whitespace so the variants match.
     s = unicodedata.normalize("NFKC", name or "").lower()
-    for ch in "’‘`´":
-        s = s.replace(ch, "'")
+    for ch in "’‘`´'":
+        s = s.replace(ch, "")  # contraction apostrophe -> nothing ("butcher's" -> butchers)
+    s = re.sub(r"\bkl(?:asse)?\.?\s*(?:i{1,3}|[123])\b", " ", s)  # produce grade ("Kl. I")
+    s = re.sub(r"[^\w ]+", " ", s)  # decorative quotes / commas / hyphens -> space
     return re.sub(r"\s+", " ", s).strip()
 
 
