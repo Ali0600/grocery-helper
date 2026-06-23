@@ -247,3 +247,19 @@ not just the leaf), and added single-category brands for the brand-leaf cases �
 **Takeaway:** don't trust a path's leaf — survey the real vocabulary, map the
 intermediate nodes, and fall back to brand/keyword logic where the path bottoms out at a
 brand; measure the win on the actual dataset, not a few hand-picked examples.
+
+### Verify categories against product images — the source taxonomy lies
+A third-party category path can be flat-out wrong, not just unhelpful. Auditing the
+"fruits" bucket against the **product images** (image + name + category) found a peach
+*aperitif*, banana *chips*, *lemonade* and a *yogurt* — and the source had even tagged
+"Bananenchips" under **Obst** (fruit). So a definitive *form* word in the name
+("…limonade", "…chips", "…joghurt") must beat even the path; a mere *flavour* word
+("…chocolate") must not beat a brand (Häagen-Dazs chocolate is ice cream). Tooling: a
+Pillow contact-sheet of all the category's images, viewed in one shot, makes the wrong
+ones obvious.
+**Why it came up:** the user spotted "drinks in Fruits"; an image audit confirmed 4
+mis-files and drove a `_FORM_OVERRIDES` layer (form words → before the path) distinct
+from flavour overrides (→ after the brand map).
+**Takeaway:** for classification QA, look at the actual product images, not just names;
+and order your override layers by how *definitive* the signal is (form > path > brand >
+flavour > keyword).
