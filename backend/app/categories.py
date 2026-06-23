@@ -2,13 +2,19 @@
 
 `classify(name, brand, category_path)` applies, in order:
 
-1. **Source taxonomy path** (Bonial `categoryPaths`, flyer offers only): if the
-   path isn't under the food root it's non-food → "household"; otherwise the most
-   specific known taxonomy node wins (e.g. `…> Käse > Weichkäse` → cheese).
-2. **Brand map** — unambiguous brands → one category.
-3. **Override tokens** — high-priority words so a flavour word can't beat the
-   real category (e.g. "Mango" in a sparkling-wine name).
-4. **German-keyword rules** — first hit wins, specific buckets before broad.
+1. **Non-food source path** — if the Bonial `categoryPaths` isn't under the food
+   root, it's non-food → "household".
+2. **Definitive form words** — limonade / saft / joghurt / chips beat even a
+   *mis-filed* food path (the source files "Bananenchips" under Obst). Form words
+   only — never a mere flavour — and space-guarded vs fruit superstrings
+   ("nektar " vs "Nektarine").
+3. **Food taxonomy node** — the most specific known node (an *intermediate* node;
+   the leaf is often a brand, e.g. `…> Käse > Weichkäse` → cheese).
+4. **Brand map** — unambiguous brands → one category (a brand beats a flavour word:
+   Häagen-Dazs "…Chocolate" is frozen, not sweets).
+5. **Flavour overrides** — a flavour word can't beat the real category ("Mango" in a
+   sparkling-wine name).
+6. **German-keyword rules** — first hit wins, specific buckets before broad.
 
 The path handles the big, diverse flyer catalog deterministically; the keyword
 layers cover coupons and brand-only flyer food. No LLM.
@@ -223,45 +229,70 @@ BRAND_CATEGORY: dict[str, str] = {
     "qeridoo": "household", "eufab": "household", "ridder": "household", "pergoline": "household",
 }
 
-# High-priority tokens checked before _RULES. Short tokens are space-padded.
+# Definitive *form* words: a product literally called a limonade / saft / joghurt / chips
+# IS that category, so these beat even a mis-filed food taxonomy path (the source files
+# "Bananenchips" under Obst, "Zitronenlimonade" under Zitrusfrüchte). Only words that are a
+# category by form, never a mere flavour — so a frozen "…Schoko" brand isn't dragged here.
+# Space-guarded where a fruit word is a superstring ("nektar " vs "Nektarine", "saft " vs
+# "saftig").
+_FORM_OVERRIDES: list[tuple[str, list[str]]] = [
+    ("beverages", ["limonade", "schorle", "nektar ", "smoothie", "saft ", "fruchtsaft"]),
+    ("dairy", ["joghurt", "jogurt", "froop", "skyr", "müllermilch", "fruchtzwerge", "fruchtquark"]),
+    ("snacks", ["chips"]),
+]
+
+# Flavour / drink-type tokens checked after the brand map but before _RULES, so a flavour
+# word can't beat the real category (e.g. "Mango" in a sparkling-wine name) — but a brand
+# still wins (Häagen-Dazs "…Chocolate" is frozen, not sweets). Short tokens are space-padded.
 _OVERRIDES: list[tuple[str, list[str]]] = [
-    ("beverages", ["sekt", "frizzante", "secco", "prosecco", "hugo", "aperol", "likör", "aperitif",
-                   "glühwein", "wodka", "whisky", "pilsener", "eistee", "ice tea", " gin ", " rum "]),
+    ("beverages", ["sekt", "frizzante", "secco", "prosecco", "hugo", "aperol", "bellini", "likör",
+                   "aperitif", "glühwein", "wodka", "whisky", "pilsener", "eistee", "ice tea",
+                   " gin ", " rum "]),
     ("sweets", ["mister choc", "choco"]),
 ]
 
 
-def _from_path(category_path: List[str]) -> Optional[str]:
-    if not category_path:
-        return None
-    if category_path[0].strip().lower() != FOOD_ROOT:
-        return "household"  # any non-food taxonomy
-    for node in reversed(category_path):  # most specific first
+def _path_nonfood(category_path: List[str]) -> bool:
+    """True if the source taxonomy files this outside the food root (-> household)."""
+    return bool(category_path) and category_path[0].strip().lower() != FOOD_ROOT
+
+
+def _path_node(category_path: List[str]) -> Optional[str]:
+    """Most-specific known food taxonomy node -> slug, else None (the leaf is often a brand)."""
+    for node in reversed(category_path):
         slug = _PATH_MAP.get(node.strip().lower())
         if slug:
             return slug
-    return None  # food, but only brand-organized -> fall through to keywords
+    return None
 
 
 def classify(name: str, brand: str | None = None, category_path: Optional[List[str]] = None) -> str:
     """Map a product (name + optional brand + optional source path) to a slug."""
-    by_path = _from_path(category_path or [])
-    if by_path:
-        return by_path
-
+    path = category_path or []
+    # 1. A non-food source path is authoritative ("Sektkühler" is household, not a drink).
+    if _path_nonfood(path):
+        return "household"
     text = f" {name.lower()} {(brand or '').lower()} "
+    # 2. Definitive form words beat a *mis-filed food* path (Bananenchips under Obst, etc).
+    for slug, tokens in _FORM_OVERRIDES:
+        if any(token in text for token in tokens):
+            return slug
+    # 3. The food taxonomy node (an *intermediate* node; the leaf is often a brand).
+    node = _path_node(path)
+    if node:
+        return node
+    # 4. Unambiguous brand (a brand beats a flavour word: Häagen-Dazs Chocolate is frozen).
     brand_text = (brand or "").lower()
     for brand_key, slug in BRAND_CATEGORY.items():
         if brand_key in brand_text or brand_key in text:
             return slug
+    # 5. Flavour/priority overrides, then 6. German-keyword rules.
     for slug, tokens in _OVERRIDES:
-        for token in tokens:
-            if token in text:
-                return slug
+        if any(token in text for token in tokens):
+            return slug
     for slug, keywords in _RULES:
-        for kw in keywords:
-            if kw in text:
-                return slug
+        if any(kw in text for kw in keywords):
+            return slug
     return "other"
 
 

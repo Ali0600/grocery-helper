@@ -192,6 +192,17 @@ def test_classify_expanded_paths(path, expected):
         # non-regression guards: the new short tokens must not steal real categories
         ("Steinhaus Original Krustenbraten", "Steinhaus", "pork"),  # not bakery (grill/tigerkruste)
         ("Champagner Brut", None, "beverages"),  # "pane " must not catch it
+        # fruit-flavoured items that are NOT fruit (confirmed against the product images)
+        ("Bellini Pfirsich 0,0%", None, "beverages"),  # peach sparkling drink, not "pfirsich"
+        ("EDEKA Herzstücke Bananenchips", "EDEKA Herzstücke", "snacks"),  # chips, not "banane"
+        ("Gut&Günstig Zitronenlimonade", "Gut&Günstig", "beverages"),  # lemonade, not "zitrone"
+        ("Müller Froop Pfirsich-Maracuja", "Müller", "dairy"),  # yogurt, not "pfirsich"
+        ("Apfelsaft naturtrüb", None, "beverages"),  # juice, not "apfel"
+        ("Erdbeer Joghurt", None, "dairy"),  # yogurt, not "erdbeere"
+        # real fruit must still classify as fruit
+        ("Aprikosen, lose", None, "fruits"),
+        ("Zespri SunGold Kiwi", "Zespri", "fruits"),
+        ("Rote Äpfel", None, "fruits"),
     ],
 )
 def test_classify_expanded_names(name, brand, expected):
