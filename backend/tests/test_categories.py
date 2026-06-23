@@ -63,6 +63,9 @@ _FOOD = "Lebensmittel und Getränke"
         ("x", None, [_FOOD, "Produkte", "Lebensmittel", "Obst", "Kernobst"], "fruits"),
         # brand-only food path -> falls back to keyword classifier on the name
         ("Eberswalder Rostbratwurst", "Eberswalder", [_FOOD, "Marken", "Marken Lebensmittel"], "pork"),
+        # a form/brand override (Vilsa water) beats a mis-filed Obst path (the source files
+        # the flavoured water "Vilsa H2 Obst …" under Obst, which would otherwise -> fruits)
+        ("Vilsa H2 Obst Apfel-Limette-Zitrone", "Vilsa", [_FOOD, "Produkte", "Obst"], "beverages"),
     ],
 )
 def test_classify_with_path(name, brand, path, expected):
