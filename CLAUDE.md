@@ -203,6 +203,19 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   displays an empty result over good data** (an empty cold-backend refresh used to wipe
   the deals + poison the cache). Fetches have AbortController timeouts (30s reads / 120s
   scrape) so a cold start fails fast instead of hanging.
+- **Options view** (`mobile/src/components/OptionsModal.tsx`, ⚙ in the header): maintenance
+  actions split **device** vs **server**. Device — *Clear cached deals & reload* (drops
+  `dealsCache` then forces `revalidate(true)`, the fix for "deals won't update mid-week"
+  since the weekly cache otherwise skips the backend) and *Reset all app data*
+  (`storage.clearAllData` → `multiRemove` every key, then resets state to defaults / default
+  PLZ). Server — *Re-scrape* (`api.scrape`, upsert) and *Wipe & re-scrape* (`api.resetDb` →
+  **`POST /api/reset`**). Destructive actions use an **inline two-tap confirm** (not
+  `Alert.alert`, which drops its buttons on react-native-web). `POST /api/reset` deletes
+  **all** offers then re-scrapes one PLZ (unlike `/api/scrape`'s in-place upsert, so it also
+  clears stale rows the scrape no longer touches); guarded by **`ADMIN_TOKEN`** *only when
+  that env is set* (else open like `/api/scrape`); the app sends `EXPO_PUBLIC_ADMIN_TOKEN`
+  if present. The wipe self-heals via the immediate re-scrape but comes back sparse on a
+  sample-fallback (re-run when the source is reachable).
 - **CI/CD is GitHub Actions** (`.github/workflows/`): `ci.yml` (backend `ruff`+`pytest`,
   mobile ESLint+`tsc`, backend Docker build; on green `main` pushes a `deploy` job curls
   the Render deploy hook), `eas-update.yml` (OTA via `eas update --branch production` on
