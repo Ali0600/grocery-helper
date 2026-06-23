@@ -306,3 +306,24 @@ one-time data edit.
 **Takeaway:** for a periodically-refreshing source, treat data-quality rules as
 never-"done" — encode each fix as a tested rule so the next cycle's variants are caught,
 and re-audit after each refresh.
+
+### Don't define a component inside another component's render
+A function component declared in the body of another component is a brand-new type on
+every render, so React unmounts/remounts its subtree (losing state) — the React Compiler
+lint flags it as "Cannot create components during render."
+**Why it came up:** the Options modal had an inner `Action = (...) => <View>…</View>` helper
+used as `<Action .../>`; ESLint errored. Renaming it to a plain `renderAction({...})`
+function *called* (not used as JSX) fixed it with no behaviour change.
+**Takeaway:** hoist sub-components to module scope, or if a render-local helper closes over
+state, make it a lowercase function you *call* (`{renderRow(x)}`), never a capitalised one
+you mount (`<Row/>`).
+
+### Guard a destructive public endpoint with an optional, env-gated token
+A maintenance endpoint (DB wipe) on an unauthenticated public API should be gated, but the
+gate can be opt-in so local dev stays friction-free.
+**Why it came up:** `POST /api/reset` wipes all offers — fine for the owner, risky as an
+open public hit. It checks `ADMIN_TOKEN` only when that env var is set (otherwise open, like
+the existing `/api/scrape`), so dev needs no token while prod can lock it down by just
+setting the env.
+**Takeaway:** for owner-only destructive actions, enforce a token *conditionally on its
+presence* — zero-config in dev, lockable in prod without code changes.
