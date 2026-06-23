@@ -286,3 +286,23 @@ the cached week's Sunday, plus a manual pull-to-refresh).
 **Takeaway:** match revalidation frequency to the data's real change rate — for
 weekly/periodic data, serve the cache for the whole period and only refetch when it
 expires (or on explicit refresh).
+
+### Dev DB and prod serve different datasets — don't compare counts across them
+The local backend (`localhost:8001`, the web view) and Render (the iOS build) hold
+*independently scraped* data, so a category count on one won't match the other.
+**Why it came up:** the user saw "29 fruits" on iOS but "2" on web and expected them to
+agree — but the web hit the dev `grocery.db` (only PLZ 10115/10713 ever scraped, partly
+stale) while iOS hit Render's current-week scrape. The numbers were never comparable.
+**Takeaway:** when a count looks "off," first establish *which backend/dataset* produced
+it; reproduce against that exact source before debugging logic.
+
+### Weekly-refreshed sources re-introduce data-quality bugs every cycle
+A categorizer (or any data-cleaning rule) tuned on one week's data will face brand-new
+edge cases next week, because the upstream feed churns its items.
+**Why it came up:** last week's confirmed mis-files (Bellini, Bananenchips…) were gone
+from this week's flyer, replaced by four *new* substring traps (Mango Sorbet, Vilsa water,
+Pflaumentomaten, Apfelessig). The fix is always in the *classifier* (durable), not a
+one-time data edit.
+**Takeaway:** for a periodically-refreshing source, treat data-quality rules as
+never-"done" — encode each fix as a tested rule so the next cycle's variants are caught,
+and re-audit after each refresh.
