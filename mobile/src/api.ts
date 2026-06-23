@@ -1,10 +1,15 @@
-import { CategoryCount, NearbyStore, Offer, ScrapeResult, Store } from './types';
+import { CategoryCount, NearbyStore, Offer, ResetResult, ScrapeResult, Store } from './types';
 
 // Default to the deployed backend so device + OTA builds work out of the box. Override
 // via mobile/.env (EXPO_PUBLIC_API_URL) for local dev — e.g. http://localhost:8001, or
 // your Mac's LAN IP on a physical phone. The default matters because `eas update` does
 // NOT read eas.json's build-profile `env`, so production OTA bundles fall back to this.
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'https://grocery-helper-sw6c.onrender.com';
+
+// Optional token for the destructive server reset; only needed if the backend sets
+// ADMIN_TOKEN. It rides in the public bundle, so it's a light guard against drive-by hits,
+// not a real secret. Leave unset for an open reset (matching /api/scrape).
+const ADMIN_TOKEN = process.env.EXPO_PUBLIC_ADMIN_TOKEN;
 
 // Abort a request after `timeoutMs` so a sleepy free-tier cold start fails fast (and can
 // fall back to an on-demand scrape) instead of hanging the UI for minutes.
@@ -71,5 +76,13 @@ export const api = {
   // A cold start + full scrape is slow, so allow a generous timeout.
   scrape(plz: string) {
     return post<ScrapeResult>(`/api/scrape?plz=${encodeURIComponent(plz)}`, 120000);
+  },
+
+  // Wipe the backend's stored offers and re-scrape this PLZ from scratch (Options →
+  // "Wipe & re-scrape server DB"). Destructive on the server; same generous timeout as scrape.
+  resetDb(plz: string) {
+    const q = new URLSearchParams({ plz });
+    if (ADMIN_TOKEN) q.set('token', ADMIN_TOKEN);
+    return post<ResetResult>(`/api/reset?${q.toString()}`, 120000);
   },
 };

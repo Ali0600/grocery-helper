@@ -20,6 +20,7 @@ import { CategoryChips } from '../components/CategoryChips';
 import { FlyerModal } from '../components/FlyerModal';
 import { GroupHeader } from '../components/GroupHeader';
 import { OfferCard } from '../components/OfferCard';
+import { OptionsModal } from '../components/OptionsModal';
 import { PlzModal } from '../components/PlzModal';
 import { SearchBar } from '../components/SearchBar';
 import { SortToggle } from '../components/SortToggle';
@@ -28,6 +29,8 @@ import { StoresModal } from '../components/StoresModal';
 import { UpdateStatus } from '../components/UpdateStatus';
 import { dealsStale } from '../format';
 import {
+  clearAllData,
+  clearDealsCache,
   getDealsCache,
   getStoredBasket,
   getStoredMyStores,
@@ -149,6 +152,7 @@ export default function DealsScreen() {
   const [storeFilter, setStoreFilter] = useState<string | null>(null); // session lens; resets each launch
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [basketModal, setBasketModal] = useState(false);
+  const [optionsModal, setOptionsModal] = useState(false);
   // Deals-cache / refresh status (stale-while-revalidate over the sleepy free backend).
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [updating, setUpdating] = useState(false);
@@ -275,6 +279,43 @@ export default function DealsScreen() {
     setStoredBasket(next);
   }, []);
 
+  // Options view actions. Each returns a short result string for the modal to show.
+  const onClearCache = useCallback(async () => {
+    await clearDealsCache();
+    await revalidate(true); // force a fresh fetch, bypassing the weekly-authoritative cache
+    return 'Cleared the cached deals and refreshed from the server.';
+  }, [revalidate]);
+
+  const onResetAll = useCallback(async () => {
+    await clearAllData();
+    setMyStores([]);
+    setBasket([]);
+    setShowNonFood(false);
+    setSortMode('discount');
+    setSelected(null);
+    setQuery('');
+    setStoreFilter(null);
+    if (plz !== DEFAULT_PLZ) {
+      setPlz(DEFAULT_PLZ); // the [plz] effect reloads for the default PLZ (cache now empty)
+    } else {
+      await revalidate(true); // already on the default PLZ — just refresh
+    }
+    return 'Reset all app data to defaults.';
+  }, [plz, revalidate]);
+
+  const onRescrape = useCallback(async () => {
+    const res = await api.scrape(plz);
+    await revalidate(true);
+    return `Re-scraped ${res.scraped} offers for ${plz}.`;
+  }, [plz, revalidate]);
+
+  const onWipeServer = useCallback(async () => {
+    const res = await api.resetDb(plz);
+    await clearDealsCache();
+    await revalidate(true);
+    return `Wiped the server DB (removed ${res.deleted}) and re-scraped ${res.scraped} offers.`;
+  }, [plz, revalidate]);
+
   const onChangeSort = useCallback((mode: SortMode) => {
     setSortMode(mode);
     setStoredSortMode(mode);
@@ -357,6 +398,14 @@ export default function DealsScreen() {
                 hitSlop={6}
               >
                 <Text style={styles.storesBtnText}>Stores</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setOptionsModal(true)}
+                style={({ pressed }) => [styles.storesBtn, pressed && styles.storesBtnPressed]}
+                hitSlop={6}
+                accessibilityLabel="Options"
+              >
+                <Text style={styles.storesBtnText}>⚙</Text>
               </Pressable>
             </View>
           </View>
@@ -485,6 +534,17 @@ export default function DealsScreen() {
         basket={basket}
         onChangeBasket={onChangeBasket}
         onClose={() => setBasketModal(false)}
+      />
+      <OptionsModal
+        visible={optionsModal}
+        plz={plz}
+        updatedAt={updatedAt}
+        apiBase={api.base}
+        onClose={() => setOptionsModal(false)}
+        onClearCache={onClearCache}
+        onResetAll={onResetAll}
+        onRescrape={onRescrape}
+        onWipeServer={onWipeServer}
       />
     </SafeAreaView>
   );

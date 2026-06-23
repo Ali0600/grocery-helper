@@ -4,8 +4,8 @@ from collections import Counter
 from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, Query
-from sqlalchemy import select
+from fastapi import APIRouter, HTTPException, Query
+from sqlalchemy import delete, select
 
 from ..categories import CATEGORIES
 from ..core.config import settings
@@ -202,3 +202,34 @@ def trigger_recategorize(session: SessionDep):
     from ..scripts.recategorize import recategorize
 
     return {"recategorized": recategorize(session)}
+
+
+@router.post("/reset")
+def trigger_reset(session: SessionDep, plz: Optional[str] = None, token: Optional[str] = None):
+    """Wipe every stored offer, then re-scrape `plz` from scratch (admin/maintenance).
+
+    Unlike /api/scrape (which upserts in place), this first DELETEs all offers so stale
+    rows the weekly scrape no longer touches are removed too, then re-scrapes. The
+    immediate re-scrape re-populates the table, so the brief empty window self-heals; on a
+    sample-data fallback the table comes back sparse (re-run when the source is reachable).
+    Guarded by ADMIN_TOKEN only when that env var is set (otherwise open, like /api/scrape).
+    """
+    if settings.admin_token and token != settings.admin_token:
+        raise HTTPException(status_code=403, detail="invalid or missing admin token")
+
+    from ..scrapers.run import run_scrapers
+
+    target = plz or settings.default_plz
+    deleted = session.execute(delete(Offer)).rowcount
+    session.commit()
+    scraped = run_scrapers(session, target)
+    stores = session.scalars(select(Store).where(Store.plz == target)).all()
+    return {
+        "plz": target,
+        "deleted": deleted,
+        "scraped": scraped,
+        "stores": [
+            StoreOut(id=s.id, chain=s.chain, name=s.name, plz=s.plz, market_code=s.market_code)
+            for s in stores
+        ],
+    }
