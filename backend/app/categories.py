@@ -187,7 +187,7 @@ BRAND_CATEGORY: dict[str, str] = {
     "iglo": "frozen", "gelatelli": "frozen", "langnese": "frozen", "bon gelati": "frozen",
     "gustavo gusto": "frozen", "ferrero": "sweets", "loacker": "sweets", "rondo": "sweets",
     "dulano": "pork", "meica": "pork", "brunch": "cheese", "kerrygold": "butter",
-    "valensina": "beverages", "lipton": "beverages", "volvic": "beverages", "vilsa": "beverages",
+    "valensina": "beverages", "lipton": "beverages", "volvic": "beverages",
     "schogetten": "sweets", "berggold": "sweets", "häagen-dazs": "frozen",
     # REWE flyer brands (paths are often brand-only -> no taxonomy node to use)
     "mirée": "cheese", "miree": "cheese", "salakis": "cheese", "leerdammer": "cheese",
@@ -229,14 +229,14 @@ BRAND_CATEGORY: dict[str, str] = {
     "qeridoo": "household", "eufab": "household", "ridder": "household", "pergoline": "household",
 }
 
-# Definitive *form* words: a product literally called a limonade / saft / joghurt / chips
-# IS that category, so these beat even a mis-filed food taxonomy path (the source files
-# "Bananenchips" under Obst, "Zitronenlimonade" under Zitrusfrüchte). Only words that are a
-# category by form, never a mere flavour — so a frozen "…Schoko" brand isn't dragged here.
-# Space-guarded where a fruit word is a superstring ("nektar " vs "Nektarine", "saft " vs
-# "saftig").
+# Definitive *form* words (and single-category product brands): a product literally called a
+# limonade / saft / joghurt / chips — or a Froop / Müllermilch / Vilsa — IS that category, so
+# these beat even a mis-filed food taxonomy path (the source files "Bananenchips" under Obst,
+# the flavoured water "Vilsa H2 Obst …" under Obst). Only words that pin the category by form
+# or an unambiguous brand, never a mere flavour — so a frozen "…Schoko" brand isn't dragged
+# here. Space-guarded where a fruit word is a superstring ("nektar " vs "Nektarine").
 _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
-    ("beverages", ["limonade", "schorle", "nektar ", "smoothie", "saft ", "fruchtsaft"]),
+    ("beverages", ["limonade", "schorle", "nektar ", "smoothie", "saft ", "fruchtsaft", "vilsa"]),
     ("dairy", ["joghurt", "jogurt", "froop", "skyr", "müllermilch", "fruchtzwerge", "fruchtquark"]),
     ("snacks", ["chips"]),
 ]
