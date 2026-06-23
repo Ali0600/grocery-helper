@@ -52,6 +52,11 @@ build the cheapest basket across one or two stores.
   "nearby stores" directory with a saved-stores list.
 - **Resilient scraping design** — store-agnostic normalization layer and
   fall-back data paths so a single upstream change never takes the app down.
+- **In-app maintenance/admin controls** — an Options panel exposing client- and
+  server-side data-lifecycle actions (clear on-device cache, full app reset,
+  on-demand re-scrape, and a guarded database wipe-and-reseed via `POST /api/reset`
+  gated by an optional `ADMIN_TOKEN`) — giving an operator one-tap recovery from
+  stale cache or bad data without a redeploy.
 - **Outbound-call observability** — every request to an upstream site is
   instrumented (httpx event hooks) and tallied by source/host, plus a timestamped
   log of the latest calls, exposed at `GET /api/scrape-stats` with a live `/stats`
