@@ -263,3 +263,26 @@ from flavour overrides (→ after the brand map).
 **Takeaway:** for classification QA, look at the actual product images, not just names;
 and order your override layers by how *definitive* the signal is (form > path > brand >
 flavour > keyword).
+
+### Match the change to its delivery channel
+Where a change *lives* decides how it reaches users — pick the wrong channel and it never
+arrives. App JS → OTA; native deps → a new build; **backend/data → a server deploy** (the
+API decouples it, so the app needs no update at all).
+**Why it came up:** a categorization fix (backend `categories.py`) didn't trigger the OTA
+workflow and the user asked why. OTA only ships the mobile JS bundle; a server-side change
+reaches the app through the **Render deploy + the app's next API fetch**, not OTA — and the
+app's weekly cache means even then it shows only on pull-to-refresh.
+**Takeaway:** before asking "why didn't my change ship?", map it to its channel — most
+backend/data changes need no app update, just a deploy and a refetch.
+
+### Choose a cache strategy by how often the source changes
+Stale-while-revalidate (refetch on every open) suits frequently-changing data, but it's
+wasteful and flaky for data with a known refresh cadence — make the cache *authoritative
+for the period* instead.
+**Why it came up:** the app re-hit a sleepy free-tier backend on every open even though
+the grocery flyers only change weekly; the user pointed out "you don't need new data until
+next week," so the cache became authoritative for the week (zero backend calls until past
+the cached week's Sunday, plus a manual pull-to-refresh).
+**Takeaway:** match revalidation frequency to the data's real change rate — for
+weekly/periodic data, serve the cache for the whole period and only refetch when it
+expires (or on explicit refresh).
