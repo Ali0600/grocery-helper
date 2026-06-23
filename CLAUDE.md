@@ -98,6 +98,12 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   backfill (`python -m app.scripts.recategorize` / `POST /api/recategorize`)
   reproduces results without re-scraping. Watch for substring traps (e.g. "li**mett**e")
   and flavour words ("Mango"/"Pfirsich") stealing categories — guard them.
+  **Debugging gotcha: `OfferOut` does NOT expose `category_path`** — `/api/offers` always
+  shows it as absent/None, so never infer "this offer has no path" from the API. To see the
+  real stored path, query `offers.category_path` in the DB (or reason backwards: if
+  `recategorize` is a no-op yet a brand/keyword fix "should" apply, the offer has a *path*
+  winning at layer #3 — a mis-filed path needs a layer-#2 `_FORM_OVERRIDES` guard, not a
+  brand-map entry; e.g. "Vilsa H2 Obst …" water filed under Obst).
   **`_PATH_MAP` was expanded from a live taxonomy survey** (beverage spirit/…marken
   nodes, bread types, produce, sausage subtypes, würzmittel/salatdressing, …) + more
   single-category brands → **"Other" ~11% → ~1%** (12/1056 live). The leaf is *often a
