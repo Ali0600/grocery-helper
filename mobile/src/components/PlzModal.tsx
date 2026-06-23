@@ -80,7 +80,7 @@ export function PlzModal({ visible, initialPlz, onClose, onApplied }: Props) {
               value={plz}
               onChangeText={(t) => setPlz(t.replace(/[^0-9]/g, '').slice(0, 5))}
               keyboardType="number-pad"
-              placeholder="e.g. 10115"
+              placeholder="e.g. 10713"
               placeholderTextColor={colors.muted}
               maxLength={5}
               editable={!submitting}

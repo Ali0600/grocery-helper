@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     app_name: str = "Grocery Helper API"
     # Local dev defaults to SQLite (zero setup). Prod sets DATABASE_URL to Postgres.
     database_url: str = "sqlite:///./grocery.db"
-    default_plz: str = "10115"  # Berlin Mitte
+    default_plz: str = "10713"  # Berlin Wilmersdorf
     cors_origins: str = "*"  # comma-separated list, or "*"
 
 

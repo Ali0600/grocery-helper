@@ -45,7 +45,7 @@ import {
 import { colors } from '../theme';
 import { BasketItem, CategoryCount, MyStore, Offer } from '../types';
 
-const DEFAULT_PLZ = '10115';
+const DEFAULT_PLZ = '10713';
 // Preferred order for the store filter; any other chains follow, alphabetically.
 const CHAIN_ORDER = ['lidl', 'rewe', 'edeka'];
 

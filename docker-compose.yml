@@ -19,7 +19,7 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg2://grocery:grocery@db:5432/grocery
-      DEFAULT_PLZ: "10115"
+      DEFAULT_PLZ: "10713"
       CORS_ORIGINS: "*"
     depends_on:
       db:

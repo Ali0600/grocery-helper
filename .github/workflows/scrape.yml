@@ -11,7 +11,7 @@ on:
     inputs:
       plz:
         description: Postal code to scrape
-        default: '10115'
+        default: '10713'
         required: false
 
 permissions:
@@ -25,7 +25,7 @@ jobs:
     steps:
       - name: POST /api/scrape
         env:
-          PLZ: ${{ github.event.inputs.plz || '10115' }}
+          PLZ: ${{ github.event.inputs.plz || '10713' }}
         run: |
           echo "Triggering scrape for PLZ $PLZ (free-tier cold start can take ~30s)…"
           curl -fsS --max-time 300 -X POST \
