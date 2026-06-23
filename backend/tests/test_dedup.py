@@ -37,6 +37,22 @@ def test_curly_vs_straight_apostrophe_collapses():
     assert len(dedup_offers(offers)) == 1
 
 
+def test_collapses_guillemets_and_quality_grade():
+    # Real case: the same REWE avocado in two brochures — one wraps the variety in
+    # German quotes and adds a produce grade ("»Hass«, Kl. I"), the other doesn't.
+    offers = [
+        _o(1, "REWE Feine Welt Essreife Avocado »Hass«, Kl. I", 179),
+        _o(2, "REWE Feine Welt Essreife Avocado Hass", 179),
+    ]
+    assert len(dedup_offers(offers)) == 1
+
+
+def test_grade_strip_does_not_overmerge_distinct_products():
+    # Stripping the "Kl. I" grade must not collapse genuinely different products.
+    offers = [_o(1, "Tafeläpfel Elstar", 199), _o(2, "Tafeläpfel Braeburn", 199)]
+    assert len(dedup_offers(offers)) == 2
+
+
 def test_same_product_at_different_stores_not_merged():
     assert len(dedup_offers([_o(1, "A", 100, store=1), _o(2, "A", 100, store=2)])) == 2
 
