@@ -105,7 +105,16 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   the path only helps when an *intermediate* node is a real category; brand-leaf paths
   stay on the brand/keyword layers (multi-category house brands like Gut&Günstig /
   Deluxe / Dr.Oetker / Milbona are deliberately left there). To re-survey, fetch a
-  publisher's brochure pages and tally `products[].categoryPaths`.
+  publisher's brochure pages and tally `products[].categoryPaths`. **`classify` order
+  (6 layers)**: non-food path→household, **`_FORM_OVERRIDES`** (limonade/saft/joghurt/
+  chips — definitive *form* words that beat even a *mis-filed* food path, e.g. the source
+  tags "Bananenchips" under Obst), food taxonomy node, brand map, **`_OVERRIDES`**
+  (flavour words like sekt/choco — after the brand so Häagen-Dazs Chocolate stays frozen),
+  keyword rules. **QA a category against its product images**: re-classify from the DB
+  (don't re-scrape — `python -m app.scripts.recategorize` syncs stored rows to the current
+  classifier), then build a Pillow contact-sheet of that category's `image_url`s and eyeball
+  it (that's how 4 mis-filed "fruits" — a peach aperitif, banana chips, lemonade, a yogurt —
+  were caught).
 - **Product sub-grouping within a category** (`app/product_group.py`): a *second*,
   coarser layer under `category` — `product_group(name, brand, category) ->
   (group_key, group_label)` keys an offer to a product (e.g. fruits → "avocado")
