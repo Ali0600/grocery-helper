@@ -118,7 +118,7 @@ _PATH_MAP: dict[str, str] = {
 _RULES: list[tuple[str, list[str]]] = [
     ("frozen", ["tiefkühl", "tiefkuehl", "tk-", "tk ", "gefrier", "eiscreme", "speiseeis", "ice cream",
                 "stieleis", "eis am stiel", "gelatelli", "gelati", "langnese", "cornetto", "magnum", "plombir",
-                "pizza", "steinofen", "pommes", "wedges", "burrito", "piccolini"]),
+                "sorbet", "pizza", "steinofen", "pommes", "wedges", "burrito", "piccolini"]),
     ("fish", ["fisch", "lachs", "thunfisch", "garnele", "forelle", "hering", "sardin", "sardelle",
               "scampi", "matjes", "meeresfrüchte", "octopus", "tentakel", "kalmar", "calamares", "prawn"]),
     ("poultry", ["hähnchen", "haehnchen", "huhn", "hühner", "pute", "puten", "geflügel", "chicken", "corned turkey"]),
@@ -187,7 +187,7 @@ BRAND_CATEGORY: dict[str, str] = {
     "iglo": "frozen", "gelatelli": "frozen", "langnese": "frozen", "bon gelati": "frozen",
     "gustavo gusto": "frozen", "ferrero": "sweets", "loacker": "sweets", "rondo": "sweets",
     "dulano": "pork", "meica": "pork", "brunch": "cheese", "kerrygold": "butter",
-    "valensina": "beverages", "lipton": "beverages", "volvic": "beverages",
+    "valensina": "beverages", "lipton": "beverages", "volvic": "beverages", "vilsa": "beverages",
     "schogetten": "sweets", "berggold": "sweets", "häagen-dazs": "frozen",
     # REWE flyer brands (paths are often brand-only -> no taxonomy node to use)
     "mirée": "cheese", "miree": "cheese", "salakis": "cheese", "leerdammer": "cheese",
@@ -241,14 +241,19 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     ("snacks", ["chips"]),
 ]
 
-# Flavour / drink-type tokens checked after the brand map but before _RULES, so a flavour
-# word can't beat the real category (e.g. "Mango" in a sparkling-wine name) — but a brand
+# Flavour / drink-type tokens (and specific compounds that must beat a generic fruit
+# substring) checked after the brand map but before _RULES, so a flavour word can't beat
+# the real category (e.g. "Mango" in a sparkling-wine name) and a compound noun beats its
+# misleading prefix ("Pflaumentomaten" is a tomato, "Apfelessig" is vinegar) — but a brand
 # still wins (Häagen-Dazs "…Chocolate" is frozen, not sweets). Short tokens are space-padded.
 _OVERRIDES: list[tuple[str, list[str]]] = [
     ("beverages", ["sekt", "frizzante", "secco", "prosecco", "hugo", "aperol", "bellini", "likör",
                    "aperitif", "glühwein", "wodka", "whisky", "pilsener", "eistee", "ice tea",
                    " gin ", " rum "]),
     ("sweets", ["mister choc", "choco"]),
+    # compound nouns whose prefix is a fruit word (would otherwise land in "fruits")
+    ("vegetables", ["pflaumentomate"]),
+    ("pantry", ["apfelessig", "weinessig", "obstessig", "balsamico"]),
 ]
 
 

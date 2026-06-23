@@ -199,6 +199,14 @@ def test_classify_expanded_paths(path, expected):
         ("Müller Froop Pfirsich-Maracuja", "Müller", "dairy"),  # yogurt, not "pfirsich"
         ("Apfelsaft naturtrüb", None, "beverages"),  # juice, not "apfel"
         ("Erdbeer Joghurt", None, "dairy"),  # yogurt, not "erdbeere"
+        # week-of-2026-06-23 fruit-trap fixes (confirmed against the product images)
+        ("REWE Bio Mango Sorbet", "REWE Bio", "frozen"),  # sorbet is frozen, not "mango"
+        ("Vilsa H2 Obst Apfel-Limette-Zitrone", "Vilsa", "beverages"),  # water brand, not "apfel"
+        ("Bioland Bio Mini Pflaumentomaten", "Bioland", "vegetables"),  # tomato, not "pflaume"
+        ("Unsere Heimat Apfelessig", "Unsere Heimat", "pantry"),  # vinegar, not "apfel"
+        # guards: the new overrides must stay specific
+        ("Essiggurken", None, "vegetables"),  # generic gurke stays veg (essig override is compound-only)
+        ("Plattpfirsiche, lose", None, "fruits"),  # real peaches unaffected by the tomato/vinegar rules
         # real fruit must still classify as fruit
         ("Aprikosen, lose", None, "fruits"),
         ("Zespri SunGold Kiwi", "Zespri", "fruits"),
