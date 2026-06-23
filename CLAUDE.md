@@ -50,8 +50,10 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   publishes several weekly brochures, so the flyer feed repeats a product across
   them (distinct content ids → distinct `external_id`s in the DB), and a product
   can be in both a coupon and the flyer. `dedup_offers` collapses by
-  `(store, normalized-name, price_cents)` — name norm unifies curly/straight
-  apostrophes ("Butcher's"/"Butcher’s") — keeping the **richest** copy (has
+  `(store, normalized-name, price_cents)` — name norm drops apostrophes
+  ("Butcher's"/"Butcher’s"), strips German quotes + a produce quality-grade
+  ("…Avocado »Hass«, Kl. I" vs "…Avocado Hass"), and maps remaining punctuation to
+  spaces, so cross-brochure spelling variants match — keeping the **richest** copy (has
   `price_per_unit`, then a discount, then flyer). Cut a Berlin PLZ ~1322→~738 live
   offers. The DB still stores the dups (serve-time only); a scrape-time
   reconcile/purge would also shrink the table but risks wiping real data on a
