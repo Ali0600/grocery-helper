@@ -77,3 +77,11 @@ export type ScrapeResult = {
   scraped: number;
   stores: Store[];
 };
+
+// POST /api/reset — wiped the backend DB, then re-scraped. `deleted` = rows removed.
+export type ResetResult = {
+  plz: string;
+  deleted: number;
+  scraped: number;
+  stores: Store[];
+};

@@ -120,3 +120,29 @@ export async function setDealsCache(data: CachedDeals): Promise<void> {
     // best-effort (e.g. storage quota) — the app still works without the cache
   }
 }
+
+// Drop just the cached deals, so the next load refetches from the server (used by the
+// Options view to force an update when the weekly-authoritative cache is showing stale data).
+export async function clearDealsCache(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(DEALS_CACHE_KEY);
+  } catch {
+    // best-effort
+  }
+}
+
+// Wipe every persisted key (PLZ, prefs, saved stores, basket, cache) — a full app reset.
+export async function clearAllData(): Promise<void> {
+  try {
+    await AsyncStorage.multiRemove([
+      PLZ_KEY,
+      NONFOOD_KEY,
+      MYSTORES_KEY,
+      SORT_KEY,
+      BASKET_KEY,
+      DEALS_CACHE_KEY,
+    ]);
+  } catch {
+    // best-effort
+  }
+}

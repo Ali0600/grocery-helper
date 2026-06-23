@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./grocery.db"
     default_plz: str = "10115"  # Berlin Wilmersdorf
     cors_origins: str = "*"  # comma-separated list, or "*"
+    # Optional guard for the destructive POST /api/reset (DB wipe). When unset (default),
+    # reset is open like /api/scrape; set it (env ADMIN_TOKEN) to require a matching token.
+    admin_token: str = ""
 
 
 settings = Settings()
