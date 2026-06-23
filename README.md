@@ -306,6 +306,9 @@ is green out of the box. To turn them on:
 - [x] Offline deals cache — instant open from an on-device cache + stale-while-revalidate
       refresh (no cold-start spinner; works offline), with a weekly-expiry "may be
       expired" banner and a "Deals as of <time>" stamp
+- [x] Category-accuracy pass — mine more of the Bonial `categoryPaths` taxonomy + a
+      product-image audit (uncategorized "Other" 11% → 1%; Fruits confirmed against images)
+- [x] In-app OTA update prompt — alerts "Reload to update?" when an EAS Update is ready
 - [ ] Production monitoring/alerting (uptime + scraper health) on a persistent DB
 - [ ] Recipes from on-sale + pantry items (later phase)
 
