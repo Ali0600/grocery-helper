@@ -159,6 +159,19 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `scraped` count depend only on distinct products. This is the scrape-time twin of the
   serve-time `dedup_offers`; serve-time dedup still runs (it also catches cross-*source*
   coupon/flyer dups, which scrape-time — per source — does not).
+- **QA principle — check cross-environment parity for host-dependent data.** The
+  location-pinning bug above hid for a while because the *same* scrape logic runs on the dev
+  Mac (Berlin IP) and Render (Frankfurt IP), and outputs were only ever checked on **one host
+  at a time** — each looked plausible; the mismatch only appears side-by-side (the user
+  noticing iOS vs web). Lessons baked in here, apply them to any future source: (1) when
+  output depends on host/IP/location, verify the **same input yields the same output from
+  both local and Render** before trusting it — the hermetic fixture tests can't (no live
+  host). (2) A **count that varies by host or run is a bug signal, not noise** — here it
+  masked duplicate + wrong-region brochures; serve-time dedup made the app *look* fine, which
+  hid it. (3) **Pin location end-to-end**: the content endpoint was lat/lng-gated but
+  discovery wasn't — a half-pinned pipeline that read as complete (CLAUDE.md even claimed the
+  feed was "location-gated"). (4) **"More rows" ≠ "better data"** — Render's extra offers
+  were the wrong region, not a bonus.
 - **System Python 3.9's old LibreSSL can't TLS-handshake with some hosts** (e.g.
   marktguru) under `httpx`; meinprospekt/Lidl Plus work fine. For ad-hoc probing
   of TLS-picky hosts use `/usr/bin/curl` (SecureTransport).
