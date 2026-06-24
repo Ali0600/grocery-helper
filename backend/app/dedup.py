@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Iterable, List
+from typing import TYPE_CHECKING, Iterable, List
 
 from .models import Offer
+
+if TYPE_CHECKING:
+    from .scrapers.base import ScrapedOffer
 
 
 def _norm_name(name: str | None) -> str:
@@ -54,5 +57,35 @@ def dedup_offers(offers: Iterable[Offer]) -> List[Offer]:
         k = _key(o)
         cur = best.get(k)
         if cur is None or _rank(o) > _rank(cur):
+            best[k] = o
+    return list(best.values())
+
+
+def _rank_scraped(o: "ScrapedOffer"):
+    # Mirror _rank for a not-yet-persisted ScrapedOffer (no discount_pct/source yet):
+    # prefer a per-unit price, then a struck regular price, then an image, then a
+    # stable external_id tiebreak so the choice is deterministic across runs.
+    return (
+        o.price_per_unit is not None,
+        o.regular_price_cents is not None and o.regular_price_cents > o.price_cents,
+        o.image_url is not None,
+        o.external_id or "",
+    )
+
+
+def dedup_scraped(offers: Iterable["ScrapedOffer"]) -> List["ScrapedOffer"]:
+    """Collapse the same product scraped across one chain's overlapping brochures
+    (same normalized name + price), keeping the richest copy — the scrape-time twin of
+    `dedup_offers`. A publisher's meinprospekt page surfaces a set of "active" brochures
+    that depends on the scraping host's IP/geolocation (a Frankfurt datacenter sees more,
+    overlapping brochures than a Berlin home line), so the *raw* offer count is
+    non-deterministic. Deduping here makes the stored set and the reported scrape count
+    depend only on the distinct products, not on how many duplicate brochures were served.
+    """
+    best: dict = {}
+    for o in offers:
+        k = (_norm_name(o.name), o.price_cents)
+        cur = best.get(k)
+        if cur is None or _rank_scraped(o) > _rank_scraped(cur):
             best[k] = o
     return list(best.values())

@@ -1,6 +1,7 @@
 """Tests for collapsing duplicate offers (same product across brochures/sources)."""
-from app.dedup import dedup_offers
+from app.dedup import dedup_offers, dedup_scraped
 from app.models import Offer
+from app.scrapers.base import ScrapedOffer
 
 
 def _o(id, name, price, source="flyer", disc=None, store=1, ppu=None):
@@ -70,3 +71,32 @@ def test_prefers_the_copy_that_has_the_per_unit_price():
         _o(2, "Rumpsteak", 999, ppu="1 kg = 39.96"),
     ])
     assert len(out) == 1 and out[0].price_per_unit == "1 kg = 39.96"
+
+
+# --- scrape-time dedup (collapses overlapping brochures before storing) ---
+
+def _so(ext, name, price, ppu=None, regular=None, image=None):
+    return ScrapedOffer(external_id=ext, name=name, price_cents=price,
+                        price_per_unit=ppu, regular_price_cents=regular, image_url=image)
+
+
+def test_dedup_scraped_collapses_overlapping_brochures():
+    # Same product, same price, distinct content ids across two brochures -> one row,
+    # so the stored count doesn't depend on how many duplicate brochures were served.
+    out = dedup_scraped([
+        _so("a", "REWE Feine Welt Essreife Avocado »Hass«, Kl. I", 179),
+        _so("b", "REWE Feine Welt Essreife Avocado Hass", 179),
+    ])
+    assert len(out) == 1
+
+
+def test_dedup_scraped_keeps_richest_and_is_deterministic():
+    # Keeps the per-unit-price copy regardless of input order (stable tiebreak).
+    a = _so("a", "Rumpsteak", 999)
+    b = _so("b", "Rumpsteak", 999, ppu="1 kg = 39.96")
+    assert dedup_scraped([a, b])[0].price_per_unit == "1 kg = 39.96"
+    assert dedup_scraped([b, a])[0].price_per_unit == "1 kg = 39.96"
+
+
+def test_dedup_scraped_keeps_distinct_prices():
+    assert len(dedup_scraped([_so("a", "Avocado", 59), _so("b", "Avocado", 99)])) == 2
