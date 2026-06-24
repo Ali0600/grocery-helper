@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import categories
+from ..dedup import dedup_scraped
 from ..models import Offer, Store
 from .base import ScrapedOffer, ScrapeResult
 from .bonial import BonialScraper, EdekaScraper, ReweScraper
@@ -55,9 +56,14 @@ def _get_or_create_store(session: Session, result: ScrapeResult) -> Store:
 
 def _upsert(session: Session, store: Store, offers: List[ScrapedOffer], source: str) -> int:
     """Upsert offers for one source. external_id is namespaced by source so the
-    two feeds can't collide on the (store, external_id) unique key."""
+    two feeds can't collide on the (store, external_id) unique key.
+
+    Offers are first collapsed by (normalized name, price) so the same product
+    surfaced across a chain's overlapping brochures is stored once — making the row
+    count deterministic regardless of how many duplicate brochures the publisher page
+    served for the scraping host's IP (see `dedup_scraped`)."""
     count = 0
-    for raw in offers:
+    for raw in dedup_scraped(offers):
         ext = f"{source}:{raw.external_id}"
         offer = session.scalar(
             select(Offer).where(Offer.store_id == store.id, Offer.external_id == ext)
