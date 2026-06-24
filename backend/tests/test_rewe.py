@@ -81,12 +81,12 @@ def test_dedup_across_brochures(monkeypatch):
     rewe = ReweScraper(client=_FakeClient())
     monkeypatch.setattr(
         rewe, "_current_brochures",
-        lambda client: [
+        lambda client, cookie="": [
             {"id": "A", "valid_from": VALID_FROM, "valid_to": VALID_TO},
             {"id": "B", "valid_from": VALID_FROM, "valid_to": VALID_TO},
         ],
     )
-    offers = rewe._fetch_live(52.52, 13.405)
+    offers = rewe._fetch_live(52.52, 13.405, "10115")
     assert len(offers) == 6  # both "brochures" return the same 6 -> deduped
 
 

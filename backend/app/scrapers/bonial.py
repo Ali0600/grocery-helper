@@ -32,6 +32,7 @@ import json
 import re
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
+from urllib.parse import quote
 
 import httpx
 
@@ -76,7 +77,7 @@ class MeinprospektScraper:
     def fetch(self, plz: str, lat: float, lng: float) -> ScrapeResult:
         store_name = f"{self.store_label} {plz}"
         try:
-            offers = self._fetch_live(lat, lng)
+            offers = self._fetch_live(lat, lng, plz)
             if not offers:
                 raise RuntimeError(f"{self.chain}: meinprospekt returned no flyer offers")
             return ScrapeResult(
@@ -91,12 +92,15 @@ class MeinprospektScraper:
 
     # -- live -----------------------------------------------------------------
 
-    def _fetch_live(self, lat: float, lng: float) -> List[ScrapedOffer]:
+    def _fetch_live(self, lat: float, lng: float, plz: Optional[str] = None) -> List[ScrapedOffer]:
         own = self._client is None
         client = self._client or tracked_client(timeout=30, headers=HEADERS)
+        # Pin discovery to the *target* location (not the scraping host's IP) so the same
+        # PLZ yields the same regional brochures from any machine — see `_location_cookie`.
+        cookie = _location_cookie(lat, lng, plz)
         try:
             offers: dict = {}
-            for b in self._current_brochures(client):
+            for b in self._current_brochures(client, cookie):
                 resp = client.get(
                     f"{BE}/v1/brochures/{b['id']}/pages", params={"lat": lat, "lng": lng}
                 )
@@ -108,8 +112,11 @@ class MeinprospektScraper:
             if own:
                 client.close()
 
-    def _current_brochures(self, client: httpx.Client) -> List[dict]:
-        resp = client.get(self.publisher_page, headers={"Accept": "text/html"})
+    def _current_brochures(self, client: httpx.Client, cookie: str = "") -> List[dict]:
+        headers = {"Accept": "text/html"}
+        if cookie:
+            headers["Cookie"] = cookie
+        resp = client.get(self.publisher_page, headers=headers)
         resp.raise_for_status()
         m = _NEXT_DATA_RE.search(resp.text)
         if not m:
@@ -284,6 +291,21 @@ class EdekaScraper(MeinprospektScraper):
             o("ed-004", "Gut&Günstig Sonnenblumenöl", 199, None, "1 l", "Gut&Günstig"),
             o("ed-005", "Bauern Gut Schweinenackensteaks", 399, None, "1 kg", "Bauern Gut"),
         ]
+
+
+def _location_cookie(lat: float, lng: float, plz: Optional[str] = None) -> str:
+    """Build the meinprospekt `location` cookie for the target coordinates.
+
+    The publisher page picks which *regional* brochures to show from this cookie
+    (which the site otherwise seeds from the request's IP geolocation). Pinning it to
+    the scraped PLZ's coords makes discovery both correct (Berlin gets Berlin flyers,
+    not the datacenter's region) and deterministic across machines — without it, a
+    Frankfurt-hosted server and a Berlin laptop scrape different brochures for the
+    same PLZ. The amount of detail mirrors the cookie the site sets itself."""
+    payload = {"lat": lat, "lng": lng, "countryCode": "DE"}
+    if plz:
+        payload["zip"] = plz
+    return "location=" + quote(json.dumps(payload, separators=(",", ":")))
 
 
 def _deal(content: dict, deal_type: str) -> Optional[float]:
