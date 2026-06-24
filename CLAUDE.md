@@ -140,6 +140,25 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 - **Aggregators soft-throttle bursts** (marktguru, Bonial): they return empty
   after many quick requests. Scrape weekly with backoff; both scrapers fall back
   to sample data on failure.
+- **Brochure discovery is location-pinned via a cookie** (`bonial.py`
+  `_location_cookie`, `_current_brochures`): meinprospekt's publisher page (`/rewe-de`
+  etc.) picks which **regional** brochures to show from a `location` cookie it otherwise
+  seeds from the **request's IP geo** — so without pinning, a Frankfurt-hosted Render and a
+  Berlin laptop discover *different* brochures for the *same* PLZ (Render was serving
+  Frankfurt REWE/EDEKA flyers to Berlin users, and counts differed by host). We send a
+  `location={"lat","lng","zip","countryCode"}` cookie built from the scraped PLZ's coords
+  (proven to override IP: a Munich-coord cookie returns Munich brochures from a Berlin IP),
+  so discovery is correct + deterministic. The brochure *content* endpoint (`/pages`)
+  already takes `lat`/`lng`; the cookie fixes the *list*. (REWE/EDEKA are regional; Lidl is
+  national, so Lidl is unaffected.)
+- **Offers are deduped at scrape time too** (`dedup.py` `dedup_scraped`, called in
+  `run.py` `_upsert`): the publisher page can surface several overlapping brochures, so the
+  same product repeats across them with distinct content ids → the **raw** scrape count was
+  non-deterministic (Render ~1506 vs local ~1087 for one PLZ). Collapsing by
+  `(normalized name, price)` per store before upsert makes the stored set + the reported
+  `scraped` count depend only on distinct products. This is the scrape-time twin of the
+  serve-time `dedup_offers`; serve-time dedup still runs (it also catches cross-*source*
+  coupon/flyer dups, which scrape-time — per source — does not).
 - **System Python 3.9's old LibreSSL can't TLS-handshake with some hosts** (e.g.
   marktguru) under `httpx`; meinprospekt/Lidl Plus work fine. For ad-hoc probing
   of TLS-picky hosts use `/usr/bin/curl` (SecureTransport).

@@ -327,3 +327,25 @@ the existing `/api/scrape`), so dev needs no token while prod can lock it down b
 setting the env.
 **Takeaway:** for owner-only destructive actions, enforce a token *conditionally on its
 presence* — zero-config in dev, lockable in prod without code changes.
+
+### Geo-personalized sites are driven by an IP-seeded cookie — pin it for determinism
+A site that shows "local" content usually resolves your location from your IP on first
+visit and stores it in a cookie/header; later requests read that, not the IP. So the same
+URL returns different content from different hosts unless you set the location yourself.
+**Why it came up:** the same grocery PLZ scraped ~1506 offers from Render (Frankfurt
+datacenter) but ~1087 locally (Berlin) — meinprospekt's publisher page picked *regional*
+brochures from each host's IP geo. The decisive test: a `location` cookie with Munich
+coords returned Munich brochures *from a Berlin IP*, proving the cookie overrides IP.
+**Takeaway:** when scraping geo-personalized content, never trust the host's ambient
+geo — discover the location mechanism (usually a cookie or header) and pin it to the
+*target* location, so results are correct and identical regardless of where the scraper runs.
+
+### A non-deterministic upstream count needs deduping at the source, not just at serve time
+If an upstream returns overlapping/duplicated records whose *quantity* varies by request,
+any count you report off the raw rows will look unstable even when the real (unique) data is
+the same.
+**Why it came up:** two scrapes of one PLZ reported 1087 vs 1509 "offers" — alarming until
+dedup showed the unique sets were nearly identical; the extra rows were duplicate brochures.
+Deduping only at serve time hid it from users but left the raw count (and the DB) noisy.
+**Takeaway:** dedup at ingestion (not just at read) when the upstream's record count is
+non-deterministic, so stored size and any reported counts reflect distinct entities.
