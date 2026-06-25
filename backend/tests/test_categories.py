@@ -66,6 +66,8 @@ _FOOD = "Lebensmittel und Getränke"
         # a form/brand override (Vilsa water) beats a mis-filed Obst path (the source files
         # the flavoured water "Vilsa H2 Obst …" under Obst, which would otherwise -> fruits)
         ("Vilsa H2 Obst Apfel-Limette-Zitrone", "Vilsa", [_FOOD, "Produkte", "Obst"], "beverages"),
+        # a freeze-dried fruit snack the source files under Obst/Beeren -> snacks, not fruits
+        ("TRÜFRÜ Nature’s Strawberries", "TRÜFRÜ", [_FOOD, "Produkte", "Lebensmittel", "Obst", "Beeren"], "snacks"),
     ],
 )
 def test_classify_with_path(name, brand, path, expected):
@@ -210,6 +212,19 @@ def test_classify_expanded_paths(path, expected):
         # guards: the new overrides must stay specific
         ("Essiggurken", None, "vegetables"),  # generic gurke stays veg (essig override is compound-only)
         ("Plattpfirsiche, lose", None, "fruits"),  # real peaches unaffected by the tomato/vinegar rules
+        # prepared-deli + flavour traps that aren't raw produce
+        ("Popp Fleischsalat", "Popp", "pork"),  # sausage-based deli salad, not "salat"
+        ("HEINZ Tomatenketchup", "HEINZ", "pantry"),  # ketchup, not "tomate"
+        ("Golßener Kartoffelsalat", "Golßener", "pantry"),  # prepared salad, not "kartoffel"
+        ("Popp Kartoffel-Salat", "Popp", "pantry"),
+        ("BLOCK HOUSE Brot XXL Knoblauch", "BLOCK HOUSE", "bakery"),  # garlic bread, not "knoblauch"
+        ("Kühne Knoblauch", "Kühne", "pantry"),  # condiment brand, not raw garlic
+        ("Zwiebelkuchen", None, "bakery"),  # onion tart -> bakery (bakery beats vegetables)
+        # guards: real produce must still be produce
+        ("Knoblauch", None, "vegetables"),
+        ("Knoblauchzehen lose", None, "vegetables"),
+        ("Kopfsalat", None, "vegetables"),
+        ("Gurkensalat", None, "vegetables"),  # cucumber salad stays veg (only fleisch/kartoffel diverge)
         # real fruit must still classify as fruit
         ("Aprikosen, lose", None, "fruits"),
         ("Zespri SunGold Kiwi", "Zespri", "fruits"),
