@@ -141,13 +141,15 @@ _RULES: list[tuple[str, list[str]]] = [
     ("fruits", ["apfel", "äpfel", "banane", "erdbeer", "traube", "orange", "zitrone", "limette", "birne", "kiwi", "beere",
                 "mango", "ananas", "melone", "pfirsich", "nektarine", "clementine", "mandarine", "avocado",
                 "aprikose", "physalis", "pflaume", "kirsche", "grapefruit"]),
-    ("vegetables", ["tomate", "gurke", "salat", "kartoffel", "zwiebel", "paprika", "möhre", "moehre", "karotte",
-                    "brokkoli", "blumenkohl", "spinat", "zucchini", "champignon", "pilz", "knoblauch", "lauch",
-                    "sellerie", "kürbis", "rucola", "spargel", "kohlrabi", "coleslaw"]),
+    # Bakery before vegetables so a veg-named *bread* (Knoblauchbrot, Zwiebelkuchen) is
+    # bakery, not vegetables — the product word ("brot") should beat the flavour ("knoblauch").
     ("bakery", ["brot", "brötchen", "broetchen", "baguette", "croissant", "toast", "kuchen", "gebäck", "brezel",
                 "crusti", "donut", "törtchen", "nata", "magdalena", "muffin", "torte", "linzeraugen", "nusshappen",
                 "buns", "laugen", "lauge", "plunder", "pita", "wrap", "blätterteig",
                 "pane ", "tigerkruste", "grillkruste", "holzfäller"]),
+    ("vegetables", ["tomate", "gurke", "salat", "kartoffel", "zwiebel", "paprika", "möhre", "moehre", "karotte",
+                    "brokkoli", "blumenkohl", "spinat", "zucchini", "champignon", "pilz", "knoblauch", "lauch",
+                    "sellerie", "kürbis", "rucola", "spargel", "kohlrabi", "coleslaw"]),
     ("sweets", ["schokolade", "schoko", "praline", "keks", "bonbon", "gummibär", "riegel", "waffel", "nutella",
                 "milka", "haribo", "ritter sport", "toffifee", "duplo", "snickers", "twix", "ferrero", "hanuta",
                 "loacker", "celebrations", "nudossi", "kinder cards", "fritt", "sondey", "tenerezze",
@@ -205,7 +207,7 @@ BRAND_CATEGORY: dict[str, str] = {
     # more single-category food brands (from the live "other" survey across all 3 chains).
     # Multi-category house brands (Milbona, Gut&Günstig, Metzgerfrisch, Butchers, ja!,
     # Dr. Oetker, Deluxe, Costa) are intentionally left to the path/keyword layers.
-    "knorr": "pantry", "maggi": "pantry", "erasco": "pantry", "barilla": "pantry",
+    "knorr": "pantry", "maggi": "pantry", "erasco": "pantry", "barilla": "pantry", "kühne": "pantry",
     "kunella": "pantry", "zentis": "pantry", "acentino": "pantry", "rapso": "pantry",
     "belbake": "pantry", "hela": "pantry", "oryza": "pantry", "bonduelle": "vegetables",
     "harry": "bakery", "wasa ": "snacks", "ültje": "snacks", "alesto": "snacks",
@@ -238,7 +240,7 @@ BRAND_CATEGORY: dict[str, str] = {
 _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     ("beverages", ["limonade", "schorle", "nektar ", "smoothie", "saft ", "fruchtsaft", "vilsa"]),
     ("dairy", ["joghurt", "jogurt", "froop", "skyr", "müllermilch", "fruchtzwerge", "fruchtquark"]),
-    ("snacks", ["chips"]),
+    ("snacks", ["chips", "trüfrü", "trufru"]),  # freeze-dried fruit snack filed under Obst
 ]
 
 # Flavour / drink-type tokens (and specific compounds that must beat a generic fruit
@@ -251,9 +253,12 @@ _OVERRIDES: list[tuple[str, list[str]]] = [
                    "aperitif", "glühwein", "wodka", "whisky", "pilsener", "eistee", "ice tea",
                    " gin ", " rum "]),
     ("sweets", ["mister choc", "choco"]),
-    # compound nouns whose prefix is a fruit word (would otherwise land in "fruits")
+    # compound nouns whose prefix is a produce word (would otherwise land in vegetables/fruits):
+    # prepared deli salads + condiments are not raw produce.
+    ("pork", ["fleischsalat", "wurstsalat"]),  # sausage-based deli salad, not "salat"
     ("vegetables", ["pflaumentomate"]),
-    ("pantry", ["apfelessig", "weinessig", "obstessig", "balsamico"]),
+    ("pantry", ["apfelessig", "weinessig", "obstessig", "balsamico",
+                "ketchup", "kartoffelsalat", "kartoffel-salat"]),
 ]
 
 
