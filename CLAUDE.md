@@ -205,15 +205,19 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   loaded set client-side (`DealsScreen` `SortToggle`), nulls sink to the bottom.
 - **Missing Grundpreis is recovered at serve time** (`unit_price.py`
   `derive_price_per_unit(unit, price_cents)`, used by the serializer when
-  `Offer.price_per_unit` is null): the flyer often omits the per-unit price for
-  produce **sold per 1 kg / 1 l** (the price *is* the €/kg, e.g. "Klasse I 1 kg")
-  and sometimes embeds the Grundpreis in the description ("…1 kg = 5.67 150 g"). It
-  only fires on those two safe cases — a *second* quantity ("500 g 1 kg" where 1 kg
-  is a base ref, "1 kg 20 Stück"), an approximate "Ca. 1,1 kg", or multi-variant
-  ranges → None (a wrong €/kg is worse than none). Feeds the card display +
-  `unit_price_cents`. Covers ~108 otherwise-blank flyer offers. A general
-  divide-by-net-weight (e.g. "500 g" → ×2) is deferred — multipack "20 × 10 g" and
-  "Ca." traps make it riskier.
+  `Offer.price_per_unit` is null), three cases: (1) the Grundpreis is **embedded in
+  the description** ("…1 kg = 5.67 150 g") → extract it; (2) the item is sold as a
+  **single net weight/volume** → **divide** the price by that amount on the €/kg|€/l
+  axis ("500-g-Schale" @ 1,49 € → "1 kg = 2.98", "2,5 l" → €/l, "Klasse I 1 kg" is
+  just the num=1 case); (3) anything ambiguous → None (a wrong €/kg is worse than
+  none). The division **guards the traps** (`_DIVIDE_TRAP` + a one-token rule): a
+  multipack ("3x 400 ml", "20 × 10 g"), an approximate ("Ca. 1,1 kg"), a numeric
+  range ("250-300 g", "1,2/1,1 kg"), or any *second* quantity incl. a count ("900 g
+  30 Stück", "500 g 1 kg") → None; a lone hyphenated weight ("500-g-Schale") is fine
+  because the range rule needs a digit on **both** sides of the separator. Feeds the
+  card display + `unit_price_cents`; serve-time only (no DB column/migration), so it
+  applies on Render right after deploy without a re-scrape. Lifts live €/kg coverage
+  **~52% → ~69%** of offers (+~230).
 - **Deployment**: backend is live on **Render** (free tier) at
   `https://grocery-helper-sw6c.onrender.com` via the IaC `render.yaml` Blueprint
   (Docker, `backend/Dockerfile`, binds `$PORT`, `/health` check). Render free tier
