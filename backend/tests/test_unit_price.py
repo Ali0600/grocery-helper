@@ -44,14 +44,26 @@ def test_unit_price_cents(ppu, expected):
         # The Grundpreis is embedded in the description but was never extracted.
         ("48/50/45 % Fett i. Tr. Gekühlt, 1 kg = 5.67 150 g", 85, "1 kg = 5.67"),
         ("Versch. Sorten. 1 kg = 17.00 100 ml 3 x 100 g", 510, "1 kg = 17.00"),
+        # Single net weight/volume -> divide price by the amount (in kg / l).
+        ("Frische Erdbeeren 500-g-Schale", 299, "1 kg = 5.98"),  # 2.99 / 0.5 kg
+        ("250 g", 199, "1 kg = 7.96"),                           # 1.99 / 0.25 kg
+        ("Versch. Sorten 800 g", 199, "1 kg = 2.49"),            # 1.99 / 0.8 kg (rounded)
+        ("Gekühlt 40 g", 59, "1 kg = 14.75"),                    # 0.59 / 0.04 kg
+        ("Je 2,5 l", 1499, "1 l = 6.00"),                        # 14.99 / 2.5 l (rounded)
+        ("330-ml-Dose", 99, "1 l = 3.00"),                       # 0.99 / 0.33 l
+        ("50 cl", 99, "1 l = 1.98"),                             # 0.99 / 0.5 l
         # Ambiguous -> None (a wrong €/kg is worse than none).
         ("3,5 % Fett, Gekühlt. Standardpackung: 500 g 1 kg", 149, None),  # 1 kg = base ref
         ("Gekühlt 1 kg 20 Stück", 679, None),                            # second quantity
-        ("Ohne Brustbein Ca. 1,1 kg", 444, None),                        # approximate, not 1
+        ("Aus Alaska-Seelachsfilet. 900 g 30 Stück", 399, None),         # weight + count
+        ("Ohne Brustbein Ca. 1,1 kg", 444, None),                        # approximate
+        ("beim Kauf von 3 Stk. 3x 400 ml", 199, None),                   # multipack
+        ("Versch. Sorten 20 × 10 g", 199, None),                         # multipack ×
+        ("Frische Beeren 250-300 g", 299, None),                         # range
         ("Verschiedene Sorten, Standardpackung: 1 l 2 l", 299, None),    # multi-variant
         ("Je 1,2/1,1 kg/800/650 g", 549, None),                          # ranges
-        ("Frische Erdbeeren 500-g-Schale", 299, None),                   # 500 g, not 1 kg
         ("6 Stück", 199, None),                                          # per-piece
+        ("Inhalt: 6 Beutel", 199, None),                                 # no weight unit
         ("", 199, None),
         (None, 199, None),
         ("Klasse I 1 kg", 0, None),                                      # no price
