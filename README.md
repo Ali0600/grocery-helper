@@ -57,6 +57,11 @@ build the cheapest basket across one or two stores.
   on-demand re-scrape, and a guarded database wipe-and-reseed via `POST /api/reset`
   gated by an optional `ADMIN_TOKEN`) — giving an operator one-tap recovery from
   stale cache or bad data without a redeploy.
+- **Day-aware deal validity** — parses each offer's true on-sale window from a
+  per-record validity field the feed buries (timezone-correct via `zoneinfo`), so
+  day-limited specials (e.g. weekend-only deals) are badged with their days and
+  filterable to "valid today", and ended specials expire correctly instead of
+  lingering for the whole flyer week.
 - **Outbound-call observability** — every request to an upstream site is
   instrumented (httpx event hooks) and tallied by source/host, plus a timestamped
   log of the latest calls, exposed at `GET /api/scrape-stats` with a live `/stats`

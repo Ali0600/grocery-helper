@@ -349,3 +349,24 @@ dedup showed the unique sets were nearly identical; the extra rows were duplicat
 Deduping only at serve time hid it from users but left the raw count (and the DB) noisy.
 **Takeaway:** dedup at ingestion (not just at read) when the upstream's record count is
 non-deterministic, so stored size and any reported counts reflect distinct entities.
+
+### Don't assume a payload field is redundant — measure it
+A field that looks like a duplicate of data you already have can carry finer-grained truth.
+**Why it came up:** each flyer offer has a `publicationProfiles[].validity` window that the
+notes had dismissed as "redundant with the brochure dates." It wasn't — it's the *per-offer*
+on-sale window, so ~56% of Lidl deals are actually day-limited (Thu–Sat etc.) while we'd been
+stamping all of them with the whole-week brochure window (overstating validity, never
+expiring mid-week). A quick scan of the raw payload revealed the real signal.
+**Takeaway:** before discarding a payload field as redundant, scan its real values across the
+dataset — finer-grained per-record data often hides behind a field you assumed duplicated a
+coarser one.
+
+### Convert UTC day-boundaries to the target timezone (and bundle tzdata)
+Timestamps at "midnight somewhere" are stored in UTC at an offset that shifts with DST, so
+deriving the local *calendar day* needs the real zone, not a fixed offset.
+**Why it came up:** offer validity boundaries arrive as UTC `T22:00` (Berlin midnight in
+summer) / `T23:00` (winter); a fixed +2h offset got the start right but the exclusive end
+wrong in winter. `zoneinfo("Europe/Berlin")` handles DST — and adding the `tzdata` pip
+package keeps it working on slim Docker images that strip the system tzdb (host-independent).
+**Takeaway:** for "local day" math, convert through the IANA zone (`zoneinfo`), never a fixed
+offset; ship `tzdata` so it's deterministic across dev, CI, and slim production images.
