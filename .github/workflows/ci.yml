@@ -20,6 +20,8 @@ jobs:
     name: Backend (ruff + pytest + alembic)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     defaults:
       run:
         working-directory: backend
@@ -32,11 +34,19 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
       - run: ruff check .
-      - run: pytest -q
+      - run: pytest -q --cov=app --cov-report=term-missing --cov-report=xml
       # Build the schema from migrations on a throwaway SQLite, then fail if the
       # ORM models have drifted from the migrations (a model change with no migration).
       - run: alembic upgrade head
       - run: alembic check
+      # Optional: skipped (CI stays green) until the CODECOV_TOKEN secret is set.
+      - name: Upload coverage to Codecov
+        if: env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ env.CODECOV_TOKEN }}
+          files: backend/coverage.xml
+          flags: backend
 
   mobile:
     name: Mobile (eslint + tsc + jest)
