@@ -12,8 +12,12 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 ## Common commands
 - Backend: `cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --port 8001`
 - Backend tests: `cd backend && source .venv/bin/activate && python -m pytest -q`
+  (CI also runs `--cov=app`; add a `DB` migration drift check via `alembic check`).
 - Backend lint: `cd backend && source .venv/bin/activate && ruff check .` (`--fix` to autofix)
+- DB migration (after a model change): `cd backend && alembic revision --autogenerate -m "msg"`,
+  review the file, commit. Runtime auto-runs `upgrade head` at startup (`app/migrations.py`).
 - Mobile typecheck: `cd mobile && npx tsc --noEmit`
+- Mobile tests: `cd mobile && npm test` (jest-expo; CI runs `npm test -- --ci`)
 - Mobile lint: `cd mobile && npm run lint` (ESLint, `eslint-config-expo` flat config)
 - Mobile run: `cd mobile && npx expo start` (open on the iOS simulator).
 - Web run: `cd mobile && npm run web` (Expo Web / react-native-web; serves the
@@ -180,10 +184,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   After re-seeding the file, touch a backend `.py`
   (`python3 -c "import os; os.utime('app/main.py', None)"`) to force a reload +
   fresh pool.
-- **DB schema**: new `Offer` columns (`source`, `category_path`, `price_per_unit`,
-  `loyalty_note`) need the table rebuilt — `create_all()` only creates missing
-  *tables*, not columns. Dev: `ALTER TABLE offers ADD COLUMN …` (or delete
-  `grocery.db`) then re-scrape; **Postgres needs a real migration** (no Alembic yet).
+- **DB schema is Alembic-managed** (`backend/alembic/`, `app/migrations.py`): the app
+  runs `alembic upgrade head` at startup (not `create_all`). A model change → `alembic
+  revision --autogenerate -m "…"`, review, commit; CI `alembic check` fails if a model
+  drifts from the migrations. env.py drives the URL from settings (one config for SQLite
+  + Postgres) with `render_as_batch=True` so SQLite ALTERs work. A pre-Alembic DB (tables
+  but no `alembic_version`, e.g. an old dev `grocery.db`) is **stamped** at head on first
+  boot, not re-created — so existing DBs (and a persistent Postgres) upgrade cleanly.
+  **Tests build schema via `create_all` directly** (in-memory), so they don't touch
+  Alembic. The Dockerfile must `COPY alembic ./alembic` (runtime needs the scripts).
 - **Per-unit price & loyalty bonus are display-only fields** pulled from data we
   used to discard: `Offer.price_per_unit` = the source's per-unit string
   ("1 kg = 13.33"), from the flyer `priceByBaseUnit` / Lidl `pricePerUnit`
@@ -241,9 +250,10 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `https://grocery-helper-sw6c.onrender.com` via the IaC `render.yaml` Blueprint
   (Docker, `backend/Dockerfile`, binds `$PORT`, `/health` check). Render free tier
   **sleeps after ~15 min idle** → cold start re-runs the boot scrape (slow first
-  request) and its SQLite is **ephemeral**, so `create_all` recreates the schema on
-  every deploy — meaning **new `Offer` columns auto-apply on Render** (no migration
-  there) while local dev still needs a `grocery.db` recreate + re-scrape. iOS /
+  request) and its SQLite is **ephemeral**, so startup `alembic upgrade head` rebuilds
+  the schema from migrations every deploy — meaning **new `Offer` columns auto-apply on
+  Render** (the migration runs there) while local dev applies them via the same upgrade
+  (or a `grocery.db` recreate) + re-scrape. iOS /
   TestFlight config: `mobile/eas.json` (production profile; `EXPO_PUBLIC_API_URL` →
   the Render URL) + `mobile/app.json` (`ios.bundleIdentifier` `com.groceryhelper.berlin`,
   EAS project `@mhassan0600/grocery-helper`, `extra.eas.projectId`). `eas
@@ -293,12 +303,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   refresh: `python -m app.scripts.recipe_seed` (read-only candidate dump) → Claude Code
   rewrites `recipes.ts` → commit → OTA. Full workflow in `docs/recipes.md`. A `claude -p` CI
   generator is deferred (would need Claude Code auth in CI → breaks "no managed key").
-- **CI/CD is GitHub Actions** (`.github/workflows/`): `ci.yml` (backend `ruff`+`pytest`,
-  mobile ESLint+`tsc`, backend Docker build; on green `main` pushes a `deploy` job curls
+- **CI/CD is GitHub Actions** (`.github/workflows/`): `ci.yml` (backend
+  `ruff`+`pytest --cov`+`alembic upgrade head`/`alembic check`, mobile
+  ESLint+`tsc`+`jest`, backend Docker build; on green `main` pushes a `deploy` job curls
   the Render deploy hook), `eas-update.yml` (OTA via `eas update --branch production` on
-  `mobile/**` pushes), `scrape.yml` (weekly cron → `POST /api/scrape`). Deploy + OTA
-  **skip gracefully** until their secrets exist (`RENDER_DEPLOY_HOOK_URL`, `EXPO_TOKEN`),
-  so CI stays green; gated deploy assumes Render **auto-deploy is off**. CI Python is
+  `mobile/**` pushes), `scrape.yml` (weekly cron → `POST /api/scrape`, retries 3× and
+  opens/comments a `scrape-failure` issue on total failure). `dependabot.yml` auto-bumps
+  pip/npm/actions weekly (minor+patch grouped). Deploy + OTA + **Codecov upload**
+  **skip gracefully** until their secrets exist (`RENDER_DEPLOY_HOOK_URL`, `EXPO_TOKEN`,
+  `CODECOV_TOKEN`), so CI stays green; gated deploy assumes Render **auto-deploy is off**. CI Python is
   **3.12** (Dockerfile/Render) but the local venv is **3.9** — `backend/ruff.toml` targets
   `py39` so lint never pushes 3.10+ syntax that breaks local. **Lint must pass** before a
   push: `ruff check .` + `npm run lint`; `react-hooks/set-state-in-effect` is intentionally
