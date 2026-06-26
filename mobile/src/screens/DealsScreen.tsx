@@ -25,9 +25,10 @@ import { PlzModal } from '../components/PlzModal';
 import { SearchBar } from '../components/SearchBar';
 import { SortToggle } from '../components/SortToggle';
 import { StoreFilter } from '../components/StoreFilter';
+import { ValidTodayToggle } from '../components/ValidTodayToggle';
 import { StoresModal } from '../components/StoresModal';
 import { UpdateStatus } from '../components/UpdateStatus';
-import { dealsStale } from '../format';
+import { dealsStale, todayISO } from '../format';
 import {
   clearAllData,
   clearDealsCache,
@@ -150,6 +151,7 @@ export default function DealsScreen() {
   const [myStores, setMyStores] = useState<MyStore[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>('discount');
   const [storeFilter, setStoreFilter] = useState<string | null>(null); // session lens; resets each launch
+  const [validToday, setValidToday] = useState(false); // session lens: only deals valid today
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [basketModal, setBasketModal] = useState(false);
   const [optionsModal, setOptionsModal] = useState(false);
@@ -265,6 +267,7 @@ export default function DealsScreen() {
     setSelected(null);
     setQuery('');
     setStoreFilter(null);
+    setValidToday(false);
     setPlz(newPlz);
     setPlzModal(false);
   }, []);
@@ -295,6 +298,7 @@ export default function DealsScreen() {
     setSelected(null);
     setQuery('');
     setStoreFilter(null);
+    setValidToday(false);
     if (plz !== DEFAULT_PLZ) {
       setPlz(DEFAULT_PLZ); // the [plz] effect reloads for the default PLZ (cache now empty)
     } else {
@@ -346,7 +350,17 @@ export default function DealsScreen() {
   // selected chip), otherwise the selected category filters.
   const q = query.trim().toLowerCase();
   const foodBase = showNonFood ? offers : offers.filter((o) => o.category !== 'household');
-  const base = effectiveStore ? foodBase.filter((o) => o.chain === effectiveStore) : foodBase;
+  const storeBase = effectiveStore ? foodBase.filter((o) => o.chain === effectiveStore) : foodBase;
+  // "Valid today" is a global lens (like the store filter): keep only offers whose
+  // [valid_from, valid_to] window covers today's device date; offers with no dates stay.
+  const today = todayISO();
+  const hasDayLimited = offers.some((o) => o.day_limited);
+  const base =
+    validToday && hasDayLimited
+      ? storeBase.filter(
+          (o) => !o.valid_from || !o.valid_to || (o.valid_from <= today && today <= o.valid_to),
+        )
+      : storeBase;
   const visibleOffers = q
     ? base.filter(
         (o) =>
@@ -435,6 +449,8 @@ export default function DealsScreen() {
         {presentChains.length >= 2 && (
           <StoreFilter chains={presentChains} value={effectiveStore} onChange={setStoreFilter} />
         )}
+
+        {hasDayLimited && <ValidTodayToggle value={validToday} onChange={setValidToday} />}
 
         <SortToggle mode={sortMode} onChange={onChangeSort} />
 

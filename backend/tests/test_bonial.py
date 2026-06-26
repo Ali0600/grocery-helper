@@ -8,6 +8,7 @@ from app.scrapers.bonial import (
     BonialScraper,
     _app_price,
     _loyalty_note,
+    _offer_validity,
     _parse_dt,
     _regular_from_label,
 )
@@ -26,7 +27,9 @@ def test_parses_all_priced_offers():
     offers = _offers()
     assert len(offers) == 4
     assert all(o.price_cents > 0 for o in offers)
-    assert all(o.valid_from == VALID_FROM and o.valid_to == VALID_TO for o in offers)
+    # offers carry their own validity window (from publicationProfiles), clamped within
+    # the brochure — these fixture offers are the Mon–Sat trading week inside a Sun–Sat brochure.
+    assert all(VALID_FROM <= o.valid_from and o.valid_to <= VALID_TO for o in offers)
 
 
 def test_maps_name_brand_price_and_regular():
@@ -133,6 +136,43 @@ def test_parse_offer_extracts_app_price():
     o = BonialScraper._parse_offer(_MILKA, VALID_FROM, VALID_TO)
     assert o.price_cents == 329       # the regular SALES_PRICE stays the headline
     assert o.app_price_cents == 299   # the APP-PREIS SPECIAL_PRICE
+
+
+# A day-limited (Thu–Sat) offer: its publicationProfiles window is narrower than the
+# brochure. Timestamps are Berlin-midnight boundaries in UTC (summer = +0000 at 22:00);
+# endDate is exclusive, so 06-27T22:00 -> last valid day Sat 06-27.
+_WEEKEND = {
+    "id": "wknd",
+    "deals": [{"type": "SALES_PRICE", "max": 0.99, "min": 0.99}],
+    "products": [{"name": "Avocado", "description": [], "categoryPaths": []}],
+    "publicationProfiles": [{"validity": {
+        "startDate": "2026-06-24T22:00:00.000+0000",  # Berlin Thu 06-25 00:00
+        "endDate": "2026-06-27T22:00:00.000+0000",    # exclusive -> Sat 06-27
+    }}],
+}
+
+
+def test_offer_validity_reads_publicationprofiles_in_berlin_dates():
+    broc_from, broc_to = date(2026, 6, 22), date(2026, 6, 28)  # Mon..Sun brochure
+    assert _offer_validity(_WEEKEND, broc_from, broc_to) == (date(2026, 6, 25), date(2026, 6, 27))
+    # union of two overlapping profiles (Thu–Fri ∪ Fri–Sat = Thu–Sat), clamped to brochure
+    content = {"publicationProfiles": [
+        {"validity": {"startDate": "2026-06-24T22:00:00+0000", "endDate": "2026-06-26T22:00:00+0000"}},
+        {"validity": {"startDate": "2026-06-25T22:00:00+0000", "endDate": "2026-06-27T22:00:00+0000"}},
+    ]}
+    assert _offer_validity(content, broc_from, broc_to) == (date(2026, 6, 25), date(2026, 6, 27))
+    # no profiles -> None (caller keeps the brochure window)
+    assert _offer_validity({"id": "x"}, broc_from, broc_to) is None
+
+
+def test_parse_offer_adopts_per_offer_window_over_brochure():
+    o = BonialScraper._parse_offer(_WEEKEND, date(2026, 6, 22), date(2026, 6, 28))
+    assert o.valid_from == date(2026, 6, 25)  # Thu, not the brochure's Monday
+    assert o.valid_to == date(2026, 6, 27)    # Sat
+    # an offer with no publicationProfiles keeps the brochure dates
+    plain = {"id": "p", "deals": [{"type": "SALES_PRICE", "max": 1.0}], "products": [{"name": "X"}]}
+    o2 = BonialScraper._parse_offer(plain, VALID_FROM, VALID_TO)
+    assert o2.valid_from == VALID_FROM and o2.valid_to == VALID_TO
 
 
 def test_app_price_only_for_app_markers():

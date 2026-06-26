@@ -88,3 +88,10 @@ function endOfDealWeek(ts: number): number {
 /** True once the cached deals are past their weekly (Sunday) expiry. */
 export const dealsStale = (cachedAt: number | null): boolean =>
   cachedAt != null && Date.now() > endOfDealWeek(cachedAt);
+
+/** Today's device-local date as "YYYY-MM-DD" (compares directly with offer.valid_from/to). */
+export const todayISO = (): string => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};

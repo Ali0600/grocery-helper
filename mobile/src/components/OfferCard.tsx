@@ -63,6 +63,11 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
               <Text style={styles.appText}>App {euro(offer.app_price_cents)}</Text>
             </View>
           ) : null}
+          {offer.day_limited && offer.valid_days ? (
+            <View style={styles.dayPill}>
+              <Text style={styles.dayText}>🗓 {offer.valid_days}</Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -130,6 +135,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,205,0,0.16)', // EDEKA yellow
   },
   appText: { color: '#ffd84d', fontSize: 10, fontWeight: '700' },
+  dayPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,159,67,0.18)', // day-limited = orange
+  },
+  dayText: { color: '#ff9f43', fontSize: 10, fontWeight: '700' },
   priceCol: { alignItems: 'flex-end', minWidth: 72 },
   price: { color: colors.text, fontSize: 17, fontWeight: '700' },
   was: {
