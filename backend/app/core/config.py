@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     # Optional guard for the destructive POST /api/reset (DB wipe). When unset (default),
     # reset is open like /api/scrape; set it (env ADMIN_TOKEN) to require a matching token.
     admin_token: str = ""
+    # Root log level (env LOG_LEVEL): DEBUG/INFO/WARNING/...
+    log_level: str = "INFO"
+    # Optional Sentry DSN (env SENTRY_DSN). When unset (default), Sentry is a no-op —
+    # mirrors the ADMIN_TOKEN "off-unless-set" pattern, so CI/local stay clean.
+    sentry_dsn: str = ""
 
 
 settings = Settings()

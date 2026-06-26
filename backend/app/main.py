@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,8 +9,20 @@ from sqlalchemy import select
 from .api.offers import router as offers_router
 from .core.config import settings
 from .db import Base, SessionLocal, engine
+from .logging_config import configure_logging
 from .models import Offer  # noqa: F401  ensures tables are registered for create_all
 from .scrapers.run import run_scrapers
+
+configure_logging()
+logger = logging.getLogger(__name__)
+
+# Error tracking is opt-in: only initialises when SENTRY_DSN is set (no-op otherwise).
+# sentry-sdk auto-instruments FastAPI, so unhandled 500s are captured automatically.
+if settings.sentry_dsn:
+    import sentry_sdk
+
+    sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.1)
+    logger.info("Sentry error tracking enabled")
 
 
 @asynccontextmanager
