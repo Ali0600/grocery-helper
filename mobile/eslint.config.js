@@ -17,4 +17,21 @@ module.exports = defineConfig([
       'react-hooks/set-state-in-effect': 'warn',
     },
   },
+  {
+    // Jest globals for the unit tests (run via jest-expo).
+    files: ['**/__tests__/**'],
+    languageOptions: {
+      globals: {
+        jest: 'readonly',
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+      },
+    },
+  },
 ]);
