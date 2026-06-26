@@ -44,11 +44,22 @@ build the cheapest basket across one or two stores.
 - **Containerized, deployable stack** — Dockerized backend with Docker Compose +
   PostgreSQL, designed for CI/CD deployment to a PaaS with scraper health
   monitoring and alerting.
+- **Versioned database migrations (Alembic)** — schema changes are tracked migrations
+  (one config covering SQLite dev + PostgreSQL prod, applied automatically at startup),
+  replacing ad-hoc table creation so columns can evolve safely on a persistent database;
+  a legacy pre-migration database is auto-stamped rather than re-created.
 - **CI/CD pipeline (GitHub Actions)** — parallel test / lint / type-check /
-  Docker-build gates on every push and PR, green-gated production deploys to Render
-  via deploy hooks, over-the-air mobile delivery through EAS Update, and a scheduled
-  weekly data-refresh cron — with least-privilege permissions, dependency caching,
-  and concurrency control.
+  Docker-build gates on every push and PR (backend `pytest` **with coverage
+  reporting** + mobile **Jest**, ruff, ESLint, `tsc`), green-gated production deploys
+  to Render via deploy hooks, over-the-air mobile delivery through EAS Update, and a
+  scheduled weekly data-refresh cron that **retries and opens a GitHub issue on
+  failure** — with least-privilege permissions, dependency caching, concurrency
+  control, and **Dependabot** automated dependency updates.
+- **Automated test suite** — 264 backend unit tests (pytest) covering the scrapers,
+  classifier, dedup, unit-price and validity logic, plus a React Native **Jest** suite
+  for the app's pure business logic (basket matching, recipe filtering, €/formatting,
+  catalog trap-guards); a model-vs-migration **drift check** (`alembic check`) fails CI
+  if the ORM and schema diverge.
 - **Multi-retailer ingestion across heterogeneous sources** — a single
   publisher-parameterized engine normalizes two German chains (Lidl + REWE) from
   three feeds (a private mobile coupon API and structured weekly-flyer data) into
@@ -74,6 +85,10 @@ build the cheapest basket across one or two stores.
   log of the latest calls, exposed at `GET /api/scrape-stats` with a live `/stats`
   dashboard — to keep an eye on scrape volume and avoid tripping the sites' burst
   throttling.
+- **Structured logging & error tracking** — stdlib structured logging to stdout
+  surfaces previously-silent scraper/locator failures (a degradation to fallback data
+  is now logged, not hidden), with opt-in **Sentry** error tracking that auto-captures
+  unhandled API exceptions when a DSN is configured (and is a no-op otherwise).
 
 ## Architecture
 
