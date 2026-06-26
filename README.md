@@ -30,6 +30,13 @@ build the cheapest basket across one or two stores.
   cheapest offer per item and a store-by-store shopping plan with the savings vs.
   shopping at a single store — deterministic keyword matching (no LLM), reusing the
   already-loaded in-memory faceted dataset for instant results.
+- **Offline LLM-authored recipe generator (zero runtime API cost)** — an AI "Recipes"
+  feature that suggests meals from the week's on-sale items plus user-defined "always-have"
+  staples. Recipes are **authored offline by an LLM from the live deal database** and shipped
+  to devices **over-the-air** (no runtime model call, no API key/secret, no server cost); the
+  app renders them fully offline and reuses the deterministic basket matcher to show each
+  ingredient's real on-sale price and flag what's on-sale vs a pantry staple vs to-buy.
+  Customizable by diet, cuisine, servings, on-sale-only, and cheapest-€/kg.
 - **Cross-platform client (iOS + web, one codebase)** — a React Native (Expo)
   app consuming the API to browse local deals by category, sorted by savings;
   the same code runs in the browser via Expo Web / react-native-web

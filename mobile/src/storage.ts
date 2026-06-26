@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { BasketItem, CategoryCount, MyStore, Offer } from './types';
+import { CatalogItem, GROCERY_CATALOG } from './catalog';
+import { DEFAULT_RECIPE_PREFS } from './recipes';
+import { BasketItem, CategoryCount, MyStore, Offer, RecipePrefs } from './types';
 
 const PLZ_KEY = 'plz';
 const NONFOOD_KEY = 'showNonFood';
@@ -8,6 +10,8 @@ const MYSTORES_KEY = 'myStores';
 const SORT_KEY = 'sortMode';
 const BASKET_KEY = 'basket';
 const DEALS_CACHE_KEY = 'dealsCache';
+const RECIPE_PREFS_KEY = 'recipePrefs';
+const ALWAYS_HAVE_KEY = 'alwaysHave';
 
 export type SortMode = 'discount' | 'price' | 'unit';
 
@@ -142,7 +146,60 @@ export async function clearAllData(): Promise<void> {
       SORT_KEY,
       BASKET_KEY,
       DEALS_CACHE_KEY,
+      RECIPE_PREFS_KEY,
+      ALWAYS_HAVE_KEY,
     ]);
+  } catch {
+    // best-effort
+  }
+}
+
+// --- Recipes: persisted filters + the "always have" staples list ---
+
+export async function getStoredRecipePrefs(): Promise<RecipePrefs> {
+  try {
+    const raw = await AsyncStorage.getItem(RECIPE_PREFS_KEY);
+    // Merge over defaults so a new field added later still has a value.
+    return raw ? { ...DEFAULT_RECIPE_PREFS, ...(JSON.parse(raw) as Partial<RecipePrefs>) } : DEFAULT_RECIPE_PREFS;
+  } catch {
+    return DEFAULT_RECIPE_PREFS;
+  }
+}
+
+export async function setStoredRecipePrefs(prefs: RecipePrefs): Promise<void> {
+  try {
+    await AsyncStorage.setItem(RECIPE_PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    // best-effort
+  }
+}
+
+// Common pantry staples that don't have to be on sale to appear in a recipe. Seeded from
+// the catalog (so the German match keywords are reused), plus salt (not a catalog item).
+const STAPLE_KEYS = [
+  'garlic', 'onion', 'carrot', 'oil', 'butter', 'flour', 'rice', 'pasta', 'eggs', 'milk', 'sugar', 'pepper',
+];
+
+export function defaultAlwaysHave(): BasketItem[] {
+  const items: BasketItem[] = STAPLE_KEYS.map((k) => GROCERY_CATALOG.find((c) => c.key === k))
+    .filter((c): c is CatalogItem => !!c)
+    .map((c) => ({ key: c.key, label: c.en, keywords: c.keywords, exclude: c.exclude }));
+  items.push({ key: 'salt', label: 'Salt', keywords: ['salz'] });
+  return items;
+}
+
+export async function getStoredAlwaysHave(): Promise<BasketItem[]> {
+  try {
+    const raw = await AsyncStorage.getItem(ALWAYS_HAVE_KEY);
+    return raw ? (JSON.parse(raw) as BasketItem[]) : defaultAlwaysHave();
+  } catch {
+    return defaultAlwaysHave();
+  }
+}
+
+export async function setStoredAlwaysHave(items: BasketItem[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(ALWAYS_HAVE_KEY, JSON.stringify(items));
   } catch {
     // best-effort
   }

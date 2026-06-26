@@ -22,6 +22,7 @@ import { GroupHeader } from '../components/GroupHeader';
 import { OfferCard } from '../components/OfferCard';
 import { OptionsModal } from '../components/OptionsModal';
 import { PlzModal } from '../components/PlzModal';
+import { RecipesModal } from '../components/RecipesModal';
 import { SearchBar } from '../components/SearchBar';
 import { SortToggle } from '../components/SortToggle';
 import { StoreFilter } from '../components/StoreFilter';
@@ -29,25 +30,30 @@ import { ValidTodayToggle } from '../components/ValidTodayToggle';
 import { StoresModal } from '../components/StoresModal';
 import { UpdateStatus } from '../components/UpdateStatus';
 import { dealsStale, todayISO } from '../format';
+import { DEFAULT_RECIPE_PREFS } from '../recipes';
 import {
   clearAllData,
   clearDealsCache,
   getDealsCache,
+  getStoredAlwaysHave,
   getStoredBasket,
   getStoredMyStores,
   getStoredPlz,
+  getStoredRecipePrefs,
   getStoredShowNonFood,
   getStoredSortMode,
   setDealsCache,
+  setStoredAlwaysHave,
   setStoredBasket,
   setStoredMyStores,
   setStoredPlz,
+  setStoredRecipePrefs,
   setStoredShowNonFood,
   setStoredSortMode,
   SortMode,
 } from '../storage';
 import { colors } from '../theme';
-import { BasketItem, CategoryCount, MyStore, Offer } from '../types';
+import { BasketItem, CategoryCount, MyStore, Offer, RecipePrefs } from '../types';
 
 const DEFAULT_PLZ = '10713';
 // Preferred order for the store filter; any other chains follow, alphabetically.
@@ -155,6 +161,9 @@ export default function DealsScreen() {
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [basketModal, setBasketModal] = useState(false);
   const [optionsModal, setOptionsModal] = useState(false);
+  const [recipesModal, setRecipesModal] = useState(false);
+  const [recipePrefs, setRecipePrefs] = useState<RecipePrefs>(DEFAULT_RECIPE_PREFS);
+  const [alwaysHave, setAlwaysHave] = useState<BasketItem[]>([]);
   // Deals-cache / refresh status (stale-while-revalidate over the sleepy free backend).
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [updating, setUpdating] = useState(false);
@@ -169,6 +178,8 @@ export default function DealsScreen() {
       setMyStores(await getStoredMyStores());
       setSortMode(await getStoredSortMode());
       setBasket(await getStoredBasket());
+      setRecipePrefs(await getStoredRecipePrefs());
+      setAlwaysHave(await getStoredAlwaysHave());
       setReady(true);
     })();
   }, []);
@@ -282,6 +293,16 @@ export default function DealsScreen() {
     setStoredBasket(next);
   }, []);
 
+  const onChangeRecipePrefs = useCallback((next: RecipePrefs) => {
+    setRecipePrefs(next);
+    setStoredRecipePrefs(next);
+  }, []);
+
+  const onChangeAlwaysHave = useCallback((next: BasketItem[]) => {
+    setAlwaysHave(next);
+    setStoredAlwaysHave(next);
+  }, []);
+
   // Options view actions. Each returns a short result string for the modal to show.
   const onClearCache = useCallback(async () => {
     await clearDealsCache();
@@ -388,8 +409,17 @@ export default function DealsScreen() {
       >
         <View style={styles.header}>
           <View style={styles.titleRow}>
-            <Text style={styles.title}>Grocery deals</Text>
+            <Text style={styles.title} numberOfLines={1}>
+              Grocery deals
+            </Text>
             <View style={styles.headerActions}>
+              <Pressable
+                onPress={() => setRecipesModal(true)}
+                style={({ pressed }) => [styles.storesBtn, pressed && styles.storesBtnPressed]}
+                hitSlop={6}
+              >
+                <Text style={styles.storesBtnText}>Recipes</Text>
+              </Pressable>
               <Pressable
                 onPress={() => setBasketModal(true)}
                 style={({ pressed }) => [styles.storesBtn, pressed && styles.storesBtnPressed]}
@@ -558,6 +588,15 @@ export default function DealsScreen() {
         onRescrape={onRescrape}
         onWipeServer={onWipeServer}
       />
+      <RecipesModal
+        visible={recipesModal}
+        offers={offers}
+        prefs={recipePrefs}
+        onChangePrefs={onChangeRecipePrefs}
+        alwaysHave={alwaysHave}
+        onChangeAlwaysHave={onChangeAlwaysHave}
+        onClose={() => setRecipesModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -566,9 +605,10 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { color: colors.text, fontSize: 24, fontWeight: '700' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  title: { color: colors.text, fontSize: 24, fontWeight: '700', flexShrink: 1 },
+  // Four pills (Recipes/Basket/Stores/⚙) — wrap to a second line on a narrow phone.
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, rowGap: 6, flexWrap: 'wrap', flexShrink: 1, justifyContent: 'flex-end' },
   storesBtn: {
     flexDirection: 'row',
     alignItems: 'center',
