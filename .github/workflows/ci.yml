@@ -35,7 +35,7 @@ jobs:
       - run: pytest -q
 
   mobile:
-    name: Mobile (eslint + tsc)
+    name: Mobile (eslint + tsc + jest)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -51,6 +51,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
+      - run: npm test -- --ci
 
   docker-build:
     name: Backend image builds
