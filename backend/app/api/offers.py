@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from datetime import date
 from typing import List, Optional
@@ -22,6 +23,8 @@ from ..schemas import (
 )
 from ..serializers import offer_to_out
 from ..services.optimizer import optimize_basket
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["offers"])
 
@@ -165,6 +168,7 @@ def _resolve_plz_coords(plz: str) -> tuple[Optional[float], Optional[float]]:
         loc = store.get("location") or {}
         return loc.get("latitude"), loc.get("longitude")
     except Exception:
+        logger.warning("PLZ coord resolve failed for plz=%s", plz, exc_info=True)
         return None, None
 
 

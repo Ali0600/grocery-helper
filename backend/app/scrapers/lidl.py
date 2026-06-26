@@ -14,6 +14,7 @@ Endpoints reverse-engineered from github.com/EvickaStudio/lidl-discounts.
 """
 from __future__ import annotations
 
+import logging
 from datetime import date, timedelta
 from typing import List, Optional, Tuple
 
@@ -21,6 +22,8 @@ import httpx
 
 from ..http import tracked_client
 from .base import ScrapedOffer, ScrapeResult
+
+logger = logging.getLogger(__name__)
 
 STORES_URL = "https://stores.lidlplus.com/api"
 OFFERS_URL = "https://offers.lidlplus.com/app/api"
@@ -59,7 +62,10 @@ class LidlScraper:
             )
         except Exception:
             # Any live-scrape failure falls back to sample data so the system
-            # stays up. A real deployment logs/alerts here instead.
+            # stays up; log it so the degradation is visible (not silent).
+            logger.warning(
+                "Lidl live scrape failed for plz=%s; serving sample data", plz, exc_info=True
+            )
             return ScrapeResult(
                 chain=self.chain,
                 store_name=f"Lidl {plz} (sample)",

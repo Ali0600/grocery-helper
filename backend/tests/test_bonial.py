@@ -7,6 +7,7 @@ from datetime import date
 from app.scrapers.bonial import (
     BonialScraper,
     _app_price,
+    _deal,
     _loyalty_note,
     _offer_validity,
     _parse_dt,
@@ -188,3 +189,15 @@ def test_app_price_only_for_app_markers():
     # no SPECIAL_PRICE deal, or one with no condition marker
     assert _app_price({"deals": [{"type": "SALES_PRICE", "max": 1.99}]}) is None
     assert _app_price({"deals": [{"type": "SPECIAL_PRICE", "max": 1.99, "conditions": []}]}) is None
+
+
+def test_deal_reads_max_and_guards_malformed():
+    # Happy path: the numeric `max` of the first matching deal type.
+    assert _deal({"deals": [{"type": "SALES_PRICE", "max": 1.99}]}, "SALES_PRICE") == 1.99
+    # A malformed `max` is skipped (degrade, don't 500) — parity with _app_price /
+    # _regular_from_label; a later well-formed deal of the same type still wins.
+    content = {"deals": [{"type": "SALES_PRICE", "max": "n/a"}, {"type": "SALES_PRICE", "max": 2.49}]}
+    assert _deal(content, "SALES_PRICE") == 2.49
+    # All malformed, or no matching deal type -> None.
+    assert _deal({"deals": [{"type": "SALES_PRICE", "max": "x"}]}, "SALES_PRICE") is None
+    assert _deal({"deals": [{"type": "REGULAR_PRICE", "max": 3.0}]}, "SALES_PRICE") is None
