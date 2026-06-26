@@ -29,6 +29,7 @@ fall back to sample data so the rest of the app keeps working.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional, Tuple
@@ -39,6 +40,8 @@ import httpx
 
 from ..http import tracked_client
 from .base import ScrapedOffer, ScrapeResult
+
+logger = logging.getLogger(__name__)
 
 BE = "https://content-viewer-be.meinprospekt.de"
 CONSUMER = "meinprospekt"
@@ -90,6 +93,10 @@ class MeinprospektScraper:
                 lat=lat, lng=lng, offers=offers,
             )
         except Exception:
+            logger.warning(
+                "%s flyer scrape failed for plz=%s; serving sample data",
+                self.chain, plz, exc_info=True,
+            )
             return ScrapeResult(
                 chain=self.chain, store_name=store_name, plz=plz,
                 lat=lat, lng=lng, offers=self._sample(),
@@ -319,7 +326,10 @@ def _location_cookie(lat: float, lng: float, plz: Optional[str] = None) -> str:
 def _deal(content: dict, deal_type: str) -> Optional[float]:
     for d in content.get("deals") or []:
         if d.get("type") == deal_type and d.get("max") is not None:
-            return float(d["max"])
+            try:
+                return float(d["max"])
+            except (TypeError, ValueError):
+                continue
     return None
 
 

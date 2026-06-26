@@ -12,6 +12,7 @@ friendly message — same fall-back-don't-crash spirit as the deal scrapers.
 """
 from __future__ import annotations
 
+import logging
 import math
 import time
 from dataclasses import dataclass
@@ -20,6 +21,8 @@ from typing import Dict, List, Optional, Tuple
 import httpx
 
 from ..http import tracked_client
+
+logger = logging.getLogger(__name__)
 
 # canonical slug -> (display label, OSM brand/name prefixes that map to it).
 # Prefixes are matched against the lowercased `brand` (then `name`) tag, so
@@ -211,7 +214,9 @@ def _fetch_overpass(query: str, client: httpx.Client) -> Optional[List[dict]]:
             resp.raise_for_status()
             return resp.json().get("elements", [])
         except Exception:
+            logger.debug("Overpass mirror failed: %s", url, exc_info=True)
             continue
+    logger.warning("Overpass: all %d mirrors failed", len(OVERPASS_MIRRORS))
     return None
 
 
