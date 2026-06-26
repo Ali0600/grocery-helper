@@ -33,6 +33,10 @@ class OfferOut(BaseModel):
     image_url: Optional[str] = None
     valid_from: Optional[date] = None
     valid_to: Optional[date] = None
+    # Day-limited deals (valid fewer than the normal Mon–Sat week): a compact label
+    # ("Do–Sa"/"Fr") to badge + a flag the app filters on. None/False = valid all week.
+    valid_days: Optional[str] = None
+    day_limited: bool = False
 
 
 class CategoryCount(BaseModel):

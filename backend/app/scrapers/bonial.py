@@ -31,8 +31,9 @@ from __future__ import annotations
 import json
 import re
 from datetime import date, datetime, timedelta, timezone
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -52,6 +53,10 @@ HEADERS = {
 }
 # A weekly flyer runs <= ~2 weeks; this excludes long-running "Preisführer" lists.
 MAX_FLYER_DAYS = 14
+# Validity timestamps are Berlin-midnight boundaries expressed in UTC; convert with the
+# real tz (handles CET/CEST) so day-limited windows land on the right calendar days
+# regardless of where the scraper runs.
+_BERLIN = ZoneInfo("Europe/Berlin")
 _NEXT_DATA_RE = re.compile(
     r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', re.S
 )
@@ -182,6 +187,9 @@ class MeinprospektScraper:
         category_path = [
             cp["name"] for cp in (product.get("categoryPaths") or []) if cp.get("name")
         ]
+        # Prefer the offer's own on-sale window (day-limited specials) over the brochure's.
+        own = _offer_validity(c, valid_from, valid_to)
+        vf, vt = own if own else (valid_from, valid_to)
         return ScrapedOffer(
             external_id=str(c.get("id")),
             name=name,
@@ -193,8 +201,8 @@ class MeinprospektScraper:
             loyalty_note=_loyalty_note(c),
             app_price_cents=_app_price(c),
             image_url=c.get("image"),
-            valid_from=valid_from,
-            valid_to=valid_to,
+            valid_from=vf,
+            valid_to=vt,
             category_path=category_path,
         )
 
@@ -381,6 +389,37 @@ def _regular_from_label(sales: float, label: Optional[dict]) -> Optional[float]:
     if kind == "DISCOUNT_PERCENTAGE" and 0 < value < 100:
         return round(sales / (1 - value / 100), 2)
     return None
+
+
+def _offer_validity(
+    content: dict, brochure_from: date, brochure_to: date
+) -> Optional[Tuple[date, date]]:
+    """The offer's own on-sale window from ``publicationProfiles[].validity``, as Berlin
+    calendar dates clamped to the brochure window — this is how day-limited specials (a
+    Lidl Thu–Sat "Wochenend-Kracher", a Friday-only deal) are expressed; without it every
+    offer reads as valid the whole brochure week.
+
+    Returns the **union** of profile windows that overlap the brochure (so a full-week
+    offer that also appears in a weekend sub-publication isn't wrongly restricted), or None
+    when there's no usable profile (caller keeps the brochure dates). ``endDate`` is an
+    *exclusive* next-midnight boundary, so the last valid day is ``end - 1s``.
+    """
+    starts: List[date] = []
+    ends: List[date] = []
+    for pp in content.get("publicationProfiles") or []:
+        validity = (pp or {}).get("validity") or {}
+        sd, ed = _parse_dt(validity.get("startDate")), _parse_dt(validity.get("endDate"))
+        if not (sd and ed):
+            continue
+        d0 = sd.astimezone(_BERLIN).date()
+        d1 = (ed.astimezone(_BERLIN) - timedelta(seconds=1)).date()
+        if d1 < d0 or d1 < brochure_from or d0 > brochure_to:
+            continue  # malformed, or doesn't overlap this brochure
+        starts.append(max(d0, brochure_from))
+        ends.append(min(d1, brochure_to))
+    if not starts:
+        return None
+    return min(starts), max(ends)
 
 
 def _parse_dt(value) -> Optional[datetime]:

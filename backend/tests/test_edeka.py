@@ -31,7 +31,8 @@ def test_parses_priced_offers_with_paths():
     assert len(offers) == 6
     assert all(o.price_cents > 0 for o in offers)
     assert all(o.category_path for o in offers)  # EDEKA flyer carries categoryPaths
-    assert all(o.valid_from == VALID_FROM and o.valid_to == VALID_TO for o in offers)
+    # per-offer validity windows (from publicationProfiles) sit within the brochure window
+    assert all(VALID_FROM <= o.valid_from and o.valid_to <= VALID_TO for o in offers)
 
 
 def test_maps_brand_and_name():

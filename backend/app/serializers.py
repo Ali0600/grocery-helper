@@ -5,6 +5,7 @@ from .models import Offer
 from .product_group import product_group
 from .schemas import OfferOut
 from .unit_price import derive_price_per_unit, unit_price_cents
+from .validity import is_day_limited, valid_days_label
 
 
 def offer_to_out(offer: Offer) -> OfferOut:
@@ -38,4 +39,6 @@ def offer_to_out(offer: Offer) -> OfferOut:
         image_url=offer.image_url,
         valid_from=offer.valid_from,
         valid_to=offer.valid_to,
+        valid_days=valid_days_label(offer.valid_from, offer.valid_to),
+        day_limited=is_day_limited(offer.valid_from, offer.valid_to),
     )

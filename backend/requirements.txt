@@ -6,6 +6,9 @@ pydantic-settings>=2.3
 httpx>=0.27
 # Postgres driver (used in Docker/PaaS; local dev uses SQLite and won't import it)
 psycopg2-binary>=2.9
+# Bundled IANA tz data so zoneinfo("Europe/Berlin") works on slim images (Render) that
+# strip the system tzdb — keeps per-offer validity dates host-independent.
+tzdata>=2024.1
 # Dev / testing (also used by CI: pytest + ruff lint)
 pytest>=8.0
 ruff>=0.15
