@@ -202,7 +202,11 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `unit_price_cents()` normalizes `price_per_unit` to cents per **kg or litre** on
   one comparable axis (German Grundpreis; per-`Stück`/`wl`/`m`/malformed → None).
   It's **computed in the serializer** (no DB column/migration); the app sorts the
-  loaded set client-side (`DealsScreen` `SortToggle`), nulls sink to the bottom.
+  loaded set client-side (`DealsScreen` `SortToggle`), nulls sink to the bottom. The
+  `SortToggle` offers **3 modes** — *Lowest price* (`price_cents` asc), *Biggest discount*
+  (`discount_pct` desc, default), *Cheapest €/kg* (`unit_price_cents` asc) — all via one
+  `compareOffers(a,b,mode)` comparator reused by the flat list, the within-group order, and
+  the "More" bucket (so "discount" ranks by % even inside a category, not by price).
 - **Missing Grundpreis is recovered at serve time** (`unit_price.py`
   `derive_price_per_unit(unit, price_cents)`, used by the serializer when
   `Offer.price_per_unit` is null), three cases: (1) the Grundpreis is **embedded in

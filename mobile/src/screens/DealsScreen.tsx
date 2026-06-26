@@ -61,6 +61,14 @@ function byNullsLast(a: number | null, b: number | null, dir: 'asc' | 'desc'): n
   return dir === 'asc' ? a - b : b - a;
 }
 
+// The single source of truth for how offers are ordered, by the active sort mode. Used by
+// the flat list, the within-group order, and the "More" bucket so they're always consistent.
+function compareOffers(a: Offer, b: Offer, mode: SortMode): number {
+  if (mode === 'unit') return byNullsLast(a.unit_price_cents, b.unit_price_cents, 'asc');
+  if (mode === 'price') return a.price_cents - b.price_cents; // cheapest absolute price
+  return byNullsLast(a.discount_pct, b.discount_pct, 'desc'); // 'discount': biggest % off
+}
+
 // Per-section metadata for the grouped (category) view. `label === null` renders no
 // header; `muted` is the small "More" header above the trailing single-offer bucket.
 type SectionMeta = {
@@ -71,14 +79,10 @@ type SectionMeta = {
 };
 type DealSection = SectionListData<Offer, SectionMeta>;
 
-// Within a comparison group, order by what's being compared: cheapest €/kg in 'unit'
-// mode (no-€/kg items sink), else cheapest absolute price.
+// Within a comparison group, order by the active sort metric (cheapest €/kg, biggest
+// discount, or lowest price) — same comparator as the flat list, so they stay consistent.
 function withinGroup(items: Offer[], mode: SortMode): Offer[] {
-  return [...items].sort((a, b) =>
-    mode === 'unit'
-      ? byNullsLast(a.unit_price_cents, b.unit_price_cents, 'asc')
-      : a.price_cents - b.price_cents,
-  );
+  return [...items].sort((a, b) => compareOffers(a, b, mode));
 }
 
 // Turn the already-filtered + sorted category view into sections: each product with
@@ -114,11 +118,7 @@ function buildSections(sorted: Offer[], mode: SortMode): DealSection[] {
   });
   groups.sort((x, y) => y.count - x.count || (x.label ?? '').localeCompare(y.label ?? ''));
 
-  const tailSorted = [...tail].sort((a, b) =>
-    mode === 'unit'
-      ? byNullsLast(a.unit_price_cents, b.unit_price_cents, 'asc')
-      : byNullsLast(a.discount_pct, b.discount_pct, 'desc'),
-  );
+  const tailSorted = [...tail].sort((a, b) => compareOffers(a, b, mode));
   if (tailSorted.length) {
     groups.push({
       key: '__rest__',
@@ -371,13 +371,9 @@ export default function DealsScreen() {
       ? base.filter((o) => o.category === selected)
       : base;
 
-  // Re-sort the filtered view by the active mode (data arrives discount-sorted).
-  // "Cheapest €/kg" ranks by normalized per-unit price; items without one sink.
-  const sorted = [...visibleOffers].sort((a, b) =>
-    sortMode === 'unit'
-      ? byNullsLast(a.unit_price_cents, b.unit_price_cents, 'asc')
-      : byNullsLast(a.discount_pct, b.discount_pct, 'desc'),
-  );
+  // Re-sort the filtered view by the active mode (lowest price / biggest discount /
+  // cheapest €/kg); offers missing the metric (no discount, no €/kg) sink to the bottom.
+  const sorted = [...visibleOffers].sort((a, b) => compareOffers(a, b, sortMode));
 
   // Inside a selected category (and not searching), cluster offers by product so
   // competing prices sit together; the flat list stays for "All" and search.
