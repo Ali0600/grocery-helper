@@ -87,3 +87,44 @@ export type ResetResult = {
   scraped: number;
   stores: Store[];
 };
+
+// --- AI Recipes (offline-authored, bundled in the app; no runtime API) ---
+
+// One ingredient line in a recipe. `keywords`/`exclude` are German name stems matched
+// against the user's loaded offers (same signal as the Basket), so the app can show the
+// live on-sale price. `staple` marks a pantry item assumed on hand (oil, salt) — never "buy".
+export type RecipeIngredient = {
+  label: string; // display, e.g. "Chicken breast"
+  keywords: string[]; // German stems matched as substrings of offer names
+  qty?: string; // optional amount, e.g. "400 g", "2"
+  staple?: boolean; // pantry assumed on hand — never counted as "buy"
+  exclude?: string[]; // substring-trap guards (e.g. tomato vs "ketchup")
+};
+
+export type Recipe = {
+  id: string;
+  title: string;
+  summary: string;
+  servings: number;
+  timeMinutes: number;
+  tags: string[]; // dietary + cuisine + meal, e.g. ["vegetarian", "italian", "dinner"]
+  ingredients: RecipeIngredient[];
+  steps: string[];
+};
+
+// The bundled data file the offline authoring step rewrites each week.
+export type RecipesData = {
+  generatedFor: string; // PLZ the deals snapshot came from
+  generatedAt: string; // ISO date the recipes were authored
+  recipes: Recipe[];
+};
+
+// Persisted recipe filters (session prefs).
+export type RecipePrefs = {
+  servings: number; // scales the displayed quantities
+  count: number; // how many recipes to show
+  diet: string | null; // "vegetarian" | "vegan" | "gluten-free" | "no-pork" | null
+  cuisine: string | null; // "italian" | "asian" | "german" | ... | null
+  onlyOnSale: boolean; // hide recipes that need a non-staple, non-on-sale ingredient
+  cheapestKg: boolean; // rank recipes by their on-sale ingredients' €/kg
+};

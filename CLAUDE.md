@@ -279,6 +279,20 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   that env is set* (else open like `/api/scrape`); the app sends `EXPO_PUBLIC_ADMIN_TOKEN`
   if present. The wipe self-heals via the immediate re-scrape but comes back sparse on a
   sample-fallback (re-run when the source is reachable).
+- **AI Recipes are offline-authored, OTA-shipped — NO runtime LLM/API** (`mobile/src/data/
+  recipes.ts` + `RecipesModal`, "Recipes" header button). Deliberate per the user: no
+  `ANTHROPIC_API_KEY`, no Render call, no `/api/*` endpoint. Recipes are authored **ahead of
+  time by Claude Code** (the agent — not a metered key) from the current `grocery.db` deals +
+  the always-have staples, bundled in the app, and shipped via the `eas-update.yml` OTA push.
+  At runtime the app is fully offline: `mobile/src/recipes.ts` `resolveRecipe`/`filterRecipes`
+  **reuse the Basket matcher** (`basket.ts` `bestMatch`) to tag each ingredient on-sale (matched
+  an offer → live chain pill + price) / have (`staple:true` or in the user's always-have list)
+  / buy, and filter by diet/cuisine/servings/only-on-sale/cheapest-€/kg. Always-have is seeded
+  from `catalog.ts` staples (`storage.ts` `defaultAlwaysHave` / `STAPLE_KEYS`), editable +
+  persisted (`alwaysHave` key; `recipePrefs` for filters). **Regenerate weekly** when flyers
+  refresh: `python -m app.scripts.recipe_seed` (read-only candidate dump) → Claude Code
+  rewrites `recipes.ts` → commit → OTA. Full workflow in `docs/recipes.md`. A `claude -p` CI
+  generator is deferred (would need Claude Code auth in CI → breaks "no managed key").
 - **CI/CD is GitHub Actions** (`.github/workflows/`): `ci.yml` (backend `ruff`+`pytest`,
   mobile ESLint+`tsc`, backend Docker build; on green `main` pushes a `deploy` job curls
   the Render deploy hook), `eas-update.yml` (OTA via `eas update --branch production` on
