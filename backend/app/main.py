@@ -8,9 +8,10 @@ from sqlalchemy import select
 
 from .api.offers import router as offers_router
 from .core.config import settings
-from .db import Base, SessionLocal, engine
+from .db import SessionLocal
 from .logging_config import configure_logging
-from .models import Offer  # noqa: F401  ensures tables are registered for create_all
+from .migrations import run_migrations
+from .models import Offer
 from .scrapers.run import run_scrapers
 
 configure_logging()
@@ -27,8 +28,8 @@ if settings.sentry_dsn:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables, and seed once so a fresh checkout has data to show.
-    Base.metadata.create_all(bind=engine)
+    # Migrate to the latest schema, then seed once so a fresh checkout has data.
+    run_migrations()
     with SessionLocal() as session:
         if session.scalar(select(Offer).limit(1)) is None:
             run_scrapers(session, settings.default_plz)

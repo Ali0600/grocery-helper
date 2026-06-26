@@ -9,6 +9,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+# Migrations run at startup (app/migrations.py -> alembic upgrade head), so the
+# alembic/ tree must be in the image. alembic.ini is dev-CLI-only (not needed here).
+COPY alembic ./alembic
 
 EXPOSE 8000
 # Bind to $PORT when the host injects one (Render sets it, default 10000); fall back
