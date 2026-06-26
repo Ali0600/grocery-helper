@@ -5,7 +5,8 @@ import { SortMode } from '../storage';
 import { colors } from '../theme';
 
 const OPTIONS: { value: SortMode; label: string }[] = [
-  { value: 'discount', label: 'Top deals' },
+  { value: 'price', label: 'Lowest price' },
+  { value: 'discount', label: 'Biggest discount' },
   { value: 'unit', label: 'Cheapest €/kg' },
 ];
 
@@ -36,7 +37,15 @@ export function SortToggle({
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 8 },
+  row: {
+    flexDirection: 'row',
+    flexWrap: 'wrap', // three pills + label wrap on a narrow phone instead of overflowing
+    alignItems: 'center',
+    gap: 8,
+    rowGap: 6,
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+  },
   label: { color: colors.muted, fontSize: 12, fontWeight: '600', marginRight: 2 },
   pill: {
     height: 30,

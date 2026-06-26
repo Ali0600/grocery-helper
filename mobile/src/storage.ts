@@ -9,7 +9,7 @@ const SORT_KEY = 'sortMode';
 const BASKET_KEY = 'basket';
 const DEALS_CACHE_KEY = 'dealsCache';
 
-export type SortMode = 'discount' | 'unit';
+export type SortMode = 'discount' | 'price' | 'unit';
 
 export async function getStoredPlz(): Promise<string | null> {
   try {
@@ -62,7 +62,8 @@ export async function setStoredMyStores(stores: MyStore[]): Promise<void> {
 
 export async function getStoredSortMode(): Promise<SortMode> {
   try {
-    return (await AsyncStorage.getItem(SORT_KEY)) === 'unit' ? 'unit' : 'discount';
+    const v = await AsyncStorage.getItem(SORT_KEY);
+    return v === 'price' || v === 'unit' ? v : 'discount'; // legacy/unknown -> default
   } catch {
     return 'discount';
   }
