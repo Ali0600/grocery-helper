@@ -370,3 +370,22 @@ wrong in winter. `zoneinfo("Europe/Berlin")` handles DST — and adding the `tzd
 package keeps it working on slim Docker images that strip the system tzdb (host-independent).
 **Takeaway:** for "local day" math, convert through the IANA zone (`zoneinfo`), never a fixed
 offset; ship `tzdata` so it's deterministic across dev, CI, and slim production images.
+
+### Move LLM work to authoring time, not runtime
+If generated content changes on a slow, known cadence, an LLM can author it *offline* and you
+ship the result as static data — no runtime model call, API key, cost, or cold-start latency.
+**Why it came up:** the "AI Recipes" feature. Instead of a backend endpoint calling Claude per
+request, Claude Code authored recipes from the current deal DB into a bundled `recipes.ts`,
+shipped via OTA, and the app renders them fully offline — regenerated weekly when flyers
+refresh. Zero runtime secrets/cost, works on a sleeping free-tier backend.
+**Takeaway:** for content that refreshes on a periodic cadence, prefer build/author-time LLM
+generation + static delivery over a runtime API call — cheaper, simpler, offline-capable.
+
+### Ground LLM output to your structured data with a deterministic matcher
+An LLM names entities in free text; a deterministic matcher links those names back to your
+real records so the UI shows verified facts (prices, IDs), not the model's guesses.
+**Why it came up:** recipe ingredients are LLM-authored German terms; the app reuses the
+Basket keyword matcher (`bestMatch`) to resolve each to an actual on-sale offer and show its
+live price/store — the LLM never invents a price.
+**Takeaway:** let the LLM produce the prose/structure, but compute anything factual
+(prices, links, availability) deterministically from your own data at render time.
