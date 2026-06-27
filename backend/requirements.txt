@@ -5,7 +5,7 @@ sqlalchemy>=2.0,<2.1
 alembic>=1.13
 pydantic>=2.7
 pydantic-settings>=2.3
-httpx>=0.27
+httpx>=0.28.1
 # Postgres driver (used in Docker/PaaS; local dev uses SQLite and won't import it)
 psycopg2-binary>=2.9
 # Bundled IANA tz data so zoneinfo("Europe/Berlin") works on slim images (Render) that
