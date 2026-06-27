@@ -415,3 +415,15 @@ jest @types/jest --dev` (per `mobile/AGENTS.md`).
 is all pure, so the suite is fast and needs no RN test renderer.
 **Takeaway:** test pure logic at the function level (cheap, fast); keep test fixtures
 out of `testMatch`; satisfy `tsc` with a triple-slash ref, not a `types` whitelist.
+
+### Expo SDK lockstep vs per-package auto-updates (Dependabot)
+Expo manages react / react-native / expo-* / jest-expo as one version-locked set; bumping any of
+them individually breaks the others.
+**Why it came up:** Dependabot's weekly npm version-updates opened PRs bumping react-native
+0.85.3 → 0.86.0, which `ERESOLVE`-failed `npm ci` because `jest-expo@56` peer-requires
+`@react-native/jest-preset@^0.85.0`. All 4 mobile npm PRs failed the same way. We removed npm
+*version*-updates from `dependabot.yml` (kept pip + actions) and rely on `npx expo install` for SDK
+bumps; Dependabot *security* updates (CVE-driven) still cover npm.
+**Takeaway:** don't run a per-package version-updater on an Expo (or any framework-pinned) npm
+project — version those deps via the framework's installer. `0.x` "minor" bumps are breaking, so
+group/minor filters won't save you.
