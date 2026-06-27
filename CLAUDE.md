@@ -243,8 +243,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   a dep so the Berlin conversion is host-independent (slim Docker strips the system tzdb).
   `app/validity.py` derives **computed** `OfferOut.valid_days` ("Do–Sa"/"Fr") + `day_limited`
   (window < the Mon–Sat week) in the serializer; the app shows an orange day pill
-  (`OfferCard`) + a session **"Valid today"** toggle (`ValidTodayToggle`, shown only when
-  some offer is `day_limited`; filters client-side on the device date). Measured (10713):
+  (`OfferCard`) + a session **"Special days"** toggle (`SpecialDaysToggle`, shown only when
+  some offer is `day_limited`; filters client-side to `day_limited` offers — every non-week-long
+  special, not the device date). Measured (10713):
   Lidl ~227 day-limited (Do–Sa/Mo–Fr/Do–Fr/Fr–Sa/Fr); REWE/EDEKA all full Mon–Sat.
 - **Deployment**: backend is live on **Render** (free tier) at
   `https://grocery-helper-sw6c.onrender.com` via the IaC `render.yaml` Blueprint

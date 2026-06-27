@@ -5,12 +5,13 @@ import { colors } from '../theme';
 
 const OPTIONS: { value: boolean; label: string }[] = [
   { value: false, label: 'All days' },
-  { value: true, label: 'Valid today' },
+  { value: true, label: 'Special days' },
 ];
 
-/** Session toggle: when on, show only deals valid on today's weekday (day-limited
- *  specials like a Thu–Sat weekend offer drop off when they aren't on sale yet/anymore). */
-export function ValidTodayToggle({
+/** Session toggle: when on, show only "special days" deals — day-limited specials
+ *  whose sale window is shorter than the normal Mon–Sat week (a Thu–Sat
+ *  Wochenend-Kracher, a Friday-only deal, …), regardless of today's weekday. */
+export function SpecialDaysToggle({
   value,
   onChange,
 }: {
