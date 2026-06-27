@@ -310,7 +310,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   the Render deploy hook), `eas-update.yml` (OTA via `eas update --branch production` on
   `mobile/**` pushes), `scrape.yml` (weekly cron → `POST /api/scrape`, retries 3× and
   opens/comments a `scrape-failure` issue on total failure). `dependabot.yml` auto-bumps
-  pip/npm/actions weekly (minor+patch grouped). Deploy + OTA + **Codecov upload**
+  pip/npm/actions weekly (minor+patch grouped); **`mobile/.npmrc` pins the public registry**
+  so Dependabot's npm job doesn't abort on an auto-injected `npm.pkg.github.com` (we use only
+  public packages — don't delete it). Deploy + OTA + **Codecov upload**
   **skip gracefully** until their secrets exist (`RENDER_DEPLOY_HOOK_URL`, `EXPO_TOKEN`,
   `CODECOV_TOKEN`), so CI stays green; gated deploy assumes Render **auto-deploy is off**. CI Python is
   **3.12** (Dockerfile/Render) but the local venv is **3.9** — `backend/ruff.toml` targets
