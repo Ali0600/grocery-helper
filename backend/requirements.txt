@@ -4,7 +4,7 @@ sqlalchemy>=2.0,<2.1
 # DB schema migrations (versioned create/alter for SQLite + Postgres).
 alembic>=1.18.5
 pydantic>=2.7
-pydantic-settings>=2.3
+pydantic-settings>=2.14.2
 httpx>=0.28.1
 # Postgres driver (used in Docker/PaaS; local dev uses SQLite and won't import it)
 psycopg2-binary>=2.9
