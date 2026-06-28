@@ -10,7 +10,7 @@ httpx>=0.28.1
 psycopg2-binary>=2.9
 # Bundled IANA tz data so zoneinfo("Europe/Berlin") works on slim images (Render) that
 # strip the system tzdb — keeps per-offer validity dates host-independent.
-tzdata>=2024.1
+tzdata>=2026.2
 # Error tracking (opt-in): only initialises when SENTRY_DSN is set. The [fastapi] extra
 # pulls the Starlette/FastAPI integration so unhandled 500s are captured automatically.
 sentry-sdk[fastapi]>=2.63.0
