@@ -316,8 +316,12 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `ruff`+`pytest --cov`+`alembic upgrade head`/`alembic check`, mobile
   ESLint+`tsc`+`jest`, backend Docker build; on green `main` pushes a `deploy` job curls
   the Render deploy hook), `eas-update.yml` (OTA via `eas update --branch production` on
-  `mobile/**` pushes), `scrape.yml` (weekly cron → `POST /api/scrape`, retries 3× and
-  opens/comments a `scrape-failure` issue on total failure). `dependabot.yml` auto-bumps
+  `mobile/**` pushes), `scrape.yml` (**Sunday 06:00 UTC** cron → `POST /api/reset`
+  — wipe + re-scrape, *not* upsert, so the prior week's stale offers are cleared; runs Sunday
+  because flyers are Mon–Sat so they're spent by then and next week's are already discoverable,
+  refreshing before the app's weekly cache expires past Sunday — retries 3× and opens/comments a
+  `scrape-failure` issue on total failure; passes an optional `ADMIN_TOKEN` secret, only enforced
+  if that env is also set on Render). `dependabot.yml` auto-bumps
   **pip + actions** weekly (minor+patch grouped); **no npm/mobile version-updates** — the app is
   Expo SDK-pinned (react/react-native/expo-*/jest-expo lockstep), so per-package bumps break
   `npm ci` (react-native 0.86 vs jest-expo@56's RN 0.85 peer); bump mobile deps via `npx expo
