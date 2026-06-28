@@ -27,6 +27,7 @@ import { SearchBar } from '../components/SearchBar';
 import { SortToggle } from '../components/SortToggle';
 import { StoreFilter } from '../components/StoreFilter';
 import { SpecialDaysToggle } from '../components/SpecialDaysToggle';
+import { BioToggle } from '../components/BioToggle';
 import { StoresModal } from '../components/StoresModal';
 import { UpdateStatus } from '../components/UpdateStatus';
 import { dealsStale } from '../format';
@@ -158,6 +159,7 @@ export default function DealsScreen() {
   const [sortMode, setSortMode] = useState<SortMode>('discount');
   const [storeFilter, setStoreFilter] = useState<string | null>(null); // session lens; resets each launch
   const [specialDays, setSpecialDays] = useState(false); // session lens: only day-limited specials
+  const [bioOnly, setBioOnly] = useState(false); // session lens: only organic ("Bio") offers
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [basketModal, setBasketModal] = useState(false);
   const [optionsModal, setOptionsModal] = useState(false);
@@ -279,6 +281,7 @@ export default function DealsScreen() {
     setQuery('');
     setStoreFilter(null);
     setSpecialDays(false);
+    setBioOnly(false);
     setPlz(newPlz);
     setPlzModal(false);
   }, []);
@@ -320,6 +323,7 @@ export default function DealsScreen() {
     setQuery('');
     setStoreFilter(null);
     setSpecialDays(false);
+    setBioOnly(false);
     if (plz !== DEFAULT_PLZ) {
       setPlz(DEFAULT_PLZ); // the [plz] effect reloads for the default PLZ (cache now empty)
     } else {
@@ -377,15 +381,18 @@ export default function DealsScreen() {
   const hasDayLimited = offers.some((o) => o.day_limited);
   const base =
     specialDays && hasDayLimited ? storeBase.filter((o) => o.day_limited) : storeBase;
+  // "Bio only" is another global lens: keep just organic offers (server-computed is_bio).
+  const hasBio = offers.some((o) => o.is_bio);
+  const bioBase = bioOnly && hasBio ? base.filter((o) => o.is_bio) : base;
   const visibleOffers = q
-    ? base.filter(
+    ? bioBase.filter(
         (o) =>
           o.name.toLowerCase().includes(q) ||
           (o.brand ?? '').toLowerCase().includes(q),
       )
     : selected
-      ? base.filter((o) => o.category === selected)
-      : base;
+      ? bioBase.filter((o) => o.category === selected)
+      : bioBase;
 
   // Re-sort the filtered view by the active mode (lowest price / biggest discount /
   // cheapest €/kg); offers missing the metric (no discount, no €/kg) sink to the bottom.
@@ -472,6 +479,7 @@ export default function DealsScreen() {
         )}
 
         {hasDayLimited && <SpecialDaysToggle value={specialDays} onChange={setSpecialDays} />}
+        {hasBio && <BioToggle value={bioOnly} onChange={setBioOnly} />}
 
         <SortToggle mode={sortMode} onChange={onChangeSort} />
 

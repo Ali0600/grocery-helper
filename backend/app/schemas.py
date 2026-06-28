@@ -37,6 +37,9 @@ class OfferOut(BaseModel):
     # ("Do–Sa"/"Fr") to badge + a flag the app filters on. None/False = valid all week.
     valid_days: Optional[str] = None
     day_limited: bool = False
+    # Organic ("Bio") products, detected from the name/brand (app.organic); the app
+    # badges them and offers a "Bio only" filter.
+    is_bio: bool = False
 
 
 class CategoryCount(BaseModel):

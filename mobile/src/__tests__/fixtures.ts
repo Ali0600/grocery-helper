@@ -35,6 +35,7 @@ export function makeOffer(partial: Partial<Offer> = {}): Offer {
     valid_to: null,
     valid_days: null,
     day_limited: false,
+    is_bio: false,
     ...partial,
   };
 }

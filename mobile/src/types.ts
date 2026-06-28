@@ -23,6 +23,7 @@ export type Offer = {
   valid_to: string | null;
   valid_days: string | null; // day-limited label, e.g. "Do–Sa" / "Fr"; null = valid all week
   day_limited: boolean; // valid fewer than the normal Mon–Sat week
+  is_bio: boolean; // organic ("Bio") product, detected from the name/brand server-side
 };
 
 export type CategoryCount = {
