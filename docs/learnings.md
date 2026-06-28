@@ -62,6 +62,21 @@ recreate.
 **Takeaway:** on a free PaaS, never rely on local disk for persistence and expect a
 slow first request after idle — use a managed DB / persistent disk for real data.
 
+### Schedule periodic jobs from outside a host that sleeps; align the cron to the data's cycle
+An **in-process scheduler** (APScheduler, a background thread, a cron inside the app) can't
+fire on a host that **sleeps when idle** — there's no process awake to run it. Drive periodic
+work from an **external scheduler** (here a GitHub Actions cron) that *wakes* the host with a
+request. Two further choices matter: **when** to run (match the data's real refresh cycle, not
+a round number) and **how** to refresh (upsert leaves stale rows; a wipe-then-rebuild clears
+them).
+**Why it came up:** the weekly refresh ran Mondays via `/api/scrape` (in-place upsert). Flyers
+are Mon–Sat, so by Sunday they're spent and next week's are already discoverable — moved the
+cron to **Sunday 06:00 UTC** and switched to `/api/reset` (wipe + re-scrape) so each week
+starts clean and fresh deals land before the app's weekly cache expires past Sunday.
+**Takeaway:** for a sleeping host, schedule jobs from an external cron that pokes it; pick the
+time from the data's natural cadence, and use wipe-then-rebuild (not upsert) when stale rows
+must not linger.
+
 ## iOS / mobile
 
 ### Bundle ID vs app name
