@@ -10,6 +10,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `src/api.ts`, `src/storage.ts`.
 
 ## Common commands
+- Backend **+ web together**: `./dev.sh` (root) — runs uvicorn (:8001) and Expo Web
+  (:8081) concurrently, Ctrl-C stops both (kills the process group so uvicorn's reload
+  child + Metro workers die too). Preflights venv/node_modules/port-8001-free.
 - Backend: `cd backend && source .venv/bin/activate && uvicorn app.main:app --reload --port 8001`
 - Backend tests: `cd backend && source .venv/bin/activate && python -m pytest -q`
   (CI also runs `--cov=app`; add a `DB` migration drift check via `alembic check`).
