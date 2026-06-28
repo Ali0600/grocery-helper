@@ -1,12 +1,17 @@
-name: Weekly scrape
+name: Weekly refresh
 
-# Refreshes deals on the deployed backend once a week (flyers are weekly).
-# NOTE: Render free-tier SQLite is ephemeral (wiped on the next idle sleep), so this
-# is transient until the backend moves to a persistent DB — but it demonstrates the
-# scheduled data-refresh automation and keeps deals fresh between cold starts.
+# Wipes the deployed backend's offers and re-scrapes once a week (flyers are weekly).
+# Runs SUNDAY MORNING: the current week's flyers are Mon–Sat, so by Sunday they're spent
+# and the next week's brochures are already discoverable — refreshing now means fresh deals
+# are loaded before the app's weekly cache goes stale (it expires past Sunday).
+# Uses POST /api/reset (wipe + re-scrape), not /api/scrape (in-place upsert), so stale rows
+# the new scrape no longer touches are cleared too — a clean weekly set, not an accreting one.
+# NOTE: Render free-tier SQLite is ephemeral (wiped on the next idle sleep), so this is
+# transient until the backend moves to a persistent DB — but it demonstrates the scheduled
+# data-refresh automation and keeps deals fresh between cold starts.
 on:
   schedule:
-    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+    - cron: '0 6 * * 0' # Sundays 06:00 UTC (07:00 CET / 08:00 CEST Berlin)
   workflow_dispatch:
     inputs:
       plz:
@@ -16,29 +21,31 @@ on:
 
 permissions:
   contents: read
-  issues: write # open/update an alert issue when the scrape keeps failing
+  issues: write # open/update an alert issue when the refresh keeps failing
 
 jobs:
-  scrape:
-    name: Trigger scrape
+  refresh:
+    name: Wipe and re-scrape
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: POST /api/scrape (retry transient failures)
+      - name: POST /api/reset (retry transient failures)
         env:
           PLZ: ${{ github.event.inputs.plz || '10713' }}
+          # Optional: only enforced if ADMIN_TOKEN is also set on Render (else /api/reset is open).
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
         run: |
           for attempt in 1 2 3; do
-            echo "Attempt $attempt: scraping PLZ $PLZ (free-tier cold start can take ~30s)…"
+            echo "Attempt $attempt: wiping + re-scraping PLZ $PLZ (free-tier cold start can take ~30s)…"
             if curl -fsS --max-time 300 -X POST \
-                 "https://grocery-helper-sw6c.onrender.com/api/scrape?plz=${PLZ}" \
+                 "https://grocery-helper-sw6c.onrender.com/api/reset?plz=${PLZ}&token=${ADMIN_TOKEN}" \
                  -w "HTTP %{http_code} in %{time_total}s\n"; then
               exit 0
             fi
-            echo "::warning::scrape attempt $attempt failed — retrying in 30s"
+            echo "::warning::refresh attempt $attempt failed — retrying in 30s"
             sleep 30
           done
-          echo "::error::scrape failed after 3 attempts"
+          echo "::error::refresh failed after 3 attempts"
           exit 1
 
       # A silent weekly failure is invisible; surface it as a (deduplicated) issue.
@@ -48,7 +55,7 @@ jobs:
         with:
           script: |
             const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const body = `The scheduled scrape failed on ${new Date().toISOString()}.\n\nRun: ${run}`;
+            const body = `The scheduled weekly refresh failed on ${new Date().toISOString()}.\n\nRun: ${run}`;
             const { data: open } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -66,7 +73,7 @@ jobs:
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: 'Weekly scrape failed',
+                title: 'Weekly refresh failed',
                 body,
                 labels: ['scrape-failure'],
               });
