@@ -16,5 +16,5 @@ tzdata>=2024.1
 sentry-sdk[fastapi]>=2.63.0
 # Dev / testing (also used by CI: pytest + ruff lint + coverage)
 pytest>=9.1.1
-pytest-cov>=5.0
+pytest-cov>=7.1.0
 ruff>=0.15
