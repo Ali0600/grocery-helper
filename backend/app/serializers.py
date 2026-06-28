@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .categories import label
 from .models import Offer
+from .organic import is_organic
 from .product_group import product_group
 from .schemas import OfferOut
 from .unit_price import derive_price_per_unit, unit_price_cents
@@ -41,4 +42,5 @@ def offer_to_out(offer: Offer) -> OfferOut:
         valid_to=offer.valid_to,
         valid_days=valid_days_label(offer.valid_from, offer.valid_to),
         day_limited=is_day_limited(offer.valid_from, offer.valid_to),
+        is_bio=is_organic(offer.name, offer.brand),
     )

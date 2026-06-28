@@ -247,6 +247,14 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   some offer is `day_limited`; filters client-side to `day_limited` offers — every non-week-long
   special, not the device date). Measured (10115):
   Lidl ~227 day-limited (Do–Sa/Mo–Fr/Do–Fr/Fr–Sa/Fr); REWE/EDEKA all full Mon–Sat.
+- **Organic ("Bio") filter** (`app/organic.py` `is_organic` → computed `OfferOut.is_bio`):
+  serve-time deterministic detection of organic offers from the name/brand — a word-boundary
+  `bio`/`öko`/`organic` + organic brands (Bioland/Demeter/Naturland/Alnatura/dennree); the word
+  boundary guards substring traps ("…symbiose", "antibiotikafrei"). **No DB column / migration /
+  re-scrape** (like `unit_price_cents`/`valid_days`), so it applies on Render right after deploy.
+  The app badges Bio offers (green pill, `OfferCard`) + a session **"Bio only"** toggle
+  (`BioToggle`, shown only when some offer is `is_bio`; filters client-side, composes with
+  store/category/search/special-days). ~6% of a Berlin PLZ's offers.
 - **Deployment**: backend is live on **Render** (free tier) at
   `https://grocery-helper-sw6c.onrender.com` via the IaC `render.yaml` Blueprint
   (Docker, `backend/Dockerfile`, binds `$PORT`, `/health` check). Render free tier
