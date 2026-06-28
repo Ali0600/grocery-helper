@@ -35,6 +35,11 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
         {meta ? <Text style={styles.meta}>{meta}</Text> : null}
         <View style={styles.tagRow}>
           <Text style={styles.tag}>{offer.category_label}</Text>
+          {offer.is_bio ? (
+            <View style={styles.bioPill}>
+              <Text style={styles.bioText}>Bio</Text>
+            </View>
+          ) : null}
           <View style={[styles.chainPill, { backgroundColor: pill.bg }]}>
             <Text style={[styles.chainText, { color: pill.fg }]}>{chainLabel(offer.chain)}</Text>
           </View>
@@ -142,6 +147,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,159,67,0.18)', // day-limited = orange
   },
   dayText: { color: '#ff9f43', fontSize: 10, fontWeight: '700' },
+  bioPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(76,175,80,0.18)', // organic green
+  },
+  bioText: { color: '#5cc463', fontSize: 10, fontWeight: '700' },
   priceCol: { alignItems: 'flex-end', minWidth: 72 },
   price: { color: colors.text, fontSize: 17, fontWeight: '700' },
   was: {

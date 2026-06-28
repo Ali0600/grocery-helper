@@ -78,8 +78,12 @@ build the cheapest basket across one or two stores.
 - **Day-aware deal validity** — parses each offer's true on-sale window from a
   per-record validity field the feed buries (timezone-correct via `zoneinfo`), so
   day-limited specials (e.g. weekend-only deals) are badged with their days and
-  filterable to "valid today", and ended specials expire correctly instead of
+  filterable as "special days", and ended specials expire correctly instead of
   lingering for the whole flyer week.
+- **Organic ("Bio") product filter** — deterministically flags organic offers from the
+  German name/brand (word-boundary "Bio"/"Öko"/"Organic" + organic certifiers like
+  Bioland/Demeter, trap-guarded against mid-word matches), computed at serve time with no
+  schema change — surfaced as a one-tap "Bio only" filter with a green badge on each organic deal.
 - **Outbound-call observability** — every request to an upstream site is
   instrumented (httpx event hooks) and tallied by source/host, plus a timestamped
   log of the latest calls, exposed at `GET /api/scrape-stats` with a live `/stats`
