@@ -10,12 +10,15 @@ const OPTIONS: { value: boolean; label: string }[] = [
 
 /** Session toggle: when on, show only "special days" deals — day-limited specials
  *  whose sale window is shorter than the normal Mon–Sat week (a Thu–Sat
- *  Wochenend-Kracher, a Friday-only deal, …), regardless of today's weekday. */
+ *  Wochenend-Kracher, a Friday-only deal, …), regardless of today's weekday. `count` is
+ *  the number of day-limited offers, shown on the "Special days" pill. */
 export function SpecialDaysToggle({
   value,
+  count,
   onChange,
 }: {
   value: boolean;
+  count: number;
   onChange: (value: boolean) => void;
 }) {
   return (
@@ -23,13 +26,14 @@ export function SpecialDaysToggle({
       <Text style={styles.label}>Days</Text>
       {OPTIONS.map((o) => {
         const active = value === o.value;
+        const label = o.value ? `${o.label} (${count})` : o.label;
         return (
           <Pressable
             key={String(o.value)}
             onPress={() => onChange(o.value)}
             style={[styles.pill, active && styles.pillActive]}
           >
-            <Text style={[styles.text, active && styles.textActive]}>{o.label}</Text>
+            <Text style={[styles.text, active && styles.textActive]}>{label}</Text>
           </Pressable>
         );
       })}

@@ -71,7 +71,9 @@ export function CategoryChips({
         />
       )}
       <Pressable onPress={onToggleNonFood} style={[styles.chip, styles.toggle]}>
-        <Text style={styles.toggleText}>{showNonFood ? '− Non-food' : '+ Non-food'}</Text>
+        <Text style={styles.toggleText}>
+          {`${showNonFood ? '−' : '+'} Non-food${nonFood ? ` (${nonFood.count})` : ''}`}
+        </Text>
       </Pressable>
     </ScrollView>
   );
