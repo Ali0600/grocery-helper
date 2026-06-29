@@ -89,6 +89,15 @@ export type ResetResult = {
   stores: Store[];
 };
 
+// GET /api/offers/{id}/payload — the full raw source object the offer was scraped from
+// (flyer `content` dict / Lidl coupon dict). `payload` is null if it wasn't captured
+// (offer scraped before the field existed, or sample-data fallback).
+export type OfferPayload = {
+  id: number;
+  source: string;
+  payload: Record<string, unknown> | null;
+};
+
 // --- AI Recipes (offline-authored, bundled in the app; no runtime API) ---
 
 // One ingredient line in a recipe. `keywords`/`exclude` are German name stems matched

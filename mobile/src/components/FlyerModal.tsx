@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,10 +12,11 @@ import {
   View,
 } from 'react-native';
 
+import { api } from '../api';
 import { chainLabel } from '../chains';
 import { cleanUnit, euro, fmtPricePerUnit, formatBrand } from '../format';
 import { colors } from '../theme';
-import { Offer } from '../types';
+import { Offer, OfferPayload } from '../types';
 
 // Per-chain link to the full weekly online leaflet (Prospekt).
 const FLYER_LINKS: Record<string, { label: string; url: string }> = {
@@ -23,6 +26,38 @@ const FLYER_LINKS: Record<string, { label: string; url: string }> = {
 
 export function FlyerModal({ offer, onClose }: { offer: Offer | null; onClose: () => void }) {
   const flyer = offer ? FLYER_LINKS[offer.chain] : null;
+
+  // "View payload": lazily fetch the offer's full raw source payload on demand.
+  const [showPayload, setShowPayload] = useState(false);
+  const [payload, setPayload] = useState<OfferPayload | undefined>(undefined);
+  const [loadingPayload, setLoadingPayload] = useState(false);
+  const [payloadError, setPayloadError] = useState<string | null>(null);
+
+  // Reset the payload view whenever the modal opens a different offer (or closes).
+  useEffect(() => {
+    setShowPayload(false);
+    setPayload(undefined);
+    setLoadingPayload(false);
+    setPayloadError(null);
+  }, [offer?.id]);
+
+  const togglePayload = useCallback(() => {
+    if (showPayload) {
+      setShowPayload(false);
+      return;
+    }
+    setShowPayload(true);
+    if (payload === undefined && offer) {
+      setLoadingPayload(true);
+      setPayloadError(null);
+      api
+        .offerPayload(offer.id)
+        .then(setPayload)
+        .catch(() => setPayloadError('Could not load the payload.'))
+        .finally(() => setLoadingPayload(false));
+    }
+  }, [showPayload, payload, offer]);
+
   return (
     <Modal visible={!!offer} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -80,6 +115,33 @@ export function FlyerModal({ offer, onClose }: { offer: Offer | null; onClose: (
                 >
                   <Text style={styles.flyerBtnText}>{`Open ${flyer.label}'s weekly flyer ↗`}</Text>
                 </Pressable>
+              )}
+
+              <Pressable
+                style={({ pressed }) => [styles.payloadBtn, pressed && styles.flyerBtnPressed]}
+                onPress={togglePayload}
+              >
+                <Text style={styles.payloadBtnText}>
+                  {showPayload ? 'Hide payload' : 'View payload'}
+                </Text>
+              </Pressable>
+
+              {showPayload && (
+                <View style={styles.payloadBox}>
+                  {loadingPayload ? (
+                    <ActivityIndicator color={colors.accent} />
+                  ) : payloadError ? (
+                    <Text style={styles.muted}>{payloadError}</Text>
+                  ) : payload?.payload ? (
+                    <Text style={styles.payloadText} selectable>
+                      {JSON.stringify(payload.payload, null, 2)}
+                    </Text>
+                  ) : (
+                    <Text style={styles.muted}>
+                      Payload not captured yet — re-scrape to record it.
+                    </Text>
+                  )}
+                </View>
               )}
             </ScrollView>
           )}
@@ -143,4 +205,33 @@ const styles = StyleSheet.create({
   },
   flyerBtnPressed: { opacity: 0.7 },
   flyerBtnText: { color: colors.accent, fontSize: 15, fontWeight: '600' },
+  payloadBtn: {
+    marginTop: 10,
+    backgroundColor: colors.card2,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  payloadBtnText: { color: colors.muted, fontSize: 14, fontWeight: '600' },
+  payloadBox: {
+    marginTop: 12,
+    alignSelf: 'stretch',
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  payloadText: {
+    color: colors.text,
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
 });
