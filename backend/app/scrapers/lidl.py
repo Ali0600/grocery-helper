@@ -132,6 +132,7 @@ class LidlScraper:
             image_url=o.get("imageUrl"),
             valid_from=self._parse_date(o.get("startValidityDate")),
             valid_to=self._parse_date(o.get("endValidityDate")),
+            raw=o,
         )
 
     @staticmethod
