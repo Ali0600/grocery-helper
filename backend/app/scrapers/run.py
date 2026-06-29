@@ -86,6 +86,7 @@ def _upsert(session: Session, store: Store, offers: List[ScrapedOffer], source: 
         offer.image_url = raw.image_url
         offer.valid_from = raw.valid_from
         offer.valid_to = raw.valid_to
+        offer.raw_payload = json.dumps(raw.raw, ensure_ascii=False) if raw.raw else None
         if is_new:
             session.add(offer)
         count += 1

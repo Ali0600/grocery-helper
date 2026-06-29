@@ -211,6 +211,7 @@ class MeinprospektScraper:
             valid_from=vf,
             valid_to=vt,
             category_path=category_path,
+            raw=c,
         )
 
     # -- fallback sample (overridden per chain) -------------------------------

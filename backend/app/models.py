@@ -71,6 +71,10 @@ class Offer(Base):
     image_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     valid_from: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     valid_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    # The full raw source object (flyer `content` / Lidl coupon dict) as a JSON string,
+    # set at scrape time. Served on demand by GET /api/offers/{id}/payload for the app's
+    # "View payload" — not in OfferOut (too large for the list). Null pre-capture/sample.
+    raw_payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     scraped_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     store: Mapped["Store"] = relationship(back_populates="offers")

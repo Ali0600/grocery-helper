@@ -1,4 +1,12 @@
-import { CategoryCount, NearbyStore, Offer, ResetResult, ScrapeResult, Store } from './types';
+import {
+  CategoryCount,
+  NearbyStore,
+  Offer,
+  OfferPayload,
+  ResetResult,
+  ScrapeResult,
+  Store,
+} from './types';
 
 // Default to the deployed backend so device + OTA builds work out of the box. Override
 // via mobile/.env (EXPO_PUBLIC_API_URL) for local dev — e.g. http://localhost:8001, or
@@ -53,6 +61,12 @@ export const api = {
 
   stores() {
     return get<Store[]>('/api/stores');
+  },
+
+  // The full raw source payload of one offer (flyer content / Lidl coupon dict), for the
+  // "View payload" view in the deal detail. `payload` is null if not captured yet.
+  offerPayload(id: number) {
+    return get<OfferPayload>(`/api/offers/${id}/payload`);
   },
 
   // Nearest store of each known chain around the PLZ (OSM); active=true for

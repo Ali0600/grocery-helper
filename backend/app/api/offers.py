@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from collections import Counter
 from datetime import date
@@ -65,6 +66,19 @@ def list_offers(
     else:
         rows.sort(key=lambda o: o.price_cents)
     return [offer_to_out(o) for o in rows[:limit]]
+
+
+@router.get("/offers/{offer_id}/payload")
+def offer_payload(session: SessionDep, offer_id: int):
+    """The full raw source payload an offer was scraped from (flyer `content` /
+    Lidl coupon dict), for the app's "View payload" debug view. `payload` is null for
+    offers scraped before the field existed or from sample-data fallback — re-scrape to
+    capture it. Read-only; not part of OfferOut (too large for the list)."""
+    offer = session.get(Offer, offer_id)
+    if offer is None:
+        raise HTTPException(status_code=404, detail="offer not found")
+    payload = json.loads(offer.raw_payload) if offer.raw_payload else None
+    return {"id": offer.id, "source": offer.source, "payload": payload}
 
 
 @router.get("/categories", response_model=List[CategoryCount])
