@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- launchd agent: regenerate the app's AI recipes weekly (Sundays 10:00 local) and OTA-ship.
+     Install:
+       cp scripts/com.groceryhelper.recipes.plist ~/Library/LaunchAgents/
+       launchctl load ~/Library/LaunchAgents/com.groceryhelper.recipes.plist
+     Trigger a test run now:  launchctl start com.groceryhelper.recipes
+     Logs: .recipe-regen.log (repo root). Adjust the paths/PATH below to your machine. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.groceryhelper.recipes</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/ah/grocery-helper/scripts/regenerate-recipes.sh</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/Users/ah/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key>
+    <integer>0</integer>
+    <key>Hour</key>
+    <integer>10</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/ah/grocery-helper/.recipe-regen.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/ah/grocery-helper/.recipe-regen.log</string>
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

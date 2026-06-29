@@ -23,3 +23,6 @@ web-build/
 .DS_Store
 .idea/
 .vscode/
+
+# Weekly recipe automation (local-only artifacts)
+.recipe-candidates.json
