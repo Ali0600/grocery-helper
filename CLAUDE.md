@@ -318,8 +318,11 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 - **CI/CD is GitHub Actions** (`.github/workflows/`): `ci.yml` (backend
   `ruff`+`pytest --cov`+`alembic upgrade head`/`alembic check`, mobile
   ESLint+`tsc`+`jest`, backend Docker build; on green `main` pushes a `deploy` job curls
-  the Render deploy hook), `eas-update.yml` (OTA via `eas update --branch production` on
-  `mobile/**` pushes), `scrape.yml` (**Sunday 06:00 UTC** cron → `POST /api/reset`
+  the Render deploy hook), `eas-update.yml` (OTA via `eas update --branch production`, **gated
+  on a green CI run**: triggers via `workflow_run` *after* the `CI` workflow succeeds on `main`,
+  not on raw push — so a broken bundle can't ship; `workflow_run` can't path-filter, so the job
+  pins checkout to the passing commit's SHA and re-applies the `mobile/**` filter via `git diff
+  HEAD~1 HEAD`, skipping backend-only commits), `scrape.yml` (**Sunday 06:00 UTC** cron → `POST /api/reset`
   — wipe + re-scrape, *not* upsert, so the prior week's stale offers are cleared; runs Sunday
   because flyers are Mon–Sat so they're spent by then and next week's are already discoverable,
   refreshing before the app's weekly cache expires past Sunday — retries 3× and opens/comments a
@@ -345,3 +348,14 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   (`__DEV__` / `Platform.OS` / `Updates.isEnabled` guards), best-effort, once per session.
   Only fires in a build embedding `expo-updates` at the matching `runtimeVersion`.
 - **Commits**: author as the user only — no `Co-Authored-By: Claude` trailer.
+- **Branching — hybrid by blast radius** (solo dev): **branch + PR + squash-merge-on-green** for
+  anything that ships or can break CI (backend/mobile code, migrations, **workflow/CI files**,
+  Dockerfile); **direct to `main`** for zero-prod-impact docs/dev-tooling (README, `dev.sh`,
+  CLAUDE.md). After landing, leave `main` checked out with the change pulled — don't strand on a
+  deleted branch. I own the full path to `main` now: commit→push→PR→wait green→`gh pr merge
+  --squash` (the user no longer merges manually).
+- **`main` is protected by two rulesets** (GitHub, `gh api repos/.../rulesets`): *protect history*
+  (`deletion` + `non_fast_forward`, **no bypass** — no force-push/delete) and *require green PR*
+  (`required_linear_history` + `pull_request` 0-approvals squash-only + `required_status_checks`:
+  Backend / Mobile / Backend image builds), the latter with **admin bypass** so direct docs pushes
+  still work. "Deploy to Render" is **not** a required check (it only runs post-merge on `main`).
