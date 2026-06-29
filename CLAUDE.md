@@ -210,6 +210,16 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   are skipped (not a simple per-item price). Shown in the **deal detail** (`FlyerModal`,
   "Mit App: …") — no longer a card pill after the UI redesign; ~24 EDEKA offers/PLZ. Display-only
   (doesn't touch sort/optimizer — those keep the guaranteed flyer price).
+- **Raw source payload is persisted for "View payload"** (`Offer.raw_payload`, JSON Text): the
+  scrapers capture the **full** source object verbatim (`ScrapedOffer.raw` — flyer `content` dict
+  in `bonial.py`, Lidl coupon dict in `lidl.py`), written by `run.py` `_upsert`. Served on demand
+  by **`GET /api/offers/{id}/payload`** (`{id, source, payload}`) — deliberately **not** in
+  `OfferOut` (too big for the 2000-offer list). The app's `FlyerModal` has a **"View payload"**
+  button that lazily fetches + pretty-prints it (every field the source returns, incl. ones we
+  drop: flyer `parentContent`/`publisher`/`linkOuts`/alt images/`deals[].min`; coupon
+  `offerType`/`redemptionChannel`/`productIds`/`featured`). **Set at scrape time** → `raw_payload`
+  is null for pre-capture/sample rows (UI shows "not captured yet"); Render's Sunday reset
+  backfills prod. Migration `210fa9f3d7a9`.
 - **"Cheapest €/kg" sort** uses `OfferOut.unit_price_cents` — `app/unit_price.py`
   `unit_price_cents()` normalizes `price_per_unit` to cents per **kg or litre** on
   one comparable axis (German Grundpreis; per-`Stück`/`wl`/`m`/malformed → None).
