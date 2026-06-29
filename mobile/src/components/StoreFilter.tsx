@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
 import { chainColors, chainLabel } from '../chains';
 import { colors } from '../theme';
@@ -19,7 +19,12 @@ export function StoreFilter({
   onChange: (chain: string | null) => void;
 }) {
   return (
-    <View style={styles.row}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
+      contentContainerStyle={styles.row}
+    >
       <Text style={styles.label}>Store</Text>
       <Pressable
         onPress={() => onChange(null)}
@@ -42,11 +47,12 @@ export function StoreFilter({
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: { flexGrow: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 8 },
   label: { color: colors.muted, fontSize: 12, fontWeight: '600', marginRight: 2 },
   pill: {
