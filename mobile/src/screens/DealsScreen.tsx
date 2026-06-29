@@ -384,11 +384,13 @@ export default function DealsScreen() {
   const storeBase = effectiveStore ? foodBase.filter((o) => o.chain === effectiveStore) : foodBase;
   // "Special days" is a global lens (like the store filter): keep only day-limited
   // specials (sale window shorter than the Mon–Sat week), regardless of today's date.
-  const hasDayLimited = offers.some((o) => o.day_limited);
+  const dayLimitedCount = offers.filter((o) => o.day_limited).length;
+  const hasDayLimited = dayLimitedCount > 0;
   const base =
     specialDays && hasDayLimited ? storeBase.filter((o) => o.day_limited) : storeBase;
   // "Bio only" is another global lens: keep just organic offers (server-computed is_bio).
-  const hasBio = offers.some((o) => o.is_bio);
+  const bioCount = offers.filter((o) => o.is_bio).length;
+  const hasBio = bioCount > 0;
   const bioBase = bioOnly && hasBio ? base.filter((o) => o.is_bio) : base;
   const visibleOffers = q
     ? bioBase.filter(
@@ -489,8 +491,10 @@ export default function DealsScreen() {
           />
         )}
 
-        {hasDayLimited && <SpecialDaysToggle value={specialDays} onChange={setSpecialDays} />}
-        {hasBio && <BioToggle value={bioOnly} onChange={setBioOnly} />}
+        {hasDayLimited && (
+          <SpecialDaysToggle value={specialDays} count={dayLimitedCount} onChange={setSpecialDays} />
+        )}
+        {hasBio && <BioToggle value={bioOnly} count={bioCount} onChange={setBioOnly} />}
 
         <SortToggle mode={sortMode} onChange={onChangeSort} />
 
