@@ -442,3 +442,34 @@ bumps; Dependabot *security* updates (CVE-driven) still cover npm.
 **Takeaway:** don't run a per-package version-updater on an Expo (or any framework-pinned) npm
 project — version those deps via the framework's installer. `0.x` "minor" bumps are breaking, so
 group/minor filters won't save you.
+
+### Gate every production-publish workflow on CI (`workflow_run`)
+A workflow that deploys or publishes to users should depend on the same checks that gate the rest
+of CI — otherwise it ships even when tests are red. The Render *deploy* job was already gated
+(`needs: [backend, docker-build]`), but `eas-update.yml` triggered on raw `push` to `main`
+(`paths: ['mobile/**']`) and OTA-published to production **in parallel with CI**, so a failing
+build could still reach phones.
+**Why it came up:** auditing what a merge to `main` actually triggers — the OTA was the one
+ungated path to production. Fixed by re-triggering OTA via `workflow_run` *after* the `CI`
+workflow concludes `success` on `main`, gated with `if: github.event.workflow_run.conclusion ==
+'success'`. Gotchas: `workflow_run` has **no `paths:` filter** (re-apply it with a `git diff
+HEAD~1 HEAD` inside the job) and checks out the default-branch HEAD by default (pin `ref:
+github.event.workflow_run.head_sha` to publish the exact commit that passed).
+**Takeaway:** enumerate every trigger that reaches production and confirm each one *waits for*
+CI; a push-triggered deploy/publish running beside CI is a hole. Cross-workflow gate = `workflow_run`.
+
+### Branch protection as two rulesets: hard history + soft PR gate with admin bypass
+GitHub ruleset bypass is **per-ruleset, not per-rule**, so "admin can push docs straight to main"
+and "nobody (incl. admin) can force-push/delete main" can't live in one ruleset. Split them:
+one *protect-history* ruleset (`deletion` + `non_fast_forward`, **no bypass**) and one
+*require-green-PR* ruleset (`required_status_checks` + `pull_request` + `required_linear_history`,
+**admin bypass = always**). Also: `required_status_checks` effectively *forces* a PR (you can't
+push a not-yet-passing commit to the protected branch), which is why the admin bypass is what
+preserves direct-to-`main` for zero-risk docs.
+**Why it came up:** a solo repo whose `main` triggers deploy + OTA — wanted enforced safety on
+the paths that ship, without ceremony for docs. Bypass actor for the Admin role is
+`{actor_id: 5, actor_type: "RepositoryRole"}`; required-check `context` strings are the CI **job
+names** (e.g. `Backend (ruff + pytest + alembic)`), and a job that only runs post-merge (Deploy
+to Render) can't be a required pre-merge check.
+**Takeaway:** model branch protection by which rules need to bind *everyone* vs which need an
+escape hatch, and put them in separate rulesets; required status checks imply a PR flow.
