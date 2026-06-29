@@ -473,3 +473,23 @@ names** (e.g. `Backend (ruff + pytest + alembic)`), and a job that only runs pos
 to Render) can't be a required pre-merge check.
 **Takeaway:** model branch protection by which rules need to bind *everyone* vs which need an
 escape hatch, and put them in separate rulesets; required status checks imply a PR flow.
+
+### Keyless local LLM automation (`claude -p`) + scheduled-job env hygiene
+The recipe pipeline must regenerate weekly but keeps **no managed LLM key anywhere** (not even a
+CI secret), so the one non-deterministic step (authoring `recipes.ts`) runs through **headless
+Claude Code** — `claude -p "$(cat prompt.md)" --permission-mode acceptEdits --allowedTools
+"Read,Write,Edit"` — using the developer's *local* login. A validation gate (`tsc`+`lint`, abort
+before commit) keeps bad generations from shipping, and the existing `eas-update` OTA handles
+delivery once the file is pushed. Scheduling is **launchd** (macOS), not CI, for the same keyless
+reason.
+**Why it came up:** the recipes went stale into a new week because the weekly regen was manual;
+automating it locally was the only keyless option. Two env gotchas bit (or would have): launchd
+runs with a **minimal environment** — `node` came from `fnm`'s *session-dynamic* path
+(`fnm_multishells/<pid>/…`) which doesn't exist for a daemon, and `git push` may fail because the
+launchd session has no ssh-agent/keychain. Fixes: the script re-resolves tools explicitly
+(`/opt/homebrew/bin` + `$HOME/.local/bin` + newest `fnm/node-versions/*/installation/bin`), and the
+push path must be verified manually first (HTTPS credential helper / `gh`).
+**Takeaway:** to keep a pipeline keyless, drive the LLM step from local `claude -p` behind a
+build-gate, not a CI key. And never trust the interactive shell's env in a scheduled job —
+resolve every binary (and auth) explicitly; a tool that works in your terminal can be absent under
+launchd/cron.
