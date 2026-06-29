@@ -28,7 +28,7 @@ from app.categories import CATEGORIES, classify
         ("DELUXE Irisches Angus Rumpsteak", "DELUXE", "beef"),
         ("Sol & Mar Chorizo Klassik", "Sol & Mar", "pork"),
         ("Dulano Delikatess Bacon", "Dulano", "pork"),
-        ("Gelatelli Premium Stieleis", "Gelatelli", "frozen"),
+        ("Gelatelli Premium Stieleis", "Gelatelli", "ice_cream"),
         ("Ferrero Hanuta", "Ferrero", "sweets"),
         ("Moët & Chandon Impérial Champagner", "Moët & Chandon", "beverages"),
         ("Milbona Edamer", "Milbona", "cheese"),
@@ -39,7 +39,18 @@ from app.categories import CATEGORIES, classify
         ("Volvic Touch Zitrone Limette", "Volvic", "beverages"),  # "limette" != Mett
         ("Lipton Ice Tea Pfirsich", "Lipton", "beverages"),  # not fruit ("pfirsich")
         ("Trumpf Schogetten Freeze Mango", "Trumpf", "sweets"),  # not fruit ("mango")
-        ("Häagen-Dazs Belgian Chocolate", "Häagen-Dazs", "frozen"),  # ice cream, not sweets
+        ("Häagen-Dazs Belgian Chocolate", "Häagen-Dazs", "ice_cream"),  # ice cream, not sweets
+        # --- ice cream split out of frozen ---
+        ("Langnese Cremissimo Vanille", "Langnese", "ice_cream"),
+        ("Bon Gelati Wassereis", "Bon Gelati", "ice_cream"),  # "wassereis" (contains "reis"!) is ice cream
+        ("Snickers Ice Cream", None, "ice_cream"),  # beats the snickers->sweets rule
+        ("Mövenpick Zitronensorbet", "Mövenpick", "ice_cream"),
+        # --- savoury frozen stays frozen; "eis" substring traps must NOT be ice cream ---
+        ("Wagner Steinofen-Pizza Salame", "Wagner", "frozen"),
+        ("McCain 1-2-3 Original Fries", "McCain", "frozen"),
+        ("Frisches Rindfleisch-Gulasch", None, "beef"),  # "Fleisch" contains "eis"
+        ("Müller Milchreis", "Müller", "dairy"),  # "Reis" contains "eis"
+        ("Pfanner Eistee Pfirsich", "Pfanner", "beverages"),  # Eistee is a drink, not ice cream
     ],
 )
 def test_classify(name, brand, expected):
@@ -92,7 +103,7 @@ _BRAND_ONLY = [_FOOD, "Marken", "Marken Lebensmittel"]  # brand-organized, no pr
         ("Deutsche See Pulpo-Arme", "Deutsche See", _BRAND_ONLY, "fish"),
         ("Katjes Fruchtgummi", "Katjes", _BRAND_ONLY, "sweets"),
         ("Lay's Gesalzen", "Lay's", _BRAND_ONLY, "snacks"),
-        ("Nuii Ice Cream Salted Caramel", "Nuii", _BRAND_ONLY, "frozen"),
+        ("Nuii Ice Cream Salted Caramel", "Nuii", _BRAND_ONLY, "ice_cream"),
         ("Danone Frucht Zwerge", "Danone", _BRAND_ONLY, "dairy"),
         # taxonomy nodes added for the REWE catalog
         ("Choi's Bibimmyoen Carbonara", "Choi's",
@@ -131,7 +142,7 @@ def test_classify_rewe_flyer(name, brand, path, expected):
         ("Gut&Günstig Blätterteig-Vanillestange", "Gut&Günstig", "bakery"),
         ("Alnatura Bio Penne, Fusilli oder Spaghetti", "Alnatura", "pantry"),
         ("EDEKA Bio My Veggie Falafel", "EDEKA Bio", "pantry"),
-        ("Mövenpick Edle Komposition", "Mövenpick", "frozen"),    # brand
+        ("Mövenpick Edle Komposition", "Mövenpick", "ice_cream"),  # ice cream brand
         ("Frosta Fertiggerichte", "Frosta", "frozen"),
         ("McCain Pickers", "McCain", "frozen"),
         ("Hochland Sandwich Scheiben", "Hochland", "cheese"),
@@ -205,7 +216,7 @@ def test_classify_expanded_paths(path, expected):
         ("Apfelsaft naturtrüb", None, "beverages"),  # juice, not "apfel"
         ("Erdbeer Joghurt", None, "dairy"),  # yogurt, not "erdbeere"
         # week-of-2026-06-23 fruit-trap fixes (confirmed against the product images)
-        ("REWE Bio Mango Sorbet", "REWE Bio", "frozen"),  # sorbet is frozen, not "mango"
+        ("REWE Bio Mango Sorbet", "REWE Bio", "ice_cream"),  # sorbet is ice cream, not "mango"
         ("Vilsa H2 Obst Apfel-Limette-Zitrone", "Vilsa", "beverages"),  # water brand, not "apfel"
         ("Bioland Bio Mini Pflaumentomaten", "Bioland", "vegetables"),  # tomato, not "pflaume"
         ("Unsere Heimat Apfelessig", "Unsere Heimat", "pantry"),  # vinegar, not "apfel"

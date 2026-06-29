@@ -36,6 +36,7 @@ CATEGORIES: dict[str, str] = {
     "dairy": "Milk & Dairy",
     "bakery": "Bakery",
     "frozen": "Frozen",
+    "ice_cream": "Ice Cream",
     "sweets": "Sweets & Chocolate",
     "snacks": "Snacks",
     "beverages": "Beverages",
@@ -73,8 +74,9 @@ _PATH_MAP: dict[str, str] = {
     "frischkäse": "cheese", "schnittkäse": "cheese",
     "milch": "dairy", "milchprodukte": "dairy", "joghurt": "dairy", "quark": "dairy",
     "sahne": "dairy", "butter": "butter",
+    # ice cream (the source's "Eis" nodes are specifically ice cream, not savoury frozen)
+    "eis": "ice_cream", "stieleis": "ice_cream", "eis am stiel": "ice_cream", "speiseeis": "ice_cream",
     # frozen / sweets / bakery / snacks
-    "eis": "frozen", "stieleis": "frozen", "eis am stiel": "frozen", "speiseeis": "frozen",
     "süßigkeiten": "sweets", "schokolade": "sweets", "pralinen": "sweets", "bonbons": "sweets",
     "fruchtgummi": "sweets",
     "backwaren": "bakery", "gebäck": "bakery", "feingebäck": "bakery", "brot": "bakery",
@@ -116,9 +118,15 @@ _PATH_MAP: dict[str, str] = {
 
 # (slug, [German keywords]); first matching rule wins.
 _RULES: list[tuple[str, list[str]]] = [
-    ("frozen", ["tiefkühl", "tiefkuehl", "tk-", "tk ", "gefrier", "eiscreme", "speiseeis", "ice cream",
-                "stieleis", "eis am stiel", "gelatelli", "gelati", "langnese", "cornetto", "magnum", "plombir",
-                "sorbet", "pizza", "steinofen", "pommes", "wedges", "burrito", "piccolini"]),
+    # Ice cream before frozen (and before sweets, so "Snickers Ice Cream" isn't sweets).
+    # " eis " is the standalone word only — space-padded so it can't fire inside Fleisch /
+    # Reis / Eisberg / Eistee / Eiweiß (verified against the live catalog: 0 leaks).
+    ("ice_cream", ["eiscreme", "speiseeis", "ice cream", "stieleis", "eis am stiel", "wassereis",
+                   "soft-eis", "softeis", "milcheis", "fruchteis", "sandwich-eis", "sandwich eis",
+                   "eisbecher", " eis ", "sorbet", "gelato", "plombir", "cremissimo", "magnum",
+                   "cornetto", "pirulo", "nogger", "solero", "calippo", "viennetta", "nuii"]),
+    ("frozen", ["tiefkühl", "tiefkuehl", "tk-", "tk ", "gefrier", "pizza", "steinofen", "pommes",
+                "wedges", "burrito", "piccolini"]),
     ("fish", ["fisch", "lachs", "thunfisch", "garnele", "forelle", "hering", "sardin", "sardelle",
               "scampi", "matjes", "meeresfrüchte", "octopus", "tentakel", "kalmar", "calamares", "prawn"]),
     ("poultry", ["hähnchen", "haehnchen", "huhn", "hühner", "pute", "puten", "geflügel", "chicken", "corned turkey"]),
@@ -186,22 +194,23 @@ _RULES: list[tuple[str, list[str]]] = [
 # Sol & Mar, Zott) are left to the path / keyword layers.
 BRAND_CATEGORY: dict[str, str] = {
     "allini": "beverages", "mister choc": "sweets", "ritter sport": "sweets", "milka": "sweets",
-    "iglo": "frozen", "gelatelli": "frozen", "langnese": "frozen", "bon gelati": "frozen",
+    "iglo": "frozen", "gelatelli": "ice_cream", "langnese": "ice_cream", "bon gelati": "ice_cream",
+    "schöller": "ice_cream", "ben & jerry's": "ice_cream", "ben & jerry": "ice_cream",
     "gustavo gusto": "frozen", "ferrero": "sweets", "loacker": "sweets", "rondo": "sweets",
     "dulano": "pork", "meica": "pork", "brunch": "cheese", "kerrygold": "butter",
     "valensina": "beverages", "lipton": "beverages", "volvic": "beverages",
-    "schogetten": "sweets", "berggold": "sweets", "häagen-dazs": "frozen",
+    "schogetten": "sweets", "berggold": "sweets", "häagen-dazs": "ice_cream",
     # REWE flyer brands (paths are often brand-only -> no taxonomy node to use)
     "mirée": "cheese", "miree": "cheese", "salakis": "cheese", "leerdammer": "cheese",
     "bergader": "cheese", "violife": "cheese", "rotkäppchen": "beverages",
     "deutsche see": "fish", "katjes": "sweets", "lay's": "snacks", "lorenz": "snacks",
-    "nuii": "frozen", "danone": "dairy",
+    "nuii": "ice_cream", "danone": "dairy",
     # EDEKA flyer brands (single-category; the house lines Gut&Günstig / EDEKA /
     # EDEKA Herzstücke / EDEKA Bio are multi-category -> left to path+keywords).
     "schäfer's": "bakery", "mestemacher": "bakery", "elpozo": "pork",
     "citterio": "pork", "steinhaus": "pork", "houdek": "pork",
     "bauern gut": "pork", "bauerngut": "pork", "wiesenhof": "poultry",
-    "frosta": "frozen", "mccain": "frozen", "mövenpick": "frozen", "moevenpick": "frozen",
+    "frosta": "frozen", "mccain": "frozen", "mövenpick": "ice_cream", "moevenpick": "ice_cream",
     "hochland": "cheese", "trolli": "sweets", "nescafé": "beverages", "nescafe": "beverages",
     "chio": "snacks", "sonnen bassermann": "pantry", "edeka zuhause": "household",
     # more single-category food brands (from the live "other" survey across all 3 chains).
@@ -214,7 +223,7 @@ BRAND_CATEGORY: dict[str, str] = {
     "bahlsen": "sweets", "marabou": "sweets",
     "saint agur": "cheese", "rougette": "cheese", "petrella": "cheese", "almette": "cheese",
     "géramont": "cheese", "geramont": "cheese", "becel": "butter",
-    "florida eis": "frozen", "leffe": "beverages", "heineken": "beverages",
+    "florida eis": "ice_cream", "leffe": "beverages", "heineken": "beverages",
     "starbucks": "beverages", "wiltmann": "pork", "wilhelm brandenburg": "pork",
     "baldauf": "cheese", "wagner": "frozen", "purina": "household", "pedigree": "household",
     # non-food house / appliance / care / fashion brands
@@ -238,9 +247,13 @@ BRAND_CATEGORY: dict[str, str] = {
 # or an unambiguous brand, never a mere flavour — so a frozen "…Schoko" brand isn't dragged
 # here. Space-guarded where a fruit word is a superstring ("nektar " vs "Nektarine").
 _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
-    ("beverages", ["limonade", "schorle", "nektar ", "smoothie", "saft ", "fruchtsaft", "vilsa"]),
+    ("beverages", ["limonade", "schorle", "nektar ", "smoothie", "saft ", "fruchtsaft", "vilsa",
+                   "jägermeister"]),
     ("dairy", ["joghurt", "jogurt", "froop", "skyr", "müllermilch", "fruchtzwerge", "fruchtquark"]),
     ("snacks", ["chips", "trüfrü", "trufru"]),  # freeze-dried fruit snack filed under Obst
+    # Root veg the source sometimes mis-files under "Dessert > Eis" (a carrot is not ice cream).
+    # After beverages/dairy so Möhrensaft/Möhrenjoghurt still win their form.
+    ("vegetables", ["möhre", "möhren"]),
 ]
 
 # Flavour / drink-type tokens (and specific compounds that must beat a generic fruit
