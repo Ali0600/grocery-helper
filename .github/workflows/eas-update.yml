@@ -1,13 +1,17 @@
 name: EAS Update (OTA)
 
-# Publishes an over-the-air JS/asset update to the production channel on mobile
-# changes. OTA only reaches a build that embeds expo-updates at the matching
-# runtimeVersion (app.json `runtimeVersion.policy: appVersion`) — so a fresh
-# `eas build` is required once before updates land on installed apps.
+# Publishes an over-the-air JS/asset update to the production channel — but ONLY after
+# the "CI" workflow succeeds on main, so a broken bundle can't ship to users. We trigger
+# on workflow_run (not push) to gate on CI; workflow_run can't path-filter, so the job
+# checks whether mobile/** actually changed in the merged commit and skips otherwise.
+# OTA only reaches a build embedding expo-updates at the matching runtimeVersion
+# (app.json `runtimeVersion.policy: appVersion`) — a fresh `eas build` is required once
+# before updates land on installed apps.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-    paths: ['mobile/**']
   workflow_dispatch:
 
 permissions:
@@ -22,10 +26,40 @@ jobs:
     name: Publish OTA update
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Only after a *successful* CI run on main (or a manual dispatch). workflow_run fires
+    # regardless of the triggering run's conclusion, so the success gate is explicit.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     steps:
-      # Skip gracefully until the Expo token is configured, so the workflow stays
-      # green before EAS Update is enabled (mirrors the Render deploy gate).
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # On workflow_run, the default checkout is the default branch HEAD; pin to the
+          # exact commit that passed CI. Depth 2 so we can diff what that commit changed.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          fetch-depth: 2
+
+      # workflow_run has no paths filter, so replicate the old `paths: ['mobile/**']`
+      # gate by diffing the merged commit. A manual dispatch always publishes.
+      - name: Did mobile/** change?
+        id: filter
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "manual dispatch — publishing"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only HEAD~1 HEAD | grep -q '^mobile/'; then
+            echo "mobile/** changed — publishing"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no mobile/** changes in this commit — skipping OTA"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Skip gracefully until the Expo token is configured, so the workflow stays green
+      # before EAS Update is enabled (mirrors the Render deploy gate).
       - name: Check for EXPO_TOKEN
+        if: steps.filter.outputs.changed == 'true'
         id: check
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -36,10 +70,6 @@ jobs:
           else
             echo "has_token=true" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Checkout
-        if: steps.check.outputs.has_token == 'true'
-        uses: actions/checkout@v7
 
       - name: Setup Node
         if: steps.check.outputs.has_token == 'true'
@@ -64,6 +94,6 @@ jobs:
       - name: Publish update to the production channel
         if: steps.check.outputs.has_token == 'true'
         working-directory: mobile
-        env:
-          UPDATE_MSG: ${{ github.event.head_commit.message || format('Manual OTA from {0}', github.sha) }}
-        run: eas update --branch production --message "$UPDATE_MSG" --non-interactive
+        run: |
+          MSG="$(git log -1 --pretty=%s)"
+          eas update --branch production --message "$MSG" --non-interactive
