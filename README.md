@@ -273,8 +273,8 @@ Three workflows under [`.github/workflows/`](.github/workflows/):
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
 | `ci.yml` | push / PR to `main` | Backend `ruff` + `pytest`, mobile ESLint + `tsc`, and a backend Docker image build. On green pushes to `main` it triggers the Render deploy. |
-| `eas-update.yml` | push to `main` (`mobile/**`) + manual | Publishes an EAS Update (OTA) to the `production` channel. |
-| `scrape.yml` | weekly cron + manual | POSTs to `/api/scrape` to refresh deals. |
+| `eas-update.yml` | after a green CI run on `main` + manual | Publishes an EAS Update (OTA) to the `production` channel — gated on a successful CI run (via `workflow_run`), and only when `mobile/**` changed, so a failing build can't reach users. |
+| `scrape.yml` | Sunday cron + manual | Wipes & re-scrapes via `POST /api/reset` (flyers are weekly, spent by Sunday) — retries 3× and opens/comments a self-alerting failure issue. |
 
 Least-privilege permissions, dependency caching, and concurrency cancellation
 throughout. CI is hermetic (tests use JSON fixtures — no network or secrets).
@@ -298,8 +298,34 @@ is green out of the box. To turn them on:
    that embeds `expo-updates` at the matching runtime version, so the current
    TestFlight build won't receive updates until rebuilt.
 
-**Branch protection (optional):** require the `Backend` and `Mobile` checks on PRs
-(Settings → Branches).
+**Branch protection:** `main` is governed by two GitHub rulesets — *protect history*
+(no force-push, no deletion) and *require green PR* (required `Backend` / `Mobile` /
+Docker-build checks, squash-only, linear history) with a scoped admin bypass so
+zero-risk docs can still be pushed directly.
+
+## Experience Gained
+
+Engineering practices demonstrated while building and operating this project:
+
+- **CI/CD pipeline design & hardening** — Built a multi-job GitHub Actions pipeline
+  (lint, tests + coverage, Docker image build) that gates an automated Render
+  deployment and an Expo over-the-air release. Closed an unguarded release path by
+  gating the OTA publish on a successful CI run via `workflow_run`, so failing builds
+  can't reach users.
+- **Repository governance as code** — Codified branch protection with GitHub rulesets
+  (immutable history + required status checks with a scoped admin bypass), provisioned
+  through the REST API rather than the dashboard.
+- **Infrastructure as Code & containerization** — Dockerized FastAPI backend deployed
+  from a version-controlled `render.yaml` Blueprint, with Docker Compose + PostgreSQL
+  for local/production parity.
+- **Database migration management** — Alembic-managed schema with auto-upgrade on
+  startup, SQLite/PostgreSQL parity, and a CI drift check.
+- **Scheduled automation & observability** — Cron-driven weekly data refresh with
+  retry logic and self-alerting failure issues, plus outbound-API call metrics
+  surfaced on a live dashboard.
+- **Dependency & supply-chain management** — Dependabot scoped to independently
+  versioned packages with security updates enabled, avoiding framework-lockstep
+  breakage in an Expo SDK-pinned app.
 
 ## Roadmap
 
