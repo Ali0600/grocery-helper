@@ -4,14 +4,17 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { chainColors, chainLabel } from '../chains';
 import { colors } from '../theme';
 
-/** A thin pill row to narrow the deals to one chain: "Store [All][Lidl][REWE][Edeka]".
- * `null` = All. The active chain pill uses that chain's brand colour. */
+/** A thin pill row to narrow the deals to one chain: "Store [All][Lidl (12)][REWE (8)]…".
+ * `null` = All. The active chain pill uses that chain's brand colour. `counts` is the
+ * per-chain offer total (shown in parentheses, like the category chips); "All" has none. */
 export function StoreFilter({
   chains,
+  counts,
   value,
   onChange,
 }: {
   chains: string[];
+  counts: Record<string, number>;
   value: string | null;
   onChange: (chain: string | null) => void;
 }) {
@@ -33,7 +36,9 @@ export function StoreFilter({
             onPress={() => onChange(chain)}
             style={[styles.pill, active && { backgroundColor: c.bg, borderColor: c.fg }]}
           >
-            <Text style={[styles.text, active && { color: c.fg }]}>{chainLabel(chain)}</Text>
+            <Text style={[styles.text, active && { color: c.fg }]}>
+              {chainLabel(chain)} ({counts[chain] ?? 0})
+            </Text>
           </Pressable>
         );
       })}
