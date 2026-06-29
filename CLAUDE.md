@@ -207,15 +207,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   the Milka example), parsed by `bonial.py` `_app_price` from a `SPECIAL_PRICE` deal
   whose `conditions[].other` contains "app" — **app markers only** (APP-PREIS / NUR
   MIT APP / …); Payback / "6 für" multibuy / "ab 2 Kisten" bulk / day-only specials
-  are skipped (not a simple per-item price). Shown as a yellow "App X,XX €" pill on
-  the card (`OfferCard`); ~24 EDEKA offers/PLZ. Display-only (doesn't touch
-  sort/optimizer — those keep the guaranteed flyer price).
+  are skipped (not a simple per-item price). Shown in the **deal detail** (`FlyerModal`,
+  "Mit App: …") — no longer a card pill after the UI redesign; ~24 EDEKA offers/PLZ. Display-only
+  (doesn't touch sort/optimizer — those keep the guaranteed flyer price).
 - **"Cheapest €/kg" sort** uses `OfferOut.unit_price_cents` — `app/unit_price.py`
   `unit_price_cents()` normalizes `price_per_unit` to cents per **kg or litre** on
   one comparable axis (German Grundpreis; per-`Stück`/`wl`/`m`/malformed → None).
   It's **computed in the serializer** (no DB column/migration); the app sorts the
-  loaded set client-side (`DealsScreen` `SortToggle`), nulls sink to the bottom. The
-  `SortToggle` offers **3 modes** — *Lowest price* (`price_cents` asc), *Biggest discount*
+  loaded set client-side, nulls sink to the bottom. Sort is chosen in the **FilterSheet**
+  (`SORT_OPTIONS`/`sortLabel` in `sort.ts`) with **3 modes** — *Lowest price* (`price_cents` asc), *Biggest discount*
   (`discount_pct` desc, default), *Cheapest €/kg* (`unit_price_cents` asc) — all via one
   `compareOffers(a,b,mode)` comparator reused by the flat list, the within-group order, and
   the "More" bucket (so "discount" ranks by % even inside a category, not by price).
@@ -245,8 +245,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   **scrape time** → Render needs a re-scrape (not just recategorize) to backfill. `tzdata` is
   a dep so the Berlin conversion is host-independent (slim Docker strips the system tzdb).
   `app/validity.py` derives **computed** `OfferOut.valid_days` ("Do–Sa"/"Fr") + `day_limited`
-  (window < the Mon–Sat week) in the serializer; the app shows an orange day pill
-  (`OfferCard`) + a session **"Special days"** toggle (`SpecialDaysToggle`, shown only when
+  (window < the Mon–Sat week) in the serializer; the app shows an orange day pill on the card
+  (`OfferCard`) + a **"Special days"** option in the FilterSheet (shown only when
   some offer is `day_limited`; filters client-side to `day_limited` offers — every non-week-long
   special, not the device date). Measured (10115):
   Lidl ~227 day-limited (Do–Sa/Mo–Fr/Do–Fr/Fr–Sa/Fr); REWE/EDEKA all full Mon–Sat.
@@ -255,9 +255,19 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `bio`/`öko`/`organic` + organic brands (Bioland/Demeter/Naturland/Alnatura/dennree); the word
   boundary guards substring traps ("…symbiose", "antibiotikafrei"). **No DB column / migration /
   re-scrape** (like `unit_price_cents`/`valid_days`), so it applies on Render right after deploy.
-  The app badges Bio offers (green pill, `OfferCard`) + a session **"Bio only"** toggle
-  (`BioToggle`, shown only when some offer is `is_bio`; filters client-side, composes with
+  The app badges Bio offers (green pill, `OfferCard`) + a **"Bio only"** option in the FilterSheet
+  (shown only when some offer is `is_bio`; filters client-side, composes with
   store/category/search/special-days). ~6% of a Berlin PLZ's offers.
+- **Deals-screen filter UI (redesigned)**: secondary filters live in a **bottom sheet**
+  (`components/FilterSheet.tsx`) opened from a single **`FilterBar`** (sort summary + a "Filters"
+  button badged with the active-filter count + a removable chip per active filter). The sheet holds
+  Sort / Store / Special days / Bio / Non-food as labelled pill sections **with the per-option
+  counts**; the category-chips row is the only inline filter now. Filter state stays in
+  `DealsScreen`; the old `StoreFilter`/`SpecialDaysToggle`/`BioToggle`/`SortToggle` row components
+  were **retired** (absorbed by the sheet). The header is a location control + circular icon
+  actions (`IconButton`) using **`@expo/vector-icons` Ionicons** behind `components/Icon.tsx`;
+  search sits under the header. Spacing/type/tag colours come from `theme.ts` tokens
+  (`space`/`radius`/`font`/`tint`), not per-component hardcodes.
 - **Deployment**: backend is live on **Render** (free tier) at
   `https://grocery-helper-sw6c.onrender.com` via the IaC `render.yaml` Blueprint
   (Docker, `backend/Dockerfile`, binds `$PORT`, `/health` check). Render free tier

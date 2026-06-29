@@ -1,7 +1,8 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { colors } from '../theme';
+import { colors, radius, space } from '../theme';
+import { Icon } from './Icon';
 
 type Props = {
   value: string;
@@ -12,6 +13,7 @@ export function SearchBar({ value, onChange }: Props) {
   return (
     <View style={styles.wrap}>
       <View style={styles.bar}>
+        <Icon name="search" size={17} color={colors.muted} />
         <TextInput
           style={styles.input}
           value={value}
@@ -23,8 +25,8 @@ export function SearchBar({ value, onChange }: Props) {
           autoCapitalize="none"
         />
         {value.length > 0 ? (
-          <Pressable onPress={() => onChange('')} hitSlop={10} style={styles.clearBtn}>
-            <Text style={styles.clear}>✕</Text>
+          <Pressable onPress={() => onChange('')} hitSlop={10} accessibilityLabel="Clear search">
+            <Icon name="close-circle" size={18} color={colors.muted} />
           </Pressable>
         ) : null}
       </View>
@@ -33,24 +35,16 @@ export function SearchBar({ value, onChange }: Props) {
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 6,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.bg,
-  },
+  wrap: { paddingHorizontal: space.md, paddingTop: space.sm, paddingBottom: space.sm },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: space.sm,
     backgroundColor: colors.card2,
-    borderRadius: 12,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: 14,
   },
   input: { flex: 1, color: colors.text, fontSize: 16, paddingVertical: 11 },
-  clearBtn: { paddingLeft: 8 },
-  clear: { color: colors.muted, fontSize: 15, fontWeight: '600' },
 });

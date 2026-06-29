@@ -15,22 +15,24 @@ import {
 } from 'react-native';
 
 import { api } from '../api';
+import { chainLabel } from '../chains';
 import { BasketModal } from '../components/BasketModal';
 import { CategoryChips } from '../components/CategoryChips';
 import { FlyerModal } from '../components/FlyerModal';
 import { GroupHeader } from '../components/GroupHeader';
+import { Icon } from '../components/Icon';
+import { IconButton } from '../components/IconButton';
 import { OfferCard } from '../components/OfferCard';
 import { OptionsModal } from '../components/OptionsModal';
 import { PlzModal } from '../components/PlzModal';
 import { RecipesModal } from '../components/RecipesModal';
+import { FilterBar } from '../components/FilterBar';
+import { FilterSheet } from '../components/FilterSheet';
 import { SearchBar } from '../components/SearchBar';
-import { SortToggle } from '../components/SortToggle';
-import { StoreFilter } from '../components/StoreFilter';
-import { SpecialDaysToggle } from '../components/SpecialDaysToggle';
-import { BioToggle } from '../components/BioToggle';
 import { StoresModal } from '../components/StoresModal';
 import { UpdateStatus } from '../components/UpdateStatus';
 import { dealsStale } from '../format';
+import { sortLabel } from '../sort';
 import { DEFAULT_RECIPE_PREFS } from '../recipes';
 import {
   clearAllData,
@@ -53,7 +55,7 @@ import {
   setStoredSortMode,
   SortMode,
 } from '../storage';
-import { colors } from '../theme';
+import { colors, space } from '../theme';
 import { BasketItem, CategoryCount, MyStore, Offer, RecipePrefs } from '../types';
 
 const DEFAULT_PLZ = '10115';
@@ -164,6 +166,7 @@ export default function DealsScreen() {
   const [basketModal, setBasketModal] = useState(false);
   const [optionsModal, setOptionsModal] = useState(false);
   const [recipesModal, setRecipesModal] = useState(false);
+  const [filterSheet, setFilterSheet] = useState(false);
   const [recipePrefs, setRecipePrefs] = useState<RecipePrefs>(DEFAULT_RECIPE_PREFS);
   const [alwaysHave, setAlwaysHave] = useState<BasketItem[]>([]);
   // Deals-cache / refresh status (stale-while-revalidate over the sleepy free backend).
@@ -372,6 +375,8 @@ export default function DealsScreen() {
     acc[o.chain] = (acc[o.chain] ?? 0) + 1;
     return acc;
   }, {});
+  // Active chains, for the header subline (e.g. "Lidl · REWE · Edeka").
+  const chainsSub = presentChains.map(chainLabel).join(' · ');
   // Ignore a stale pick (e.g. the chain vanished after a PLZ change) -> show All.
   const effectiveStore = storeFilter && presentChains.includes(storeFilter) ? storeFilter : null;
 
@@ -411,6 +416,26 @@ export default function DealsScreen() {
   const grouped = !!selected && !q;
   const sections = grouped ? buildSections(sorted, sortMode) : [];
 
+  // Household offer count for the Non-food control (deduped, from /api/categories).
+  const nonFoodCount = cats.find((c) => c.category === 'household')?.count ?? null;
+  // Active (non-default) filters → removable chips on the bar; their count badges "Filters".
+  const filterChips = [
+    effectiveStore
+      ? { key: 'store', label: chainLabel(effectiveStore), onRemove: () => setStoreFilter(null) }
+      : null,
+    specialDays
+      ? { key: 'days', label: 'Special days', onRemove: () => setSpecialDays(false) }
+      : null,
+    bioOnly ? { key: 'bio', label: 'Bio', onRemove: () => setBioOnly(false) } : null,
+    showNonFood ? { key: 'nonfood', label: 'Non-food', onRemove: onToggleNonFood } : null,
+  ].filter(Boolean) as { key: string; label: string; onRemove: () => void }[];
+  const resetFilters = () => {
+    setStoreFilter(null);
+    setSpecialDays(false);
+    setBioOnly(false);
+    if (showNonFood) onToggleNonFood();
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
@@ -418,53 +443,49 @@ export default function DealsScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
-          <View style={styles.titleRow}>
-            <Text style={styles.title} numberOfLines={1}>
-              Grocery deals
-            </Text>
-            <View style={styles.headerActions}>
-              <Pressable
-                onPress={() => setRecipesModal(true)}
-                style={({ pressed }) => [styles.storesBtn, pressed && styles.storesBtnPressed]}
-                hitSlop={6}
-              >
-                <Text style={styles.storesBtnText}>Recipes</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setBasketModal(true)}
-                style={({ pressed }) => [styles.storesBtn, pressed && styles.storesBtnPressed]}
-                hitSlop={6}
-              >
-                <Text style={styles.storesBtnText}>Basket</Text>
-                {basket.length > 0 ? (
-                  <View style={styles.countBadge}>
-                    <Text style={styles.countText}>{basket.length}</Text>
-                  </View>
-                ) : null}
-              </Pressable>
-              <Pressable
-                onPress={() => setStoresModal(true)}
-                style={({ pressed }) => [styles.storesBtn, pressed && styles.storesBtnPressed]}
-                hitSlop={6}
-              >
-                <Text style={styles.storesBtnText}>Stores</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setOptionsModal(true)}
-                style={({ pressed }) => [styles.storesBtn, pressed && styles.storesBtnPressed]}
-                hitSlop={6}
-                accessibilityLabel="Options"
-              >
-                <Text style={styles.storesBtnText}>⚙</Text>
-              </Pressable>
+          <Pressable
+            style={styles.location}
+            onPress={() => setPlzModal(true)}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Change postal code"
+          >
+            <Icon name="location-outline" size={18} color={colors.accent} />
+            <View style={styles.locationText}>
+              <View style={styles.locationLine}>
+                <Text style={styles.locName} numberOfLines={1}>
+                  PLZ {plz}
+                </Text>
+                <Icon name="chevron-down" size={14} color={colors.muted} />
+              </View>
+              <Text style={styles.locSub} numberOfLines={1}>
+                {chainsSub || storeName || 'Tap to set location'}
+              </Text>
             </View>
-          </View>
-          <Pressable onPress={() => setPlzModal(true)} hitSlop={6}>
-            <Text style={styles.subtitle} numberOfLines={1}>
-              PLZ {plz}
-              {storeName ? ` · ${storeName}` : ''} <Text style={styles.change}>Change</Text>
-            </Text>
           </Pressable>
+          <View style={styles.headerActions}>
+            <IconButton
+              name="restaurant-outline"
+              accessibilityLabel="Recipes"
+              onPress={() => setRecipesModal(true)}
+            />
+            <IconButton
+              name="cart-outline"
+              accessibilityLabel="Basket"
+              badge={basket.length}
+              onPress={() => setBasketModal(true)}
+            />
+            <IconButton
+              name="storefront-outline"
+              accessibilityLabel="Stores"
+              onPress={() => setStoresModal(true)}
+            />
+            <IconButton
+              name="settings-outline"
+              accessibilityLabel="Options"
+              onPress={() => setOptionsModal(true)}
+            />
+          </View>
         </View>
 
         <UpdateStatus
@@ -474,29 +495,20 @@ export default function DealsScreen() {
           offline={refreshFailed}
         />
 
+        <SearchBar value={query} onChange={setQuery} />
+
         <CategoryChips
           categories={cats}
           selected={selected}
           onSelect={setSelected}
           showNonFood={showNonFood}
-          onToggleNonFood={onToggleNonFood}
         />
 
-        {presentChains.length >= 2 && (
-          <StoreFilter
-            chains={presentChains}
-            counts={chainCounts}
-            value={effectiveStore}
-            onChange={setStoreFilter}
-          />
-        )}
-
-        {hasDayLimited && (
-          <SpecialDaysToggle value={specialDays} count={dayLimitedCount} onChange={setSpecialDays} />
-        )}
-        {hasBio && <BioToggle value={bioOnly} count={bioCount} onChange={setBioOnly} />}
-
-        <SortToggle mode={sortMode} onChange={onChangeSort} />
+        <FilterBar
+          sortLabel={sortLabel(sortMode)}
+          chips={filterChips}
+          onOpen={() => setFilterSheet(true)}
+        />
 
         {loading ? (
           <View style={styles.center}>
@@ -570,8 +582,6 @@ export default function DealsScreen() {
             }
           />
         )}
-
-        <SearchBar value={query} onChange={setQuery} />
       </KeyboardAvoidingView>
 
       <FlyerModal offer={active} onClose={() => setActive(null)} />
@@ -615,6 +625,28 @@ export default function DealsScreen() {
         onChangeAlwaysHave={onChangeAlwaysHave}
         onClose={() => setRecipesModal(false)}
       />
+      <FilterSheet
+        visible={filterSheet}
+        onClose={() => setFilterSheet(false)}
+        onReset={resetFilters}
+        sortMode={sortMode}
+        onChangeSort={onChangeSort}
+        chains={presentChains}
+        chainCounts={chainCounts}
+        store={effectiveStore}
+        onChangeStore={setStoreFilter}
+        hasDayLimited={hasDayLimited}
+        dayLimitedCount={dayLimitedCount}
+        specialDays={specialDays}
+        onChangeSpecialDays={setSpecialDays}
+        hasBio={hasBio}
+        bioCount={bioCount}
+        bioOnly={bioOnly}
+        onChangeBio={setBioOnly}
+        showNonFood={showNonFood}
+        nonFoodCount={nonFoodCount}
+        onToggleNonFood={onToggleNonFood}
+      />
     </SafeAreaView>
   );
 }
@@ -622,36 +654,21 @@ export default function DealsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  title: { color: colors.text, fontSize: 24, fontWeight: '700', flexShrink: 1 },
-  // Four pills (Recipes/Basket/Stores/⚙) — wrap to a second line on a narrow phone.
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, rowGap: 6, flexWrap: 'wrap', flexShrink: 1, justifyContent: 'flex-end' },
-  storesBtn: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.card2,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    justifyContent: 'space-between',
+    gap: space.md,
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: space.sm,
   },
-  storesBtnPressed: { opacity: 0.7 },
-  storesBtnText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
-  countBadge: {
-    backgroundColor: colors.accent,
-    borderRadius: 999,
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  countText: { color: '#08130c', fontSize: 11, fontWeight: '800' },
-  subtitle: { color: colors.muted, fontSize: 13, marginTop: 2 },
-  change: { color: colors.accent, fontWeight: '600' },
+  location: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 1 },
+  locationText: { flexShrink: 1 },
+  locationLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locName: { color: colors.text, fontSize: 17, fontWeight: '700', flexShrink: 1 },
+  locSub: { color: colors.muted, fontSize: 12, marginTop: 1 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 0 },
   listFill: { flex: 1 },
   list: { paddingVertical: 6, paddingBottom: 24 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
