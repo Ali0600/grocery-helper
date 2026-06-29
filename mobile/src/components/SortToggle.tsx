@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
 import { SortMode } from '../storage';
 import { colors } from '../theme';
@@ -18,7 +18,12 @@ export function SortToggle({
   onChange: (mode: SortMode) => void;
 }) {
   return (
-    <View style={styles.row}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
+      contentContainerStyle={styles.row}
+    >
       <Text style={styles.label}>Sort</Text>
       {OPTIONS.map((o) => {
         const active = mode === o.value;
@@ -32,17 +37,17 @@ export function SortToggle({
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  // Single horizontal row that scrolls on a narrow phone instead of wrapping to two rows.
+  scroll: { flexGrow: 0 },
   row: {
     flexDirection: 'row',
-    flexWrap: 'wrap', // three pills + label wrap on a narrow phone instead of overflowing
     alignItems: 'center',
     gap: 8,
-    rowGap: 6,
     paddingHorizontal: 12,
     paddingBottom: 8,
   },
