@@ -26,14 +26,13 @@ import { OfferCard } from '../components/OfferCard';
 import { OptionsModal } from '../components/OptionsModal';
 import { PlzModal } from '../components/PlzModal';
 import { RecipesModal } from '../components/RecipesModal';
+import { FilterBar } from '../components/FilterBar';
+import { FilterSheet } from '../components/FilterSheet';
 import { SearchBar } from '../components/SearchBar';
-import { SortToggle } from '../components/SortToggle';
-import { StoreFilter } from '../components/StoreFilter';
-import { SpecialDaysToggle } from '../components/SpecialDaysToggle';
-import { BioToggle } from '../components/BioToggle';
 import { StoresModal } from '../components/StoresModal';
 import { UpdateStatus } from '../components/UpdateStatus';
 import { dealsStale } from '../format';
+import { sortLabel } from '../sort';
 import { DEFAULT_RECIPE_PREFS } from '../recipes';
 import {
   clearAllData,
@@ -167,6 +166,7 @@ export default function DealsScreen() {
   const [basketModal, setBasketModal] = useState(false);
   const [optionsModal, setOptionsModal] = useState(false);
   const [recipesModal, setRecipesModal] = useState(false);
+  const [filterSheet, setFilterSheet] = useState(false);
   const [recipePrefs, setRecipePrefs] = useState<RecipePrefs>(DEFAULT_RECIPE_PREFS);
   const [alwaysHave, setAlwaysHave] = useState<BasketItem[]>([]);
   // Deals-cache / refresh status (stale-while-revalidate over the sleepy free backend).
@@ -416,6 +416,26 @@ export default function DealsScreen() {
   const grouped = !!selected && !q;
   const sections = grouped ? buildSections(sorted, sortMode) : [];
 
+  // Household offer count for the Non-food control (deduped, from /api/categories).
+  const nonFoodCount = cats.find((c) => c.category === 'household')?.count ?? null;
+  // Active (non-default) filters → removable chips on the bar; their count badges "Filters".
+  const filterChips = [
+    effectiveStore
+      ? { key: 'store', label: chainLabel(effectiveStore), onRemove: () => setStoreFilter(null) }
+      : null,
+    specialDays
+      ? { key: 'days', label: 'Special days', onRemove: () => setSpecialDays(false) }
+      : null,
+    bioOnly ? { key: 'bio', label: 'Bio', onRemove: () => setBioOnly(false) } : null,
+    showNonFood ? { key: 'nonfood', label: 'Non-food', onRemove: onToggleNonFood } : null,
+  ].filter(Boolean) as { key: string; label: string; onRemove: () => void }[];
+  const resetFilters = () => {
+    setStoreFilter(null);
+    setSpecialDays(false);
+    setBioOnly(false);
+    if (showNonFood) onToggleNonFood();
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
@@ -480,24 +500,13 @@ export default function DealsScreen() {
           selected={selected}
           onSelect={setSelected}
           showNonFood={showNonFood}
-          onToggleNonFood={onToggleNonFood}
         />
 
-        {presentChains.length >= 2 && (
-          <StoreFilter
-            chains={presentChains}
-            counts={chainCounts}
-            value={effectiveStore}
-            onChange={setStoreFilter}
-          />
-        )}
-
-        {hasDayLimited && (
-          <SpecialDaysToggle value={specialDays} count={dayLimitedCount} onChange={setSpecialDays} />
-        )}
-        {hasBio && <BioToggle value={bioOnly} count={bioCount} onChange={setBioOnly} />}
-
-        <SortToggle mode={sortMode} onChange={onChangeSort} />
+        <FilterBar
+          sortLabel={sortLabel(sortMode)}
+          chips={filterChips}
+          onOpen={() => setFilterSheet(true)}
+        />
 
         {loading ? (
           <View style={styles.center}>
@@ -615,6 +624,28 @@ export default function DealsScreen() {
         alwaysHave={alwaysHave}
         onChangeAlwaysHave={onChangeAlwaysHave}
         onClose={() => setRecipesModal(false)}
+      />
+      <FilterSheet
+        visible={filterSheet}
+        onClose={() => setFilterSheet(false)}
+        onReset={resetFilters}
+        sortMode={sortMode}
+        onChangeSort={onChangeSort}
+        chains={presentChains}
+        chainCounts={chainCounts}
+        store={effectiveStore}
+        onChangeStore={setStoreFilter}
+        hasDayLimited={hasDayLimited}
+        dayLimitedCount={dayLimitedCount}
+        specialDays={specialDays}
+        onChangeSpecialDays={setSpecialDays}
+        hasBio={hasBio}
+        bioCount={bioCount}
+        bioOnly={bioOnly}
+        onChangeBio={setBioOnly}
+        showNonFood={showNonFood}
+        nonFoodCount={nonFoodCount}
+        onToggleNonFood={onToggleNonFood}
       />
     </SafeAreaView>
   );
