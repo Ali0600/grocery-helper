@@ -322,9 +322,13 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   / buy, and filter by diet/cuisine/servings/only-on-sale/cheapest-€/kg. Always-have is seeded
   from `catalog.ts` staples (`storage.ts` `defaultAlwaysHave` / `STAPLE_KEYS`), editable +
   persisted (`alwaysHave` key; `recipePrefs` for filters). **Regenerate weekly** when flyers
-  refresh: `python -m app.scripts.recipe_seed` (read-only candidate dump) → Claude Code
-  rewrites `recipes.ts` → commit → OTA. Full workflow in `docs/recipes.md`. A `claude -p` CI
-  generator is deferred (would need Claude Code auth in CI → breaks "no managed key").
+  refresh — **automated locally** via `scripts/regenerate-recipes.sh` (scrape → `recipe_seed`
+  candidate dump → **headless `claude -p`** rewrites `recipes.ts` → `tsc`/`lint` → commit + push
+  to main → OTA), scheduled by `scripts/com.groceryhelper.recipes.plist` (launchd, Sundays). It's
+  **local, not CI**, because the keyless design uses your logged-in Claude Code (`claude -p`), not
+  a managed `ANTHROPIC_API_KEY`. The deterministic prereqs: `app/scripts/scrape.py`
+  (wraps `run_scrapers`) refreshes `grocery.db`; `app/scripts/recipe_seed.py` dumps candidates.
+  Full workflow + launchd install + gotchas (git-push-under-launchd, PATH/fnm) in `docs/recipes.md`.
 - **CI/CD is GitHub Actions** (`.github/workflows/`): `ci.yml` (backend
   `ruff`+`pytest --cov`+`alembic upgrade head`/`alembic check`, mobile
   ESLint+`tsc`+`jest`, backend Docker build; on green `main` pushes a `deploy` job curls
