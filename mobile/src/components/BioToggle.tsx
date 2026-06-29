@@ -9,12 +9,15 @@ const OPTIONS: { value: boolean; label: string }[] = [
 ];
 
 /** Session toggle: when on, show only organic ("Bio") offers — those whose name/brand
- *  carries a Bio/Öko/Organic marker (computed server-side as `offer.is_bio`). */
+ *  carries a Bio/Öko/Organic marker (computed server-side as `offer.is_bio`). `count` is
+ *  the number of Bio offers, shown on the "Bio only" pill (like the category/store counts). */
 export function BioToggle({
   value,
+  count,
   onChange,
 }: {
   value: boolean;
+  count: number;
   onChange: (value: boolean) => void;
 }) {
   return (
@@ -22,13 +25,14 @@ export function BioToggle({
       <Text style={styles.label}>Bio</Text>
       {OPTIONS.map((o) => {
         const active = value === o.value;
+        const label = o.value ? `${o.label} (${count})` : o.label;
         return (
           <Pressable
             key={String(o.value)}
             onPress={() => onChange(o.value)}
             style={[styles.pill, active && styles.pillActive]}
           >
-            <Text style={[styles.text, active && styles.textActive]}>{o.label}</Text>
+            <Text style={[styles.text, active && styles.textActive]}>{label}</Text>
           </Pressable>
         );
       })}
