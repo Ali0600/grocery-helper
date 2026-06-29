@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
 import { colors } from '../theme';
 
@@ -22,7 +22,12 @@ export function SpecialDaysToggle({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <View style={styles.row}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
+      contentContainerStyle={styles.row}
+    >
       <Text style={styles.label}>Days</Text>
       {OPTIONS.map((o) => {
         const active = value === o.value;
@@ -37,11 +42,12 @@ export function SpecialDaysToggle({
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: { flexGrow: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 8 },
   label: { color: colors.muted, fontSize: 12, fontWeight: '600', marginRight: 2 },
   pill: {
