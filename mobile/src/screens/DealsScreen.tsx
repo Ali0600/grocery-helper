@@ -495,6 +495,8 @@ export default function DealsScreen() {
           offline={refreshFailed}
         />
 
+        <SearchBar value={query} onChange={setQuery} />
+
         <CategoryChips
           categories={cats}
           selected={selected}
@@ -580,8 +582,6 @@ export default function DealsScreen() {
             }
           />
         )}
-
-        <SearchBar value={query} onChange={setQuery} />
       </KeyboardAvoidingView>
 
       <FlyerModal offer={active} onClose={() => setActive(null)} />
