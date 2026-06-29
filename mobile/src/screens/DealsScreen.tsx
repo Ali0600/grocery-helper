@@ -366,6 +366,12 @@ export default function DealsScreen() {
     const extra = [...set].filter((c) => !CHAIN_ORDER.includes(c)).sort();
     return [...ordered, ...extra];
   })();
+  // Per-chain offer total for the store-pill counts (static, whole-set, like the
+  // category chip counts) — the loaded set is already server-deduped.
+  const chainCounts = offers.reduce<Record<string, number>>((acc, o) => {
+    acc[o.chain] = (acc[o.chain] ?? 0) + 1;
+    return acc;
+  }, {});
   // Ignore a stale pick (e.g. the chain vanished after a PLZ change) -> show All.
   const effectiveStore = storeFilter && presentChains.includes(storeFilter) ? storeFilter : null;
 
@@ -475,7 +481,12 @@ export default function DealsScreen() {
         />
 
         {presentChains.length >= 2 && (
-          <StoreFilter chains={presentChains} value={effectiveStore} onChange={setStoreFilter} />
+          <StoreFilter
+            chains={presentChains}
+            counts={chainCounts}
+            value={effectiveStore}
+            onChange={setStoreFilter}
+          />
         )}
 
         {hasDayLimited && <SpecialDaysToggle value={specialDays} onChange={setSpecialDays} />}
