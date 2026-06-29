@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { chainLabel } from '../chains';
 import { cleanUnit, euro, fmtPricePerUnit, formatBrand } from '../format';
 import { colors } from '../theme';
 import { Offer } from '../types';
@@ -57,6 +58,11 @@ export function FlyerModal({ offer, onClose }: { offer: Offer | null; onClose: (
                     .join(' · ')}
                 </Text>
               )}
+              <Text style={styles.meta}>
+                {`${chainLabel(offer.chain)} · ${offer.source === 'flyer' ? 'Prospekt' : 'Coupon'}`}
+                {offer.day_limited && offer.valid_days ? ` · nur ${offer.valid_days}` : ''}
+                {offer.is_bio ? ' · Bio' : ''}
+              </Text>
               {!!offer.price_per_unit && (
                 <Text style={styles.meta}>Grundpreis: {fmtPricePerUnit(offer.price_per_unit)}</Text>
               )}
