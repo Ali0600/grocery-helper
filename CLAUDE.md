@@ -43,9 +43,11 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   files: backend `backend/.env` (`DEFAULT_PLZ=…`, read by pydantic-settings) and mobile
   `mobile/.env` (`EXPO_PUBLIC_DEFAULT_PLZ=…`, inlined by Expo). Prod overrides off-repo too:
   Render dashboard env (`render.yaml` has `DEFAULT_PLZ` as `sync: false`, not committed) and the
-  weekly scrape's optional **`SCRAPE_PLZ`** GitHub Actions repo variable (`scrape.yml`, else
-  `10115`). The repo was history-rewritten on 2026-06-30 to purge a personal PLZ — do NOT
-  reintroduce one in any committed file (code, docs, tests, CI, compose, blueprint).
+  weekly scrape's optional **`SCRAPE_PLZ`** GitHub Actions **secret** (`scrape.yml`, else
+  `10115`). It's a *secret*, not a variable, on purpose: this is a public repo and the scrape
+  job's logs are world-readable, so a variable would leak the PLZ — secrets are masked (`***`).
+  The repo was history-rewritten on 2026-06-30 to purge a personal PLZ — do NOT reintroduce one
+  in any committed file (code, docs, tests, CI, compose, blueprint).
 - **Two sources × three chains, tagged `Offer.source` / `Store.chain`**: `coupon`
   (Lidl Plus app endpoints, `app/scrapers/lidl.py`) and `flyer`
   (meinprospekt weekly Prospekt, `app/scrapers/bonial.py`). `bonial.py` is a
