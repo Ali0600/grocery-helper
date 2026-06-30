@@ -129,7 +129,14 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   stays **ice_cream**, not sweets), keyword rules. **`ice_cream` is split out of `frozen`**
   (the source's `Eis`/`Speiseeis` path nodes + a keyword rule before frozen/sweets with the
   space-padded standalone word `" eis "` — safe vs Fleisch/Reis/Eisberg/Eistee/Eiweiß — plus
-  ice-cream brands); `frozen` keeps savoury (pizza/Pommes/fish). ~40 ice_cream vs ~28 frozen/PLZ. **QA a category against its product images**: re-classify from the DB
+  ice-cream brands); `frozen` keeps savoury (pizza/Pommes/fish). ~40 ice_cream vs ~28 frozen/PLZ.
+  **`vegan` is a cross-cutting category that wins FIRST** (`app/vegan.py` `is_vegan`, a layer-0
+  check in `classify` before the household path): explicitly-vegan products (word `vegan`/
+  `pflanzlich`, or a **vegan-only** brand — Vemondo/Like Meat/Garden Gourmet/Beyond/…; NOT mixed
+  brands like Rügenwalder) move into `vegan`, *out of* their natural category (a vegan cheese is
+  filed under vegan, per the user's choice). Running first also rescues plant-based food the
+  source mis-files under a non-food path (REWE → household). `vegetarisch` ≠ vegan. ~42/PLZ. No
+  serve-time field / mobile change (a plain category, unlike the Bio *filter*). **QA a category against its product images**: re-classify from the DB
   (don't re-scrape — `python -m app.scripts.recategorize` syncs stored rows to the current
   classifier), then build a Pillow contact-sheet of that category's `image_url`s and eyeball
   it (that's how 4 mis-filed "fruits" — a peach aperitif, banana chips, lemonade, a yogurt —

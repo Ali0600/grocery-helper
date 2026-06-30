@@ -2,6 +2,9 @@
 
 `classify(name, brand, category_path)` applies, in order:
 
+0. **Vegan** — an explicitly-vegan product (name/brand says vegan/pflanzlich, or a
+   vegan-only brand like Vemondo) is its own category, beating every other signal
+   (cross-cutting by choice — a vegan cheese is filed under "vegan", not "cheese").
 1. **Non-food source path** — if the Bonial `categoryPaths` isn't under the food
    root, it's non-food → "household".
 2. **Definitive form words** — limonade / saft / joghurt / chips beat even a
@@ -23,10 +26,13 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from .vegan import is_vegan
+
 # slug -> human label shown in the app
 CATEGORIES: dict[str, str] = {
     "fruits": "Fruits",
     "vegetables": "Vegetables",
+    "vegan": "Vegan",
     "beef": "Beef",
     "poultry": "Chicken & Poultry",
     "pork": "Pork & Sausage",
@@ -292,6 +298,11 @@ def _path_node(category_path: List[str]) -> Optional[str]:
 def classify(name: str, brand: str | None = None, category_path: Optional[List[str]] = None) -> str:
     """Map a product (name + optional brand + optional source path) to a slug."""
     path = category_path or []
+    # 0. Explicitly-vegan products are their own category (the user's choice: vegan is a
+    #    section, so a vegan cheese moves out of Cheese). First, so it also rescues vegan
+    #    *food* the source mis-files under a non-food path (REWE plant-based → "household").
+    if is_vegan(name, brand):
+        return "vegan"
     # 1. A non-food source path is authoritative ("Sektkühler" is household, not a drink).
     if _path_nonfood(path):
         return "household"

@@ -51,6 +51,15 @@ from app.categories import CATEGORIES, classify
         ("Frisches Rindfleisch-Gulasch", None, "beef"),  # "Fleisch" contains "eis"
         ("Müller Milchreis", "Müller", "dairy"),  # "Reis" contains "eis"
         ("Pfanner Eistee Pfirsich", "Pfanner", "beverages"),  # Eistee is a drink, not ice cream
+        # --- vegan is its own category (cross-cutting; wins over the natural category) ---
+        ("Vemondo veganes Gyros mit Zwiebeln", "VEMONDO", "vegan"),
+        ("VEMONDO Pesto Basilico", "VEMONDO", "vegan"),  # Vemondo (vegan-only brand) even without "vegan"
+        ("Like Meat Vegane Fleischalternative", "Like Meat", "vegan"),
+        ("REWE Beste Wahl pflanzliche Bratwurst", "REWE Beste Wahl", "vegan"),  # "pflanzlich"
+        ("Rama Cremefine 100% Pflanzlich", "Rama", "vegan"),
+        # guards: vegetarian != vegan, and a mixed meat/vegan brand keeps its meat
+        ("Vegetarische Mortadella", None, "pork"),  # "vegetarisch" must NOT trigger vegan
+        ("Rügenwalder Mühle Teewurst", "Rügenwalder Mühle", "pork"),  # mixed brand, this is meat
     ],
 )
 def test_classify(name, brand, expected):
