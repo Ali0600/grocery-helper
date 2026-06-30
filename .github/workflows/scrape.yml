@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       plz:
-        description: Postal code to scrape (blank → SCRAPE_PLZ repo variable, else 10115)
+        description: Postal code to scrape (blank → SCRAPE_PLZ secret, else 10115)
         required: false
 
 permissions:
@@ -30,14 +30,14 @@ jobs:
     steps:
       - name: POST /api/reset (retry transient failures)
         env:
-          # Optional SCRAPE_PLZ repo variable lets prod target a real area without
-          # committing a personal postal code; falls back to a neutral central default.
-          PLZ: ${{ github.event.inputs.plz || vars.SCRAPE_PLZ || '10115' }}
+          # SCRAPE_PLZ is a *secret* (not a variable) so a personal postal code is masked
+          # in the public Actions logs; falls back to a neutral central default if unset.
+          PLZ: ${{ github.event.inputs.plz || secrets.SCRAPE_PLZ || '10115' }}
           # Optional: only enforced if ADMIN_TOKEN is also set on Render (else /api/reset is open).
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
         run: |
           for attempt in 1 2 3; do
-            echo "Attempt $attempt: wiping + re-scraping PLZ $PLZ (free-tier cold start can take ~30s)…"
+            echo "Attempt $attempt: wiping + re-scraping (free-tier cold start can take ~30s)…"
             if curl -fsS --max-time 300 -X POST \
                  "https://grocery-helper-sw6c.onrender.com/api/reset?plz=${PLZ}&token=${ADMIN_TOKEN}" \
                  -w "HTTP %{http_code} in %{time_total}s\n"; then
