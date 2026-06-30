@@ -36,11 +36,18 @@ build the cheapest basket across one or two stores.
   to devices **over-the-air** (no runtime model call, no API key/secret, no server cost); the
   app renders them fully offline and reuses the deterministic basket matcher to show each
   ingredient's real on-sale price and flag what's on-sale vs a pantry staple vs to-buy.
-  Customizable by diet, cuisine, servings, on-sale-only, and cheapest-€/kg.
+  Customizable by diet, cuisine, servings, on-sale-only, and cheapest-€/kg. **Regenerated
+  weekly by a scheduled local job** (launchd → headless Claude Code → validate → push → OTA),
+  so the loop stays automatic *and* keyless (no managed API key anywhere).
 - **Cross-platform client (iOS + web, one codebase)** — a React Native (Expo)
   app consuming the API to browse local deals by category, sorted by savings;
   the same code runs in the browser via Expo Web / react-native-web
   (`npm run web`).
+- **Modern, decluttered mobile UI** — secondary filters (store, sort, special-days,
+  Bio, non-food) consolidated into a single bottom-sheet behind an active-filter chip
+  bar, an icon-led header (`@expo/vector-icons`), and a small design-token system
+  (spacing/type/radius/tint) replacing per-component hardcodes — plus a per-offer
+  **"View payload"** inspector that shows the raw source data behind any deal.
 - **Containerized, deployable stack** — Dockerized backend with Docker Compose +
   PostgreSQL, designed for CI/CD deployment to a PaaS with scraper health
   monitoring and alerting.
@@ -55,15 +62,15 @@ build the cheapest basket across one or two stores.
   scheduled weekly data-refresh cron that **retries and opens a GitHub issue on
   failure** — with least-privilege permissions, dependency caching, concurrency
   control, and **Dependabot** automated dependency updates.
-- **Automated test suite** — 264 backend unit tests (pytest) covering the scrapers,
+- **Automated test suite** — 275 backend unit tests (pytest) covering the scrapers,
   classifier, dedup, unit-price and validity logic, plus a React Native **Jest** suite
   for the app's pure business logic (basket matching, recipe filtering, €/formatting,
   catalog trap-guards); a model-vs-migration **drift check** (`alembic check`) fails CI
   if the ORM and schema diverge.
 - **Multi-retailer ingestion across heterogeneous sources** — a single
-  publisher-parameterized engine normalizes two German chains (Lidl + REWE) from
-  three feeds (a private mobile coupon API and structured weekly-flyer data) into
-  one schema, tagged by chain/source, powering a cross-store basket optimizer.
+  publisher-parameterized engine normalizes three German chains (Lidl, REWE, EDEKA)
+  from two feed types (a private mobile coupon API and structured weekly-flyer data)
+  into one schema, tagged by chain/source, powering a cross-store basket optimizer.
 - **Geospatial store discovery** — an OpenStreetMap Overpass integration that
   finds the nearest branch of each major chain around a postal code (haversine
   ranking, multi-mirror failover, response caching), powering an in-app
@@ -206,6 +213,7 @@ numbers) and `mobile/app.json` (`ios.bundleIdentifier`). Set
 | ------ | ----------------- | ------------------------------------------------ |
 | GET    | `/api/offers`     | Offers; filter by `category`/`chain`/`plz`/`min_discount`, `sort=discount\|price` |
 | GET    | `/api/categories` | Categories that currently have offers, w/ counts |
+| GET    | `/api/offers/{id}/payload` | The full raw source payload an offer was scraped from (for the app's "View payload") |
 | GET    | `/api/stores`     | Known stores                                     |
 | GET    | `/api/nearby-stores` | Nearest branch of each major chain near a PLZ (OSM); `active` flag for chains we scrape |
 | POST   | `/api/optimize`   | Cheapest basket across 1–2 stores                |
@@ -323,6 +331,9 @@ Engineering practices demonstrated while building and operating this project:
 - **Scheduled automation & observability** — Cron-driven weekly data refresh with
   retry logic and self-alerting failure issues, plus outbound-API call metrics
   surfaced on a live dashboard.
+- **Keyless AI automation** — A weekly content-generation pipeline that runs a headless
+  LLM step under local auth (macOS launchd → `claude -p`), gated on a typecheck/lint build
+  check before it commits and ships over-the-air — no managed API key anywhere, in CI or at runtime.
 - **Dependency & supply-chain management** — Dependabot scoped to independently
   versioned packages with security updates enabled, avoiding framework-lockstep
   breakage in an Expo SDK-pinned app.
