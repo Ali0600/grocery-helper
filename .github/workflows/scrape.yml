@@ -15,8 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       plz:
-        description: Postal code to scrape
-        default: '10115'
+        description: Postal code to scrape (blank → SCRAPE_PLZ repo variable, else 10115)
         required: false
 
 permissions:
@@ -31,7 +30,9 @@ jobs:
     steps:
       - name: POST /api/reset (retry transient failures)
         env:
-          PLZ: ${{ github.event.inputs.plz || '10115' }}
+          # Optional SCRAPE_PLZ repo variable lets prod target a real area without
+          # committing a personal postal code; falls back to a neutral central default.
+          PLZ: ${{ github.event.inputs.plz || vars.SCRAPE_PLZ || '10115' }}
           # Optional: only enforced if ADMIN_TOKEN is also set on Render (else /api/reset is open).
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
         run: |

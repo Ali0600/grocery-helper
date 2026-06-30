@@ -80,7 +80,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   nearest-per-chain list as before. **The picker (`chain` set) centres on the PLZ's
   real centroid via Nominatim** (`plz_centroid`, cached), NOT the scraped-store
   coords: the scraped Store reuses the nearest *Lidl*, which can sit a district away
-  (10115/Wilmersdorf → a Schöneberg Lidl ~3 km off), which buried the user's actual
+  (a Wilmersdorf PLZ → a Schöneberg Lidl ~3 km off), which buried the user's actual
   local Edeka past the 12-cap. The **general list keeps the scraped-store coords** so
   its Lidl/REWE stay consistent with the deals (deliberate split). Pure logic
   (`_select_nearest`, `_all_branches`, `plz_centroid` parsing) is fixture/fake-client
@@ -269,7 +269,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   (window < the Mon–Sat week) in the serializer; the app shows an orange day pill on the card
   (`OfferCard`) + a **"Special days"** option in the FilterSheet (shown only when
   some offer is `day_limited`; filters client-side to `day_limited` offers — every non-week-long
-  special, not the device date). Measured (10115):
+  special, not the device date). Measured (a Berlin PLZ):
   Lidl ~227 day-limited (Do–Sa/Mo–Fr/Do–Fr/Fr–Sa/Fr); REWE/EDEKA all full Mon–Sat.
 - **Organic ("Bio") filter** (`app/organic.py` `is_organic` → computed `OfferOut.is_bio`):
   serve-time deterministic detection of organic offers from the name/brand — a word-boundary

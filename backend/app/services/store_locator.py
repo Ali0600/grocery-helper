@@ -224,7 +224,7 @@ def plz_centroid(plz: str, client: Optional[httpx.Client] = None) -> Optional[Tu
     """Geocode a German postal code to its centroid via OSM Nominatim (cached).
 
     The scraped Store coords point at the nearest *Lidl*, which can sit in the next
-    district (e.g. a 10115/Wilmersdorf PLZ resolves to a Schöneberg Lidl ~3 km away).
+    district (e.g. a Wilmersdorf PLZ resolves to a Schöneberg Lidl ~3 km away).
     For the "Change branch" picker we want the user's actual neighbourhood, so we
     centre on the PLZ itself. None on any failure → caller falls back to the store
     coords. One request per PLZ per process (Nominatim asks for light, UA'd use)."""

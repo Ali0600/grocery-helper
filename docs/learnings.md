@@ -306,7 +306,7 @@ expires (or on explicit refresh).
 The local backend (`localhost:8001`, the web view) and Render (the iOS build) hold
 *independently scraped* data, so a category count on one won't match the other.
 **Why it came up:** the user saw "29 fruits" on iOS but "2" on web and expected them to
-agree — but the web hit the dev `grocery.db` (only PLZ 10115/10115 ever scraped, partly
+agree — but the web hit the dev `grocery.db` (only one PLZ ever scraped, partly
 stale) while iOS hit Render's current-week scrape. The numbers were never comparable.
 **Takeaway:** when a count looks "off," first establish *which backend/dataset* produced
 it; reproduce against that exact source before debugging logic.

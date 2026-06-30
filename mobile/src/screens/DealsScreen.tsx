@@ -58,7 +58,9 @@ import {
 import { colors, space } from '../theme';
 import { BasketItem, CategoryCount, MyStore, Offer, RecipePrefs } from '../types';
 
-const DEFAULT_PLZ = '10115';
+// Override via mobile/.env (EXPO_PUBLIC_DEFAULT_PLZ) so a personal postal code isn't
+// committed; falls back to a neutral central-Berlin default for the public bundle.
+const DEFAULT_PLZ = process.env.EXPO_PUBLIC_DEFAULT_PLZ ?? '10115';
 // Preferred order for the store filter; any other chains follow, alphabetically.
 const CHAIN_ORDER = ['lidl', 'rewe', 'edeka'];
 

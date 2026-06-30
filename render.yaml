@@ -14,7 +14,9 @@ services:
     dockerContext: ./backend
     healthCheckPath: /health
     envVars:
+      # Set the seed / cold-start postal code in the Render dashboard (not committed),
+      # so a personal PLZ stays out of the public repo. Unset → backend default (10115).
       - key: DEFAULT_PLZ
-        value: "10115"
+        sync: false
       - key: CORS_ORIGINS
         value: "*"

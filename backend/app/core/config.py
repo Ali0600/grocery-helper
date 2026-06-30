@@ -9,7 +9,9 @@ class Settings(BaseSettings):
     app_name: str = "Grocery Helper API"
     # Local dev defaults to SQLite (zero setup). Prod sets DATABASE_URL to Postgres.
     database_url: str = "sqlite:///./grocery.db"
-    default_plz: str = "10115"  # Berlin Wilmersdorf
+    # Neutral central-Berlin default for the public repo. Set DEFAULT_PLZ in .env
+    # (local) or the host's env (Render dashboard) to use your own postal code.
+    default_plz: str = "10115"  # Berlin Mitte
     cors_origins: str = "*"  # comma-separated list, or "*"
     # Optional guard for the destructive POST /api/reset (DB wipe). When unset (default),
     # reset is open like /api/scrape; set it (env ADMIN_TOKEN) to require a matching token.
