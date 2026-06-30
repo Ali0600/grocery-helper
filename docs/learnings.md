@@ -77,6 +77,25 @@ starts clean and fresh deals land before the app's weekly cache expires past Sun
 time from the data's natural cadence, and use wipe-then-rebuild (not upsert) when stale rows
 must not linger.
 
+### Scrubbing a value from a public repo = history rewrite, not just an edit
+Deleting a committed value (here, a personal postal code) in a new commit leaves it in every
+past commit, `git blame`, and any branch that forked off the old history — all still public.
+Truly removing it needs a **history rewrite**: `git filter-repo --replace-text` (blob contents)
+**and** `--replace-message` (commit messages), then a **force-push**. On a protected `main` that
+means temporarily lifting the no-bypass ruleset (`gh api … rulesets/<id>` enforcement
+`disabled`→push→`active`), and purging the *other* branches too — every open PR / stale branch
+that branches off old `main` carries the value in its ancestry, so they must be rebased, closed,
+or deleted (Dependabot recreates its bumps from the clean `main`). Verify with a **fresh clone**:
+`git log --all -S <value>` + `git grep <value> $(git rev-list --all)` → zero.
+**Why it came up:** a personal PLZ (`10713`) had been hardcoded across backend/mobile/CI/docs in a
+**public** repo; we replaced it with a neutral `10115` default sourced from gitignored `.env`, then
+rewrote all 139 commits to erase the 118 historical occurrences and closed the 4 branches still
+holding it.
+**Takeaway:** keep personal/host-specific values in `.env` from day one; once a secret hits a
+public repo, rewriting history shrinks exposure but can't guarantee removal — GitHub keeps
+orphaned commit objects (reachable by SHA until GC), PR refs, forks, and search caches, so a true
+secret must also be **rotated** (the only certain purge is delete-and-recreate or GitHub Support).
+
 ## iOS / mobile
 
 ### Bundle ID vs app name

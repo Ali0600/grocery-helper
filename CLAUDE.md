@@ -37,6 +37,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   build-profile `env`** (Expo SDK 55+), so OTA bundles have no injected URL and fall back
   to it; eas.json's `env` only applies to `eas build`. A "Couldn't reach the API at
   localhost:8000" on a device = a build/OTA made before this default (rebuild fixes it).
+- **The default PLZ is env-driven — never hardcode a personal postal code.** The committed
+  default is a neutral central-Berlin **`10115`** (`backend/app/core/config.py` `default_plz`;
+  `DealsScreen.tsx` `DEFAULT_PLZ`). The real local PLZ lives only in **gitignored** `.env`
+  files: backend `backend/.env` (`DEFAULT_PLZ=…`, read by pydantic-settings) and mobile
+  `mobile/.env` (`EXPO_PUBLIC_DEFAULT_PLZ=…`, inlined by Expo). Prod overrides off-repo too:
+  Render dashboard env (`render.yaml` has `DEFAULT_PLZ` as `sync: false`, not committed) and the
+  weekly scrape's optional **`SCRAPE_PLZ`** GitHub Actions repo variable (`scrape.yml`, else
+  `10115`). The repo was history-rewritten on 2026-06-30 to purge a personal PLZ — do NOT
+  reintroduce one in any committed file (code, docs, tests, CI, compose, blueprint).
 - **Two sources × three chains, tagged `Offer.source` / `Store.chain`**: `coupon`
   (Lidl Plus app endpoints, `app/scrapers/lidl.py`) and `flyer`
   (meinprospekt weekly Prospekt, `app/scrapers/bonial.py`). `bonial.py` is a
