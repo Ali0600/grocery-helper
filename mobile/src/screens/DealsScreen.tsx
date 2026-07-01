@@ -66,7 +66,7 @@ import { BasketItem, CategoryCount, MyStore, Offer, RecipePrefs } from '../types
 // committed; falls back to a neutral central-Berlin default for the public bundle.
 const DEFAULT_PLZ = process.env.EXPO_PUBLIC_DEFAULT_PLZ ?? '10115';
 // Preferred order for the store filter; any other chains follow, alphabetically.
-const CHAIN_ORDER = ['lidl', 'rewe', 'edeka'];
+const CHAIN_ORDER = ['lidl', 'rewe', 'edeka', 'edeka_center'];
 
 // Compare two values, sending nulls to the end regardless of direction.
 function byNullsLast(a: number | null, b: number | null, dir: 'asc' | 'desc'): number {

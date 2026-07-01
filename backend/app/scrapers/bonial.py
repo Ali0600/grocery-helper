@@ -309,6 +309,36 @@ class EdekaScraper(MeinprospektScraper):
         ]
 
 
+class EdekaCenterScraper(MeinprospektScraper):
+    """E center (EDEKA's hypermarket format) — its own meinprospekt publisher
+    ``DE-3443181`` at ``/edekacenter-de``, separate from the regular EDEKA publisher.
+    Same location-gated pipeline; kept a distinct chain/store so its (usually larger)
+    weekly Prospekt can be compared against the standard EDEKA flyer. Like EDEKA/REWE,
+    the flyer carries no struck-through regular price (so mostly no discount %)."""
+
+    publisher_id = "DE-3443181"  # E center (EDEKA Center)
+    publisher_page = "https://www.meinprospekt.de/edekacenter-de"
+    chain = "edeka_center"
+    store_label = "E center"
+
+    def _sample(self) -> List[ScrapedOffer]:
+        today = date.today()
+        end = today + timedelta(days=6)
+
+        def o(ext, name, price, regular, unit, brand=None):
+            return ScrapedOffer(external_id=ext, name=name, price_cents=price,
+                                regular_price_cents=regular, unit=unit, brand=brand,
+                                valid_from=today, valid_to=end)
+
+        return [
+            o("ec-001", "Gut&Günstig Weizenmehl Type 405", 45, None, "1 kg", "Gut&Günstig"),
+            o("ec-002", "Coca-Cola", 999, None, "12x1 l", "Coca-Cola"),
+            o("ec-003", "Wiesenhof Hähnchenschenkel", 299, None, "1 kg", "Wiesenhof"),
+            o("ec-004", "Barilla Spaghetti No.5", 99, None, "500 g", "Barilla"),
+            o("ec-005", "EDEKA Bio Vollmilch", 119, None, "1 l", "EDEKA Bio"),
+        ]
+
+
 def _location_cookie(lat: float, lng: float, plz: Optional[str] = None) -> str:
     """Build the meinprospekt `location` cookie for the target coordinates.
 

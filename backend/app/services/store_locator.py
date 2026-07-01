@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 CHAINS: Dict[str, Tuple[str, List[str]]] = {
     "lidl": ("Lidl", ["lidl"]),
     "rewe": ("REWE", ["rewe"]),
+    # E center (EDEKA's hypermarket format) must come before "edeka": its specific
+    # prefixes ("e center"/"edeka center") match first, while a plain "edeka" brand
+    # doesn't start with them and falls through to the "edeka" entry below.
+    "edeka_center": ("E center", ["e center", "edeka center"]),
     "edeka": ("Edeka", ["edeka"]),
     "aldi": ("Aldi", ["aldi"]),
     "netto": ("Netto", ["netto"]),
@@ -37,7 +41,7 @@ CHAINS: Dict[str, Tuple[str, List[str]]] = {
     "kaufland": ("Kaufland", ["kaufland"]),
 }
 # Chains we actually scrape deals for; everything else is a placeholder.
-ACTIVE_CHAINS = {"lidl", "rewe", "edeka"}
+ACTIVE_CHAINS = {"lidl", "rewe", "edeka", "edeka_center"}
 
 OVERPASS_MIRRORS = [
     "https://overpass-api.de/api/interpreter",
