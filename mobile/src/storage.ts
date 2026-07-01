@@ -8,6 +8,7 @@ const PLZ_KEY = 'plz';
 const NONFOOD_KEY = 'showNonFood';
 const MYSTORES_KEY = 'myStores';
 const SORT_KEY = 'sortMode';
+const HIDDEN_STORES_KEY = 'hiddenStores';
 const BASKET_KEY = 'basket';
 const DEALS_CACHE_KEY = 'dealsCache';
 const RECIPE_PREFS_KEY = 'recipePrefs';
@@ -42,6 +43,26 @@ export async function getStoredShowNonFood(): Promise<boolean> {
 export async function setStoredShowNonFood(value: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(NONFOOD_KEY, value ? '1' : '0');
+  } catch {
+    // best-effort
+  }
+}
+
+// Store chains the user has hidden from the deals list (multi-select visibility). Empty
+// = all shown; a hidden-set so any new/unknown chain defaults to visible. Persisted, so
+// it also sticks across PLZ changes (unlike the session-only special-days / bio lenses).
+export async function getStoredHiddenStores(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(HIDDEN_STORES_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function setStoredHiddenStores(chains: string[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(HIDDEN_STORES_KEY, JSON.stringify(chains));
   } catch {
     // best-effort
   }
@@ -142,6 +163,7 @@ export async function clearAllData(): Promise<void> {
     await AsyncStorage.multiRemove([
       PLZ_KEY,
       NONFOOD_KEY,
+      HIDDEN_STORES_KEY,
       MYSTORES_KEY,
       SORT_KEY,
       BASKET_KEY,

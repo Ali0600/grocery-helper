@@ -42,8 +42,8 @@ export function FilterSheet(props: {
   onChangeSort: (m: SortMode) => void;
   chains: string[];
   chainCounts: Record<string, number>;
-  store: string | null;
-  onChangeStore: (c: string | null) => void;
+  hiddenStores: string[];
+  onToggleStore: (c: string) => void;
   hasDayLimited: boolean;
   dayLimitedCount: number;
   specialDays: boolean;
@@ -86,15 +86,12 @@ export function FilterSheet(props: {
 
           {props.chains.length >= 2 && (
             <Section
-              title="Store"
-              options={[
-                { label: 'All', active: props.store === null, onPress: () => props.onChangeStore(null) },
-                ...props.chains.map((c) => ({
-                  label: `${chainLabel(c)} (${props.chainCounts[c] ?? 0})`,
-                  active: props.store === c,
-                  onPress: () => props.onChangeStore(c),
-                })),
-              ]}
+              title="Stores shown"
+              options={props.chains.map((c) => ({
+                label: `${chainLabel(c)} (${props.chainCounts[c] ?? 0})`,
+                active: !props.hiddenStores.includes(c),
+                onPress: () => props.onToggleStore(c),
+              }))}
             />
           )}
 
