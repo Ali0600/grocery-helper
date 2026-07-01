@@ -1,3 +1,4 @@
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, StyleSheet, View } from 'react-native';
 
@@ -13,24 +14,27 @@ export default function App() {
   // across a wide desktop window; native renders the screen full-bleed.
   if (Platform.OS === 'web') {
     return (
-      <View style={styles.webPage}>
-        <StatusBar style="light" />
-        <View style={styles.webColumn}>
-          <DealsScreen />
+      <GestureHandlerRootView style={styles.root}>
+        <View style={styles.webPage}>
+          <StatusBar style="light" />
+          <View style={styles.webColumn}>
+            <DealsScreen />
+          </View>
         </View>
-      </View>
+      </GestureHandlerRootView>
     );
   }
 
   return (
-    <>
+    <GestureHandlerRootView style={styles.root}>
       <StatusBar style="light" />
       <DealsScreen />
-    </>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   webPage: { flex: 1, backgroundColor: '#08090c', alignItems: 'center' },
   webColumn: {
     flex: 1,
