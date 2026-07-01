@@ -33,6 +33,7 @@ import { StoresModal } from '../components/StoresModal';
 import { UpdateStatus } from '../components/UpdateStatus';
 import { dealsStale } from '../format';
 import { sortLabel } from '../sort';
+import { filterByVisibleStores, hasHiddenPresent, toggleHiddenStore, visibleStoreChains } from '../stores';
 import { DEFAULT_RECIPE_PREFS } from '../recipes';
 import {
   clearAllData,
@@ -40,6 +41,7 @@ import {
   getDealsCache,
   getStoredAlwaysHave,
   getStoredBasket,
+  getStoredHiddenStores,
   getStoredMyStores,
   getStoredPlz,
   getStoredRecipePrefs,
@@ -48,6 +50,7 @@ import {
   setDealsCache,
   setStoredAlwaysHave,
   setStoredBasket,
+  setStoredHiddenStores,
   setStoredMyStores,
   setStoredPlz,
   setStoredRecipePrefs,
@@ -161,7 +164,7 @@ export default function DealsScreen() {
   const [storesModal, setStoresModal] = useState(false);
   const [myStores, setMyStores] = useState<MyStore[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>('discount');
-  const [storeFilter, setStoreFilter] = useState<string | null>(null); // session lens; resets each launch
+  const [hiddenStores, setHiddenStores] = useState<string[]>([]); // persisted: chains hidden from the deals list
   const [specialDays, setSpecialDays] = useState(false); // session lens: only day-limited specials
   const [bioOnly, setBioOnly] = useState(false); // session lens: only organic ("Bio") offers
   const [basket, setBasket] = useState<BasketItem[]>([]);
@@ -184,6 +187,7 @@ export default function DealsScreen() {
       setShowNonFood(await getStoredShowNonFood());
       setMyStores(await getStoredMyStores());
       setSortMode(await getStoredSortMode());
+      setHiddenStores(await getStoredHiddenStores());
       setBasket(await getStoredBasket());
       setRecipePrefs(await getStoredRecipePrefs());
       setAlwaysHave(await getStoredAlwaysHave());
@@ -284,7 +288,6 @@ export default function DealsScreen() {
     setStoreName(name);
     setSelected(null);
     setQuery('');
-    setStoreFilter(null);
     setSpecialDays(false);
     setBioOnly(false);
     setPlz(newPlz);
@@ -326,7 +329,7 @@ export default function DealsScreen() {
     setSortMode('discount');
     setSelected(null);
     setQuery('');
-    setStoreFilter(null);
+    setHiddenStores([]);
     setSpecialDays(false);
     setBioOnly(false);
     if (plz !== DEFAULT_PLZ) {
@@ -379,8 +382,18 @@ export default function DealsScreen() {
   }, {});
   // Active chains, for the header subline (e.g. "Lidl · REWE · Edeka").
   const chainsSub = presentChains.map(chainLabel).join(' · ');
-  // Ignore a stale pick (e.g. the chain vanished after a PLZ change) -> show All.
-  const effectiveStore = storeFilter && presentChains.includes(storeFilter) ? storeFilter : null;
+  // Toggle a store's visibility (persisted); guarded so the last visible store can't be hidden.
+  const onToggleStore = (chain: string) => {
+    setHiddenStores((prev) => {
+      const next = toggleHiddenStore(prev, chain, presentChains);
+      setStoredHiddenStores(next);
+      return next;
+    });
+  };
+  const showAllStores = () => {
+    setHiddenStores([]);
+    setStoredHiddenStores([]);
+  };
 
   // Everything is filtered client-side from the full PLZ set. The store filter is a
   // global lens (applies to both category and search); non-food is hidden unless
@@ -388,7 +401,7 @@ export default function DealsScreen() {
   // selected chip), otherwise the selected category filters.
   const q = query.trim().toLowerCase();
   const foodBase = showNonFood ? offers : offers.filter((o) => o.category !== 'household');
-  const storeBase = effectiveStore ? foodBase.filter((o) => o.chain === effectiveStore) : foodBase;
+  const storeBase = filterByVisibleStores(foodBase, hiddenStores);
   // "Special days" is a global lens (like the store filter): keep only day-limited
   // specials (sale window shorter than the Mon–Sat week), regardless of today's date.
   const dayLimitedCount = offers.filter((o) => o.day_limited).length;
@@ -422,8 +435,12 @@ export default function DealsScreen() {
   const nonFoodCount = cats.find((c) => c.category === 'household')?.count ?? null;
   // Active (non-default) filters → removable chips on the bar; their count badges "Filters".
   const filterChips = [
-    effectiveStore
-      ? { key: 'store', label: chainLabel(effectiveStore), onRemove: () => setStoreFilter(null) }
+    hasHiddenPresent(presentChains, hiddenStores)
+      ? {
+          key: 'store',
+          label: visibleStoreChains(presentChains, hiddenStores).map(chainLabel).join(' · '),
+          onRemove: showAllStores,
+        }
       : null,
     specialDays
       ? { key: 'days', label: 'Special days', onRemove: () => setSpecialDays(false) }
@@ -432,7 +449,7 @@ export default function DealsScreen() {
     showNonFood ? { key: 'nonfood', label: 'Non-food', onRemove: onToggleNonFood } : null,
   ].filter(Boolean) as { key: string; label: string; onRemove: () => void }[];
   const resetFilters = () => {
-    setStoreFilter(null);
+    showAllStores();
     setSpecialDays(false);
     setBioOnly(false);
     if (showNonFood) onToggleNonFood();
@@ -635,8 +652,8 @@ export default function DealsScreen() {
         onChangeSort={onChangeSort}
         chains={presentChains}
         chainCounts={chainCounts}
-        store={effectiveStore}
-        onChangeStore={setStoreFilter}
+        hiddenStores={hiddenStores}
+        onToggleStore={onToggleStore}
         hasDayLimited={hasDayLimited}
         dayLimitedCount={dayLimitedCount}
         specialDays={specialDays}
