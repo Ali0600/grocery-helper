@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -22,7 +22,7 @@ import { FlyerModal } from '../components/FlyerModal';
 import { GroupHeader } from '../components/GroupHeader';
 import { Icon } from '../components/Icon';
 import { IconButton } from '../components/IconButton';
-import { OfferCard } from '../components/OfferCard';
+import { SwipeableOfferCard } from '../components/SwipeableOfferCard';
 import { OptionsModal } from '../components/OptionsModal';
 import { PlzModal } from '../components/PlzModal';
 import { RecipesModal } from '../components/RecipesModal';
@@ -34,6 +34,7 @@ import { UpdateStatus } from '../components/UpdateStatus';
 import { dealsStale } from '../format';
 import { sortLabel } from '../sort';
 import { filterByVisibleStores, hasHiddenPresent, toggleHiddenStore, visibleStoreChains } from '../stores';
+import { resolveBasketItem } from '../basketResolve';
 import { DEFAULT_RECIPE_PREFS } from '../recipes';
 import {
   clearAllData,
@@ -58,7 +59,7 @@ import {
   setStoredSortMode,
   SortMode,
 } from '../storage';
-import { colors, space } from '../theme';
+import { colors, radius, space } from '../theme';
 import { BasketItem, CategoryCount, MyStore, Offer, RecipePrefs } from '../types';
 
 // Override via mobile/.env (EXPO_PUBLIC_DEFAULT_PLZ) so a personal postal code isn't
@@ -169,6 +170,8 @@ export default function DealsScreen() {
   const [bioOnly, setBioOnly] = useState(false); // session lens: only organic ("Bio") offers
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [basketModal, setBasketModal] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [optionsModal, setOptionsModal] = useState(false);
   const [recipesModal, setRecipesModal] = useState(false);
   const [filterSheet, setFilterSheet] = useState(false);
@@ -303,6 +306,28 @@ export default function DealsScreen() {
     setBasket(next);
     setStoredBasket(next);
   }, []);
+
+  // Transient confirmation banner (used by swipe-to-add).
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 1900);
+  }, []);
+
+  // Swipe-left on a deal → add its sub-category (the same entry the "+" adds) to the
+  // basket, de-duped by key so re-swiping the same product just re-confirms.
+  const onAddToBasket = useCallback(
+    (offer: Offer) => {
+      const item = resolveBasketItem(offer);
+      if (basket.some((b) => b.key === item.key)) {
+        showToast(`${item.label} is already in your basket`);
+        return;
+      }
+      onChangeBasket([...basket, item]);
+      showToast(`Added ${item.label} to basket`);
+    },
+    [basket, onChangeBasket, showToast],
+  );
 
   const onChangeRecipePrefs = useCallback((next: RecipePrefs) => {
     setRecipePrefs(next);
@@ -546,7 +571,7 @@ export default function DealsScreen() {
             keyboardDismissMode="on-drag"
             stickySectionHeadersEnabled={false}
             renderItem={({ item }: { item: Offer }) => (
-              <OfferCard offer={item} onPress={() => setActive(item)} />
+              <SwipeableOfferCard offer={item} onPress={() => setActive(item)} onAdd={onAddToBasket} />
             )}
             renderSectionHeader={({ section }: { section: DealSection }) =>
               section.label ? (
@@ -580,7 +605,7 @@ export default function DealsScreen() {
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             renderItem={({ item }) => (
-              <OfferCard offer={item} onPress={() => setActive(item)} />
+              <SwipeableOfferCard offer={item} onPress={() => setActive(item)} onAdd={onAddToBasket} />
             )}
             contentContainerStyle={styles.list}
             refreshControl={
@@ -602,6 +627,12 @@ export default function DealsScreen() {
           />
         )}
       </KeyboardAvoidingView>
+
+      {toast ? (
+        <View style={styles.toast} pointerEvents="none">
+          <Text style={styles.toastText}>{toast}</Text>
+        </View>
+      ) : null}
 
       <FlyerModal offer={active} onClose={() => setActive(null)} />
       <PlzModal
@@ -693,4 +724,17 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   error: { color: colors.badge, fontSize: 14, textAlign: 'center', lineHeight: 20 },
   muted: { color: colors.muted, fontSize: 14, textAlign: 'center' },
+  toast: {
+    position: 'absolute',
+    bottom: 28,
+    alignSelf: 'center',
+    maxWidth: '90%',
+    backgroundColor: colors.card2,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
+  },
+  toastText: { color: colors.text, fontSize: 13, fontWeight: '600', textAlign: 'center' },
 });
