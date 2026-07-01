@@ -18,6 +18,7 @@ import { api } from '../api';
 import { chainLabel } from '../chains';
 import { BasketModal } from '../components/BasketModal';
 import { CategoryChips } from '../components/CategoryChips';
+import { CompareModal } from '../components/CompareModal';
 import { FlyerModal } from '../components/FlyerModal';
 import { GroupHeader } from '../components/GroupHeader';
 import { Icon } from '../components/Icon';
@@ -174,6 +175,7 @@ export default function DealsScreen() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [optionsModal, setOptionsModal] = useState(false);
   const [recipesModal, setRecipesModal] = useState(false);
+  const [compareModal, setCompareModal] = useState(false);
   const [filterSheet, setFilterSheet] = useState(false);
   const [recipePrefs, setRecipePrefs] = useState<RecipePrefs>(DEFAULT_RECIPE_PREFS);
   const [alwaysHave, setAlwaysHave] = useState<BasketItem[]>([]);
@@ -525,6 +527,11 @@ export default function DealsScreen() {
               onPress={() => setStoresModal(true)}
             />
             <IconButton
+              name="git-compare-outline"
+              accessibilityLabel="Compare stores"
+              onPress={() => setCompareModal(true)}
+            />
+            <IconButton
               name="settings-outline"
               accessibilityLabel="Options"
               onPress={() => setOptionsModal(true)}
@@ -634,6 +641,14 @@ export default function DealsScreen() {
         </View>
       ) : null}
 
+      <CompareModal
+        visible={compareModal}
+        offers={offers}
+        chains={presentChains}
+        categories={cats}
+        onOpenOffer={setActive}
+        onClose={() => setCompareModal(false)}
+      />
       <FlyerModal offer={active} onClose={() => setActive(null)} />
       <PlzModal
         visible={plzModal}
