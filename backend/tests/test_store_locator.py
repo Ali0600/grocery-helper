@@ -76,6 +76,15 @@ def test_chain_for_aliases_and_misses():
     assert _chain_for(None, "Go Asia") is None
 
 
+def test_chain_for_ecenter_vs_edeka():
+    # E center's specific prefixes win (it's listed before "edeka"); a plain EDEKA
+    # brand doesn't start with them, so it still classifies as edeka.
+    assert _chain_for("E center", None) == "edeka_center"
+    assert _chain_for("EDEKA Center", None) == "edeka_center"
+    assert _chain_for("EDEKA", None) == "edeka"
+    assert _chain_for(None, "Edeka Wolff") == "edeka"
+
+
 def test_returns_empty_when_all_mirrors_fail(monkeypatch):
     monkeypatch.setattr(sl, "_fetch_overpass", lambda query, client: None)
     # Uncached coords + an injected (unused) client so no real network happens.
