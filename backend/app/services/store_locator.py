@@ -31,9 +31,10 @@ CHAINS: Dict[str, Tuple[str, List[str]]] = {
     "lidl": ("Lidl", ["lidl"]),
     "rewe": ("REWE", ["rewe"]),
     # E center (EDEKA's hypermarket format) must come before "edeka": its specific
-    # prefixes ("e center"/"edeka center") match first, while a plain "edeka" brand
-    # doesn't start with them and falls through to the "edeka" entry below.
-    "edeka_center": ("E center", ["e center", "edeka center"]),
+    # prefixes match first, while a plain "edeka" brand doesn't start with them and
+    # falls through to the "edeka" entry below. OSM tags it inconsistently — with and
+    # without the hyphen — so both spellings of both forms are covered.
+    "edeka_center": ("E center", ["e center", "e-center", "edeka center", "edeka-center"]),
     "edeka": ("Edeka", ["edeka"]),
     "aldi": ("Aldi", ["aldi"]),
     "netto": ("Netto", ["netto"]),
@@ -81,12 +82,16 @@ def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
 
 
 def _chain_for(brand: Optional[str], name: Optional[str]) -> Optional[str]:
-    """Map an OSM brand/name to a canonical chain slug, or None if not in scope."""
-    for text in (brand, name):  # brand is the more reliable signal; try it first
-        if not text:
-            continue
-        t = text.strip().lower()
-        for slug, (_, prefixes) in CHAINS.items():
+    """Map an OSM brand/name to a canonical chain slug, or None if not in scope.
+
+    Chains are tried in CHAINS order (specific before generic — edeka_center before
+    edeka), and within a chain the brand is tried before the name. Iterating chains
+    OUTERMOST matters for E center: a store tagged ``brand="EDEKA", name="E center X"``
+    must classify as edeka_center — the old brand-first-across-all-chains order let the
+    generic "edeka" prefix swallow the brand before the name was ever consulted."""
+    texts = [t.strip().lower() for t in (brand, name) if t]
+    for slug, (_, prefixes) in CHAINS.items():
+        for t in texts:
             if any(t.startswith(p) for p in prefixes):
                 return slug
     return None

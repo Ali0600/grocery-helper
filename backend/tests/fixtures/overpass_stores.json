@@ -50,6 +50,12 @@
     {
       "type": "node", "id": 10, "lat": 52.5003, "lon": 13.4001,
       "tags": {"shop": "supermarket", "name": "Go Asia", "addr:street": "Asienweg"}
+    },
+    {
+      "type": "node", "id": 11, "lat": 52.5040, "lon": 13.4040,
+      "tags": {"shop": "supermarket", "brand": "EDEKA", "name": "E-Center Musterstadt",
+               "addr:street": "Zentrumsallee", "addr:housenumber": "5",
+               "addr:postcode": "10115", "addr:city": "Berlin"}
     }
   ]
 }
