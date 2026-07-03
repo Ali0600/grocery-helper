@@ -33,7 +33,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           # On workflow_run, the default checkout is the default branch HEAD; pin to the
           # exact commit that passed CI. Depth 2 so we can diff what that commit changed.
@@ -42,6 +42,9 @@ jobs:
 
       # workflow_run has no paths filter, so replicate the old `paths: ['mobile/**']`
       # gate by diffing the merged commit. A manual dispatch always publishes.
+      # Known limit: PRs squash-merge (HEAD~1..HEAD IS the PR diff), but a multi-commit
+      # DIRECT push only diffs its head commit — a mobile change in an earlier commit of
+      # such a push would skip the OTA. Rare; dispatch manually if it ever happens.
       - name: Did mobile/** change?
         id: filter
         run: |
@@ -73,7 +76,7 @@ jobs:
 
       - name: Setup Node
         if: steps.check.outputs.has_token == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: '22'
           cache: npm
@@ -81,9 +84,11 @@ jobs:
 
       - name: Setup EAS
         if: steps.check.outputs.has_token == 'true'
-        uses: expo/expo-github-action@v9
+        uses: expo/expo-github-action@eab7a230208c952974db8c3245cfd78402c7b385 # v9
         with:
-          eas-version: latest
+          # Pinned (not `latest`): a breaking eas-cli release must not be able to take
+          # down the OTA pipeline on its own schedule. Bump deliberately.
+          eas-version: 20.5.1
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
@@ -94,6 +99,12 @@ jobs:
       - name: Publish update to the production channel
         if: steps.check.outputs.has_token == 'true'
         working-directory: mobile
+        env:
+          # Inlined into the published JS bundle (EXPO_PUBLIC_*): the app's
+          # "Wipe & re-scrape" needs it once ADMIN_TOKEN is enforced on the backend.
+          # Extractable from the public bundle by design — a light guard, not a secret.
+          # Publishes still work while the secret is unset (the reset button 403s then).
+          EXPO_PUBLIC_ADMIN_TOKEN: ${{ secrets.EXPO_PUBLIC_ADMIN_TOKEN }}
         run: |
           MSG="$(git log -1 --pretty=%s)"
           eas update --branch production --message "$MSG" --non-interactive

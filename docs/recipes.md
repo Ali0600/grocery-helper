@@ -65,7 +65,9 @@ Run it manually any time:
 Schedule it weekly with the bundled launchd agent (macOS):
 
 ```bash
-cp scripts/com.groceryhelper.recipes.plist ~/Library/LaunchAgents/
+# The committed plist is a template (paths use /Users/CHANGE_ME); fill in your home dir:
+sed "s|/Users/CHANGE_ME|$HOME|g" scripts/com.groceryhelper.recipes.plist \
+  > ~/Library/LaunchAgents/com.groceryhelper.recipes.plist
 launchctl load ~/Library/LaunchAgents/com.groceryhelper.recipes.plist
 launchctl start com.groceryhelper.recipes   # optional: run once now to test
 ```

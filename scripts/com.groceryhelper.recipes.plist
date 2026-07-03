@@ -4,7 +4,10 @@
        cp scripts/com.groceryhelper.recipes.plist ~/Library/LaunchAgents/
        launchctl load ~/Library/LaunchAgents/com.groceryhelper.recipes.plist
      Trigger a test run now:  launchctl start com.groceryhelper.recipes
-     Logs: .recipe-regen.log (repo root). Adjust the paths/PATH below to your machine. -->
+     Logs: .recipe-regen.log (repo root).
+     This is a TEMPLATE — replace CHANGE_ME with your username first, e.g.:
+       sed "s|/Users/CHANGE_ME|$HOME|g" scripts/com.groceryhelper.recipes.plist \
+         > ~/Library/LaunchAgents/com.groceryhelper.recipes.plist -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -13,12 +16,12 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/ah/grocery-helper/scripts/regenerate-recipes.sh</string>
+    <string>/Users/CHANGE_ME/grocery-helper/scripts/regenerate-recipes.sh</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/Users/ah/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>/opt/homebrew/bin:/Users/CHANGE_ME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
   <key>StartCalendarInterval</key>
   <dict>
@@ -30,9 +33,9 @@
     <integer>0</integer>
   </dict>
   <key>StandardOutPath</key>
-  <string>/Users/ah/grocery-helper/.recipe-regen.log</string>
+  <string>/Users/CHANGE_ME/grocery-helper/.recipe-regen.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/ah/grocery-helper/.recipe-regen.log</string>
+  <string>/Users/CHANGE_ME/grocery-helper/.recipe-regen.log</string>
   <key>RunAtLoad</key>
   <false/>
 </dict>
