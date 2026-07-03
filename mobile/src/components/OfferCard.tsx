@@ -1,6 +1,7 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { hasAppDeal, headlineDiscountPct, headlinePriceCents, headlineStrikeCents } from '../appPrice';
 import { chainColors, chainLabel } from '../chains';
 import { cleanUnit, euro, fmtPricePerUnit, formatBrand, pct } from '../format';
 import { colors, radius, space, tint } from '../theme';
@@ -16,6 +17,9 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
     .join(' · ');
   const pill = chainColors(offer.chain);
   const perUnit = fmtPricePerUnit(offer.price_per_unit);
+  const appDeal = hasAppDeal(offer);
+  const discount = headlineDiscountPct(offer);
+  const strike = headlineStrikeCents(offer);
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
       <View style={styles.thumbWrap}>
@@ -24,9 +28,9 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
         ) : (
           <View style={[styles.thumb, styles.thumbEmpty]} />
         )}
-        {offer.discount_pct != null && (
+        {discount != null && (
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>{pct(offer.discount_pct)}</Text>
+            <Text style={styles.badgeText}>{pct(discount)}</Text>
           </View>
         )}
       </View>
@@ -60,10 +64,13 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
       </View>
 
       <View style={styles.priceCol}>
-        <Text style={styles.price}>{euro(offer.price_cents)}</Text>
-        {offer.regular_price_cents != null && (
-          <Text style={styles.was}>{euro(offer.regular_price_cents)}</Text>
+        <Text style={styles.price}>{euro(headlinePriceCents(offer))}</Text>
+        {appDeal && (
+          <View style={styles.appPill}>
+            <Text style={styles.appPillText}>Mit App</Text>
+          </View>
         )}
+        {strike != null && <Text style={styles.was}>{euro(strike)}</Text>}
         {perUnit ? <Text style={styles.ppu}>{perUnit}</Text> : null}
       </View>
     </Pressable>
@@ -115,4 +122,12 @@ const styles = StyleSheet.create({
   price: { color: colors.text, fontSize: 17, fontWeight: '700' },
   was: { color: colors.muted, fontSize: 12, textDecorationLine: 'line-through', marginTop: 2 },
   ppu: { color: colors.muted, fontSize: 11, marginTop: 3 },
+  appPill: {
+    backgroundColor: tint.app.bg,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 3,
+  },
+  appPillText: { color: tint.app.fg, fontSize: 10, fontWeight: '700' },
 });
