@@ -265,17 +265,35 @@ export default function DealsScreen() {
 
   // Swipe-left on a deal → add its sub-category (the same entry the "+" adds) to the
   // basket, de-duped by key so re-swiping the same product just re-confirms.
+  // Reads the basket through a ref so this callback is STABLE — a `[basket]` dep would
+  // give every add a new identity and re-render every swipeable row mid-gesture (the
+  // suspected stuck-gesture / app-freeze trigger on the TestFlight build).
+  const basketRef = useRef(basket);
+  useEffect(() => {
+    basketRef.current = basket;
+  }, [basket]);
   const onAddToBasket = useCallback(
     (offer: Offer) => {
       const item = resolveBasketItem(offer);
-      if (basket.some((b) => b.key === item.key)) {
+      const current = basketRef.current;
+      if (current.some((b) => b.key === item.key)) {
         showToast(`${item.label} is already in your basket`);
         return;
       }
-      onChangeBasket([...basket, item]);
+      onChangeBasket([...current, item]);
       showToast(`Added ${item.label} to basket`);
     },
-    [basket, onChangeBasket, showToast],
+    [onChangeBasket, showToast],
+  );
+
+  // Stable per-row callbacks: rows are memoized, so nothing about an unrelated
+  // re-render (toast in/out, filter tweaks) touches a row while a gesture is live.
+  const openOffer = useCallback((o: Offer) => setActive(o), []);
+  const renderOffer = useCallback(
+    ({ item }: { item: Offer }) => (
+      <SwipeableOfferCard offer={item} onPressOffer={openOffer} onAdd={onAddToBasket} />
+    ),
+    [openOffer, onAddToBasket],
   );
 
   const onChangeRecipePrefs = useCallback((next: RecipePrefs) => {
@@ -520,9 +538,7 @@ export default function DealsScreen() {
             initialNumToRender={10}
             maxToRenderPerBatch={10}
             windowSize={7}
-            renderItem={({ item }: { item: Offer }) => (
-              <SwipeableOfferCard offer={item} onPress={() => setActive(item)} onAdd={onAddToBasket} />
-            )}
+            renderItem={renderOffer}
             renderSectionHeader={({ section }: { section: DealSection }) =>
               section.label ? (
                 <GroupHeader
@@ -557,9 +573,7 @@ export default function DealsScreen() {
             initialNumToRender={10}
             maxToRenderPerBatch={10}
             windowSize={7}
-            renderItem={({ item }) => (
-              <SwipeableOfferCard offer={item} onPress={() => setActive(item)} onAdd={onAddToBasket} />
-            )}
+            renderItem={renderOffer}
             contentContainerStyle={styles.list}
             refreshControl={
               <RefreshControl
