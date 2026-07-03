@@ -5,6 +5,7 @@
 
 import type { SectionListData } from 'react-native';
 
+import { headlineDiscountPct } from './appPrice';
 import { filterByVisibleStores } from './stores';
 import { SortMode } from './storage';
 import { Offer } from './types';
@@ -41,7 +42,8 @@ function byNullsLast(a: number | null, b: number | null, dir: 'asc' | 'desc'): n
 export function compareOffers(a: Offer, b: Offer, mode: SortMode): number {
   if (mode === 'unit') return byNullsLast(a.unit_price_cents, b.unit_price_cents, 'asc');
   if (mode === 'price') return a.price_cents - b.price_cents; // cheapest absolute price
-  return byNullsLast(a.discount_pct, b.discount_pct, 'desc'); // 'discount': biggest % off
+  // 'discount': biggest % off, with a Mit-App price counting as the deeper headline discount.
+  return byNullsLast(headlineDiscountPct(a), headlineDiscountPct(b), 'desc');
 }
 
 export type DealFilterOptions = {

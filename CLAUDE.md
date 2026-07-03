@@ -231,9 +231,18 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   the Milka example), parsed by `bonial.py` `_app_price` from a `SPECIAL_PRICE` deal
   whose `conditions[].other` contains "app" — **app markers only** (APP-PREIS / NUR
   MIT APP / …); Payback / "6 für" multibuy / "ab 2 Kisten" bulk / day-only specials
-  are skipped (not a simple per-item price). Shown in the **deal detail** (`FlyerModal`,
-  "Mit App: …") — no longer a card pill after the UI redesign; ~24 EDEKA offers/PLZ. Display-only
-  (doesn't touch sort/optimizer — those keep the guaranteed flyer price).
+  are skipped (not a simple per-item price). **The app price is the card headline** (2026-07-04):
+  when present + below the flyer price it becomes the main price + a gold "Mit App" pill, the
+  flyer/regular price is struck through, and the **discount badge is computed from it** — mobile
+  pure `src/appPrice.ts` (`hasAppDeal`/`headlinePriceCents`/`headlineStrikeCents`/
+  `headlineDiscountPct`; badge base = `regular_price_cents ?? price_cents`, so the ~25/PLZ app
+  offers with **no** struck regular finally get a badge too). It also drives the **"Biggest
+  discount" sort** (`compareOffers`). The full regular/flyer/app breakdown stays in the **deal
+  detail** (`FlyerModal`, "Mit App: …"); ~40–53 EDEKA/E-center offers/PLZ (roughly half with a
+  struck regular, half without). **Backend stays display-only** — the basket optimizer, Compare,
+  and the "Lowest price"/"Cheapest €/kg" sorts keep the guaranteed flyer `price_cents` (the app
+  price is conditional on installing the chain app). Fields already in `OfferOut`, so it's an
+  OTA-only change (no re-scrape / no cache-clear).
 - **Raw source payload is persisted for "View payload"** (`Offer.raw_payload`, JSON Text): the
   scrapers capture the **full** source object verbatim (`ScrapedOffer.raw` — flyer `content` dict
   in `bonial.py`, Lidl coupon dict in `lidl.py`), written by `run.py` `_upsert`. Served on demand
