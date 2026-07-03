@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
+import time
 from collections import Counter
-from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from sqlalchemy import delete, select
+from sqlalchemy.orm import selectinload
 
 from ..categories import CATEGORIES
 from ..core.config import settings
@@ -24,10 +26,41 @@ from ..schemas import (
 )
 from ..serializers import offer_to_out
 from ..services.optimizer import optimize_basket
+from ..validity import berlin_today
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["offers"])
+
+
+def _require_admin(
+    x_admin_token: Optional[str], token: Optional[str], request: Optional[Request]
+) -> None:
+    """Guard a destructive endpoint with ADMIN_TOKEN — enforced only when that env is
+    set (local dev / tests stay open). Prefers the `X-Admin-Token` header; the `token`
+    query param is a deprecated fallback for pre-header app builds (query strings land
+    in access logs — the header doesn't). Timing-safe compare; failures are logged so
+    probing is visible. Non-str values are normalized (direct function calls in tests
+    pass the FastAPI `Header(None)` default marker)."""
+    if not settings.admin_token:
+        return
+    provided = next((v for v in (x_admin_token, token) if isinstance(v, str)), "")
+    if not secrets.compare_digest(provided, settings.admin_token):
+        client = request.client.host if request is not None and request.client else "unknown"
+        logger.warning("admin auth failed for %s from %s", request.url.path if request else "?", client)
+        raise HTTPException(status_code=403, detail="invalid or missing admin token")
+
+
+# On-demand scrape throttle: a PLZ that already has offers is re-scraped at most once
+# per cooldown, and scrape kickoffs are globally rate-limited — so a stranger hitting
+# the public URL can't hammer the flyer sites from this server. An EMPTY PLZ always
+# scrapes (the app's cold-start on-demand path and post-wipe rescrape must never block).
+# `None` sentinels (not 0.0): time.monotonic() is small right after boot, and a 0-default
+# would read as "just scraped" and wrongly throttle the first minutes after a cold start.
+_SCRAPE_COOLDOWN_S = 600.0
+_SCRAPE_MIN_GAP_S = 15.0
+_last_scrape_at: dict = {}  # plz -> time.monotonic() of its last accepted scrape
+_last_any_scrape: Optional[float] = None
 
 
 @router.get("/offers", response_model=List[OfferOut])
@@ -45,7 +78,7 @@ def list_offers(
 
     Default sort is by % discount descending — the headline feature.
     """
-    stmt = select(Offer).join(Store)
+    stmt = select(Offer).options(selectinload(Offer.store)).join(Store)
     if category:
         stmt = stmt.where(Offer.category == category)
     if chain:
@@ -56,8 +89,8 @@ def list_offers(
         stmt = stmt.where(Offer.source == source)
     if min_discount is not None:
         stmt = stmt.where(Offer.discount_pct >= min_discount)
-    # Drop offers whose validity window has passed.
-    stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= date.today()))
+    # Drop offers whose validity window has passed (Berlin's "today", not the server's).
+    stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today()))
     # Collapse the same product repeated across brochures/sources, then sort +
     # limit in Python (dedup changes the count, so SQL LIMIT can't go first).
     rows = dedup_offers(session.scalars(stmt).all())
@@ -87,8 +120,8 @@ def list_categories(session: SessionDep, plz: Optional[str] = None):
 
     Counts distinct products (deduped) so the chip number matches the deduped list.
     """
-    stmt = select(Offer).join(Store).where(
-        (Offer.valid_to.is_(None)) | (Offer.valid_to >= date.today())
+    stmt = select(Offer).options(selectinload(Offer.store)).join(Store).where(
+        (Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today())
     )
     if plz:
         stmt = stmt.where(Store.plz == plz)
@@ -197,11 +230,40 @@ def trigger_scrape(session: SessionDep, plz: Optional[str] = None):
     """Scrape a postal code on demand and return the resolved store(s).
 
     Used by the app when the user sets/changes their PLZ. A store with a null
-    `market_code` means no real store resolved (sample-data fallback).
+    `market_code` means no real store resolved (sample-data fallback). Throttled:
+    a PLZ that already has offers is re-scraped at most once per cooldown (and
+    kickoffs are globally rate-limited) — the skip returns `scraped=0, skipped=True`.
+    An empty PLZ always scrapes, so the app's cold-start path never blocks.
     """
+    global _last_any_scrape
     from ..scrapers.run import run_scrapers
 
     target = plz or settings.default_plz
+    now = time.monotonic()
+    has_rows = (
+        session.scalar(
+            select(Offer.id).join(Store).where(Store.plz == target).limit(1)
+        )
+        is not None
+    )
+    last_plz = _last_scrape_at.get(target)
+    on_cooldown = last_plz is not None and now - last_plz < _SCRAPE_COOLDOWN_S
+    too_soon = _last_any_scrape is not None and now - _last_any_scrape < _SCRAPE_MIN_GAP_S
+    if has_rows and (on_cooldown or too_soon):
+        logger.info("scrape skipped (throttled) for plz=%s", target)
+        stores = session.scalars(select(Store).where(Store.plz == target)).all()
+        return {
+            "plz": target,
+            "scraped": 0,
+            "skipped": True,
+            "stores": [
+                StoreOut(id=s.id, chain=s.chain, name=s.name, plz=s.plz, market_code=s.market_code)
+                for s in stores
+            ],
+        }
+
+    _last_scrape_at[target] = now
+    _last_any_scrape = now
     scraped = run_scrapers(session, target)
     stores = session.scalars(select(Store).where(Store.plz == target)).all()
     return {
@@ -215,25 +277,39 @@ def trigger_scrape(session: SessionDep, plz: Optional[str] = None):
 
 
 @router.post("/recategorize")
-def trigger_recategorize(session: SessionDep):
-    """Dev convenience: re-apply the classifier to all stored offers."""
+def trigger_recategorize(
+    session: SessionDep,
+    token: Optional[str] = None,
+    x_admin_token: Optional[str] = Header(None),
+    request: Request = None,
+):
+    """Re-apply the classifier to all stored offers (admin/maintenance).
+
+    Guarded by ADMIN_TOKEN when that env is set (otherwise open, for local dev)."""
+    _require_admin(x_admin_token, token, request)
     from ..scripts.recategorize import recategorize
 
     return {"recategorized": recategorize(session)}
 
 
 @router.post("/reset")
-def trigger_reset(session: SessionDep, plz: Optional[str] = None, token: Optional[str] = None):
+def trigger_reset(
+    session: SessionDep,
+    plz: Optional[str] = None,
+    token: Optional[str] = None,
+    x_admin_token: Optional[str] = Header(None),
+    request: Request = None,
+):
     """Wipe every stored offer, then re-scrape `plz` from scratch (admin/maintenance).
 
     Unlike /api/scrape (which upserts in place), this first DELETEs all offers so stale
     rows the weekly scrape no longer touches are removed too, then re-scrapes. The
     immediate re-scrape re-populates the table, so the brief empty window self-heals; on a
     sample-data fallback the table comes back sparse (re-run when the source is reachable).
-    Guarded by ADMIN_TOKEN only when that env var is set (otherwise open, like /api/scrape).
+    Guarded by ADMIN_TOKEN when that env var is set (otherwise open, for local dev);
+    send the token as an `X-Admin-Token` header (query `token` is a deprecated fallback).
     """
-    if settings.admin_token and token != settings.admin_token:
-        raise HTTPException(status_code=403, detail="invalid or missing admin token")
+    _require_admin(x_admin_token, token, request)
 
     from ..scrapers.run import run_scrapers
 

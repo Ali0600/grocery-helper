@@ -8,8 +8,19 @@ can badge ("Do–Sa") and filter ("valid today").
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
+
+_BERLIN = ZoneInfo("Europe/Berlin")
+
+
+def berlin_today() -> date:
+    """Today in the shops' timezone. The server runs UTC (Render), so a naive
+    ``date.today()`` is yesterday for up to 2 hours after Berlin midnight — long
+    enough for expired offers to linger (or fresh ones to be dropped) around the
+    boundary. All validity comparisons should use this."""
+    return datetime.now(_BERLIN).date()
 
 # German weekday abbreviations, Monday-first (matches date.weekday()).
 _DOW = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]

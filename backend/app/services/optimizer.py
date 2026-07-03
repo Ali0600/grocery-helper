@@ -8,7 +8,6 @@ willing to visit, pick the cheapest combination.
 """
 from __future__ import annotations
 
-from datetime import date
 from typing import Dict, List
 
 from sqlalchemy import select
@@ -17,6 +16,7 @@ from sqlalchemy.orm import Session
 from ..models import Offer, Store
 from ..schemas import OptimizeRequest, OptimizeResponse, StoreBasket
 from ..serializers import offer_to_out
+from ..validity import berlin_today
 
 
 def optimize_basket(session: Session, req: OptimizeRequest) -> OptimizeResponse:
@@ -26,7 +26,7 @@ def optimize_basket(session: Session, req: OptimizeRequest) -> OptimizeResponse:
         stmt = stmt.where(Store.plz == req.plz)
     if wanted:
         stmt = stmt.where(Offer.category.in_(wanted))
-    stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= date.today()))
+    stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today()))
     offers = session.scalars(stmt).all()
 
     # cheapest offer per (store_id, category)
