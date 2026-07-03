@@ -119,6 +119,22 @@ and a warning log on failed attempts.
 
 ## iOS / mobile
 
+### Gesture callbacks must not set state (the app-wide freeze)
+react-native-gesture-handler's callbacks (`onSwipeableOpen` etc.) run while a gesture is
+settling. Calling `setState` there re-renders the very rows the gesture lives in; if the
+pan never settles, the gesture stays "active" and the root `GestureHandlerRootView` keeps
+claiming **every** touch — the whole app freezes (no taps AND no scroll) until killed.
+The diagnostic tell: native scroll survives a JS hang, so "nothing scrolls either" points
+at the touch stream being claimed, not slow JS.
+**Why it came up:** the TestFlight build froze intermittently after swipe-to-basket
+shipped — the swipe callback added to the basket + showed a toast (full list re-render)
+and then force-`close()`d the row. Fixed by closing first, deferring the state changes by
+one frame (`requestAnimationFrame`), and making row props stable (memoized rows, ref-based
+callback identities).
+**Takeaway:** treat gesture callbacks like interrupt handlers — do nothing but schedule;
+mutate state on the next frame, and keep gesture-wrapped components render-stable while a
+gesture can be live.
+
 ### Bundle ID vs app name
 The app **name** (under the icon) is changeable anytime; the **bundle identifier**
 (`com.groceryhelper.berlin`) is the permanent technical ID — editable until the
