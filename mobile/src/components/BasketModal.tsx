@@ -15,8 +15,9 @@ import { buildPlan, matchOffers, norm, Plan, PlanLine } from '../basket';
 import { CatalogItem, GROCERY_CATALOG, POPULAR_KEYS } from '../catalog';
 import { chainColors, chainLabel } from '../chains';
 import { euro, fmtPricePerUnit } from '../format';
-import { colors } from '../theme';
+import { colors, tint } from '../theme';
 import { BasketItem, Offer } from '../types';
+import { Icon } from './Icon';
 import { OfferCard } from './OfferCard';
 
 type Props = {
@@ -112,11 +113,19 @@ export function BasketModal({ visible, offers, basket, onChangeBasket, onClose }
   const [text, setText] = useState('');
   const [picks, setPicks] = useState<Record<string, number>>({}); // item.key -> offer.id (session)
   const [viewing, setViewing] = useState<BasketItem | null>(null); // per-item "pick a deal" sub-view
+  const [bioOnly, setBioOnly] = useState(false); // per-visit lens on the picker's deals
+
+  // Entering the picker always starts unfiltered — no stale Bio lens from a previous item.
+  const openPicker = (item: BasketItem) => {
+    setBioOnly(false);
+    setViewing(item);
+  };
 
   // Reset the transient UI whenever the sheet closes.
   useEffect(() => {
     if (!visible) {
       setViewing(null);
+      setBioOnly(false);
       setText('');
     }
   }, [visible]);
@@ -177,6 +186,19 @@ export function BasketModal({ visible, offers, basket, onChangeBasket, onClose }
     setViewing(null);
   };
 
+  // The viewed item's matched deals (cheapest first), with an optional Bio-only lens.
+  // The toggle only renders when the item has organic matches, so it can't empty the list.
+  const pickerMatches = useMemo(
+    () => (viewing ? matchOffers(foodOffers, viewing) : []),
+    [foodOffers, viewing],
+  );
+  const pickerBioCount = useMemo(
+    () => pickerMatches.filter((o) => o.is_bio).length,
+    [pickerMatches],
+  );
+  const pickerOffers =
+    bioOnly && pickerBioCount > 0 ? pickerMatches.filter((o) => o.is_bio) : pickerMatches;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView
@@ -200,10 +222,28 @@ export function BasketModal({ visible, offers, basket, onChangeBasket, onClose }
                 <Text style={styles.pickerTitle} numberOfLines={1}>
                   Deals for {viewing.label}
                 </Text>
+                {pickerBioCount > 0 ? (
+                  <Pressable
+                    onPress={() => setBioOnly((v) => !v)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Bio only"
+                    style={[styles.bioPill, bioOnly && styles.bioPillOn]}
+                  >
+                    <Icon name="leaf" size={11} color={bioOnly ? tint.bio.fg : colors.muted} />
+                    <Text style={[styles.bioPillText, bioOnly && styles.bioPillTextOn]}>
+                      Bio ({pickerBioCount})
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
               <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
-                <Text style={styles.pickHint}>Tap a deal to use it in your plan.</Text>
-                {matchOffers(foodOffers, viewing).map((o) => (
+                <Text style={styles.pickHint}>
+                  {pickerOffers.length}
+                  {bioOnly ? ' Bio' : ''} deal{pickerOffers.length === 1 ? '' : 's'} — tap one to
+                  use it in your plan.
+                </Text>
+                {pickerOffers.map((o) => (
                   <OfferCard key={o.id} offer={o} onPress={() => pickOffer(viewing, o)} />
                 ))}
               </ScrollView>
@@ -257,7 +297,7 @@ export function BasketModal({ visible, offers, basket, onChangeBasket, onClose }
                       <BasketRow
                         key={line.item.key}
                         line={line}
-                        onOpen={() => setViewing(line.item)}
+                        onOpen={() => openPicker(line.item)}
                         onRemove={() => removeItem(line.item.key)}
                       />
                     ))}
@@ -390,4 +430,19 @@ const styles = StyleSheet.create({
   back: { color: colors.accent, fontSize: 15, fontWeight: '600' },
   pickerTitle: { color: colors.text, fontSize: 15, fontWeight: '700', flexShrink: 1 },
   pickHint: { color: colors.muted, fontSize: 13, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 4 },
+  bioPill: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card2,
+  },
+  bioPillOn: { backgroundColor: tint.bio.bg, borderColor: tint.bio.fg },
+  bioPillText: { color: colors.muted, fontSize: 12, fontWeight: '700' },
+  bioPillTextOn: { color: tint.bio.fg },
 });
