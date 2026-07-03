@@ -21,7 +21,9 @@ def _stores():
 
 def test_one_entry_per_known_chain():
     chains = sorted(s.chain for s in _stores())
-    assert chains == ["aldi", "edeka", "kaufland", "lidl", "netto", "penny", "rewe"]
+    # The fixture's E center carries brand="EDEKA" + a hyphenated name — the two real
+    # OSM patterns that used to misclassify — and must surface as its own chain row.
+    assert chains == ["aldi", "edeka", "edeka_center", "kaufland", "lidl", "netto", "penny", "rewe"]
 
 
 def test_excludes_non_allowlisted_markets():
@@ -83,6 +85,20 @@ def test_chain_for_ecenter_vs_edeka():
     assert _chain_for("EDEKA Center", None) == "edeka_center"
     assert _chain_for("EDEKA", None) == "edeka"
     assert _chain_for(None, "Edeka Wolff") == "edeka"
+
+
+def test_chain_for_ecenter_real_osm_variants():
+    # Hyphenated spellings are common in OSM and must not fall through to edeka/None.
+    assert _chain_for("E-Center", None) == "edeka_center"
+    assert _chain_for("EDEKA-Center", None) == "edeka_center"
+    assert _chain_for(None, "E-center Musterstadt") == "edeka_center"
+    # The critical masking case: an E center carrying the parent brand tag. The chain
+    # loop runs outermost, so edeka_center's prefixes see the NAME before the generic
+    # "edeka" prefix can swallow the BRAND.
+    assert _chain_for("EDEKA", "E center Musterstadt") == "edeka_center"
+    assert _chain_for("EDEKA", "E-Center am Park") == "edeka_center"
+    # ...while a regular EDEKA with the same brand tag stays edeka.
+    assert _chain_for("EDEKA", "EDEKA Wolff") == "edeka"
 
 
 def test_returns_empty_when_all_mirrors_fail(monkeypatch):

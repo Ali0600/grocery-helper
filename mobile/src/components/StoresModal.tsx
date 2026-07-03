@@ -10,9 +10,16 @@ import {
 } from 'react-native';
 
 import { api } from '../api';
-import { chainColors } from '../chains';
+import { chainColors, chainLabel } from '../chains';
+import { CHAIN_ORDER } from '../dealFilters';
 import { colors } from '../theme';
 import { MyStore, NearbyStore } from '../types';
+
+// A row in the stores list. `placeholder` marks an ACTIVE chain the nearest-stores
+// lookup (2.5 km) found no OSM branch for — rendered so the user can still tap
+// Change (the picker searches a wider 6 km) and save their branch, e.g. an E center
+// that sits just outside the nearest-list radius.
+type StoreRow = NearbyStore & { placeholder?: boolean };
 
 type Props = {
   visible: boolean;
@@ -58,7 +65,7 @@ const branchKey = (s: NearbyStore): string =>
   `${s.chain}:${s.address ?? ''}:${s.lat.toFixed(5)},${s.lng.toFixed(5)}`;
 
 export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose }: Props) {
-  const [stores, setStores] = useState<NearbyStore[]>([]);
+  const [stores, setStores] = useState<StoreRow[]>([]);
   const [selected, setSelected] = useState<Record<string, NearbyStore>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +86,22 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
       try {
         const res = await api.nearbyStores(plz);
         if (cancelled) return;
-        setStores(res);
+        // Active chains we scrape deals for always get a row — if the 2.5 km nearest
+        // lookup found no branch (e.g. the E center is a bit farther out), show a
+        // placeholder whose Change button searches the picker's wider radius.
+        const found = new Set(res.map((s) => s.chain));
+        const placeholders: StoreRow[] = CHAIN_ORDER.filter((c) => !found.has(c)).map((c) => ({
+          chain: c,
+          label: chainLabel(c),
+          name: chainLabel(c),
+          address: null,
+          lat: 0,
+          lng: 0,
+          distance_m: 0,
+          active: true,
+          placeholder: true,
+        }));
+        setStores([...res, ...placeholders]);
         // Seed the shown branch per chain from the nearest list, then overlay any
         // saved branch (the user's chosen store for that chain).
         const seed: Record<string, NearbyStore> = {};
@@ -127,7 +149,7 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
 
   const pickBranch = (s: NearbyStore) => {
     setSelected((prev) => ({ ...prev, [s.chain]: s }));
-    if (savedFor(s.chain)) saveBranch(s); // persist the swap if already saved
+    saveBranch(s); // picking a branch IS choosing your store — persist it
     setPicking(null);
   };
 
@@ -191,8 +213,8 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
           ) : (
             <>
               <Text style={styles.intro}>
-                Lidl &amp; REWE deals are live. Add other stores to save them — and tap
-                Change to pick the branch near you.
+                Deals are live for the chains marked Active. Tap Change on any store to
+                pick the branch that&apos;s actually yours; Add saves it to your list.
               </Text>
 
               {loading ? (
@@ -210,6 +232,9 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
                     const disp = selected[chain] ?? s;
                     const b = chainColors(chain);
                     const isSaved = !!savedFor(chain);
+                    // A placeholder row displays its hint only while nothing better is
+                    // known — a saved branch overlaid via `selected` replaces it.
+                    const showingPlaceholder = disp === s && !!s.placeholder;
                     return (
                       <View key={chain} style={styles.row}>
                         <View style={styles.rowMain}>
@@ -217,54 +242,57 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
                             <View style={[styles.badge, { backgroundColor: b.bg }]}>
                               <Text style={[styles.badgeText, { color: b.fg }]}>{s.label}</Text>
                             </View>
-                            <Text style={styles.name} numberOfLines={1}>
-                              {disp.name}
-                            </Text>
+                            {!showingPlaceholder ? (
+                              <Text style={styles.name} numberOfLines={1}>
+                                {disp.name}
+                              </Text>
+                            ) : null}
+                            {s.active ? (
+                              <View style={styles.activeInline}>
+                                <Text style={styles.activeInlineText}>Active</Text>
+                              </View>
+                            ) : null}
                           </View>
                           <Text style={styles.meta} numberOfLines={1}>
-                            {(disp.address ?? 'Address unavailable') +
-                              (disp.distance_m > 0 ? ' · ' + fmtDist(disp.distance_m) : '')}
+                            {showingPlaceholder
+                              ? 'No branch found within 2.5 km — Change searches wider'
+                              : (disp.address ?? 'Address unavailable') +
+                                (disp.distance_m > 0 ? ' · ' + fmtDist(disp.distance_m) : '')}
                           </Text>
                         </View>
 
-                        {s.active ? (
-                          <View style={[styles.action, styles.activeTag]}>
-                            <Text style={styles.activeText}>Active</Text>
-                          </View>
-                        ) : (
-                          <View style={styles.actions}>
-                            {isSaved ? (
-                              <Pressable
-                                onPress={() => removeChain(chain)}
-                                style={({ pressed }) => [
-                                  styles.action,
-                                  styles.savedTag,
-                                  pressed && styles.pressed,
-                                ]}
-                              >
-                                <Text style={styles.savedText}>Added ✓</Text>
-                              </Pressable>
-                            ) : (
-                              <Pressable
-                                onPress={() => saveBranch(selected[chain] ?? s)}
-                                style={({ pressed }) => [
-                                  styles.action,
-                                  styles.addBtn,
-                                  pressed && styles.pressed,
-                                ]}
-                              >
-                                <Text style={styles.addText}>+ Add</Text>
-                              </Pressable>
-                            )}
+                        <View style={styles.actions}>
+                          {isSaved ? (
                             <Pressable
-                              onPress={() => openPicker(chain, s.label)}
-                              hitSlop={6}
-                              style={({ pressed }) => [styles.changeBtn, pressed && styles.pressed]}
+                              onPress={() => removeChain(chain)}
+                              style={({ pressed }) => [
+                                styles.action,
+                                styles.savedTag,
+                                pressed && styles.pressed,
+                              ]}
                             >
-                              <Text style={styles.changeText}>Change</Text>
+                              <Text style={styles.savedText}>Added ✓</Text>
                             </Pressable>
-                          </View>
-                        )}
+                          ) : !showingPlaceholder ? (
+                            <Pressable
+                              onPress={() => saveBranch(selected[chain] ?? s)}
+                              style={({ pressed }) => [
+                                styles.action,
+                                styles.addBtn,
+                                pressed && styles.pressed,
+                              ]}
+                            >
+                              <Text style={styles.addText}>+ Add</Text>
+                            </Pressable>
+                          ) : null}
+                          <Pressable
+                            onPress={() => openPicker(chain, s.label)}
+                            hitSlop={6}
+                            style={({ pressed }) => [styles.changeBtn, pressed && styles.pressed]}
+                          >
+                            <Text style={styles.changeText}>Change</Text>
+                          </Pressable>
+                        </View>
                       </View>
                     );
                   })}
@@ -344,8 +372,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   pressed: { opacity: 0.6 },
-  activeTag: { backgroundColor: 'rgba(61,220,132,0.16)' },
-  activeText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+  activeInline: {
+    backgroundColor: 'rgba(61,220,132,0.16)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  activeInlineText: { color: colors.accent, fontSize: 10, fontWeight: '700' },
   savedTag: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.accent },
   savedText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
   addBtn: { backgroundColor: colors.accent },
