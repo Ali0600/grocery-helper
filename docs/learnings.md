@@ -170,6 +170,18 @@ computed in `offer_to_out`, so adding them needed **no schema change/migration**
 **Takeaway:** if a field is a pure function of stored data, compute it on read —
 fewer migrations, no stale columns.
 
+### Where a derived field is computed decides how it ships
+A pure function of already-available data can live on the server (serializer) **or** on the
+client. If every raw input already reaches the app, computing it **client-side** makes the whole
+feature **JS-only → OTA: no backend deploy, no migration, no re-scrape, not even a cache clear**
+(the cached rows already carry the inputs).
+**Why it came up:** making the EDEKA "Mit App" price the headline price + main discount *felt*
+like a data change, but `app_price_cents` / `price_cents` / `regular_price_cents` / `discount_pct`
+were all already in `OfferOut`, so it was a pure `mobile/src/appPrice.ts` helper + card/sort tweak,
+shipped via OTA in minutes.
+**Takeaway:** before scoping a "data" feature as backend work, check whether its inputs already
+reach the client — if they do, it's a client-side/OTA change, not a migration + re-scrape.
+
 ### Geocode the _right_ coordinate
 "Nearby" results are only as good as the center point you measure from. The store
 picker centered on the scraped Lidl's coords, which sat ~3 km away in the next
