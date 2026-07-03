@@ -312,6 +312,14 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `expo-haptics` are **native deps** → `app.json` version bumped 1.0.0→**1.1.0** (new
   `runtimeVersion`), so OTAs target the 1.1.0 TestFlight build; a future native dep needs the
   same bump + `eas build`/`submit` (user-run). `GestureHandlerRootView` wraps App.tsx.
+  **Gesture callbacks must stay pure** (2026-07-03 freeze fix): setState inside
+  `onSwipeableOpen` re-renders the rows mid-gesture and can leave the pan stuck "active" —
+  gesture-handler's root then eats EVERY touch (app-wide freeze, no tap/scroll; kill+relaunch
+  clears it). The card closes first and defers `onAdd`/haptics via `requestAnimationFrame`;
+  rows are memoized and DealsScreen's `onAddToBasket` reads the basket via a ref so its
+  identity is stable — don't reintroduce `[basket]` deps or state writes in gesture handlers.
+  If a freeze recurs anyway: suspect the stacked native modals (Compare→FlyerModal), then
+  consider ReanimatedSwipeable / @sentry/react-native (both native deps → new build).
 - **Compare Stores page** (`components/CompareModal.tsx` + pure `compare.ts`, header
   `git-compare` button): per product sub-group (`offer.group`), each selected store's cheapest
   price side by side, cheapest highlighted, rows sorted by spread; needs ≥2 stores sharing a

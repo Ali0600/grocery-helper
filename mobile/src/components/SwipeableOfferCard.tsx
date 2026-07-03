@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -11,13 +11,20 @@ import { OfferCard } from './OfferCard';
 // Swipe a deal left to add it to the basket. The revealed green action reads "Basket";
 // releasing past the threshold adds the offer's sub-category (see resolveBasketItem),
 // buzzes, and snaps the row shut — a fling-to-add, so the row never stays open.
-export function SwipeableOfferCard({
+//
+// FREEZE HARDENING: the gesture's completion callback must stay pure. Mutating app
+// state inside it (basket + toast → the whole list re-renders mid-gesture) and only
+// then force-closing the row is a known stuck-active-gesture recipe — the pan never
+// settles and gesture-handler's root keeps claiming EVERY touch (app-wide freeze,
+// no taps, no scroll). So: close first, and defer the add + haptic by a frame. The
+// component is memoized (all props stable) so live gestures aren't re-rendered under.
+export const SwipeableOfferCard = memo(function SwipeableOfferCard({
   offer,
-  onPress,
+  onPressOffer,
   onAdd,
 }: {
   offer: Offer;
-  onPress?: () => void;
+  onPressOffer: (offer: Offer) => void;
   onAdd: (offer: Offer) => void;
 }) {
   return (
@@ -33,17 +40,19 @@ export function SwipeableOfferCard({
       )}
       onSwipeableOpen={(direction, swipeable) => {
         if (direction !== 'right') return; // left-swipe reveals the right action
-        onAdd(offer);
-        if (Platform.OS !== 'web') {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-        }
         swipeable.close();
+        requestAnimationFrame(() => {
+          onAdd(offer);
+          if (Platform.OS !== 'web') {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          }
+        });
       }}
     >
-      <OfferCard offer={offer} onPress={onPress} />
+      <OfferCard offer={offer} onPress={() => onPressOffer(offer)} />
     </Swipeable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   action: {
