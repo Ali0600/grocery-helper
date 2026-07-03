@@ -19,7 +19,8 @@ export type SortMode = 'discount' | 'price' | 'unit';
 export async function getStoredPlz(): Promise<string | null> {
   try {
     return await AsyncStorage.getItem(PLZ_KEY);
-  } catch {
+  } catch (e) {
+    console.warn('storage: getStoredPlz failed', e);
     return null;
   }
 }
@@ -27,7 +28,8 @@ export async function getStoredPlz(): Promise<string | null> {
 export async function setStoredPlz(plz: string): Promise<void> {
   try {
     await AsyncStorage.setItem(PLZ_KEY, plz);
-  } catch {
+  } catch (e) {
+    console.warn('storage: setStoredPlz failed', e);
     // Persistence is best-effort; the PLZ still applies for this session.
   }
 }
@@ -35,7 +37,8 @@ export async function setStoredPlz(plz: string): Promise<void> {
 export async function getStoredShowNonFood(): Promise<boolean> {
   try {
     return (await AsyncStorage.getItem(NONFOOD_KEY)) === '1';
-  } catch {
+  } catch (e) {
+    console.warn('storage: getStoredShowNonFood failed', e);
     return false;
   }
 }
@@ -43,7 +46,8 @@ export async function getStoredShowNonFood(): Promise<boolean> {
 export async function setStoredShowNonFood(value: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(NONFOOD_KEY, value ? '1' : '0');
-  } catch {
+  } catch (e) {
+    console.warn('storage: setStoredShowNonFood failed', e);
     // best-effort
   }
 }
@@ -55,7 +59,8 @@ export async function getStoredHiddenStores(): Promise<string[]> {
   try {
     const raw = await AsyncStorage.getItem(HIDDEN_STORES_KEY);
     return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
+  } catch (e) {
+    console.warn('storage: getStoredHiddenStores failed', e);
     return [];
   }
 }
@@ -63,7 +68,8 @@ export async function getStoredHiddenStores(): Promise<string[]> {
 export async function setStoredHiddenStores(chains: string[]): Promise<void> {
   try {
     await AsyncStorage.setItem(HIDDEN_STORES_KEY, JSON.stringify(chains));
-  } catch {
+  } catch (e) {
+    console.warn('storage: setStoredHiddenStores failed', e);
     // best-effort
   }
 }
@@ -72,7 +78,8 @@ export async function getStoredMyStores(): Promise<MyStore[]> {
   try {
     const raw = await AsyncStorage.getItem(MYSTORES_KEY);
     return raw ? (JSON.parse(raw) as MyStore[]) : [];
-  } catch {
+  } catch (e) {
+    console.warn('storage: getStoredMyStores failed', e);
     return [];
   }
 }
@@ -80,7 +87,8 @@ export async function getStoredMyStores(): Promise<MyStore[]> {
 export async function setStoredMyStores(stores: MyStore[]): Promise<void> {
   try {
     await AsyncStorage.setItem(MYSTORES_KEY, JSON.stringify(stores));
-  } catch {
+  } catch (e) {
+    console.warn('storage: setStoredMyStores failed', e);
     // best-effort
   }
 }
@@ -89,7 +97,8 @@ export async function getStoredSortMode(): Promise<SortMode> {
   try {
     const v = await AsyncStorage.getItem(SORT_KEY);
     return v === 'price' || v === 'unit' ? v : 'discount'; // legacy/unknown -> default
-  } catch {
+  } catch (e) {
+    console.warn('storage: getStoredSortMode failed', e);
     return 'discount';
   }
 }
@@ -97,7 +106,8 @@ export async function getStoredSortMode(): Promise<SortMode> {
 export async function setStoredSortMode(mode: SortMode): Promise<void> {
   try {
     await AsyncStorage.setItem(SORT_KEY, mode);
-  } catch {
+  } catch (e) {
+    console.warn('storage: setStoredSortMode failed', e);
     // best-effort
   }
 }
@@ -106,7 +116,8 @@ export async function getStoredBasket(): Promise<BasketItem[]> {
   try {
     const raw = await AsyncStorage.getItem(BASKET_KEY);
     return raw ? (JSON.parse(raw) as BasketItem[]) : [];
-  } catch {
+  } catch (e) {
+    console.warn('storage: getStoredBasket failed', e);
     return [];
   }
 }
@@ -114,7 +125,8 @@ export async function getStoredBasket(): Promise<BasketItem[]> {
 export async function setStoredBasket(items: BasketItem[]): Promise<void> {
   try {
     await AsyncStorage.setItem(BASKET_KEY, JSON.stringify(items));
-  } catch {
+  } catch (e) {
+    console.warn('storage: setStoredBasket failed', e);
     // best-effort
   }
 }
@@ -134,7 +146,8 @@ export async function getDealsCache(): Promise<CachedDeals | null> {
   try {
     const raw = await AsyncStorage.getItem(DEALS_CACHE_KEY);
     return raw ? (JSON.parse(raw) as CachedDeals) : null;
-  } catch {
+  } catch (e) {
+    console.warn('storage: getDealsCache failed', e);
     return null;
   }
 }
@@ -142,7 +155,8 @@ export async function getDealsCache(): Promise<CachedDeals | null> {
 export async function setDealsCache(data: CachedDeals): Promise<void> {
   try {
     await AsyncStorage.setItem(DEALS_CACHE_KEY, JSON.stringify(data));
-  } catch {
+  } catch (e) {
+    console.warn('storage: setDealsCache failed', e);
     // best-effort (e.g. storage quota) — the app still works without the cache
   }
 }
@@ -152,7 +166,8 @@ export async function setDealsCache(data: CachedDeals): Promise<void> {
 export async function clearDealsCache(): Promise<void> {
   try {
     await AsyncStorage.removeItem(DEALS_CACHE_KEY);
-  } catch {
+  } catch (e) {
+    console.warn('storage: clearDealsCache failed', e);
     // best-effort
   }
 }
@@ -171,7 +186,8 @@ export async function clearAllData(): Promise<void> {
       RECIPE_PREFS_KEY,
       ALWAYS_HAVE_KEY,
     ]);
-  } catch {
+  } catch (e) {
+    console.warn('storage: clearAllData failed', e);
     // best-effort
   }
 }
@@ -183,7 +199,8 @@ export async function getStoredRecipePrefs(): Promise<RecipePrefs> {
     const raw = await AsyncStorage.getItem(RECIPE_PREFS_KEY);
     // Merge over defaults so a new field added later still has a value.
     return raw ? { ...DEFAULT_RECIPE_PREFS, ...(JSON.parse(raw) as Partial<RecipePrefs>) } : DEFAULT_RECIPE_PREFS;
-  } catch {
+  } catch (e) {
+    console.warn('storage: getStoredRecipePrefs failed', e);
     return DEFAULT_RECIPE_PREFS;
   }
 }
@@ -191,7 +208,8 @@ export async function getStoredRecipePrefs(): Promise<RecipePrefs> {
 export async function setStoredRecipePrefs(prefs: RecipePrefs): Promise<void> {
   try {
     await AsyncStorage.setItem(RECIPE_PREFS_KEY, JSON.stringify(prefs));
-  } catch {
+  } catch (e) {
+    console.warn('storage: setStoredRecipePrefs failed', e);
     // best-effort
   }
 }
@@ -214,7 +232,8 @@ export async function getStoredAlwaysHave(): Promise<BasketItem[]> {
   try {
     const raw = await AsyncStorage.getItem(ALWAYS_HAVE_KEY);
     return raw ? (JSON.parse(raw) as BasketItem[]) : defaultAlwaysHave();
-  } catch {
+  } catch (e) {
+    console.warn('storage: getStoredAlwaysHave failed', e);
     return defaultAlwaysHave();
   }
 }
@@ -222,7 +241,8 @@ export async function getStoredAlwaysHave(): Promise<BasketItem[]> {
 export async function setStoredAlwaysHave(items: BasketItem[]): Promise<void> {
   try {
     await AsyncStorage.setItem(ALWAYS_HAVE_KEY, JSON.stringify(items));
-  } catch {
+  } catch (e) {
+    console.warn('storage: setStoredAlwaysHave failed', e);
     // best-effort
   }
 }
