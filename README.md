@@ -5,13 +5,13 @@ weekly offers ("Angebote") from local supermarket chains, normalizes and
 categorizes them, computes the **% discount** for every item, and helps you
 build the cheapest basket across one or two stores.
 
-> **Status:** v1 in progress. **Live Lidl + REWE + EDEKA offers** + API + the React
-> Native app work end-to-end — real Berlin prices, resolved from your postal
-> code via the Lidl Plus endpoints and the meinprospekt weekly-flyer feed. Three
-> chains make the basket optimizer and per-product price comparison meaningful.
-> The **backend is deployed on Render** (HTTPS), and the iOS app is wired for
-> **EAS → TestFlight**. See [Deploy](#deploy-to-render-free-https-for-testflight)
-> and [Roadmap](#roadmap).
+> **Status:** v1.1 in progress. **Live Lidl + REWE + EDEKA + E center offers** + API +
+> the React Native app work end-to-end — real Berlin prices, resolved from your postal
+> code via the Lidl Plus endpoints and the meinprospekt weekly-flyer feed. Four
+> chains make the basket optimizer, the per-product grouping, and the **Compare
+> Stores** face-off meaningful. The **backend is deployed on Render** (HTTPS), and
+> the iOS app ships via **EAS → TestFlight** (build 1.1.0) with OTA updates.
+> See [Deploy](#deploy-to-render-free-https-for-testflight) and [Roadmap](#roadmap).
 
 ## Highlights
 
@@ -43,6 +43,17 @@ build the cheapest basket across one or two stores.
   app consuming the API to browse local deals by category, sorted by savings;
   the same code runs in the browser via Expo Web / react-native-web
   (`npm run web`).
+- **Compare Stores price face-off** — pick stores and a category, and every product
+  sub-group (Avocado, Butter, Milch…) lines up each store's cheapest price side by
+  side with the winner highlighted — powered by a cross-source product-grouping
+  taxonomy shared with the basket matcher.
+- **Swipe-to-basket gesture** — swipe any deal left to add its product *category*
+  to the shopping basket (a melon offer adds "Melon", which then tracks the cheapest
+  melon all week) — native gesture handling with haptic feedback, and a resolver
+  that reconciles the server's product sub-groups with the client catalog.
+- **Persisted store visibility** — hide chains you never shop at; the preference
+  survives restarts and applies everywhere prices are suggested (deals list, basket
+  optimizer, recipe pricing), with a guard so the last visible store can't be hidden.
 - **Modern, decluttered mobile UI** — secondary filters (store, sort, special-days,
   Bio, non-food) consolidated into a single bottom-sheet behind an active-filter chip
   bar, an icon-led header (`@expo/vector-icons`), and a small design-token system
@@ -62,15 +73,17 @@ build the cheapest basket across one or two stores.
   scheduled weekly data-refresh cron that **retries and opens a GitHub issue on
   failure** — with least-privilege permissions, dependency caching, concurrency
   control, and **Dependabot** automated dependency updates.
-- **Automated test suite** — 275 backend unit tests (pytest) covering the scrapers,
-  classifier, dedup, unit-price and validity logic, plus a React Native **Jest** suite
-  for the app's pure business logic (basket matching, recipe filtering, €/formatting,
-  catalog trap-guards); a model-vs-migration **drift check** (`alembic check`) fails CI
-  if the ORM and schema diverge.
+- **Automated test suite** — ~300 backend tests (pytest) covering the scrapers,
+  classifier, dedup, unit-price/validity logic, and HTTP-level API behavior
+  (filters, auth guards, throttling), plus a React Native **Jest** suite (~80 tests)
+  for the app's pure business logic (basket matching, the deals filter pipeline,
+  recipe filtering, store comparison, catalog trap-guards); a model-vs-migration
+  **drift check** (`alembic check`) fails CI if the ORM and schema diverge.
 - **Multi-retailer ingestion across heterogeneous sources** — a single
-  publisher-parameterized engine normalizes three German chains (Lidl, REWE, EDEKA)
-  from two feed types (a private mobile coupon API and structured weekly-flyer data)
-  into one schema, tagged by chain/source, powering a cross-store basket optimizer.
+  publisher-parameterized engine normalizes four German chains (Lidl, REWE, EDEKA,
+  E center) from two feed types (a private mobile coupon API and structured
+  weekly-flyer data) into one schema, tagged by chain/source, powering a cross-store
+  basket optimizer.
 - **Geospatial store discovery** — an OpenStreetMap Overpass integration that
   finds the nearest branch of each major chain around a postal code (haversine
   ranking, multi-mirror failover, response caching), powering an in-app
@@ -79,9 +92,13 @@ build the cheapest basket across one or two stores.
   fall-back data paths so a single upstream change never takes the app down.
 - **In-app maintenance/admin controls** — an Options panel exposing client- and
   server-side data-lifecycle actions (clear on-device cache, full app reset,
-  on-demand re-scrape, and a guarded database wipe-and-reseed via `POST /api/reset`
-  gated by an optional `ADMIN_TOKEN`) — giving an operator one-tap recovery from
-  stale cache or bad data without a redeploy.
+  on-demand re-scrape, and a database wipe-and-reseed via `POST /api/reset`) —
+  giving an operator one-tap recovery from stale cache or bad data without a redeploy.
+- **Hardened public API surface** — destructive endpoints require an `ADMIN_TOKEN`
+  sent as an `X-Admin-Token` header (timing-safe comparison, failed attempts logged
+  with the client host), and the on-demand scrape is throttled (per-PLZ cooldown +
+  global rate limit) so third parties can't hammer the upstream flyer sites through
+  the server — while the app's cold-start scrape path stays unblocked.
 - **Day-aware deal validity** — parses each offer's true on-sale window from a
   per-record validity field the feed buries (timezone-correct via `zoneinfo`), so
   day-limited specials (e.g. weekend-only deals) are badged with their days and
@@ -217,8 +234,9 @@ numbers) and `mobile/app.json` (`ios.bundleIdentifier`). Set
 | GET    | `/api/stores`     | Known stores                                     |
 | GET    | `/api/nearby-stores` | Nearest branch of each major chain near a PLZ (OSM); `active` flag for chains we scrape |
 | POST   | `/api/optimize`   | Cheapest basket across 1–2 stores                |
-| POST   | `/api/scrape`     | Re-run scrapers on demand (dev)                  |
-| POST   | `/api/recategorize` | Re-apply the classifier to stored offers (dev) |
+| POST   | `/api/scrape`     | Re-run scrapers on demand (throttled: per-PLZ cooldown + global rate limit) |
+| POST   | `/api/recategorize` | Re-apply the classifier to stored offers (requires `X-Admin-Token` when `ADMIN_TOKEN` is set) |
+| POST   | `/api/reset`      | Wipe all offers + re-scrape (weekly refresh; requires `X-Admin-Token` when `ADMIN_TOKEN` is set) |
 | GET    | `/api/scrape-stats` | Outbound calls to the scraped sites, by source/host (total + a timestamped recent-calls log); on-demand dashboard at `/stats` (Refresh button) |
 
 ## Scrapers
@@ -255,6 +273,11 @@ ranks by absolute price, so this doesn't affect it.
 for EDEKA's national meinprospekt publisher (`DE-220164`). ~300 structured Berlin
 offers attach to a separate EDEKA store, giving a third chain to compare per product
 (e.g. avocado across Lidl/REWE/EDEKA). Same no-regular-price caveat as REWE.
+
+**E center weekly flyer** (`source="flyer"`, `chain="edeka_center"`) — EDEKA's
+hypermarket format has its **own** meinprospekt publisher (`DE-3443181`), so it's
+scraped as a fourth, separate chain (~290 offers/PLZ) — which is what makes the
+EDEKA-vs-E-center face-off in **Compare Stores** possible.
 
 **Categorization.** [`categories.py`](backend/app/categories.py) classifies each
 offer with a path-aware, deterministic pipeline:
@@ -336,7 +359,12 @@ Engineering practices demonstrated while building and operating this project:
   check before it commits and ships over-the-air — no managed API key anywhere, in CI or at runtime.
 - **Dependency & supply-chain management** — Dependabot scoped to independently
   versioned packages with security updates enabled, avoiding framework-lockstep
-  breakage in an Expo SDK-pinned app.
+  breakage in an Expo SDK-pinned app; all GitHub Actions pinned to commit SHAs and
+  release-tooling versions pinned, so no third-party tag move can alter the pipeline.
+- **API security hardening** — Token-guarded destructive endpoints (header-based,
+  timing-safe comparison, audit-logged failures), abuse throttling on the public
+  scrape trigger, and a non-root container image — applied after a structured
+  security review of the deployed surface.
 
 ## Roadmap
 
@@ -382,8 +410,20 @@ Engineering practices demonstrated while building and operating this project:
 - [x] Category-accuracy pass — mine more of the Bonial `categoryPaths` taxonomy + a
       product-image audit (uncategorized "Other" 11% → 1%; Fruits confirmed against images)
 - [x] In-app OTA update prompt — alerts "Reload to update?" when an EAS Update is ready
+- [x] Hide/show stores — persisted multi-select store visibility, applied to the deals
+      list, basket optimizer, and recipe pricing alike
+- [x] Swipe-to-basket — swipe a deal left to add its product sub-category (the same
+      entry the basket's "+" adds), with haptic feedback (native build 1.1.0)
+- [x] E center as a fourth chain (own meinprospekt publisher `DE-3443181`) — EDEKA's
+      hypermarket flyer as a separate store
+- [x] Compare Stores — a per-product price face-off across selected stores, cheapest
+      highlighted, tap-through to the deal
+- [x] Security & ops hardening — header-based admin auth on destructive endpoints,
+      scrape throttling, Berlin-timezone validity, supply-chain-pinned CI, non-root
+      container
 - [ ] Production monitoring/alerting (uptime + scraper health) on a persistent DB
-- [ ] Recipes from on-sale + pantry items (later phase)
+- [ ] "Store scorecard" compare view — per-store summary (deal count, avg discount,
+      which categories each store wins)
 
 ## Legal
 

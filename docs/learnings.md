@@ -96,6 +96,27 @@ public repo, rewriting history shrinks exposure but can't guarantee removal — 
 orphaned commit objects (reachable by SHA until GC), PR refs, forks, and search caches, so a true
 secret must also be **rotated** (the only certain purge is delete-and-recreate or GitHub Support).
 
+### A UTC server makes "today" the wrong day for hours
+`date.today()` is the *server's* date. Render runs UTC, Berlin is UTC+1/+2 — so between
+midnight UTC and midnight Berlin, "today" on the server is still yesterday, and a
+date-boundary filter (`valid_to >= today`) keeps expired offers alive (or drops fresh ones)
+for up to 2 hours around the boundary.
+**Why it came up:** the fresh-eyes audit found all three validity filters comparing against
+server-local `date.today()`; fixed with a `berlin_today()` helper (`zoneinfo("Europe/Berlin")`),
+matching the tz-aware parsing the scraper already did.
+**Takeaway:** any date comparison tied to a real-world place must name its timezone — if the
+domain has a "shop day", compute *that* day, never the host's.
+
+### Credentials in query strings end up in logs
+A token passed as `?token=...` is written to every access log, proxy log, and browser history
+along the way; an `Authorization`-style **header** is not. Same secret, very different exposure.
+**Why it came up:** `POST /api/reset?token=…` (app + weekly cron) logged the admin token into
+Render's access logs on every weekly refresh; moved to an `X-Admin-Token` header end-to-end
+(server accepts both during transition), with a timing-safe compare (`secrets.compare_digest`)
+and a warning log on failed attempts.
+**Takeaway:** secrets ride in headers or bodies, never in URLs — and auth failures should log
+(who/where), or probing is invisible.
+
 ## iOS / mobile
 
 ### Bundle ID vs app name

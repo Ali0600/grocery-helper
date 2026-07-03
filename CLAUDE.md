@@ -48,21 +48,23 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   job's logs are world-readable, so a variable would leak the PLZ — secrets are masked (`***`).
   The repo was history-rewritten on 2026-06-30 to purge a personal PLZ — do NOT reintroduce one
   in any committed file (code, docs, tests, CI, compose, blueprint).
-- **Two sources × three chains, tagged `Offer.source` / `Store.chain`**: `coupon`
+- **Two sources × four chains, tagged `Offer.source` / `Store.chain`**: `coupon`
   (Lidl Plus app endpoints, `app/scrapers/lidl.py`) and `flyer`
   (meinprospekt weekly Prospekt, `app/scrapers/bonial.py`). `bonial.py` is a
   publisher-parameterized engine (`MeinprospektScraper`): `BonialScraper` =
   **Lidl** (publisher `DE-1013`, page `/lidl`), `ReweScraper` = **REWE**
   (publisher `DE-1062`, page `/rewe-de`), `EdekaScraper` = **EDEKA** (publisher
-  `DE-220164`, page `/edeka`). The flyer feed is location-gated and reuses the
-  lat/lng the Lidl Plus lookup resolves; REWE and EDEKA are **separate stores**
-  (`chain="rewe"`/`"edeka"`) reusing those PLZ coords (a Berlin PLZ → one brochure
-  region). **REWE's and EDEKA's flyers have no regular price** → most of their
-  offers have no `discount_pct` (they sink under discount-sort but the optimizer
-  ranks by absolute price). Three chains push a Berlin PLZ to ~1600 raw / **~1050
-  deduped** offers, so `/api/offers` `limit` cap and the app's load are **2000**;
-  a 4th chain (or a denser PLZ crossing 2000) → move search server-side (`q` param)
-  rather than raising it again.
+  `DE-220164`, page `/edeka`), `EdekaCenterScraper` = **E center** (EDEKA's
+  hypermarket format — its OWN publisher `DE-3443181`, page `/edekacenter-de`;
+  deliberately a separate `chain="edeka_center"` so it can be compared against
+  regular EDEKA). The flyer feed is location-gated and reuses the lat/lng the
+  Lidl Plus lookup resolves; REWE/EDEKA/E center are **separate stores** reusing
+  those PLZ coords (a Berlin PLZ → one brochure region). **The REWE/EDEKA/E center
+  flyers have no regular price** → most of their offers have no `discount_pct`
+  (they sink under discount-sort but the optimizer ranks by absolute price). Four
+  chains measured ~1425 raw / **~1409 deduped** for a Berlin PLZ, still under the
+  `/api/offers` `limit` cap of **2000** (also the app's load); a denser PLZ crossing
+  2000 → move search server-side (`q` param) rather than raising it again.
 - **Offers are de-duplicated at serve time** (`app/dedup.py`, used by both
   `/api/offers` and `/api/categories` so list and chip counts agree). A chain
   publishes several weekly brochures, so the flyer feed repeats a product across
@@ -293,10 +295,29 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 - **Deals-screen filter UI (redesigned)**: secondary filters live in a **bottom sheet**
   (`components/FilterSheet.tsx`) opened from a single **`FilterBar`** (sort summary + a "Filters"
   button badged with the active-filter count + a removable chip per active filter). The sheet holds
-  Sort / Store / Special days / Bio / Non-food as labelled pill sections **with the per-option
-  counts**; the category-chips row is the only inline filter now. Filter state stays in
-  `DealsScreen`; the old `StoreFilter`/`SpecialDaysToggle`/`BioToggle`/`SortToggle` row components
-  were **retired** (absorbed by the sheet). The header is a location control + circular icon
+  Sort / **Stores shown** (multi-select hide/show, persisted `hiddenStores` key — a hidden-set with a
+  never-hide-the-last-store guard in `stores.ts`; hiding applies to the deals list AND the Basket/
+  Recipes matchers via `modalOffers`, per the user — Compare keeps its own picker) / Special days /
+  Bio / Non-food as labelled pill sections **with the per-option counts**; the category-chips row is
+  the only inline filter now. Filter state stays in `DealsScreen`; the old
+  `StoreFilter`/`SpecialDaysToggle`/`BioToggle`/`SortToggle` row components
+  were **retired** (absorbed by the sheet). **The pure pipeline lives in `dealFilters.ts`**
+  (presentChains/chainCounts/compareOffers/filterDeals/buildSections, unit-tested) and the screen
+  memoizes it — don't re-inline derived filtering into the render body.
+- **Swipe-to-basket is NATIVE (runtime 1.1.0)**: `SwipeableOfferCard` wraps `OfferCard` in
+  gesture-handler's built-in `Swipeable` (NOT ReanimatedSwipeable — deliberately no reanimated/
+  worklets dep); left-swipe adds the offer's sub-category via the pure resolver
+  `basketResolve.ts` (`resolveBasketItem`: offer.group → catalog item, else synth `grp:` item,
+  else name reverse-match — swipe-add ≡ the Basket "+" add). `react-native-gesture-handler` +
+  `expo-haptics` are **native deps** → `app.json` version bumped 1.0.0→**1.1.0** (new
+  `runtimeVersion`), so OTAs target the 1.1.0 TestFlight build; a future native dep needs the
+  same bump + `eas build`/`submit` (user-run). `GestureHandlerRootView` wraps App.tsx.
+- **Compare Stores page** (`components/CompareModal.tsx` + pure `compare.ts`, header
+  `git-compare` button): per product sub-group (`offer.group`), each selected store's cheapest
+  price side by side, cheapest highlighted, rows sorted by spread; needs ≥2 stores sharing a
+  sub-group; tap a price → FlyerModal (rendered beneath it). Store multi-select defaults to all
+  present chains (its own picker — deliberately ignores `hiddenStores`). A **"Store scorecard"**
+  variant (per-store deal count / avg discount / category wins) is a wanted follow-up. The header is a location control + circular icon
   actions (`IconButton`) using **`@expo/vector-icons` Ionicons** behind `components/Icon.tsx`;
   search sits under the header. Spacing/type/tag colours come from `theme.ts` tokens
   (`space`/`radius`/`font`/`tint`), not per-component hardcodes.
@@ -339,9 +360,17 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   **`POST /api/reset`**). Destructive actions use an **inline two-tap confirm** (not
   `Alert.alert`, which drops its buttons on react-native-web). `POST /api/reset` deletes
   **all** offers then re-scrapes one PLZ (unlike `/api/scrape`'s in-place upsert, so it also
-  clears stale rows the scrape no longer touches); guarded by **`ADMIN_TOKEN`** *only when
-  that env is set* (else open like `/api/scrape`); the app sends `EXPO_PUBLIC_ADMIN_TOKEN`
-  if present. The wipe self-heals via the immediate re-scrape but comes back sparse on a
+  clears stale rows the scrape no longer touches). **Admin guard (2026-07-03)**: `/api/reset`
+  AND `/api/recategorize` require **`ADMIN_TOKEN`** *when that env is set* (else open for local
+  dev) — sent as an **`X-Admin-Token` header** (query `token` is a deprecated fallback;
+  headers stay out of access logs), compared timing-safe, failures logged with the client
+  host. The app sends `EXPO_PUBLIC_ADMIN_TOKEN` if present (local `mobile/.env`; OTA bundles
+  get it from the `EXPO_PUBLIC_ADMIN_TOKEN` GH secret injected in `eas-update.yml`).
+  **`/api/scrape` stays tokenless but throttled**: a PLZ that already has offers re-scrapes at
+  most once/10 min + a global 15s min-gap (skip → `scraped=0, skipped=true`); an **empty PLZ
+  always scrapes** so the app's cold-start on-demand path never blocks. **Validity filters use
+  `berlin_today()`** (`app/validity.py`), not server-local `date.today()` — Render runs UTC.
+  The wipe self-heals via the immediate re-scrape but comes back sparse on a
   sample-fallback (re-run when the source is reachable).
 - **AI Recipes are offline-authored, OTA-shipped — NO runtime LLM/API** (`mobile/src/data/
   recipes.ts` + `RecipesModal`, "Recipes" header button). Deliberate per the user: no
@@ -372,8 +401,12 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   — wipe + re-scrape, *not* upsert, so the prior week's stale offers are cleared; runs Sunday
   because flyers are Mon–Sat so they're spent by then and next week's are already discoverable,
   refreshing before the app's weekly cache expires past Sunday — retries 3× and opens/comments a
-  `scrape-failure` issue on total failure; passes an optional `ADMIN_TOKEN` secret, only enforced
-  if that env is also set on Render). `dependabot.yml` auto-bumps
+  `scrape-failure` issue on total failure; passes the `ADMIN_TOKEN` secret as an **`X-Admin-Token`
+  header**, enforced once that env is also set on Render). **All workflow actions are pinned to
+  commit SHAs** (tag as trailing comment; Dependabot updates SHA pins) and `eas-version` is pinned
+  (no `latest`) — bump deliberately, don't revert to floating tags. The committed launchd plist
+  (`scripts/com.groceryhelper.recipes.plist`) is a **`/Users/CHANGE_ME` template** (install via the
+  sed line in `docs/recipes.md`) — never commit a real home path. `dependabot.yml` auto-bumps
   **pip + actions** weekly (minor+patch grouped); **no npm/mobile version-updates** — the app is
   Expo SDK-pinned (react/react-native/expo-*/jest-expo lockstep), so per-package bumps break
   `npm ci` (react-native 0.86 vs jest-expo@56's RN 0.85 peer); bump mobile deps via `npx expo
