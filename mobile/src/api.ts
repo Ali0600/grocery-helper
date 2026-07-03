@@ -34,8 +34,8 @@ async function request<T>(path: string, init: RequestInit, timeoutMs: number): P
 }
 
 const get = <T>(path: string, timeoutMs = 30000): Promise<T> => request<T>(path, {}, timeoutMs);
-const post = <T>(path: string, timeoutMs = 30000): Promise<T> =>
-  request<T>(path, { method: 'POST' }, timeoutMs);
+const post = <T>(path: string, timeoutMs = 30000, headers?: Record<string, string>): Promise<T> =>
+  request<T>(path, { method: 'POST', ...(headers ? { headers } : {}) }, timeoutMs);
 
 export const api = {
   base: BASE,
@@ -93,10 +93,15 @@ export const api = {
   },
 
   // Wipe the backend's stored offers and re-scrape this PLZ from scratch (Options →
-  // "Wipe & re-scrape server DB"). Destructive on the server; same generous timeout as scrape.
+  // "Wipe & re-scrape server DB"). Destructive on the server; same generous timeout as
+  // scrape. The token rides in an X-Admin-Token header (not the query string, which
+  // would land in server access logs).
   resetDb(plz: string) {
     const q = new URLSearchParams({ plz });
-    if (ADMIN_TOKEN) q.set('token', ADMIN_TOKEN);
-    return post<ResetResult>(`/api/reset?${q.toString()}`, 120000);
+    return post<ResetResult>(
+      `/api/reset?${q.toString()}`,
+      120000,
+      ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : undefined,
+    );
   },
 };
