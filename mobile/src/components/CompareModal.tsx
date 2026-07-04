@@ -18,6 +18,7 @@ export function CompareModal({
   categories,
   onOpenOffer,
   onClose,
+  onOpenEdekaVs,
 }: {
   visible: boolean;
   offers: Offer[];
@@ -25,6 +26,7 @@ export function CompareModal({
   categories: CategoryCount[];
   onOpenOffer: (o: Offer) => void;
   onClose: () => void;
+  onOpenEdekaVs?: () => void; // open the dedicated EDEKA-vs-E-center diff page
 }) {
   const [selectedChains, setSelectedChains] = useState<string[]>(chains);
   const [category, setCategory] = useState<string | null>(null);
@@ -72,6 +74,18 @@ export function CompareModal({
               <Icon name="close" size={24} color={colors.muted} />
             </Pressable>
           </View>
+
+          {onOpenEdekaVs && chains.includes('edeka') && chains.includes('edeka_center') && (
+            <Pressable
+              onPress={onOpenEdekaVs}
+              style={styles.evsBtn}
+              accessibilityLabel="EDEKA vs E center"
+            >
+              <Icon name="git-compare-outline" size={15} color={colors.accent} />
+              <Text style={styles.evsBtnText}>EDEKA vs E center — exclusives + price gaps</Text>
+              <Icon name="chevron-forward" size={15} color={colors.accent} />
+            </Pressable>
+          )}
 
           {/* Store multi-select */}
           <View style={styles.pillRow}>
@@ -186,6 +200,19 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   title: { ...font.h2, color: colors.text },
   sub: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  evsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: space.md,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.card2,
+  },
+  evsBtnText: { flex: 1, color: colors.accent, fontSize: 13, fontWeight: '700' },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.md },
   pill: {
     paddingHorizontal: 14,
