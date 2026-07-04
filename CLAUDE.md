@@ -334,7 +334,14 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   price side by side, cheapest highlighted, rows sorted by spread; needs ≥2 stores sharing a
   sub-group; tap a price → FlyerModal (rendered beneath it). Store multi-select defaults to all
   present chains (its own picker — deliberately ignores `hiddenStores`). A **"Store scorecard"**
-  variant (per-store deal count / avg discount / category wins) is a wanted follow-up. The header is a location control + circular icon
+  variant (per-store deal count / avg discount / category wins) is a wanted follow-up. A dedicated
+  **"EDEKA vs E center" diff page** (`components/EdekaVsModal.tsx` + pure `edekaVs.ts`, opened from a
+  button in CompareModal shown only when both chains are present — it **closes Compare** so modals
+  never stack 3-deep) matches by **normalized product name** (`normName`, not `offer.group` — the
+  user wanted "same name"): a "same item, different price" table (cheapest per chain, biggest gap
+  first, cheaper highlighted) + an "Only at E center" list (names E center has that EDEKA doesn't,
+  A–Z); tap → FlyerModal. Display-only/OTA (served chain/name/price_cents); big gaps can be same
+  name / different pack size, so rows show the unit. The header is a location control + circular icon
   actions (`IconButton`) using **`@expo/vector-icons` Ionicons** behind `components/Icon.tsx`;
   search sits under the header. Spacing/type/tag colours come from `theme.ts` tokens
   (`space`/`radius`/`font`/`tint`), not per-component hardcodes.

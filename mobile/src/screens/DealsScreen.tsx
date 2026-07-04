@@ -18,6 +18,7 @@ import { chainLabel } from '../chains';
 import { BasketModal } from '../components/BasketModal';
 import { CategoryChips } from '../components/CategoryChips';
 import { CompareModal } from '../components/CompareModal';
+import { EdekaVsModal } from '../components/EdekaVsModal';
 import { FlyerModal } from '../components/FlyerModal';
 import { GroupHeader } from '../components/GroupHeader';
 import { Icon } from '../components/Icon';
@@ -102,6 +103,7 @@ export default function DealsScreen() {
   const [optionsModal, setOptionsModal] = useState(false);
   const [recipesModal, setRecipesModal] = useState(false);
   const [compareModal, setCompareModal] = useState(false);
+  const [edekaVsModal, setEdekaVsModal] = useState(false);
   const [filterSheet, setFilterSheet] = useState(false);
   const [recipePrefs, setRecipePrefs] = useState<RecipePrefs>(DEFAULT_RECIPE_PREFS);
   const [alwaysHave, setAlwaysHave] = useState<BasketItem[]>([]);
@@ -608,6 +610,16 @@ export default function DealsScreen() {
         categories={cats}
         onOpenOffer={setActive}
         onClose={() => setCompareModal(false)}
+        onOpenEdekaVs={() => {
+          setCompareModal(false);
+          setEdekaVsModal(true);
+        }}
+      />
+      <EdekaVsModal
+        visible={edekaVsModal}
+        offers={offers}
+        onOpenOffer={setActive}
+        onClose={() => setEdekaVsModal(false)}
       />
       <FlyerModal offer={active} onClose={() => setActive(null)} />
       <PlzModal
