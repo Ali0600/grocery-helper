@@ -89,6 +89,19 @@ function endOfDealWeek(ts: number): number {
 export const dealsStale = (cachedAt: number | null): boolean =>
   cachedAt != null && Date.now() > endOfDealWeek(cachedAt);
 
+/**
+ * Pull-to-refresh feedback: describe how the deal count changed vs what was on
+ * screen — "3 new deals" (more), "2 deals removed" (fewer), or `null` when the
+ * count is unchanged (so the UI stays silent). Compared by count only, matching
+ * "if anything changes in the number of flyers".
+ */
+export const refreshDeltaMessage = (prevCount: number, nextCount: number): string | null => {
+  const delta = nextCount - prevCount;
+  if (delta > 0) return `${delta} new deal${delta === 1 ? '' : 's'}`;
+  if (delta < 0) return `${-delta} deal${delta === -1 ? '' : 's'} removed`;
+  return null;
+};
+
 /** Today's device-local date as "YYYY-MM-DD" (compares directly with offer.valid_from/to). */
 export const todayISO = (): string => {
   const d = new Date();

@@ -40,7 +40,7 @@ import {
   filterDeals,
   presentChains as derivePresentChains,
 } from '../dealFilters';
-import { dealsStale } from '../format';
+import { dealsStale, refreshDeltaMessage } from '../format';
 import { sortLabel } from '../sort';
 import { filterByVisibleStores, hasHiddenPresent, toggleHiddenStore, visibleStoreChains } from '../stores';
 import { resolveBasketItem } from '../basketResolve';
@@ -125,6 +125,20 @@ export default function DealsScreen() {
     };
   }, []);
 
+  // Transient confirmation banner (swipe-to-add + pull-to-refresh "N new deals").
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 1900);
+  }, []);
+
+  // Track the shown deal count so a pull-to-refresh can report how many were
+  // added/removed vs what's on screen (read via a ref so `revalidate` stays stable).
+  const offersCountRef = useRef(offers.length);
+  useEffect(() => {
+    offersCountRef.current = offers.length;
+  }, [offers]);
+
   // Hydrate saved prefs once on mount, then let `load` run.
   useEffect(() => {
     (async () => {
@@ -144,7 +158,7 @@ export default function DealsScreen() {
   // Fetch fresh deals, update the view + re-cache. `hadData` = something is already on
   // screen (cache hit or a prior load), so a failure stays silent (no error screen).
   const revalidate = useCallback(
-    async (hadData: boolean) => {
+    async (hadData: boolean, announce = false) => {
       const target = plz; // the PLZ this run fetches for; bail if the user switches away
       setUpdating(true);
       setRefreshFailed(false);
@@ -175,6 +189,7 @@ export default function DealsScreen() {
         }
 
         const name = stores.find((s) => s.plz === target)?.name ?? null;
+        const prevCount = offersCountRef.current;
         setOffers(o);
         setCats(c);
         setStoreName(name);
@@ -183,6 +198,12 @@ export default function DealsScreen() {
         setError(null);
         if (o.length > 0) {
           setDealsCache({ plz: target, offers: o, cats: c, storeName: name, cachedAt: now });
+          // Pull-to-refresh feedback: say how the deal count changed vs what was on
+          // screen; stay silent when nothing changed (per the user's request).
+          if (announce) {
+            const msg = refreshDeltaMessage(prevCount, o.length);
+            if (msg) showToast(msg);
+          }
         }
       } catch {
         if (plzRef.current !== target) return;
@@ -199,7 +220,7 @@ export default function DealsScreen() {
         }
       }
     },
-    [plz],
+    [plz, showToast],
   );
 
   // On launch / PLZ change: show the cached deals for this PLZ instantly (no spinner),
@@ -245,7 +266,7 @@ export default function DealsScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await revalidate(true);
+    await revalidate(true, true); // announce added/removed deal count
     setRefreshing(false);
   }, [revalidate]);
 
@@ -268,13 +289,6 @@ export default function DealsScreen() {
   const onChangeBasket = useCallback((next: BasketItem[]) => {
     setBasket(next);
     setStoredBasket(next);
-  }, []);
-
-  // Transient confirmation banner (used by swipe-to-add).
-  const showToast = useCallback((msg: string) => {
-    setToast(msg);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 1900);
   }, []);
 
   // Swipe-left on a deal → add its sub-category (the same entry the "+" adds) to the
