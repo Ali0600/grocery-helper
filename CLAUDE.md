@@ -382,7 +382,12 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `PlzModal` does via `api.scrape`) then refetches, and — critically — **never caches or
   displays an empty result over good data** (an empty cold-backend refresh used to wipe
   the deals + poison the cache). Fetches have AbortController timeouts (30s reads / 120s
-  scrape) so a cold start fails fast instead of hanging.
+  scrape) so a cold start fails fast, and **`api.ts` `request` retries a cold-start-shaped
+  failure** (timeout / network error / 5xx — never a 4xx, gated by the exported `isRetryable`;
+  reads retry twice, writes once) so a waking/redeploying free-tier backend self-recovers
+  instead of erroring. While a slow load runs, `PlzModal` and the `DealsScreen` cold-start
+  spinner show a "waking the server up…" hint (after 4–5s), and the cold-start error is
+  friendlier + offers a **Try again** button (revalidate) instead of "Could not load deals".
 - **Options view** (`mobile/src/components/OptionsModal.tsx`, ⚙ in the header): maintenance
   actions split **device** vs **server**. Device — *Clear cached deals & reload* (drops
   `dealsCache` then forces `revalidate(true)`, the fix for "deals won't update mid-week"

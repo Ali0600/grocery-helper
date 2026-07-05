@@ -19,23 +19,55 @@ const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'https://grocery-helper-sw6c.onr
 // not a real secret. Leave unset for an open reset (matching /api/scrape).
 const ADMIN_TOKEN = process.env.EXPO_PUBLIC_ADMIN_TOKEN;
 
-// Abort a request after `timeoutMs` so a sleepy free-tier cold start fails fast (and can
-// fall back to an on-demand scrape) instead of hanging the UI for minutes.
-async function request<T>(path: string, init: RequestInit, timeoutMs: number): Promise<T> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(`${BASE}${path}`, { ...init, signal: controller.signal });
-    if (!res.ok) throw new Error(`API ${res.status}`);
-    return (await res.json()) as T;
-  } finally {
-    clearTimeout(timer);
+// A sleeping / redeploying free-tier backend times out or returns a 5xx the first time, then
+// succeeds once it's awake — so those are retried. A thrown `API 4xx` is a real client error
+// and is NOT retried. Exported for tests.
+export function isRetryable(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  if (err.name === 'AbortError') return true; // our timeout fired (likely a cold start)
+  if (/^API 5\d\d$/.test(err.message)) return true; // gateway / boot 5xx
+  if (err.message.startsWith('API ')) return false; // any other status (4xx) — a real error
+  return true; // network-level fetch failure — server unreachable / waking
+}
+
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+// Abort a request after `timeoutMs` so a sleepy free-tier cold start fails fast instead of
+// hanging the UI. On a cold-start-shaped failure, retry (short backoff) up to `retries` times
+// so a waking backend recovers itself rather than surfacing an error to the user.
+async function request<T>(
+  path: string,
+  init: RequestInit,
+  timeoutMs: number,
+  retries: number,
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${BASE}${path}`, { ...init, signal: controller.signal });
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      return (await res.json()) as T;
+    } catch (err) {
+      if (attempt >= retries || !isRetryable(err)) throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+    await delay(800 * (attempt + 1)); // brief backoff before the next wake-up attempt
   }
 }
 
-const get = <T>(path: string, timeoutMs = 30000): Promise<T> => request<T>(path, {}, timeoutMs);
-const post = <T>(path: string, timeoutMs = 30000, headers?: Record<string, string>): Promise<T> =>
-  request<T>(path, { method: 'POST', ...(headers ? { headers } : {}) }, timeoutMs);
+// Reads retry twice — a cold start often needs a couple attempts to wake the backend. Writes
+// (scrape/reset) already use long timeouts, so one retry is enough of a safety net.
+const get = <T>(path: string, timeoutMs = 30000, retries = 2): Promise<T> =>
+  request<T>(path, {}, timeoutMs, retries);
+const post = <T>(
+  path: string,
+  timeoutMs = 30000,
+  headers?: Record<string, string>,
+  retries = 1,
+): Promise<T> =>
+  request<T>(path, { method: 'POST', ...(headers ? { headers } : {}) }, timeoutMs, retries);
 
 export const api = {
   base: BASE,

@@ -86,6 +86,7 @@ export default function DealsScreen() {
   const [query, setQuery] = useState('');
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [slowLoad, setSlowLoad] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<Offer | null>(null);
@@ -186,7 +187,10 @@ export default function DealsScreen() {
       } catch {
         if (plzRef.current !== target) return;
         setRefreshFailed(true);
-        if (!hadData) setError(`Couldn't reach the API at ${api.base}.\nIs the backend running?`);
+        if (!hadData)
+          setError(
+            'Couldn’t reach the server — it may be waking up (the free tier sleeps after a while).',
+          );
       } finally {
         // A stale run must not flip the spinner/updating flags the current run owns.
         if (plzRef.current === target) {
@@ -223,6 +227,7 @@ export default function DealsScreen() {
         setCats([]);
         setUpdatedAt(null);
         setLoading(true);
+        setSlowLoad(false);
       }
       if (!fresh) revalidate(hit);
     })();
@@ -230,6 +235,13 @@ export default function DealsScreen() {
       cancelled = true;
     };
   }, [plz, ready, revalidate]);
+
+  // If the true cold-start spinner drags on (a sleepy free-tier boot), surface a "waking" hint.
+  useEffect(() => {
+    if (!loading) return;
+    const t = setTimeout(() => setSlowLoad(true), 5000);
+    return () => clearTimeout(t);
+  }, [loading]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -522,10 +534,25 @@ export default function DealsScreen() {
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator color={colors.accent} />
+            {slowLoad ? (
+              <Text style={styles.wakingHint}>
+                Waking the server up — the free tier can take a minute…
+              </Text>
+            ) : null}
           </View>
         ) : error ? (
           <View style={styles.center}>
             <Text style={styles.error}>{error}</Text>
+            <Pressable
+              style={({ pressed }) => [styles.retryBtn, pressed && styles.retryBtnPressed]}
+              onPress={() => {
+                setLoading(true);
+                setSlowLoad(false);
+                revalidate(false);
+              }}
+            >
+              <Text style={styles.retryBtnText}>Try again</Text>
+            </Pressable>
           </View>
         ) : grouped ? (
           <SectionList
@@ -708,6 +735,22 @@ const styles = StyleSheet.create({
   list: { paddingVertical: 6, paddingBottom: 24 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   error: { color: colors.badge, fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  wakingHint: {
+    color: colors.muted,
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 12,
+  },
+  retryBtn: {
+    marginTop: 16,
+    backgroundColor: colors.accent,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+  },
+  retryBtnPressed: { opacity: 0.8 },
+  retryBtnText: { color: colors.onAccent, fontSize: 15, fontWeight: '700' },
   muted: { color: colors.muted, fontSize: 14, textAlign: 'center' },
   toast: {
     position: 'absolute',
