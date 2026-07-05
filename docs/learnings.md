@@ -182,6 +182,18 @@ shipped via OTA in minutes.
 **Takeaway:** before scoping a "data" feature as backend work, check whether its inputs already
 reach the client — if they do, it's a client-side/OTA change, not a migration + re-scrape.
 
+### Weekly-flyer scraping has a between-weeks (Sunday) gap
+Flyer brochures are valid Mon–Sat. On Sunday, last week's has ended and next week's — though
+meinprospekt already publishes it — carries a `validFrom` of Monday, so a "currently valid"
+filter (`validFrom <= now <= validUntil`) matches nothing and the scraper falls back to sample
+data.
+**Why it came up:** Sunday morning the app showed 53 sample offers; a fresh *local* scrape failed
+identically (`RuntimeError: no active weekly brochure`), which is what ruled out the "Render IP
+throttle" theory — pure logic fails everywhere. Fix (`_select_brochures`): when nothing is active,
+serve the soonest already-published upcoming week (nearest week only, non-weekly brochures excluded).
+**Takeaway:** a time-windowed "is it valid *now*?" filter needs a plan for the gaps *between*
+windows — reach forward to the next upcoming item instead of returning nothing.
+
 ### Geocode the _right_ coordinate
 "Nearby" results are only as good as the center point you measure from. The store
 picker centered on the scraped Lidl's coords, which sat ~3 km away in the next
