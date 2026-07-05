@@ -136,13 +136,20 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   publisher's brochure pages and tally `products[].categoryPaths`. **`classify` order
   (6 layers)**: non-food path→household, **`_FORM_OVERRIDES`** (limonade/saft/joghurt/
   chips — definitive *form* words that beat even a *mis-filed* food path, e.g. the source
-  tags "Bananenchips" under Obst; also guards mis-files of `jägermeister`→beverages and
+  tags "Bananenchips" under Obst; also guards mis-files of `jägermeister`→alcoholic and
   `möhre`→vegetables that the source dumps under `Dessert>Eis`), food taxonomy node, brand map,
   **`_OVERRIDES`** (flavour words like sekt/choco — after the brand so Häagen-Dazs Chocolate
   stays **ice_cream**, not sweets), keyword rules. **`ice_cream` is split out of `frozen`**
   (the source's `Eis`/`Speiseeis` path nodes + a keyword rule before frozen/sweets with the
   space-padded standalone word `" eis "` — safe vs Fleisch/Reis/Eisberg/Eistee/Eiweiß — plus
   ice-cream brands); `frozen` keeps savoury (pizza/Pommes/fish). ~40 ice_cream vs ~28 frozen/PLZ.
+  **`beverages` was split (2026-07-05) into `soft_drinks` (all non-alcoholic — soda/juice/water/
+  coffee/tea) + `alcoholic` (beer/wine/sekt/spirits)** across all 5 maps (`_PATH_MAP`, `_RULES`,
+  `BRAND_CATEGORY`, `_FORM_OVERRIDES`, `_OVERRIDES`); `alkoholfrei` is a `_FORM_OVERRIDES`→soft
+  guard so alcohol-free beer/wine isn't filed alcoholic. ~214 soft / ~252 alcoholic for a Berlin
+  PLZ. **Chip order = `CATEGORIES` dict insertion order** (`GET /api/categories` iterates it), so
+  `vegan` was moved to the back of the food chips (per the user). Both are a re-classification →
+  need a recategorize / re-scrape to backfill (Render's deploy boot-scrape does it).
   **`vegan` is a cross-cutting category that wins FIRST** (`app/vegan.py` `is_vegan`, a layer-0
   check in `classify` before the household path): explicitly-vegan products (word `vegan`/
   `pflanzlich`, or a **vegan-only** brand — Vemondo/Like Meat/Garden Gourmet/Beyond/…; NOT mixed

@@ -118,14 +118,14 @@ export const GROCERY_CATALOG: CatalogItem[] = [
   { key: 'flour', en: 'Flour', de: 'Mehl', category: 'pantry', keywords: ['mehl'] },
   { key: 'sugar', en: 'Sugar', de: 'Zucker', category: 'pantry', keywords: ['zucker'], exclude: ['puderzucker', 'zuckerwatte', 'vanillezucker'] },
   { key: 'oil', en: 'Cooking oil', de: 'Öl', category: 'pantry', keywords: ['olivenöl', 'sonnenblumenöl', 'rapsöl', 'speiseöl'] },
-  { key: 'coffee', en: 'Coffee', de: 'Kaffee', category: 'beverages', keywords: ['kaffee', 'espresso'] },
-  { key: 'tea', en: 'Tea', de: 'Tee', category: 'beverages', keywords: ['tee', 'teebeutel'], exclude: ['teewurst', 'teelicht'] },
+  { key: 'coffee', en: 'Coffee', de: 'Kaffee', category: 'soft_drinks', keywords: ['kaffee', 'espresso'] },
+  { key: 'tea', en: 'Tea', de: 'Tee', category: 'soft_drinks', keywords: ['tee', 'teebeutel'], exclude: ['teewurst', 'teelicht'] },
   { key: 'cereal', en: 'Cereal', de: 'Müsli', category: 'pantry', keywords: ['müsli', 'cornflakes', 'haferflocken'] },
   { key: 'chocolate', en: 'Chocolate', de: 'Schokolade', category: 'sweets', keywords: ['schokolade', 'schoko', 'tafelschokolade'], exclude: ['schokobrötchen'] },
 
   // ── Beverages ───────────────────────────────────────────────────────────────
-  { key: 'water', en: 'Water', de: 'Wasser', category: 'beverages', keywords: ['mineralwasser', 'tafelwasser', 'wasser'] },
-  { key: 'juice', en: 'Juice', de: 'Saft', category: 'beverages', keywords: ['saft', 'fruchtsaft', 'nektar'] },
-  { key: 'cola', en: 'Cola', de: 'Cola', category: 'beverages', keywords: ['cola'] },
-  { key: 'beer', en: 'Beer', de: 'Bier', category: 'beverages', keywords: ['bier', 'pils', 'radler', 'weizenbier', 'helles'], exclude: ['weizenmehl', 'bierschinken'] },
+  { key: 'water', en: 'Water', de: 'Wasser', category: 'soft_drinks', keywords: ['mineralwasser', 'tafelwasser', 'wasser'] },
+  { key: 'juice', en: 'Juice', de: 'Saft', category: 'soft_drinks', keywords: ['saft', 'fruchtsaft', 'nektar'] },
+  { key: 'cola', en: 'Cola', de: 'Cola', category: 'soft_drinks', keywords: ['cola'] },
+  { key: 'beer', en: 'Beer', de: 'Bier', category: 'alcoholic', keywords: ['bier', 'pils', 'radler', 'weizenbier', 'helles'], exclude: ['weizenmehl', 'bierschinken'] },
 ];
