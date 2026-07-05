@@ -1,6 +1,15 @@
 // Unit tests for the pure display/format helpers (src/format.ts).
 
-import { cleanUnit, dealsStale, euro, fmtPricePerUnit, formatBrand, pct, todayISO } from '../format';
+import {
+  cleanUnit,
+  dealsStale,
+  euro,
+  fmtPricePerUnit,
+  formatBrand,
+  pct,
+  refreshDeltaMessage,
+  todayISO,
+} from '../format';
 
 describe('euro / pct', () => {
   it('formats cents as a German euro string', () => {
@@ -50,6 +59,23 @@ describe('formatBrand', () => {
     expect(formatBrand('RITTER SPORT')).toBe('Ritter Sport');
     expect(formatBrand('LIVARNO home')).toBe('LIVARNO home');
     expect(formatBrand(null)).toBeNull();
+  });
+});
+
+describe('refreshDeltaMessage (pull-to-refresh count feedback)', () => {
+  it('reports added deals with pluralization', () => {
+    expect(refreshDeltaMessage(700, 703)).toBe('3 new deals');
+    expect(refreshDeltaMessage(700, 701)).toBe('1 new deal');
+  });
+
+  it('reports removed deals with pluralization', () => {
+    expect(refreshDeltaMessage(703, 700)).toBe('3 deals removed');
+    expect(refreshDeltaMessage(701, 700)).toBe('1 deal removed');
+  });
+
+  it('stays silent (null) when the count is unchanged', () => {
+    expect(refreshDeltaMessage(700, 700)).toBeNull();
+    expect(refreshDeltaMessage(0, 0)).toBeNull();
   });
 });
 
