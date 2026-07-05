@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { AppModal } from './AppModal';
 
 import { chainColors } from '../chains';
 import { buildEdekaVs } from '../edekaVs';
@@ -26,7 +28,7 @@ export function EdekaVsModal({
   const { priceDiffs, ecenterOnly, hasBoth } = useMemo(() => buildEdekaVs(offers), [offers]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <AppModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
         <View style={styles.sheet}>
           <View style={styles.header}>
@@ -130,7 +132,7 @@ export function EdekaVsModal({
           </ScrollView>
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

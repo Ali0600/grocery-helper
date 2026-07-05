@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
+  KeyboardAvoidingView,  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { AppModal } from './AppModal';
 
 import { api } from '../api';
 import { colors } from '../theme';
@@ -69,7 +68,7 @@ export function PlzModal({ visible, initialPlz, onClose, onApplied }: Props) {
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -122,7 +121,7 @@ export function PlzModal({ visible, initialPlz, onClose, onApplied }: Props) {
           </View>
         </View>
       </KeyboardAvoidingView>
-    </Modal>
+    </AppModal>
   );
 }
 
