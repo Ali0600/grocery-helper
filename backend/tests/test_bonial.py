@@ -2,7 +2,9 @@
 (a trimmed real /pages response) so we don't hit the live, throttled API."""
 import json
 import os
-from datetime import date
+from datetime import date, datetime, timezone
+
+import pytest
 
 from app.scrapers.bonial import (
     BonialScraper,
@@ -12,6 +14,7 @@ from app.scrapers.bonial import (
     _offer_validity,
     _parse_dt,
     _regular_from_label,
+    _select_brochures,
 )
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "bonial_pages.json")
@@ -201,3 +204,36 @@ def test_deal_reads_max_and_guards_malformed():
     # All malformed, or no matching deal type -> None.
     assert _deal({"deals": [{"type": "SALES_PRICE", "max": "x"}]}, "SALES_PRICE") is None
     assert _deal({"deals": [{"type": "REGULAR_PRICE", "max": 3.0}]}, "SALES_PRICE") is None
+
+
+# -- brochure selection: which weekly brochure(s) to scrape ------------------
+# Berlin-midnight boundaries are 22:00 UTC in summer; a weekly brochure runs Sun→Sat.
+_WK1 = {"validFrom": "2026-07-05T22:00:00.000+0000", "validUntil": "2026-07-11T21:00:00.000+0000"}
+_WK2 = {"validFrom": "2026-07-12T22:00:00.000+0000", "validUntil": "2026-07-18T21:00:00.000+0000"}
+_SUNDAY = datetime(2026, 7, 5, 6, tzinfo=timezone.utc)  # before WK1 starts (between weeks)
+_WEDNESDAY = datetime(2026, 7, 8, 10, tzinfo=timezone.utc)  # inside WK1
+
+
+def test_select_prefers_the_currently_active_brochure():
+    chosen = _select_brochures({"a": _WK1, "b": _WK2}, _WEDNESDAY, "edeka")
+    assert [c["id"] for c in chosen] == ["a"]
+
+
+def test_select_falls_back_to_nearest_upcoming_between_weeks():
+    # Sunday: nothing active yet, so serve next week's (already published), not the week after.
+    chosen = _select_brochures({"a": _WK1, "b": _WK2}, _SUNDAY, "edeka")
+    assert [c["id"] for c in chosen] == ["a"]
+    assert chosen[0]["valid_from"] == date(2026, 7, 5)
+
+
+def test_select_ignores_long_running_non_weekly_brochure():
+    perma = {"validFrom": "2026-07-04T22:00:00.000+0000", "validUntil": "2026-12-31T19:00:00.000+0000"}
+    chosen = _select_brochures({"perma": perma, "a": _WK1}, _SUNDAY, "lidl")
+    assert [c["id"] for c in chosen] == ["a"]
+
+
+def test_select_raises_when_nothing_active_or_soon():
+    old = {"validFrom": "2026-06-22T22:00:00.000+0000", "validUntil": "2026-06-28T21:00:00.000+0000"}
+    far = {"validFrom": "2026-08-01T22:00:00.000+0000", "validUntil": "2026-08-07T21:00:00.000+0000"}
+    with pytest.raises(RuntimeError, match="no active weekly brochure"):
+        _select_brochures({"old": old, "far": far}, _SUNDAY, "rewe")

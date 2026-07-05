@@ -181,7 +181,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   (proven to override IP: a Munich-coord cookie returns Munich brochures from a Berlin IP),
   so discovery is correct + deterministic. The brochure *content* endpoint (`/pages`)
   already takes `lat`/`lng`; the cookie fixes the *list*. (REWE/EDEKA are regional; Lidl is
-  national, so Lidl is unaffected.)
+  national, so Lidl is unaffected.) **Between-weeks (Sunday) gap:** `_current_brochures` delegates
+  the choice to pure `_select_brochures(found, now, chain)` — normally the currently-valid weekly
+  brochure(s) (`validFrom <= now <= validUntil`), but when none is active (Sunday, after last
+  week's ended and before next week's `validFrom`) it serves the **soonest already-published
+  upcoming** week (`UPCOMING_LOOKAHEAD_DAYS=8`, nearest week only) instead of sample data. Before
+  this every Sunday scrape — **local AND Render, it's pure logic not an IP/throttle issue** —
+  raised "no active weekly brochure" → samples; the fix pulled ~1174 real offers vs 53 samples for
+  a Berlin PLZ. (Meinprospekt publishes next week's brochure Sun with `validFrom` = Mon 00:00
+  Berlin = 22:00 UTC, so on Sunday it's listed-but-not-yet-active.)
 - **Offers are deduped at scrape time too** (`dedup.py` `dedup_scraped`, called in
   `run.py` `_upsert`): the publisher page can surface several overlapping brochures, so the
   same product repeats across them with distinct content ids → the **raw** scrape count was
