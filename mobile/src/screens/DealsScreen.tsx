@@ -326,13 +326,11 @@ export default function DealsScreen() {
     setHiddenStores([]);
     setSpecialDays(false);
     setBioOnly(false);
-    if (plz !== DEFAULT_PLZ) {
-      setPlz(DEFAULT_PLZ); // the [plz] effect reloads for the default PLZ (cache now empty)
-    } else {
-      await revalidate(true); // already on the default PLZ — just refresh
-    }
-    return 'Reset all app data to defaults.';
-  }, [plz, revalidate]);
+    // Keep the user's location (PLZ) — a data reset shouldn't relocate them. Just refresh the
+    // current PLZ's deals now that the cache has been cleared.
+    await revalidate(true);
+    return 'Reset app data (kept your location).';
+  }, [revalidate]);
 
   const onRescrape = useCallback(async () => {
     const res = await api.scrape(plz);

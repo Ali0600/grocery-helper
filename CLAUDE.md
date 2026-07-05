@@ -387,8 +387,10 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   actions split **device** vs **server**. Device — *Clear cached deals & reload* (drops
   `dealsCache` then forces `revalidate(true)`, the fix for "deals won't update mid-week"
   since the weekly cache otherwise skips the backend) and *Reset all app data*
-  (`storage.clearAllData` → `multiRemove` every key, then resets state to defaults / default
-  PLZ). Server — *Re-scrape* (`api.scrape`, upsert) and *Wipe & re-scrape* (`api.resetDb` →
+  (`storage.clearAllData` → `multiRemove` every key **except the PLZ** + resets state to
+  defaults, but **keeps the user's location** — a data reset shouldn't relocate them, so
+  `onResetAll` just `revalidate(true)`s the current PLZ instead of jumping to `DEFAULT_PLZ`).
+  Server — *Re-scrape* (`api.scrape`, upsert) and *Wipe & re-scrape* (`api.resetDb` →
   **`POST /api/reset`**). Destructive actions use an **inline two-tap confirm** (not
   `Alert.alert`, which drops its buttons on react-native-web). `POST /api/reset` deletes
   **all** offers then re-scrapes one PLZ (unlike `/api/scrape`'s in-place upsert, so it also

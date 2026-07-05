@@ -172,11 +172,11 @@ export async function clearDealsCache(): Promise<void> {
   }
 }
 
-// Wipe every persisted key (PLZ, prefs, saved stores, basket, cache) — a full app reset.
+// Wipe the persisted prefs, saved stores, basket, and cache — a full app reset. The saved
+// PLZ (location) is deliberately kept: a data reset shouldn't relocate the user to a default.
 export async function clearAllData(): Promise<void> {
   try {
     await AsyncStorage.multiRemove([
-      PLZ_KEY,
       NONFOOD_KEY,
       HIDDEN_STORES_KEY,
       MYSTORES_KEY,
