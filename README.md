@@ -365,6 +365,12 @@ Engineering practices demonstrated while building and operating this project:
   timing-safe comparison, audit-logged failures), abuse throttling on the public
   scrape trigger, and a non-root container image — applied after a structured
   security review of the deployed surface.
+- **Path-scoped deployment gating & client resilience** — Scoped the CI deploy job to fire
+  only when a merge changes backend code (a `git diff` path filter), so mobile-only and docs
+  merges don't needlessly redeploy — and wipe the ephemeral free-tier database of — the
+  backend. Paired with client-side cold-start resilience: automatic retry with back-off that
+  distinguishes retryable failures (timeouts, network errors, 5xx) from real client errors
+  (4xx), so a sleeping or redeploying backend self-recovers instead of surfacing an error.
 
 ## Roadmap
 
