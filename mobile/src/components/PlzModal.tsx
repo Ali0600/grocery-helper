@@ -24,6 +24,7 @@ type Props = {
 export function PlzModal({ visible, initialPlz, onClose, onApplied }: Props) {
   const [plz, setPlz] = useState(initialPlz);
   const [submitting, setSubmitting] = useState(false);
+  const [waking, setWaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Reset to the current PLZ each time the sheet opens.
@@ -32,6 +33,7 @@ export function PlzModal({ visible, initialPlz, onClose, onApplied }: Props) {
       setPlz(initialPlz);
       setError(null);
       setSubmitting(false);
+      setWaking(false);
     }
   }, [visible, initialPlz]);
 
@@ -41,19 +43,28 @@ export function PlzModal({ visible, initialPlz, onClose, onApplied }: Props) {
     if (!valid || submitting) return;
     setSubmitting(true);
     setError(null);
+    setWaking(false);
+    // The free-tier backend may be asleep; if this runs long, tell the user it's waking up.
+    // api.scrape already retries the cold-start timeout under the hood before this rejects.
+    const wakeTimer = setTimeout(() => setWaking(true), 4000);
     try {
       const res = await api.scrape(plz);
       const store = res.stores.find((s) => s.plz === plz) ?? res.stores[0] ?? null;
       // A null market_code means no real store resolved (sample-data fallback).
       if (!store || !store.market_code) {
         setError('No Lidl store found for that postal code. Try another nearby PLZ.');
-        setSubmitting(false);
         return;
       }
       onApplied(plz, store.name);
     } catch {
-      setError(`Could not load deals from ${api.base}. Is the backend running?`);
+      setError(
+        'Couldn’t reach the server — it may be waking up (the free tier sleeps after a while). ' +
+          'Give it a moment and tap again.',
+      );
+    } finally {
+      clearTimeout(wakeTimer);
       setSubmitting(false);
+      setWaking(false);
     }
   };
 
@@ -87,6 +98,11 @@ export function PlzModal({ visible, initialPlz, onClose, onApplied }: Props) {
               autoFocus
             />
             {error ? <Text style={styles.error}>{error}</Text> : null}
+            {submitting && waking ? (
+              <Text style={styles.hint}>
+                Waking the server up — the free tier can take up to a minute…
+              </Text>
+            ) : null}
 
             <Pressable
               style={({ pressed }) => [
@@ -147,6 +163,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   error: { color: colors.badge, fontSize: 13, marginTop: 10, lineHeight: 18 },
+  hint: { color: colors.muted, fontSize: 13, marginTop: 10, lineHeight: 18 },
   btn: {
     marginTop: 18,
     backgroundColor: colors.accent,
