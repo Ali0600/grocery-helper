@@ -1,5 +1,7 @@
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { AppModal } from './AppModal';
 
 import { chainLabel } from '../chains';
 import { SORT_OPTIONS } from '../sort';
@@ -58,7 +60,7 @@ export function FilterSheet(props: {
 }) {
   const { visible, onClose, onReset } = props;
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <AppModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheet}>
         <View style={styles.grabber} />
@@ -140,7 +142,7 @@ export function FilterSheet(props: {
           <Text style={styles.doneText}>Done</Text>
         </Pressable>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

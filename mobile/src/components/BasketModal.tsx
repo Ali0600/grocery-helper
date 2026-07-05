@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
+  KeyboardAvoidingView,  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { AppModal } from './AppModal';
 
 import { buildPlan, matchOffers, norm, Plan, PlanLine } from '../basket';
 import { CatalogItem, GROCERY_CATALOG, POPULAR_KEYS } from '../catalog';
@@ -200,7 +199,7 @@ export function BasketModal({ visible, offers, basket, onChangeBasket, onClose }
     bioOnly && pickerBioCount > 0 ? pickerMatches.filter((o) => o.is_bio) : pickerMatches;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -312,7 +311,7 @@ export function BasketModal({ visible, offers, basket, onChangeBasket, onClose }
           )}
         </View>
       </KeyboardAvoidingView>
-    </Modal>
+    </AppModal>
   );
 }
 

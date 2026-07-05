@@ -335,8 +335,13 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   clears it). The card closes first and defers `onAdd`/haptics via `requestAnimationFrame`;
   rows are memoized and DealsScreen's `onAddToBasket` reads the basket via a ref so its
   identity is stable — don't reintroduce `[basket]` deps or state writes in gesture handlers.
-  If a freeze recurs anyway: suspect the stacked native modals (Compare→FlyerModal), then
-  consider ReanimatedSwipeable / @sentry/react-native (both native deps → new build).
+  **Modal freeze (2026-07-05 fix):** the *other* freeze source was RN `Modal` — its content
+  renders in a separate native root OUTSIDE App.tsx's `GestureHandlerRootView`, so interacting
+  with then dismissing a modal (repro: Compare → EDEKA vs E center → scroll → close) left
+  gesture-handler's root eating every touch. Fix: **every modal uses `components/AppModal.tsx`**
+  (a `<Modal>` that wraps its content in its OWN `<GestureHandlerRootView>`, per the RNGH docs) —
+  never use RN `Modal` directly; a new modal MUST use `AppModal`. JS-only → OTA. If a freeze
+  still recurs: consider ReanimatedSwipeable / @sentry/react-native (both native deps → new build).
 - **Compare Stores page** (`components/CompareModal.tsx` + pure `compare.ts`, header
   `git-compare` button): per product sub-group (`offer.group`), each selected store's cheapest
   price side by side, cheapest highlighted, rows sorted by spread; needs ≥2 stores sharing a

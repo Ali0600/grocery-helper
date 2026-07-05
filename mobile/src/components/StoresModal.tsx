@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
+  ActivityIndicator,  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { AppModal } from './AppModal';
 
 import { api } from '../api';
 import { chainColors, chainLabel } from '../chains';
@@ -154,7 +153,7 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
@@ -302,7 +301,7 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
           )}
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

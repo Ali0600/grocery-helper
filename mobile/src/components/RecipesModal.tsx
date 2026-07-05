@@ -1,8 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
+  KeyboardAvoidingView,  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { AppModal } from './AppModal';
 
 import { GROCERY_CATALOG } from '../catalog';
 import { chainColors, chainLabel } from '../chains';
@@ -261,7 +260,7 @@ export function RecipesModal({
   );
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.sheet}>
           <View style={styles.header}>
@@ -280,7 +279,7 @@ export function RecipesModal({
           {editing ? renderEditor() : renderMain()}
         </View>
       </KeyboardAvoidingView>
-    </Modal>
+    </AppModal>
   );
 }
 
