@@ -135,6 +135,19 @@ callback identities).
 mutate state on the next frame, and keep gesture-wrapped components render-stable while a
 gesture can be live.
 
+### RN Modal renders outside the gesture-handler root — wrap its content too
+react-native's `<Modal>` mounts its content in a SEPARATE native root, not under the app's
+top-level `GestureHandlerRootView`. With gesture-handler installed, interacting with (scroll /
+press) then dismissing such a modal can leave the gesture root stuck capturing every touch — the
+same app-wide freeze as above, but triggered from a modal instead of a swipe.
+**Why it came up:** the freeze recurred after the first fix, localized to Compare → EDEKA vs E
+center — scroll the modal, close it, everything dead. The RNGH docs say each modal needs its OWN
+`GestureHandlerRootView`; ours had none. Fixed with an `AppModal` wrapper (Modal +
+GestureHandlerRootView) that every modal now uses.
+**Takeaway:** anything that renders in a separate native root (RN `Modal`, some portals) needs
+its own `GestureHandlerRootView` — the app-root one doesn't reach it. Wrap it once in a shared
+component so no new modal forgets.
+
 ### Bundle ID vs app name
 The app **name** (under the icon) is changeable anytime; the **bundle identifier**
 (`com.groceryhelper.berlin`) is the permanent technical ID — editable until the
