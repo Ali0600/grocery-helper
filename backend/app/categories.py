@@ -29,10 +29,10 @@ from typing import List, Optional
 from .vegan import is_vegan
 
 # slug -> human label shown in the app
+# Insertion order drives the filter-chip order (GET /api/categories iterates this dict).
 CATEGORIES: dict[str, str] = {
     "fruits": "Fruits",
     "vegetables": "Vegetables",
-    "vegan": "Vegan",
     "beef": "Beef",
     "poultry": "Chicken & Poultry",
     "pork": "Pork & Sausage",
@@ -45,10 +45,12 @@ CATEGORIES: dict[str, str] = {
     "ice_cream": "Ice Cream",
     "sweets": "Sweets & Chocolate",
     "snacks": "Snacks",
-    "beverages": "Beverages",
+    "soft_drinks": "Soft Drinks",  # beverages split: non-alcoholic (soda/juice/water/coffee/tea)
+    "alcoholic": "Alcoholic",  # beverages split: beer/wine/sekt/spirits
     "pantry": "Pantry & Dry Goods",
-    "household": "Household & Non-food",
+    "vegan": "Vegan",  # moved to the back of the food chips (per the user)
     "other": "Other",
+    "household": "Household & Non-food",
 }
 
 # Bonial level-1 node for food; anything else is non-food.
@@ -58,13 +60,13 @@ FOOD_ROOT = "lebensmittel und getränke"
 # generic nodes like "fleisch" are intentionally omitted (left to the keyword
 # layer, which can tell beef/poultry/pork apart from the product name).
 _PATH_MAP: dict[str, str] = {
-    # beverages
-    "getränke": "beverages", "alkoholische getränke": "beverages", "wein": "beverages",
-    "weißwein": "beverages", "rotwein": "beverages", "roséwein": "beverages",
-    "rosé": "beverages", "rebsorten": "beverages", "spirituosen": "beverages",
-    "weinbrand": "beverages", "likör": "beverages", "bier": "beverages",
-    "biermarken": "beverages", "saft": "beverages", "softdrinks": "beverages",
-    "limonade": "beverages", "kaffee": "beverages", "tee": "beverages", "sekt": "beverages",
+    # beverages — split into alcoholic vs soft drinks (all non-alcoholic incl. coffee/tea/water)
+    "getränke": "soft_drinks", "alkoholische getränke": "alcoholic", "wein": "alcoholic",
+    "weißwein": "alcoholic", "rotwein": "alcoholic", "roséwein": "alcoholic",
+    "rosé": "alcoholic", "rebsorten": "alcoholic", "spirituosen": "alcoholic",
+    "weinbrand": "alcoholic", "likör": "alcoholic", "bier": "alcoholic",
+    "biermarken": "alcoholic", "saft": "soft_drinks", "softdrinks": "soft_drinks",
+    "limonade": "soft_drinks", "kaffee": "soft_drinks", "tee": "soft_drinks", "sekt": "alcoholic",
     # meat & sausage -> pork bucket
     "wurst": "pork", "wurstwaren": "pork", "brühwurst": "pork", "rohwurst": "pork",
     "fleischwurst": "pork", "würstchen": "pork", "chorizo": "pork", "salami": "pork",
@@ -98,12 +100,12 @@ _PATH_MAP: dict[str, str] = {
     "teigwaren": "pantry", "nudeln": "pantry", "cerealien": "pantry", "haferbrei": "pantry",
     # --- expanded from a live taxonomy survey across all 3 chains ---
     # beverages (spirit types, soft-drink/water/juice/sekt "…marken" group nodes)
-    "softdrinkmarken": "beverages", "saftmarken": "beverages", "saftsorten": "beverages",
-    "wassermarken": "beverages", "sektmarken": "beverages", "marken getränke": "beverages",
-    "wasser": "beverages", "mineralwasser": "beverages", "heißgetränk": "beverages",
-    "heißgetränke": "beverages", "grüner tee": "beverages", "matcha": "beverages",
-    "schaumwein": "beverages", "whisky": "beverages", "whiskey": "beverages", "gin": "beverages",
-    "wodka": "beverages", "aperitif": "beverages", "sprite": "beverages",
+    "softdrinkmarken": "soft_drinks", "saftmarken": "soft_drinks", "saftsorten": "soft_drinks",
+    "wassermarken": "soft_drinks", "sektmarken": "alcoholic", "marken getränke": "soft_drinks",
+    "wasser": "soft_drinks", "mineralwasser": "soft_drinks", "heißgetränk": "soft_drinks",
+    "heißgetränke": "soft_drinks", "grüner tee": "soft_drinks", "matcha": "soft_drinks",
+    "schaumwein": "alcoholic", "whisky": "alcoholic", "whiskey": "alcoholic", "gin": "alcoholic",
+    "wodka": "alcoholic", "aperitif": "alcoholic", "sprite": "soft_drinks",
     # bakery (bread types)
     "weißbrot": "bakery", "weissbrot": "bakery", "mischbrot": "bakery", "vollkornbrot": "bakery",
     "weizenbrot": "bakery", "toastbrot": "bakery", "ciabatta": "bakery", "fladenbrot": "bakery",
@@ -171,11 +173,12 @@ _RULES: list[tuple[str, list[str]]] = [
                 "kinder bueno", "bärchen"]),
     ("snacks", ["chips", "cracker", "nüsse", "nuesse", "erdnuss", "popcorn", "salzstange", "flips", "tortilla",
                 "studentenfutter", "alesto", "trockenfrüchte", "knabber", "bake rolls", "snackmix", "knusper"]),
-    ("beverages", ["wasser", "cola", "limo", "saft", " bier", "lagerbier", " pils", "wein", "kaffee", " tee", "energy", "schorle",
-                   "spezi", "fanta", "sprite", "nektar", "vodka", "champagner", "pilsener", "sangria", "doppelkorn",
-                   "goldkrone", "weinbrand", "licor", "pepsi", "solevita", "san miguel", "holsten", "moët", "moet",
-                   "absolut", "korol", "cimarosa", "sauvignon", "espresso", "caffè", "caffe", "lavazza", "dallmayr",
-                   "latte", "aloe vera", "primitivo", "smoothie", "bella crema"]),
+    ("alcoholic", [" bier", "lagerbier", " pils", "wein", "vodka", "champagner", "pilsener", "sangria",
+                   "doppelkorn", "goldkrone", "weinbrand", "licor", "san miguel", "holsten", "moët", "moet",
+                   "absolut", "korol", "cimarosa", "sauvignon", "primitivo"]),
+    ("soft_drinks", ["wasser", "cola", "limo", "saft", "kaffee", " tee", "energy", "schorle", "spezi",
+                     "fanta", "sprite", "nektar", "pepsi", "solevita", "espresso", "caffè", "caffe",
+                     "lavazza", "dallmayr", "latte", "aloe vera", "smoothie", "bella crema"]),
     ("pantry", ["nudel", "noodles", "pasta", "teigwaren", "porridge", "reis", "mehl", "zucker", " öl", "olivenöl", "essig", "konserve",
                 "sauce", "soße", "gewürz", "müsli", "haferflocken", "honig", "marmelade", "ketchup", "senf",
                 "oliven", "kichererbsen", "aioli", "artischocken", "paella", "lupinen", "antipasti", "tapas",
@@ -199,16 +202,16 @@ _RULES: list[tuple[str, list[str]]] = [
 # Unambiguous brand -> category. Multi-category house brands (Milbona, Metzgerfrisch,
 # Sol & Mar, Zott) are left to the path / keyword layers.
 BRAND_CATEGORY: dict[str, str] = {
-    "allini": "beverages", "mister choc": "sweets", "ritter sport": "sweets", "milka": "sweets",
+    "allini": "alcoholic", "mister choc": "sweets", "ritter sport": "sweets", "milka": "sweets",
     "iglo": "frozen", "gelatelli": "ice_cream", "langnese": "ice_cream", "bon gelati": "ice_cream",
     "schöller": "ice_cream", "ben & jerry's": "ice_cream", "ben & jerry": "ice_cream",
     "gustavo gusto": "frozen", "ferrero": "sweets", "loacker": "sweets", "rondo": "sweets",
     "dulano": "pork", "meica": "pork", "brunch": "cheese", "kerrygold": "butter",
-    "valensina": "beverages", "lipton": "beverages", "volvic": "beverages",
+    "valensina": "soft_drinks", "lipton": "soft_drinks", "volvic": "soft_drinks",
     "schogetten": "sweets", "berggold": "sweets", "häagen-dazs": "ice_cream",
     # REWE flyer brands (paths are often brand-only -> no taxonomy node to use)
     "mirée": "cheese", "miree": "cheese", "salakis": "cheese", "leerdammer": "cheese",
-    "bergader": "cheese", "violife": "cheese", "rotkäppchen": "beverages",
+    "bergader": "cheese", "violife": "cheese", "rotkäppchen": "alcoholic",
     "deutsche see": "fish", "katjes": "sweets", "lay's": "snacks", "lorenz": "snacks",
     "nuii": "ice_cream", "danone": "dairy",
     # EDEKA flyer brands (single-category; the house lines Gut&Günstig / EDEKA /
@@ -217,7 +220,7 @@ BRAND_CATEGORY: dict[str, str] = {
     "citterio": "pork", "steinhaus": "pork", "houdek": "pork",
     "bauern gut": "pork", "bauerngut": "pork", "wiesenhof": "poultry",
     "frosta": "frozen", "mccain": "frozen", "mövenpick": "ice_cream", "moevenpick": "ice_cream",
-    "hochland": "cheese", "trolli": "sweets", "nescafé": "beverages", "nescafe": "beverages",
+    "hochland": "cheese", "trolli": "sweets", "nescafé": "soft_drinks", "nescafe": "soft_drinks",
     "chio": "snacks", "sonnen bassermann": "pantry", "edeka zuhause": "household",
     # more single-category food brands (from the live "other" survey across all 3 chains).
     # Multi-category house brands (Milbona, Gut&Günstig, Metzgerfrisch, Butchers, ja!,
@@ -229,8 +232,8 @@ BRAND_CATEGORY: dict[str, str] = {
     "bahlsen": "sweets", "marabou": "sweets",
     "saint agur": "cheese", "rougette": "cheese", "petrella": "cheese", "almette": "cheese",
     "géramont": "cheese", "geramont": "cheese", "becel": "butter",
-    "florida eis": "ice_cream", "leffe": "beverages", "heineken": "beverages",
-    "starbucks": "beverages", "wiltmann": "pork", "wilhelm brandenburg": "pork",
+    "florida eis": "ice_cream", "leffe": "alcoholic", "heineken": "alcoholic",
+    "starbucks": "soft_drinks", "wiltmann": "pork", "wilhelm brandenburg": "pork",
     "baldauf": "cheese", "wagner": "frozen", "purina": "household", "pedigree": "household",
     # non-food house / appliance / care / fashion brands
     "parkside": "household", "esmara": "household", "livarno": "household", "crelando": "household",
@@ -253,8 +256,9 @@ BRAND_CATEGORY: dict[str, str] = {
 # or an unambiguous brand, never a mere flavour — so a frozen "…Schoko" brand isn't dragged
 # here. Space-guarded where a fruit word is a superstring ("nektar " vs "Nektarine").
 _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
-    ("beverages", ["limonade", "schorle", "nektar ", "smoothie", "saft ", "fruchtsaft", "vilsa",
-                   "jägermeister"]),
+    ("soft_drinks", ["limonade", "schorle", "nektar ", "smoothie", "saft ", "fruchtsaft", "vilsa",
+                     "alkoholfrei"]),  # alkoholfrei beer/wine -> soft, beating a "Bier"/"Wein" path
+    ("alcoholic", ["jägermeister"]),  # a liqueur the source sometimes mis-files under Dessert>Eis
     ("dairy", ["joghurt", "jogurt", "froop", "skyr", "müllermilch", "fruchtzwerge", "fruchtquark"]),
     ("snacks", ["chips", "trüfrü", "trufru"]),  # freeze-dried fruit snack filed under Obst
     # Root veg the source sometimes mis-files under "Dessert > Eis" (a carrot is not ice cream).
@@ -268,9 +272,9 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
 # misleading prefix ("Pflaumentomaten" is a tomato, "Apfelessig" is vinegar) — but a brand
 # still wins (Häagen-Dazs "…Chocolate" is frozen, not sweets). Short tokens are space-padded.
 _OVERRIDES: list[tuple[str, list[str]]] = [
-    ("beverages", ["sekt", "frizzante", "secco", "prosecco", "hugo", "aperol", "bellini", "likör",
-                   "aperitif", "glühwein", "wodka", "whisky", "pilsener", "eistee", "ice tea",
-                   " gin ", " rum "]),
+    ("alcoholic", ["sekt", "frizzante", "secco", "prosecco", "hugo", "aperol", "bellini", "likör",
+                   "aperitif", "glühwein", "wodka", "whisky", "pilsener", " gin ", " rum "]),
+    ("soft_drinks", ["eistee", "ice tea"]),  # iced tea is a soft drink, not alcohol/ice cream
     ("sweets", ["mister choc", "choco"]),
     # compound nouns whose prefix is a produce word (would otherwise land in vegetables/fruits):
     # prepared deli salads + condiments are not raw produce.

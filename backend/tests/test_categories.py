@@ -12,8 +12,8 @@ from app.categories import CATEGORIES, classify
     "name, brand, expected",
     [
         # --- regressions fixed by the brand map / overrides ---
-        ("Allini Hugo Frizzante Mango", "ALLINI", "beverages"),  # sekt, not fruit
-        ("Allini Rhabarber-Erdbeer Secco", "ALLINI", "beverages"),
+        ("Allini Hugo Frizzante Mango", "ALLINI", "alcoholic"),  # sekt, not fruit
+        ("Allini Rhabarber-Erdbeer Secco", "ALLINI", "alcoholic"),
         ("Mister Choc Milch Freunde", "MISTER CHOC", "sweets"),  # chocolate, not dairy
         ("Iglo Rahm-Spinat", "IGLO", "frozen"),  # frozen brand, not veg
         # --- things that must keep working ---
@@ -22,7 +22,7 @@ from app.categories import CATEGORIES, classify
         ("Frisches Rinderhackfleisch", None, "beef"),
         ("Deutsche Markenbutter", "Milbona", "butter"),
         ("Ehrmann Almighurt", "EHRMANN", "dairy"),
-        ("Valensina Saft/Nektar", "VALENSINA", "beverages"),
+        ("Valensina Saft/Nektar", "VALENSINA", "soft_drinks"),
         ("PARKSIDE Akku-Bohrschrauber", "PARKSIDE", "household"),
         # --- flyer-catalog keyword expansion ---
         ("DELUXE Irisches Angus Rumpsteak", "DELUXE", "beef"),
@@ -30,14 +30,14 @@ from app.categories import CATEGORIES, classify
         ("Dulano Delikatess Bacon", "Dulano", "pork"),
         ("Gelatelli Premium Stieleis", "Gelatelli", "ice_cream"),
         ("Ferrero Hanuta", "Ferrero", "sweets"),
-        ("Moët & Chandon Impérial Champagner", "Moët & Chandon", "beverages"),
+        ("Moët & Chandon Impérial Champagner", "Moët & Chandon", "alcoholic"),
         ("Milbona Edamer", "Milbona", "cheese"),
         ("TRONIC Standventilator", "TRONIC", "household"),
         # --- substring / flavour-word regressions caught in review ---
         ("Frisches Schweinegulasch", None, "pork"),  # not beef ("gulasch")
         ("Metzgerfrisch Schweine-Nackensteak", None, "pork"),  # not beef ("steak")
-        ("Volvic Touch Zitrone Limette", "Volvic", "beverages"),  # "limette" != Mett
-        ("Lipton Ice Tea Pfirsich", "Lipton", "beverages"),  # not fruit ("pfirsich")
+        ("Volvic Touch Zitrone Limette", "Volvic", "soft_drinks"),  # "limette" != Mett
+        ("Lipton Ice Tea Pfirsich", "Lipton", "soft_drinks"),  # not fruit ("pfirsich")
         ("Trumpf Schogetten Freeze Mango", "Trumpf", "sweets"),  # not fruit ("mango")
         ("Häagen-Dazs Belgian Chocolate", "Häagen-Dazs", "ice_cream"),  # ice cream, not sweets
         # --- ice cream split out of frozen ---
@@ -50,7 +50,7 @@ from app.categories import CATEGORIES, classify
         ("McCain 1-2-3 Original Fries", "McCain", "frozen"),
         ("Frisches Rindfleisch-Gulasch", None, "beef"),  # "Fleisch" contains "eis"
         ("Müller Milchreis", "Müller", "dairy"),  # "Reis" contains "eis"
-        ("Pfanner Eistee Pfirsich", "Pfanner", "beverages"),  # Eistee is a drink, not ice cream
+        ("Pfanner Eistee Pfirsich", "Pfanner", "soft_drinks"),  # Eistee is a drink, not ice cream
         # --- vegan is its own category (cross-cutting; wins over the natural category) ---
         ("Vemondo veganes Gyros mit Zwiebeln", "VEMONDO", "vegan"),
         ("VEMONDO Pesto Basilico", "VEMONDO", "vegan"),  # Vemondo (vegan-only brand) even without "vegan"
@@ -79,13 +79,13 @@ _FOOD = "Lebensmittel und Getränke"
         # product taxonomy nodes map directly
         ("x", None, [_FOOD, "Produkte", "Lebensmittel", "Milchprodukte", "Käse", "Weichkäse"], "cheese"),
         ("x", None, [_FOOD, "Produkte", "Lebensmittel", "Fleisch", "Wurstwaren"], "pork"),
-        ("x", None, [_FOOD, "Produkte", "Getränke", "Alkoholische Getränke"], "beverages"),
+        ("x", None, [_FOOD, "Produkte", "Getränke", "Alkoholische Getränke"], "alcoholic"),
         ("x", None, [_FOOD, "Produkte", "Lebensmittel", "Obst", "Kernobst"], "fruits"),
         # brand-only food path -> falls back to keyword classifier on the name
         ("Eberswalder Rostbratwurst", "Eberswalder", [_FOOD, "Marken", "Marken Lebensmittel"], "pork"),
         # a form/brand override (Vilsa water) beats a mis-filed Obst path (the source files
         # the flavoured water "Vilsa H2 Obst …" under Obst, which would otherwise -> fruits)
-        ("Vilsa H2 Obst Apfel-Limette-Zitrone", "Vilsa", [_FOOD, "Produkte", "Obst"], "beverages"),
+        ("Vilsa H2 Obst Apfel-Limette-Zitrone", "Vilsa", [_FOOD, "Produkte", "Obst"], "soft_drinks"),
         # a freeze-dried fruit snack the source files under Obst/Beeren -> snacks, not fruits
         ("TRÜFRÜ Nature’s Strawberries", "TRÜFRÜ", [_FOOD, "Produkte", "Lebensmittel", "Obst", "Beeren"], "snacks"),
     ],
@@ -108,7 +108,7 @@ _BRAND_ONLY = [_FOOD, "Marken", "Marken Lebensmittel"]  # brand-organized, no pr
         # brand-only food paths -> brand map
         ("Mirée Französische Kräuter", "Mirée", _BRAND_ONLY, "cheese"),
         ("Leerdammer Original", "Leerdammer", _BRAND_ONLY, "cheese"),
-        ("Rotkäppchen Rosé Trocken", "Rotkäppchen", _BRAND_ONLY, "beverages"),
+        ("Rotkäppchen Rosé Trocken", "Rotkäppchen", _BRAND_ONLY, "alcoholic"),
         ("Deutsche See Pulpo-Arme", "Deutsche See", _BRAND_ONLY, "fish"),
         ("Katjes Fruchtgummi", "Katjes", _BRAND_ONLY, "sweets"),
         ("Lay's Gesalzen", "Lay's", _BRAND_ONLY, "snacks"),
@@ -123,8 +123,8 @@ _BRAND_ONLY = [_FOOD, "Marken", "Marken Lebensmittel"]  # brand-organized, no pr
         ("Barebells Soft Protein Bar", "Barebells",
          [_FOOD, "Produkte", "Lebensmittel", "Proteinprodukte", "Proteinriegel"], "snacks"),
         # keyword-only (no usable path): German/English beer + product words
-        ("Estrella Damm Spanisches Lagerbier", "Estrella Damm", None, "beverages"),
-        ("Radeberger Pilsner", "Radeberger", None, "beverages"),
+        ("Estrella Damm Spanisches Lagerbier", "Estrella Damm", None, "alcoholic"),
+        ("Radeberger Pilsner", "Radeberger", None, "alcoholic"),
         ("REWE Beste Wahl Limetten", "REWE Beste Wahl", None, "fruits"),
         ("Followfood Bio Carbonara Style Noodles", "followfood", _BRAND_ONLY, "pantry"),
         ("Butcher's Burger Buns Lauge", "Butcher's Burger", _BRAND_ONLY, "bakery"),
@@ -156,7 +156,7 @@ def test_classify_rewe_flyer(name, brand, path, expected):
         ("McCain Pickers", "McCain", "frozen"),
         ("Hochland Sandwich Scheiben", "Hochland", "cheese"),
         ("Trolli Fruchtgummi", "Trolli", "sweets"),
-        ("Nescafé frappé", "Nescafé", "beverages"),
+        ("Nescafé frappé", "Nescafé", "soft_drinks"),
         ("Chio Dip!", None, "snacks"),                            # brand in name
         ("EDEKA zuhause Holzkohle", "EDEKA zuhause", "household"),
         ("Gut & Günstig Grillbriketts", "Gut & Günstig", "household"),
@@ -176,9 +176,9 @@ def test_classify_edeka_flyer(name, brand, expected):
         # the *intermediate* node carries the category)
         ([_FOOD, "Produkte", "Lebensmittel", "Würzmittel"], "pantry"),
         ([_FOOD, "Produkte", "Lebensmittel", "Salatdressing"], "pantry"),
-        ([_FOOD, "Produkte", "Getränke", "Wasser"], "beverages"),
-        ([_FOOD, "Produkte", "Getränke", "Schaumwein"], "beverages"),
-        ([_FOOD, "Marken", "Marken Getränke", "Softdrinkmarken"], "beverages"),
+        ([_FOOD, "Produkte", "Getränke", "Wasser"], "soft_drinks"),
+        ([_FOOD, "Produkte", "Getränke", "Schaumwein"], "alcoholic"),
+        ([_FOOD, "Marken", "Marken Getränke", "Softdrinkmarken"], "soft_drinks"),
         ([_FOOD, "Produkte", "Lebensmittel", "Melone"], "fruits"),
         ([_FOOD, "Produkte", "Lebensmittel", "Zwiebeln"], "vegetables"),
         ([_FOOD, "Produkte", "Lebensmittel", "Weißbrot"], "bakery"),
@@ -209,24 +209,24 @@ def test_classify_expanded_paths(path, expected):
         ("Kohlrabi", None, "vegetables"),
         ("Burrata di Bufala", None, "cheese"),
         ("Bürger Maultaschen", "Bürger", "pantry"),
-        ("EDEKA Bio Smoothie", "EDEKA Bio", "beverages"),
+        ("EDEKA Bio Smoothie", "EDEKA Bio", "soft_drinks"),
         ("Costa Pacific Prawns", "Costa", "fish"),
         ("Kalbs-Hals", None, "beef"),
         ("ja! Delikatess Mayonnaise", "ja!", "pantry"),
         ("Floristenstrauß der Saison", None, "household"),
         # non-regression guards: the new short tokens must not steal real categories
         ("Steinhaus Original Krustenbraten", "Steinhaus", "pork"),  # not bakery (grill/tigerkruste)
-        ("Champagner Brut", None, "beverages"),  # "pane " must not catch it
+        ("Champagner Brut", None, "alcoholic"),  # "pane " must not catch it
         # fruit-flavoured items that are NOT fruit (confirmed against the product images)
-        ("Bellini Pfirsich 0,0%", None, "beverages"),  # peach sparkling drink, not "pfirsich"
+        ("Bellini Pfirsich 0,0%", None, "alcoholic"),  # peach sparkling aperitif, not "pfirsich"
         ("EDEKA Herzstücke Bananenchips", "EDEKA Herzstücke", "snacks"),  # chips, not "banane"
-        ("Gut&Günstig Zitronenlimonade", "Gut&Günstig", "beverages"),  # lemonade, not "zitrone"
+        ("Gut&Günstig Zitronenlimonade", "Gut&Günstig", "soft_drinks"),  # lemonade, not "zitrone"
         ("Müller Froop Pfirsich-Maracuja", "Müller", "dairy"),  # yogurt, not "pfirsich"
-        ("Apfelsaft naturtrüb", None, "beverages"),  # juice, not "apfel"
+        ("Apfelsaft naturtrüb", None, "soft_drinks"),  # juice, not "apfel"
         ("Erdbeer Joghurt", None, "dairy"),  # yogurt, not "erdbeere"
         # week-of-2026-06-23 fruit-trap fixes (confirmed against the product images)
         ("REWE Bio Mango Sorbet", "REWE Bio", "ice_cream"),  # sorbet is ice cream, not "mango"
-        ("Vilsa H2 Obst Apfel-Limette-Zitrone", "Vilsa", "beverages"),  # water brand, not "apfel"
+        ("Vilsa H2 Obst Apfel-Limette-Zitrone", "Vilsa", "soft_drinks"),  # water brand, not "apfel"
         ("Bioland Bio Mini Pflaumentomaten", "Bioland", "vegetables"),  # tomato, not "pflaume"
         ("Unsere Heimat Apfelessig", "Unsere Heimat", "pantry"),  # vinegar, not "apfel"
         # guards: the new overrides must stay specific
