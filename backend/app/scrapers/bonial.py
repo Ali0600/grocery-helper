@@ -56,6 +56,10 @@ HEADERS = {
 }
 # A weekly flyer runs <= ~2 weeks; this excludes long-running "Preisführer" lists.
 MAX_FLYER_DAYS = 14
+# Between flyer weeks (e.g. Sunday) last week's brochure has ended and next week's
+# hasn't started, but meinprospekt already publishes next week's with a `validFrom` a
+# day or two out. Look this far ahead for it before falling back to sample data.
+UPCOMING_LOOKAHEAD_DAYS = 8
 # Validity timestamps are Berlin-midnight boundaries expressed in UTC; convert with the
 # real tz (handles CET/CEST) so day-limited windows land on the right calendar days
 # regardless of where the scraper runs.
@@ -135,15 +139,7 @@ class MeinprospektScraper:
             raise RuntimeError("publisher page missing __NEXT_DATA__")
         found: dict = {}
         self._collect_brochures(json.loads(m.group(1)), found)
-        now = datetime.now(timezone.utc)
-        active = []
-        for bid, b in found.items():
-            vf, vu = _parse_dt(b.get("validFrom")), _parse_dt(b.get("validUntil"))
-            if vf and vu and vf <= now <= vu and (vu - vf).days <= MAX_FLYER_DAYS:
-                active.append({"id": bid, "valid_from": vf.date(), "valid_to": vu.date()})
-        if not active:
-            raise RuntimeError(f"no active weekly brochure for {self.chain}")
-        return active
+        return _select_brochures(found, datetime.now(timezone.utc), self.chain)
 
     def _collect_brochures(self, node, out: dict) -> None:
         """Walk the page blob collecting brochures published by *this* chain
@@ -461,6 +457,36 @@ def _offer_validity(
     if not starts:
         return None
     return min(starts), max(ends)
+
+
+def _select_brochures(found: dict, now: datetime, chain: str) -> List[dict]:
+    """Pick which weekly brochure(s) to scrape from all the publisher lists.
+
+    Normally that's the currently-valid weekly brochure(s) (``validFrom <= now <=
+    validUntil``). Between flyer weeks — e.g. Sunday, when last week's brochure has
+    ended and next week's hasn't started — meinprospekt already lists next week's
+    brochure with a ``validFrom`` a day or two out; serve the soonest of those rather
+    than falling back to sample data. Long-running (non-weekly) brochures are ignored
+    via ``MAX_FLYER_DAYS``.
+    """
+    active: List[Tuple[datetime, dict]] = []
+    upcoming: List[Tuple[datetime, dict]] = []
+    for bid, b in found.items():
+        vf, vu = _parse_dt(b.get("validFrom")), _parse_dt(b.get("validUntil"))
+        if not (vf and vu) or (vu - vf).days > MAX_FLYER_DAYS:
+            continue  # undated, or a long-running (non-weekly) brochure
+        entry = {"id": bid, "valid_from": vf.date(), "valid_to": vu.date()}
+        if vf <= now <= vu:
+            active.append((vf, entry))
+        elif now < vf <= now + timedelta(days=UPCOMING_LOOKAHEAD_DAYS):
+            upcoming.append((vf, entry))
+    if active:
+        return [e for _, e in active]
+    if upcoming:
+        # Serve only the nearest upcoming week, not the one after it.
+        earliest = min(vf for vf, _ in upcoming)
+        return [e for vf, e in upcoming if (vf - earliest).days <= 1]
+    raise RuntimeError(f"no active weekly brochure for {chain}")
 
 
 def _parse_dt(value) -> Optional[datetime]:
