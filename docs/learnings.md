@@ -395,6 +395,22 @@ the cached week's Sunday, plus a manual pull-to-refresh).
 weekly/periodic data, serve the cache for the whole period and only refetch when it
 expires (or on explicit refresh).
 
+### Prefetch a heavy on-demand field to hide cold-start latency (and gain offline)
+A field too big for the main list (so it's fetched per-item on demand) is fine — until the
+backend is slow to wake (free-tier cold start), so each on-demand fetch pays that latency
+right when the user is waiting. If the data already lives server-side, prefetch it *in bulk*
+in the background **while the backend is already warm** (piggyback the main fetch), cache it
+in its own key, and read cache-first with a network fallback.
+**Why it came up:** "View payload" fetched each offer's raw payload from Render on demand; on
+the sleepy free tier that meant a cold start per inspection. Added `GET /api/offers/payloads?plz=`
+(bulk, keyed by id, ~2 MB) prefetched right after the deals fetch (Render already warm), cached
+apart from the 1 MB deals cache, and gated to only re-pull when the set actually changed. Views
+became instant + offline; the detail view falls back to the per-offer endpoint on a cache miss.
+**Takeaway:** for a heavy, on-demand field over a slow/sleepy backend, prefetch it in bulk on the
+back of a request that already woke the backend, cache it *apart* from the hot-path cache, and
+serve cache-first with a fallback — trade a little background bandwidth for zero cold-start-on-view
+and offline support. (Pairs with "don't cache empty/failed responses" — only cache a good bulk fetch.)
+
 ### Dev DB and prod serve different datasets — don't compare counts across them
 The local backend (`localhost:8001`, the web view) and Render (the iOS build) hold
 *independently scraped* data, so a category count on one won't match the other.

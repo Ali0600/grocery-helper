@@ -267,7 +267,18 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   drop: flyer `parentContent`/`publisher`/`linkOuts`/alt images/`deals[].min`; coupon
   `offerType`/`redemptionChannel`/`productIds`/`featured`). **Set at scrape time** → `raw_payload`
   is null for pre-capture/sample rows (UI shows "not captured yet"); Render's Sunday reset
-  backfills prod. Migration `210fa9f3d7a9`.
+  backfills prod. Migration `210fa9f3d7a9`. **Payloads are prefetched + cached on-device for
+  offline, cold-start-free viewing** (the per-offer fetch otherwise cold-starts the sleepy free
+  tier every inspection): **`GET /api/offers/payloads?plz=`** returns *every* deduped offer's
+  payload keyed by id (mirrors `/api/offers`' dedup + validity filter so ids line up; ~2 MB; not
+  in `OfferOut`). `DealsScreen` `prefetchPayloads()` fetches it in the **background after a deals
+  fetch** (Render is warm) — **gated**: only downloads when the `payloadCache` is missing / a new
+  flyer week (`dealsStale`) / the deal count changed, so a no-change pull-to-refresh doesn't
+  re-pull 2 MB. Stored in its **own** `payloadCache` key (`storage.ts`, single-PLZ ~2 MB, separate
+  from the 1 MB `dealsCache`; cleared with the deals cache + on reset). `FlyerModal` reads the
+  cache **first** (`key in cache.byId`, so a captured-null shows "not captured" offline too),
+  **falling back** to `GET /api/offers/{id}/payload` on a miss — so it degrades safely during the
+  deploy window / for an un-prefetched offer.
 - **"Cheapest €/kg" sort** uses `OfferOut.unit_price_cents` — `app/unit_price.py`
   `unit_price_cents()` normalizes `price_per_unit` to cents per **kg or litre** on
   one comparable axis (German Grundpreis; per-`Stück`/`wl`/`m`/malformed → None).
