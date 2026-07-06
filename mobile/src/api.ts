@@ -3,6 +3,7 @@ import {
   NearbyStore,
   Offer,
   OfferPayload,
+  PayloadMap,
   ResetResult,
   ScrapeResult,
   Store,
@@ -99,6 +100,13 @@ export const api = {
   // "View payload" view in the deal detail. `payload` is null if not captured yet.
   offerPayload(id: number) {
     return get<OfferPayload>(`/api/offers/${id}/payload`);
+  },
+
+  // Every offer's payload for a PLZ (keyed by id) — prefetched in the background so "View
+  // payload" is instant + offline (no per-offer call to the sleepy backend). ~2 MB, so a
+  // longer timeout; it's best-effort (the detail view falls back to `offerPayload`).
+  offerPayloads(plz: string) {
+    return get<PayloadMap>(`/api/offers/payloads?plz=${encodeURIComponent(plz)}`, 60000);
   },
 
   // Nearest store of each known chain around the PLZ (OSM); active=true for

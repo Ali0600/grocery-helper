@@ -125,6 +125,18 @@ def test_payload_roundtrip_null_and_404(client):
     assert client.get("/api/offers/999999/payload").status_code == 404
 
 
+def test_bulk_payloads_keyed_by_id_scoped_to_plz(client):
+    rows = client.get("/api/offers?plz=10115&limit=100").json()
+    by_id = client.get("/api/offers/payloads?plz=10115").json()
+    # One entry per served (deduped) offer, keyed by id — so the app can look up any
+    # offer it's showing; the other-PLZ offer is excluded (same scoping as the list).
+    assert set(by_id.keys()) == {str(o["id"]) for o in rows}
+    avocado = next(o for o in rows if o["name"] == "Avocado")
+    banane = next(o for o in rows if o["name"] == "Banane")
+    assert by_id[str(avocado["id"])] == {"id": "a", "brand": {"name": "Bio"}}
+    assert by_id[str(banane["id"])] is None  # present, but captured as null
+
+
 # --------------------------------------------------------------------------- #
 # Admin guard on /api/reset + /api/recategorize
 # --------------------------------------------------------------------------- #

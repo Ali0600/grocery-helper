@@ -14,6 +14,7 @@ import { AppModal } from './AppModal';
 import { api } from '../api';
 import { chainLabel } from '../chains';
 import { cleanUnit, euro, fmtPricePerUnit, formatBrand } from '../format';
+import { getPayloadCache } from '../storage';
 import { colors } from '../theme';
 import { Offer, OfferPayload } from '../types';
 
@@ -49,11 +50,24 @@ export function FlyerModal({ offer, onClose }: { offer: Offer | null; onClose: (
     if (payload === undefined && offer) {
       setLoadingPayload(true);
       setPayloadError(null);
-      api
-        .offerPayload(offer.id)
-        .then(setPayload)
-        .catch(() => setPayloadError('Could not load the payload.'))
-        .finally(() => setLoadingPayload(false));
+      // Prefer the on-device prefetch cache (instant + offline, no Render cold start); fall
+      // back to the per-offer endpoint only if this offer wasn't prefetched (cache miss / an
+      // older cache from before the prefetch ran).
+      (async () => {
+        try {
+          const cache = await getPayloadCache();
+          const key = String(offer.id);
+          if (cache && key in cache.byId) {
+            setPayload({ id: offer.id, source: offer.source, payload: cache.byId[key] });
+          } else {
+            setPayload(await api.offerPayload(offer.id));
+          }
+        } catch {
+          setPayloadError('Could not load the payload.');
+        } finally {
+          setLoadingPayload(false);
+        }
+      })();
     }
   }, [showPayload, payload, offer]);
 

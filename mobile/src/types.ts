@@ -98,6 +98,11 @@ export type OfferPayload = {
   payload: Record<string, unknown> | null;
 };
 
+// GET /api/offers/payloads?plz= — every offer's raw payload for a PLZ, keyed by offer id
+// (string). Prefetched + cached on-device so "View payload" is instant + offline. A value
+// is null where the payload wasn't captured (like OfferPayload.payload).
+export type PayloadMap = Record<string, Record<string, unknown> | null>;
+
 // --- AI Recipes (offline-authored, bundled in the app; no runtime API) ---
 
 // One ingredient line in a recipe. `keywords`/`exclude` are German name stems matched
