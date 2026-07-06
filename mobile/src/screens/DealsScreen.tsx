@@ -49,6 +49,7 @@ import {
   clearAllData,
   clearDealsCache,
   getDealsCache,
+  getPayloadCache,
   getStoredAlwaysHave,
   getStoredBasket,
   getStoredHiddenStores,
@@ -58,6 +59,7 @@ import {
   getStoredShowNonFood,
   getStoredSortMode,
   setDealsCache,
+  setPayloadCache,
   setStoredAlwaysHave,
   setStoredBasket,
   setStoredHiddenStores,
@@ -139,6 +141,27 @@ export default function DealsScreen() {
     offersCountRef.current = offers.length;
   }, [offers]);
 
+  // Background prefetch: cache all payloads for this PLZ so the deal detail's "View payload"
+  // is instant + offline (no per-offer round-trip to the sleepy backend, which cold-starts).
+  // Gated — only downloads when the cache is missing / a new flyer week / the deal set changed
+  // — so a pull-to-refresh that finds no change doesn't re-pull ~2 MB. Best-effort (fire-and-forget).
+  const prefetchPayloads = useCallback(async (targetPlz: string, count: number) => {
+    try {
+      const cached = await getPayloadCache();
+      const fresh =
+        !!cached &&
+        cached.plz === targetPlz &&
+        cached.count === count &&
+        !dealsStale(cached.cachedAt);
+      if (fresh) return;
+      const byId = await api.offerPayloads(targetPlz);
+      if (plzRef.current !== targetPlz) return; // user switched PLZ mid-fetch
+      await setPayloadCache({ plz: targetPlz, byId, count, cachedAt: Date.now() });
+    } catch (e) {
+      console.warn('payload prefetch failed', e); // best-effort; the detail view falls back to network
+    }
+  }, []);
+
   // Hydrate saved prefs once on mount, then let `load` run.
   useEffect(() => {
     (async () => {
@@ -198,6 +221,9 @@ export default function DealsScreen() {
         setError(null);
         if (o.length > 0) {
           setDealsCache({ plz: target, offers: o, cats: c, storeName: name, cachedAt: now });
+          // Prefetch this PLZ's payloads in the background (Render is warm from the fetch
+          // above) so the deal detail's "View payload" is instant + offline.
+          void prefetchPayloads(target, o.length);
           // Pull-to-refresh feedback: say how the deal count changed vs what was on
           // screen; stay silent when nothing changed (per the user's request).
           if (announce) {
@@ -220,7 +246,7 @@ export default function DealsScreen() {
         }
       }
     },
-    [plz, showToast],
+    [plz, showToast, prefetchPayloads],
   );
 
   // On launch / PLZ change: show the cached deals for this PLZ instantly (no spinner),
@@ -251,11 +277,14 @@ export default function DealsScreen() {
         setSlowLoad(false);
       }
       if (!fresh) revalidate(hit);
+      // Fresh deals cache → revalidate won't run, but still ensure this PLZ's payloads are
+      // prefetched for offline "View payload" (gated: no-ops if already cached this week).
+      else if (cached) void prefetchPayloads(plz, cached.offers.length);
     })();
     return () => {
       cancelled = true;
     };
-  }, [plz, ready, revalidate]);
+  }, [plz, ready, revalidate, prefetchPayloads]);
 
   // If the true cold-start spinner drags on (a sleepy free-tier boot), surface a "waking" hint.
   useEffect(() => {

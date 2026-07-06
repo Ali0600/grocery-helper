@@ -114,6 +114,22 @@ def offer_payload(session: SessionDep, offer_id: int):
     return {"id": offer.id, "source": offer.source, "payload": payload}
 
 
+@router.get("/offers/payloads")
+def offer_payloads(session: SessionDep, plz: Optional[str] = None):
+    """All raw payloads for a PLZ's (deduped) offers, keyed by offer id — lets the app
+    prefetch + cache them so the deal detail's "View payload" is instant + offline instead
+    of a per-offer round-trip (which, on the sleepy free tier, means a cold start). Mirrors
+    /api/offers' dedup + validity filter so the ids line up with the list; a value is null
+    where the payload wasn't captured (pre-capture / sample fallback). Not in OfferOut (too
+    big for the list) — this is fetched once, in the background."""
+    stmt = select(Offer).options(selectinload(Offer.store)).join(Store)
+    if plz:
+        stmt = stmt.where(Store.plz == plz)
+    stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today()))
+    rows = dedup_offers(session.scalars(stmt).all())
+    return {str(o.id): (json.loads(o.raw_payload) if o.raw_payload else None) for o in rows}
+
+
 @router.get("/categories", response_model=List[CategoryCount])
 def list_categories(session: SessionDep, plz: Optional[str] = None):
     """Categories that currently have offers, with counts (for filter chips).

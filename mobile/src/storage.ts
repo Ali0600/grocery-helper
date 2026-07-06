@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { CatalogItem, GROCERY_CATALOG } from './catalog';
 import { DEFAULT_RECIPE_PREFS } from './recipes';
-import { BasketItem, CategoryCount, MyStore, Offer, RecipePrefs } from './types';
+import { BasketItem, CategoryCount, MyStore, Offer, PayloadMap, RecipePrefs } from './types';
 
 const PLZ_KEY = 'plz';
 const NONFOOD_KEY = 'showNonFood';
@@ -11,6 +11,7 @@ const SORT_KEY = 'sortMode';
 const HIDDEN_STORES_KEY = 'hiddenStores';
 const BASKET_KEY = 'basket';
 const DEALS_CACHE_KEY = 'dealsCache';
+const PAYLOAD_CACHE_KEY = 'payloadCache';
 const RECIPE_PREFS_KEY = 'recipePrefs';
 const ALWAYS_HAVE_KEY = 'alwaysHave';
 
@@ -161,14 +162,45 @@ export async function setDealsCache(data: CachedDeals): Promise<void> {
   }
 }
 
-// Drop just the cached deals, so the next load refetches from the server (used by the
-// Options view to force an update when the weekly-authoritative cache is showing stale data).
+// Drop the cached deals AND their prefetched payloads, so the next load refetches both from
+// the server (used by the Options view to force an update when the weekly-authoritative cache
+// is showing stale data). The two are coupled to the same PLZ/week, so they clear together.
 export async function clearDealsCache(): Promise<void> {
   try {
-    await AsyncStorage.removeItem(DEALS_CACHE_KEY);
+    await AsyncStorage.multiRemove([DEALS_CACHE_KEY, PAYLOAD_CACHE_KEY]);
   } catch (e) {
     console.warn('storage: clearDealsCache failed', e);
     // best-effort
+  }
+}
+
+// Raw payloads for the current PLZ's offers, prefetched in the background so the deal
+// detail's "View payload" is instant + offline (no per-offer call to the sleepy backend).
+// Single key = only the last PLZ, like the deals cache (~2 MB). `count` is the deal count
+// at prefetch time, so a changed deal set (or a new flyer week) triggers a re-prefetch.
+export type CachedPayloads = {
+  plz: string;
+  byId: PayloadMap;
+  count: number;
+  cachedAt: number; // ms epoch of the fetch
+};
+
+export async function getPayloadCache(): Promise<CachedPayloads | null> {
+  try {
+    const raw = await AsyncStorage.getItem(PAYLOAD_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as CachedPayloads) : null;
+  } catch (e) {
+    console.warn('storage: getPayloadCache failed', e);
+    return null;
+  }
+}
+
+export async function setPayloadCache(data: CachedPayloads): Promise<void> {
+  try {
+    await AsyncStorage.setItem(PAYLOAD_CACHE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.warn('storage: setPayloadCache failed', e);
+    // best-effort (e.g. storage quota) — "View payload" just falls back to a network fetch
   }
 }
 
@@ -183,6 +215,7 @@ export async function clearAllData(): Promise<void> {
       SORT_KEY,
       BASKET_KEY,
       DEALS_CACHE_KEY,
+      PAYLOAD_CACHE_KEY,
       RECIPE_PREFS_KEY,
       ALWAYS_HAVE_KEY,
     ]);
