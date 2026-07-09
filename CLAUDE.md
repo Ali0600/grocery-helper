@@ -479,9 +479,13 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   **`mobile/.npmrc` pins the public registry** so that security fetch doesn't abort on an
   auto-injected `npm.pkg.github.com` (don't delete it). Deploy + OTA + **Codecov upload**
   **skip gracefully** until their secrets exist (`RENDER_DEPLOY_HOOK_URL`, `EXPO_TOKEN`,
-  `CODECOV_TOKEN`), so CI stays green; gated deploy assumes Render **auto-deploy is off**. CI Python is
-  **3.12** (Dockerfile/Render) but the local venv is **3.9** — `backend/ruff.toml` targets
-  `py39` so lint never pushes 3.10+ syntax that breaks local. **Lint must pass** before a
+  `CODECOV_TOKEN`), so CI stays green; gated deploy assumes Render **auto-deploy is off**. Python is
+  **3.12 everywhere** now — Dockerfile/Render, CI, AND the local dev venv (recreate with
+  `/opt/homebrew/bin/python3.12 -m venv backend/.venv`); `backend/ruff.toml` targets **`py312`** to
+  match (no `UP`/pyupgrade rule, so the target bump adds no churn). The `requirements.txt` floors
+  (`fastapi>=0.138.1`, `uvicorn>=0.49.0`, `pytest>=9.1.1`) need **≥3.10**, so a **fresh** venv must
+  be built on 3.12 — a 3.9 venv can't install them (only the old pre-bump 3.9 venv still ran).
+  **Lint must pass** before a
   push: `ruff check .` + `npm run lint`; `react-hooks/set-state-in-effect` is intentionally
   a **warning** (legit modal fetch/reset effects), keep real errors at zero. OTA only
   reaches a build embedding `expo-updates` at the matching `runtimeVersion` (app.json
