@@ -80,3 +80,33 @@ jobs:
                 labels: ['scrape-failure'],
               });
             }
+
+      # Completes the loop: a healthy refresh closes any open alert issue, so a
+      # transient outage (or a merged self-heal fix) ends the cycle without
+      # human bookkeeping. The local self-heal poller
+      # (https://github.com/Ali0600/self-healing-script) consumes these issues.
+      - name: Close recovery issues
+        if: success()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'scrape-failure',
+            });
+            for (const issue of open) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `Weekly refresh succeeded on ${new Date().toISOString()} — auto-closing.`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+              });
+            }
