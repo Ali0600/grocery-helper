@@ -99,17 +99,26 @@ jobs:
           fetch-depth: 2 # need HEAD~1 to diff what this merge changed
       # Only the backend runs on Render, so a mobile-only / docs merge doesn't need a
       # redeploy — and on the free tier a redeploy wipes the ephemeral DB (and re-scrapes
-      # only DEFAULT_PLZ). Skip unless this merge touched backend code (mirrors the
-      # mobile/** filter in eas-update.yml).
-      - name: Detect backend changes
+      # only DEFAULT_PLZ). Deploy when this merge touched a RUNTIME backend file, but skip
+      # lint/test/example files that never enter the image (backend/Dockerfile COPYs only
+      # app/, alembic/, requirements.txt). This is a denylist, NOT an allowlist of runtime
+      # paths, so a NEW runtime file still deploys — err toward deploying: a missed deploy
+      # ships stale code, an extra one just re-scrapes the ephemeral DB. A mixed change
+      # (e.g. app/ + tests/) still deploys because the app/ line survives the filter.
+      - name: Detect runtime-affecting backend changes
         id: detect
         run: |
-          if git diff --name-only HEAD~1 HEAD | grep -qE '^(backend/|render\.yaml$)'; then
+          CHANGED=$(git diff --name-only HEAD~1 HEAD \
+            | grep -E '^(backend/|render\.yaml$)' \
+            | grep -vE '^backend/(ruff\.toml$|pytest\.ini$|\.env\.example$|tests/)' \
+            || true)
+          if [ -n "$CHANGED" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Backend files changed — will deploy."
+            echo "Runtime-affecting backend files changed — will deploy:"
+            echo "$CHANGED" | sed 's/^/  /'
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "No backend changes — skipping Render deploy."
+            echo "Only lint/test/example (or mobile/docs) files changed — skipping deploy."
           fi
       - name: Trigger Render deploy hook
         if: steps.detect.outputs.changed == 'true'
