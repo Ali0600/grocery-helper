@@ -455,10 +455,14 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 - **CI/CD is GitHub Actions** (`.github/workflows/`): `ci.yml` (backend
   `ruff`+`pytest --cov`+`alembic upgrade head`/`alembic check`, mobile
   ESLint+`tsc`+`jest`, backend Docker build; on green `main` pushes a `deploy` job curls
-  the Render deploy hook **only when the merge touched `backend/**` or `render.yaml`** — a
-  `git diff HEAD~1 HEAD` gate (fetch-depth 2) on the deploy job, so mobile-only / docs merges
-  don't redeploy Render and wipe its ephemeral DB; the *same* filter idea as eas-update's
-  `mobile/**` gate, inverted), `eas-update.yml` (OTA via `eas update --branch production`, **gated
+  the Render deploy hook **only when the merge touched a *runtime* `backend/**` file or
+  `render.yaml`** — a `git diff HEAD~1 HEAD` gate (fetch-depth 2) that **excludes lint/test/
+  example files not in the image** (`ruff.toml`, `pytest.ini`, `.env.example`, `tests/`; the
+  Dockerfile COPYs only `app/`+`alembic/`+`requirements.txt`) via a **denylist** — a *new*
+  runtime file still deploys (err toward deploying: a missed deploy ships stale code, an extra
+  one just re-scrapes the ephemeral DB), and a mixed `app/`+`tests/` change still deploys. So
+  mobile-only / docs / lint-only merges don't redeploy Render and wipe its ephemeral DB; the
+  *same* filter idea as eas-update's `mobile/**` gate, inverted), `eas-update.yml` (OTA via `eas update --branch production`, **gated
   on a green CI run**: triggers via `workflow_run` *after* the `CI` workflow succeeds on `main`,
   not on raw push — so a broken bundle can't ship; `workflow_run` can't path-filter, so the job
   pins checkout to the passing commit's SHA and re-applies the `mobile/**` filter via `git diff
