@@ -167,8 +167,13 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   from the **name** (the `category_path` leaf is too unreliable: "Aprikosen"→
   Steinobst, "Mix Tafeltrauben"→an attribute node, coupons→no path). Curated
   per-category keyword→German-label map, specific→generic (so "Seelachs" beats
-  "Lachs"); only produce/meat/fish/cheese/dairy/bakery are mapped, everything else
-  → `(None, None)`. Computed in the serializer → `OfferOut.group`/`group_label`
+  "Lachs"); produce/meat/fish/cheese/dairy/bakery **+ soft_drinks** are mapped, everything
+  else → `(None, None)`. **soft_drinks** groups by beverage *type* — Kaffee/Tee/Cola/
+  Limonade/Saft/Wasser/Energy/Schorle/Smoothie (~92% of a Berlin PLZ); since beverage brands
+  span types (Volvic → water/tea/juice), the type-word groups come first and each brand's
+  keyword sits in its PRIMARY type *after* them (so "Volvic Tee"→Tee, "Volvic naturelle"→
+  Wasser). Guard: `" spezi"` (leading space) avoids the "…-Spezialsalz" trap; `"tea"` catches
+  English iced teas (Fuze Tea) vs the German `" tee"`. Computed in the serializer → `OfferOut.group`/`group_label`
   (**no DB column / migration**, like `unit_price_cents`). The app renders a
   `SectionList` **only in a selected category** (not All/search): products with ≥2
   offers get a header and float up (`mobile/.../DealsScreen.tsx` `buildSections`,
