@@ -31,6 +31,8 @@ from typing import Dict, List, Optional, Tuple
 # For beverages (soft_drinks) a brand spans types (Volvic -> water/tea/juice, Granini ->
 # juice/limo), so a brand's keyword sits in its PRIMARY type, ordered AFTER the type-word
 # groups that catch its other lines (so "Volvic Tee" -> Tee before "volvic" -> Wasser).
+# snacks reuse this: the "alesto" nut-brand keyword comes AFTER Studentenfutter's specific
+# words, so "Alesto Trail Mix" -> Studentenfutter, "Alesto Cashewkerne" -> Nüsse.
 _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
     "fruits": [
         ("Avocado", ["avocado"]),
@@ -189,6 +191,21 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
                     "sprechquell", "sanpellegrino", "adelholzener", "aquintell", "near water",
                     "active o2", "vitamin-water", "vitamin water", "kokoswasser",
                     "kokosnusswasser"]),
+    ],
+    "snacks": [
+        # Chips first: catches puffed/fried savory snacks (incl. Erdnussflips / Nic Nac's via
+        # "flips"/"nic nac") before the nut keywords would grab them as raw nuts.
+        ("Chips", ["chips", "chipsfrisch", "crunchips", "kesselchips", "riffels", "cross cut",
+                   "pringles", "tortilla", "nachos", "kartoffelsticks", "kartoffelchips",
+                   "flips", "nic nac"]),
+        # before Nüsse so "Alesto Studentenfutter/Trail Mix" hit these words, not "alesto".
+        ("Studentenfutter", ["studentenfutter", "trail mix", "soft-frücht", "trockenfrücht",
+                             "feigen", "datteln", " samen"]),
+        # Alesto = Lidl's nut brand; the brand keyword is last (after Studentenfutter).
+        ("Nüsse", ["erdnuss", "erdnüsse", "mandel", "cashew", "walnuss", "pekannuss",
+                   "haselnuss", "pistazie", "nussmix", "nuss", "nüsse", "alesto"]),
+        ("Cracker", ["cracker", "salzgebäck", "saltlett", "brezli", "brezel", "tuc", "wasa",
+                     "risbelli", "knäcke"]),
     ],
 }
 
