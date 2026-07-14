@@ -58,6 +58,82 @@ def test_missing_brand_uses_product_name_only():
     assert o.name == "Hexenkerze Vanille"
 
 
+# Real Lidl shape (McCain Golden Longs): branded items print the struck-through price
+# as an RRP/UVP deal, not REGULAR_PRICE — ~21% of flyer offers carry ONLY this.
+_MCCAIN = {
+    "id": "mc1",
+    "image": "https://content-media.example/mccain.jpg",
+    "deals": [
+        {"type": "SALES_PRICE", "conditions": [{"other": "Je"}], "max": 2.99, "min": 2.99,
+         "priceByBaseUnit": "", "description": ""},
+        {"type": "RECOMMENDED_RETAIL_PRICE", "conditions": [], "max": 4.89, "min": 4.89,
+         "priceByBaseUnit": "", "description": ""},
+    ],
+    "products": [{"brandName": "McCain", "name": "Golden Longs",
+                  "description": [{"paragraph": "Tiefgefroren. 1 kg"}], "categoryPaths": []}],
+}
+
+
+def test_rrp_recovers_regular_price():
+    o = BonialScraper._parse_offer(_MCCAIN, VALID_FROM, VALID_TO)
+    assert o.price_cents == 299
+    assert o.regular_price_cents == 489  # UVP -> the "statt" price -> ~39% badge
+
+
+def test_regular_price_beats_rrp_when_both_present():
+    both = json.loads(json.dumps(_MCCAIN))
+    both["deals"].append({"type": "REGULAR_PRICE", "max": 3.99, "min": 3.99})
+    o = BonialScraper._parse_offer(both, VALID_FROM, VALID_TO)
+    assert o.regular_price_cents == 399  # the actual previous price wins over UVP
+
+
+def test_inverted_rrp_is_ignored():
+    # An RRP at/below the sale price would render a nonsense strike-through — fail closed.
+    bad = json.loads(json.dumps(_MCCAIN))
+    bad["deals"][1]["max"] = bad["deals"][1]["min"] = 2.99
+    assert BonialScraper._parse_offer(bad, VALID_FROM, VALID_TO).regular_price_cents is None
+
+
+# Real Lidl shape (Honigmelone): by-weight items flag the SALES_PRICE with a "kg-Preis"
+# condition — the advertised price IS per kg — while priceByBaseUnit stays empty.
+_MELONE = {
+    "id": "hm1",
+    "image": "https://content-media.example/melone.jpg",
+    "deals": [
+        {"type": "SALES_PRICE", "conditions": [{"other": "kg-Preis"}], "max": 1.19,
+         "min": 1.19, "priceByBaseUnit": "", "description": "Deutschlands günstigster Preis"},
+    ],
+    "products": [{"name": "Honigmelone",
+                  "description": [{"paragraph": "Spanien Ursprung: Spanien, Klasse I"}],
+                  "categoryPaths": []}],
+}
+
+
+def test_kg_preis_condition_becomes_price_per_unit():
+    o = BonialScraper._parse_offer(_MELONE, VALID_FROM, VALID_TO)
+    # Grundpreis emitted in the Lidl-coupon shape unit_price_cents already parses.
+    assert o.price_per_unit == "1 kg = 1.19"
+
+
+def test_explicit_price_by_base_unit_beats_kg_preis():
+    both = json.loads(json.dumps(_MELONE))
+    both["deals"][0]["priceByBaseUnit"] = "1 kg = 1.19"
+    o = BonialScraper._parse_offer(both, VALID_FROM, VALID_TO)
+    assert o.price_per_unit == "1 kg = 1.19"  # the source's own string, not the synthesized one
+
+
+def test_kg_preis_requires_exact_condition_not_substring():
+    # A REWE travel offer carries "Festpreis" inside a long condition — must NOT match.
+    hotel = json.loads(json.dumps(_MELONE))
+    hotel["deals"][0]["conditions"] = [{"other": "Buchungscode: X, Ermäßigung/Festpreis "
+                                        "und Vierbettzimmer ohne Zuschlag buchbar"}]
+    assert BonialScraper._parse_offer(hotel, VALID_FROM, VALID_TO).price_per_unit is None
+    # The trailing-asterisk variant ("kg-Preis*") still matches.
+    star = json.loads(json.dumps(_MELONE))
+    star["deals"][0]["conditions"] = [{"other": "kg-Preis*"}]
+    assert BonialScraper._parse_offer(star, VALID_FROM, VALID_TO).price_per_unit == "1 kg = 1.19"
+
+
 def test_regular_recovered_from_discount_badge():
     # "-0.50 €" off a 1.99 sale price implies a 2.49 regular price
     assert _regular_from_label(1.99, {"value": "0.50", "type": "DISCOUNT_AMOUNT"}) == 2.49

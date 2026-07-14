@@ -59,9 +59,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   deliberately a separate `chain="edeka_center"` so it can be compared against
   regular EDEKA). The flyer feed is location-gated and reuses the lat/lng the
   Lidl Plus lookup resolves; REWE/EDEKA/E center are **separate stores** reusing
-  those PLZ coords (a Berlin PLZ → one brochure region). **The REWE/EDEKA/E center
-  flyers have no regular price** → most of their offers have no `discount_pct`
-  (they sink under discount-sort but the optimizer ranks by absolute price). Four
+  those PLZ coords (a Berlin PLZ → one brochure region). **Strike prices come from
+  THREE payload shapes** (`bonial.py` `_parse_offer`): `REGULAR_PRICE` deals, then
+  **`RECOMMENDED_RETAIL_PRICE`/UVP deals** (branded/non-food items print ONLY this —
+  ~21% of offers; guarded `rrp > sales`; the 2026-07-14 payload audit found EDEKA/
+  E-center carry UVP on ~half their items, so the old "EDEKA has no regular price"
+  note was wrong), then a `discountLabel` fallback. **REWE remains the outlier** —
+  its "Dein Markt" flyer carries none of the three on most items, so most REWE
+  offers still have no `discount_pct` (they sink under discount-sort but the
+  optimizer ranks by absolute price). Four
   chains measured ~1425 raw / **~1409 deduped** for a Berlin PLZ, still under the
   `/api/offers` `limit` cap of **2000** (also the app's load); a denser PLZ crossing
   2000 → move search server-side (`q` param) rather than raising it again.
@@ -307,7 +313,13 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   because the range rule needs a digit on **both** sides of the separator. Feeds the
   card display + `unit_price_cents`; serve-time only (no DB column/migration), so it
   applies on Render right after deploy without a re-scrape. Lifts live €/kg coverage
-  **~52% → ~69%** of offers (+~230).
+  **~52% → ~69%** of offers (+~230). **Scrape-time twin — the `kg-Preis` flag**
+  (`bonial.py` `_kg_price`): by-weight items (loose Honigmelone) flag the SALES_PRICE
+  deal with a `conditions[].other == "kg-Preis"` while `priceByBaseUnit` is empty — the
+  advertised price IS per kg, so the parser stores `price_per_unit = "1 kg = <price>"`
+  (the Lidl-coupon shape both `unit_price_cents` and the app already parse). Exact-match
+  the normalized condition (a REWE travel offer has "Festpreis" inside a long condition
+  and must not match); `priceByBaseUnit` wins when present.
 - **Day-limited deals — per-offer validity** (`bonial.py` `_offer_validity`): a flyer offer
   can be on sale only certain days (Lidl Thu–Sat "Wochenend-Kracher", Mon–Fri, single-day).
   The real window is in `content.publicationProfiles[].validity` (`startDate`/`endDate`,
