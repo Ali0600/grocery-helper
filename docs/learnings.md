@@ -228,8 +228,17 @@ response and diff it against what you read.
 **Why it came up:** the EDEKA flyer's app price (Milka 2,99 € vs the 3,29 € we showed)
 was sitting in an ignored `SPECIAL_PRICE` deal the whole time — a field-level audit
 surfaced it and confirmed what's genuinely unused (page position, variants) vs empty.
+It paid off again on 2026-07-14: because every offer's raw payload is *persisted*, a
+**systematic** audit became one query — join each stored column against its payload
+source across all 4,229 rows and count the mismatches ("payload has an RRP deal AND
+`regular_price_cents IS NULL`" → 841 offers, ~21%, missing their discount; a `kg-Preis`
+condition → the €/kg the user reported missing). Two user bug reports turned out to be
+one enumerable class, sized before writing any fix — and the audit *disproved* a
+documented belief ("EDEKA flyers have no regular price": they carry UVP on ~half).
 **Takeaway:** enumerate every field the source returns; "we already fetch it" ≠ "we
-use it."
+use it." And persist raw payloads when you can — then "are we dropping data?" stops
+being spot-checking and becomes a measurable join (stored column × payload field →
+gap count), which also sizes the win and catches stale assumptions.
 
 ### Additive API changes are forward-compatible
 Adding a new field to a JSON API response doesn't break existing clients — they
