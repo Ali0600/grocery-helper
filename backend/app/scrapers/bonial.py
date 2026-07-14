@@ -17,9 +17,10 @@ Flow:
      meinprospekt page (the page embeds them in a Next.js ``__NEXT_DATA__`` blob)
   2. fetch each brochure's pages -> structured offers
   3. map to ScrapedOffer; the discount comes from SALES_PRICE vs REGULAR_PRICE,
-     falling back to the offer's discountLabel to recover more discounts. (Lidl
-     flyers carry regular prices; REWE's "Dein Markt" flyer usually does not, so
-     most REWE offers list a price without a % discount.)
+     falling back to RECOMMENDED_RETAIL_PRICE (branded/non-food items print the
+     struck-through price as a UVP deal — ~21% of offers carry ONLY this), then to
+     the offer's discountLabel. (REWE's "Dein Markt" flyer carries neither on most
+     items, so most REWE offers still list a price without a % discount.)
 
 Offers are location-gated, so a store lat/lng is required (we reuse the one the
 Lidl Plus store lookup already resolves for the postal code). Bonial soft-
@@ -186,6 +187,13 @@ class MeinprospektScraper:
         unit = (desc[0] or {}).get("paragraph") if desc else None
         regular = _deal(c, "REGULAR_PRICE")
         if regular is None:
+            # Branded/non-food items carry the struck-through price as an RRP/UVP deal
+            # instead (McCain 2.99 statt UVP 4.89) — ~21% of offers had ONLY this. Guard
+            # rrp > sales so an inverted strike price is never stored (fail closed).
+            rrp = _deal(c, "RECOMMENDED_RETAIL_PRICE")
+            if rrp is not None and rrp > sales:
+                regular = rrp
+        if regular is None:
             regular = _regular_from_label(sales, c.get("discountLabel"))
         category_path = [
             cp["name"] for cp in (product.get("categoryPaths") or []) if cp.get("name")
@@ -200,7 +208,7 @@ class MeinprospektScraper:
             regular_price_cents=round(regular * 100) if regular else None,
             brand=brand,
             unit=unit,
-            price_per_unit=_base_unit(c),
+            price_per_unit=_base_unit(c) or _kg_price(c, sales),
             loyalty_note=_loyalty_note(c),
             app_price_cents=_app_price(c),
             image_url=c.get("image"),
@@ -368,6 +376,23 @@ def _base_unit(content: dict) -> Optional[str]:
             value = (d.get("priceByBaseUnit") or "").strip()
             if value:
                 return value
+    return None
+
+
+def _kg_price(content: dict, sales: float) -> Optional[str]:
+    """By-weight items (loose melon/meat) flag the SALES_PRICE with a `kg-Preis`
+    condition — the advertised price IS the per-kg price (Honigmelone 1,19 €/kg) while
+    `priceByBaseUnit` is empty. Emit the Lidl-coupon Grundpreis shape ("1 kg = 1.19")
+    that unit_price_cents + the app's fmtPricePerUnit already parse. The condition must
+    normalize to exactly "kg-preis": a REWE travel offer carries "Festpreis" inside a
+    long condition string and must NOT match."""
+    for d in content.get("deals") or []:
+        if d.get("type") != "SALES_PRICE":
+            continue
+        for cond in d.get("conditions") or []:
+            other = cond.get("other")
+            if isinstance(other, str) and other.strip().rstrip("*").lower() == "kg-preis":
+                return f"1 kg = {sales:.2f}"
     return None
 
 
