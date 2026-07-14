@@ -173,8 +173,11 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   from the **name** (the `category_path` leaf is too unreliable: "Aprikosen"→
   Steinobst, "Mix Tafeltrauben"→an attribute node, coupons→no path). Curated
   per-category keyword→German-label map, specific→generic (so "Seelachs" beats
-  "Lachs"); produce/meat/fish/cheese/dairy/bakery **+ soft_drinks** are mapped, everything
-  else → `(None, None)`. **soft_drinks** groups by beverage *type* — Kaffee/Tee/Cola/
+  "Lachs"); produce/meat/fish/cheese/dairy/bakery **+ soft_drinks + snacks** are mapped,
+  everything else → `(None, None)`. **snacks** groups by type — Chips/Nüsse/Cracker/
+  Studentenfutter (~75% of a Berlin PLZ; Chips before Nüsse so "Erdnussflips"→Chips;
+  Studentenfutter before Nüsse so "Alesto Trail Mix"→Studentenfutter, not the "alesto"
+  nut-brand keyword). **soft_drinks** groups by beverage *type* — Kaffee/Tee/Cola/
   Limonade/Saft/Wasser/Energy/Schorle/Smoothie (~92% of a Berlin PLZ); since beverage brands
   span types (Volvic → water/tea/juice), the type-word groups come first and each brand's
   keyword sits in its PRIMARY type *after* them (so "Volvic Tee"→Tee, "Volvic naturelle"→

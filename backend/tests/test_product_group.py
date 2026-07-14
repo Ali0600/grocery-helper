@@ -101,6 +101,44 @@ def test_soft_drinks_ordering_and_brand_disambiguation():
     assert g("Krombacher Spezi") == "Cola"
 
 
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        # Real snack names sampled from the live DB, one+ per group.
+        ("Pringles Chips", "Chips"),
+        ("funny-frisch Ofen Chips", "Chips"),
+        ("Lorenz Crunchips oder Nic Nac's", "Chips"),
+        ("REWE Bio Tortilla Chips", "Chips"),
+        ("Wurzener Erdnussflips", "Chips"),  # "flips" → a puffed snack, not raw nuts
+        ("ALESTO Cashewkerne", "Nüsse"),
+        ("ALESTO Mandeln XXL", "Nüsse"),
+        ("ja! Pikante Erdnüsse", "Nüsse"),
+        ("Alesto Nussmix", "Nüsse"),
+        ("Alesto Studentenfutter Classic", "Studentenfutter"),
+        ("GUT&GÜNSTIG Studentenfutter", "Studentenfutter"),
+        ("Alesto Feigen/Datteln", "Studentenfutter"),
+        ("ALESTO Bio Samen", "Studentenfutter"),
+        ("TUC Cracker", "Cracker"),
+        ("Lorenz Saltletts", "Cracker"),
+        ("funny frisch Brezli", "Cracker"),
+        ("Wasa Crunchy Bites", "Cracker"),
+    ],
+)
+def test_snacks_group_by_type(name, expected):
+    assert product_group(name, None, "snacks")[1] == expected
+
+
+def test_snacks_studentenfutter_beats_the_alesto_nut_brand():
+    g = lambda n: product_group(n, None, "snacks")[1]  # noqa: E731
+    # Alesto is Lidl's nut brand, but its trail-mix lines must group by the specific word,
+    # not fall into Nüsse via "alesto".
+    assert g("Alesto Studentenfutter Classic") == "Studentenfutter"
+    assert g("Alesto Trail Mix") == "Studentenfutter"
+    assert g("ALESTO Soft-Früchte") == "Studentenfutter"
+    # …while a plain Alesto nut product still groups as Nüsse.
+    assert g("ALESTO Walnusskerne") == "Nüsse"
+
+
 def test_unmapped_category_and_no_match_return_none():
     # Sweets isn't a grouping category -> never groups.
     assert product_group("Milka Schokolade", None, "sweets") == (None, None)
