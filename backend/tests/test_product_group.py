@@ -54,6 +54,53 @@ def test_beef_cuts_group_for_the_eur_per_kg_comparison():
     assert product_group("Rumpsteak", None, "beef")[1] == "Steak"
 
 
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        # Real soft-drink names sampled from the live DB, one per group.
+        ("Jacobs Gold", "Kaffee"),  # brand-only name (no word "Kaffee")
+        ("Melitta", "Kaffee"),
+        ("Lavazza Caffè Crema", "Kaffee"),
+        ("Lipton Ice Tea", "Tee"),
+        ("FUZE TEA", "Tee"),  # English "tea" (not the German "tee")
+        ("Rauch Eistee", "Tee"),
+        ("Red Bull Energy Drink", "Energy"),
+        ("Rockstar Energydrink", "Energy"),
+        ("Gerolsteiner Schorle", "Schorle"),
+        ("Innocent Creamy Smoothie", "Smoothie"),
+        ("COCA-COLA", "Cola"),
+        ("Pepsi Cola", "Cola"),
+        ("Vita Cola", "Cola"),
+        ("FANTA", "Limonade"),
+        ("Almdudler Original", "Limonade"),
+        ("Rixdorfer Fassbrause", "Limonade"),
+        ("Valensina 100 % Saft", "Saft"),
+        ("becker's bester Fruchtsäfte", "Saft"),
+        ("Evian Mineralwasser", "Wasser"),
+        ("Spreequell Naturell", "Wasser"),
+    ],
+)
+def test_soft_drinks_group_by_type(name, expected):
+    assert product_group(name, None, "soft_drinks")[1] == expected
+
+
+def test_soft_drinks_ordering_and_brand_disambiguation():
+    g = lambda n: product_group(n, None, "soft_drinks")[1]  # noqa: E731
+    # Cola before Limonade: a cola that also says "Erfrischungsgetränk" stays Cola.
+    assert g("Coca-Cola Erfrischungsgetränk") == "Cola"
+    # Limonade before Saft: Granini makes both — "Die Limo" is a Limonade, not a juice.
+    assert g("Granini Die Limo") == "Limonade"
+    assert g("Granini Trinkgenuss") == "Saft"
+    # A brand that spans three types resolves by the type word before the brand word.
+    assert g("VOLVIC Tee") == "Tee"
+    assert g("Volvic Juicy") == "Saft"
+    assert g("Volvic naturelle") == "Wasser"
+    # The " spezi" leading-space guard must NOT match "…-Spezialsalz" (a mis-filed non-drink).
+    assert product_group("GUT&GÜNSTIG Spülmaschinen-Spezialsalz", None, "soft_drinks") == (None, None)
+    # …but a real Spezi (cola-mix) still groups as Cola.
+    assert g("Krombacher Spezi") == "Cola"
+
+
 def test_unmapped_category_and_no_match_return_none():
     # Sweets isn't a grouping category -> never groups.
     assert product_group("Milka Schokolade", None, "sweets") == (None, None)

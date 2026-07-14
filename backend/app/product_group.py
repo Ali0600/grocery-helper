@@ -27,6 +27,10 @@ from typing import Dict, List, Optional, Tuple
 # before "Lauch", specific berries before the generic "Beere". Keywords are matched
 # as substrings of the lowercased name (singular stems also catch plurals:
 # "aprikose" in "Aprikosen", "kirsche" in "Kirschen").
+#
+# For beverages (soft_drinks) a brand spans types (Volvic -> water/tea/juice, Granini ->
+# juice/limo), so a brand's keyword sits in its PRIMARY type, ordered AFTER the type-word
+# groups that catch its other lines (so "Volvic Tee" -> Tee before "volvic" -> Wasser).
 _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
     "fruits": [
         ("Avocado", ["avocado"]),
@@ -152,6 +156,39 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         ("Donut", ["donut"]),
         ("Muffin", ["muffin"]),
         ("Brot", ["brot"]),  # generic, after the specific baked goods
+    ],
+    "soft_drinks": [
+        # Coffee is brand-heavy (the word "Kaffee" is often absent), so the coffee brands —
+        # which do appear in the name ("Jacobs Gold", "Melitta") — are keywords too.
+        ("Kaffee", ["kaffee", "caffè", "caffe", "espresso", "lungo", " crema", "röstkaffee",
+                    "kaffeepad", "kaffeekapsel", "dolce gusto", "senseo", "prodomo", "bohne",
+                    "jacobs", "dallmayr", "lavazza", "melitta", "tchibo", "nescafé", "nescafe",
+                    "mövenpick", "capsa", "3in1"]),
+        # before Wasser/Saft so "Volvic Tee" -> Tee. "tea" catches the English iced teas
+        # (Fuze Tea / Ice Tea / Bubble Tea — every "tea" name in the feed is a tea); eistee /
+        # " tee" / teekanne the German -tee spellings.
+        ("Tee", ["tea", "eistee", " tee", "teekanne", "teegetränk", "früchtetee", "kombucha"]),
+        ("Energy", ["energy", "energydrink", "red bull", "rockstar", "28 black",
+                    "effect energy", "powerade"]),
+        ("Schorle", ["schorle"]),  # before Saft/Wasser (it's neither)
+        ("Smoothie", ["smoothie"]),
+        # before Limonade so "Coca-Cola Erfrischungsgetränk" -> Cola; the LEADING SPACE in
+        # " spezi" avoids the "Spülmaschinen-Spezialsalz" substring trap.
+        ("Cola", ["cola", "pepsi", " spezi", "schwip schwap", "mezzo mix"]),
+        # before Saft so "Granini Die Limo" -> Limonade (not the "granini" juice keyword).
+        ("Limonade", ["limonade", "lemonade", "limo", "brause", "fruchtinade",
+                      "erfrischungsgetränk", "almdudler", "sinalco", "fanta", "sprite",
+                      "mio mio", "tonic", "paloma"]),
+        ("Saft", ["saft", "säfte", "nektar", "direktsaft", "muttersaft", "fruchtgetränk",
+                  "mehrfrucht", "hohes c", "valensina", "capri-sun", "capri sun", "granini",
+                  "innocent", "true fruits", "becker", "albi", "trinkgenuss", "juicy",
+                  "multivitamin", "ace", "vitamin shot", "tymbark"]),
+        # generic/last: earlier groups already claimed each brand's tea/juice/schorle lines,
+        # so "Volvic naturelle" / "Gerolsteiner" / "Spreequell" fall through to water here.
+        ("Wasser", ["wasser", "naturell", "gerolsteiner", "evian", "volvic", "spreequell",
+                    "sprechquell", "sanpellegrino", "adelholzener", "aquintell", "near water",
+                    "active o2", "vitamin-water", "vitamin water", "kokoswasser",
+                    "kokosnusswasser"]),
     ],
 }
 
