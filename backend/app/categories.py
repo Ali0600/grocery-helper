@@ -137,7 +137,8 @@ _RULES: list[tuple[str, list[str]]] = [
                 "wedges", "burrito", "piccolini"]),
     ("fish", ["fisch", "lachs", "thunfisch", "garnele", "forelle", "hering", "sardin", "sardelle",
               "scampi", "matjes", "meeresfrüchte", "octopus", "tentakel", "kalmar", "calamares", "prawn"]),
-    ("poultry", ["hähnchen", "haehnchen", "huhn", "hühner", "pute", "puten", "geflügel", "chicken", "corned turkey"]),
+    ("poultry", ["hähnchen", "haehnchen", "huhn", "hühner", "pute", "puten", "geflügel", "chicken",
+                 "corned turkey", "knusperdino"]),  # Knusperdinos = Hähnchenbrust nuggets
     # "gulasch"/"steak" are intentionally NOT here — they appear in Schweinegulasch
     # / Schweinesteak (pork); beef relies on "rind" and beef-specific cuts.
     ("beef", ["rind", "rinder", "tafelspitz", "angus", "t-bone", "rumpsteak", "rib eye", "hüftsteak",
@@ -162,7 +163,7 @@ _RULES: list[tuple[str, list[str]]] = [
     ("bakery", ["brot", "brötchen", "broetchen", "baguette", "croissant", "toast", "kuchen", "gebäck", "brezel",
                 "crusti", "donut", "törtchen", "nata", "magdalena", "muffin", "torte", "linzeraugen", "nusshappen",
                 "buns", "laugen", "lauge", "plunder", "pita", "wrap", "blätterteig",
-                "pane ", "tigerkruste", "grillkruste", "holzfäller"]),
+                "pane ", "tigerkruste", "grillkruste", "holzfäller", "knusperjung"]),  # Weizenbrötchen
     ("vegetables", ["tomate", "gurke", "salat", "kartoffel", "zwiebel", "paprika", "möhre", "moehre", "karotte",
                     "brokkoli", "blumenkohl", "spinat", "zucchini", "champignon", "pilz", "knoblauch", "lauch",
                     "sellerie", "kürbis", "rucola", "spargel", "kohlrabi", "coleslaw"]),
@@ -171,8 +172,11 @@ _RULES: list[tuple[str, list[str]]] = [
                 "loacker", "celebrations", "nudossi", "kinder cards", "fritt", "sondey", "tenerezze",
                 "fruchtgummi", "big choc", "smarties", "amicelli", "daim", "m&m", "maxi king",
                 "kinder bueno", "bärchen"]),
+    # NOTE: "knusper" removed — it's a coating adjective, not a snack noun; it mis-caught cat food
+    # (Knuspermenü), chicken nuggets (Knusperdinos) and bread rolls (Knusperjungs), and matched 0
+    # real snacks in the live feed. Specific "knusper*" products are pinned above (poultry/bakery).
     ("snacks", ["chips", "cracker", "nüsse", "nuesse", "erdnuss", "popcorn", "salzstange", "flips", "tortilla",
-                "studentenfutter", "alesto", "trockenfrüchte", "knabber", "bake rolls", "snackmix", "knusper"]),
+                "studentenfutter", "alesto", "trockenfrüchte", "knabber", "bake rolls", "snackmix"]),
     ("alcoholic", [" bier", "lagerbier", " pils", "wein", "vodka", "champagner", "pilsener", "sangria",
                    "doppelkorn", "goldkrone", "weinbrand", "licor", "san miguel", "holsten", "moët", "moet",
                    "absolut", "korol", "cimarosa", "sauvignon", "primitivo"]),
@@ -212,7 +216,7 @@ BRAND_CATEGORY: dict[str, str] = {
     # REWE flyer brands (paths are often brand-only -> no taxonomy node to use)
     "mirée": "cheese", "miree": "cheese", "salakis": "cheese", "leerdammer": "cheese",
     "bergader": "cheese", "violife": "cheese", "rotkäppchen": "alcoholic",
-    "deutsche see": "fish", "katjes": "sweets", "lay's": "snacks", "lorenz": "snacks",
+    "deutsche see": "fish", "katjes": "sweets", "lay's": "snacks", "lorenz ": "snacks",
     "nuii": "ice_cream", "danone": "dairy",
     # EDEKA flyer brands (single-category; the house lines Gut&Günstig / EDEKA /
     # EDEKA Herzstücke / EDEKA Bio are multi-category -> left to path+keywords).
@@ -226,6 +230,7 @@ BRAND_CATEGORY: dict[str, str] = {
     # Multi-category house brands (Milbona, Gut&Günstig, Metzgerfrisch, Butchers, ja!,
     # Dr. Oetker, Deluxe, Costa) are intentionally left to the path/keyword layers.
     "knorr": "pantry", "maggi": "pantry", "erasco": "pantry", "barilla": "pantry", "kühne": "pantry",
+    "bonne maman": "pantry",  # jam / preserves (the source's brand-only path leaves it to keywords)
     "kunella": "pantry", "zentis": "pantry", "acentino": "pantry", "rapso": "pantry",
     "belbake": "pantry", "hela": "pantry", "oryza": "pantry", "bonduelle": "vegetables",
     "harry": "bakery", "wasa ": "snacks", "ültje": "snacks", "alesto": "snacks",
@@ -258,7 +263,16 @@ BRAND_CATEGORY: dict[str, str] = {
 _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     ("soft_drinks", ["limonade", "schorle", "nektar ", "smoothie", "saft ", "fruchtsaft", "vilsa",
                      "alkoholfrei"]),  # alkoholfrei beer/wine -> soft, beating a "Bier"/"Wein" path
-    ("alcoholic", ["jägermeister"]),  # a liqueur the source sometimes mis-files under Dessert>Eis
+    # Spirits / premixed drinks the source mis-files under a soft or brand-beverage node:
+    # Jägermeister (Dessert>Eis), Havana Club Dosen (Softdrinks>Cola), a Nordhäuser Williams
+    # pear brandy (Marken Getränke), a hard seltzer (Softdrinks>Energydrink).
+    ("alcoholic", ["jägermeister", "havana club", "nordhäuser", "hard seltzer"]),
+    # Pet care / cat food the source files under a food node (dog Dental-Sticks in Knabberzeug>
+    # Sticks; "Hello my cat" under the Gut&Günstig house brand) — must beat the path.
+    ("household", ["dental", "hello my cat"]),
+    # Breaded chicken drumsticks the source dumps into Knabberzeug>Sticks (a snacks node); no
+    # ice-cream "Drumstick" is in the feed, so this is unambiguous poultry.
+    ("poultry", ["drumstick"]),
     ("dairy", ["joghurt", "jogurt", "froop", "skyr", "müllermilch", "fruchtzwerge", "fruchtquark"]),
     ("snacks", ["chips", "trüfrü", "trufru"]),  # freeze-dried fruit snack filed under Obst
     # Root veg the source sometimes mis-files under "Dessert > Eis" (a carrot is not ice cream).

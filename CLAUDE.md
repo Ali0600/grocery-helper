@@ -143,7 +143,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   (6 layers)**: non-food path→household, **`_FORM_OVERRIDES`** (limonade/saft/joghurt/
   chips — definitive *form* words that beat even a *mis-filed* food path, e.g. the source
   tags "Bananenchips" under Obst; also guards mis-files of `jägermeister`→alcoholic and
-  `möhre`→vegetables that the source dumps under `Dessert>Eis`), food taxonomy node, brand map,
+  `möhre`→vegetables that the source dumps under `Dessert>Eis`. **The 2026-07-15 cleanup added
+  more L2 guards** for items the source buries under a food node so only L2 can beat the path:
+  premixed/spirits →alcoholic (`havana club`, `nordhäuser`, `hard seltzer`), pet →household
+  (`dental`, `hello my cat`), and `drumstick`→poultry (breaded chicken dumped in
+  `Knabberzeug>Sticks`). Also: `"knusper"` was **removed** from the snacks keywords — it's a
+  coating adjective (matched cat food/nuggets/bread, 0 real snacks); specific `knusper*` lines
+  are pinned (`knusperdino`→poultry, `knusperjung`→bakery). And `BRAND_CATEGORY` `"lorenz"` →
+  `"lorenz "` (trailing space) so it stops swallowing `Lorenzo` (cf. `"wasa "`)), food taxonomy
+  node, brand map,
   **`_OVERRIDES`** (flavour words like sekt/choco — after the brand so Häagen-Dazs Chocolate
   stays **ice_cream**, not sweets), keyword rules. **`ice_cream` is split out of `frozen`**
   (the source's `Eis`/`Speiseeis` path nodes + a keyword rule before frozen/sweets with the

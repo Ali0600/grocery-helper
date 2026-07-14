@@ -255,6 +255,48 @@ def test_classify_expanded_names(name, brand, expected):
     assert classify(name, brand) == expected
 
 
+# Mis-classified items surfaced by the sub-grouping work — the source path/keywords put
+# them in the wrong bucket; these are the 2026-07-15 categories.py cleanup fixes. Paths are
+# the real ones observed in the live feed.
+_KNAB_STICKS = [_FOOD, "Produkte", "Lebensmittel", "Knabberzeug", "Sticks"]  # → "snacks" node
+_GUG = [_FOOD, "Marken", "Marken Lebensmittel", "Gut & Günstig"]  # brand-only, no product node
+
+
+@pytest.mark.parametrize(
+    "name, brand, path, expected",
+    [
+        # spirits/premixed the source files under soft-drink nodes (L2 form override beats path)
+        ("Havana Club Dosen", "Havana Club",
+         [_FOOD, "Produkte", "Getränke", "Softdrinks", "Limonade", "Cola"], "alcoholic"),
+        ("Maelt Hard Seltzer", "Maelt",
+         [_FOOD, "Produkte", "Getränke", "Softdrinks", "Energydrink"], "alcoholic"),
+        ("Nordhäuser Reiche Ernte Williamsbirne", "Nordhäuser",
+         [_FOOD, "Marken", "Marken Getränke", "Echter Nordhäuser"], "alcoholic"),
+        # a real Nordhäuser Korn stays alcoholic (regression guard for the new form word)
+        ("Echter Nordhäuser Doppelkorn", "Echter Nordhäuser",
+         [_FOOD, "Produkte", "Getränke", "Alkoholische Getränke", "Spirituosen", "Korn"], "alcoholic"),
+        # non-snack "X Sticks" the source dumps into Knabberzeug>Sticks (L2 beats the path)
+        ("GUT&GÜNSTIG Dental-Sticks", "GUT&GÜNSTIG", _KNAB_STICKS, "household"),
+        ("GUT&GÜNSTIG Chicken-Drumsticks", "GUT&GÜNSTIG", _KNAB_STICKS, "poultry"),
+        # a real snack stick still classifies as snacks (the path node itself is unchanged)
+        ("funny frisch Brezli", "funny frisch", _KNAB_STICKS, "snacks"),
+        # Gut&Günstig house-brand lines: opaque names, no product node → pinned by keyword
+        ("GUT&GÜNSTIG Hello my cat Knuspermenü", "GUT&GÜNSTIG", _GUG, "household"),
+        ("GUT&GÜNSTIG Knusperdinos", "GUT&GÜNSTIG", _GUG, "poultry"),   # Hähnchen nuggets
+        ("GUT&GÜNSTIG Knusperjungs", "GUT&GÜNSTIG", _GUG, "bakery"),    # Weizenbrötchen
+        # "lorenz" brand key no longer swallows "Lorenzo" (trailing-space fix) → real category
+        ("Lorenzo Pizza", "Lorenzo",
+         [_FOOD, "Produkte", "Lebensmittel", "Fertiggerichte", "Fast Food", "Flammkuchen"], "frozen"),
+        ("Lorenz Saltletts", "Lorenz", _KNAB_STICKS, "snacks"),  # real Lorenz still snacks
+        # jam brand-only path fell through to the "erdnuss" snacks keyword before the brand entry
+        ("Bonne Maman Konfitüre, Gelee, Haselnuss-Kakao- oder Erdnuss-Creme", "Bonne Maman",
+         [_FOOD, "Marken", "Marken Lebensmittel", "Bonne Maman"], "pantry"),
+    ],
+)
+def test_classify_misfile_cleanup(name, brand, path, expected):
+    assert classify(name, brand, path) == expected
+
+
 def test_classify_name_only_still_works():
     # brand is optional
     assert classify("Tiefkühl Pizza Salami") == "frozen"
