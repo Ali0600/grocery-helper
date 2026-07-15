@@ -371,6 +371,19 @@ Engineering practices demonstrated while building and operating this project:
   backend. Paired with client-side cold-start resilience: automatic retry with back-off that
   distinguishes retryable failures (timeouts, network errors, 5xx) from real client errors
   (4xx), so a sleeping or redeploying backend self-recovers instead of surfacing an error.
+- **Data-quality engineering against a third-party feed** — Persisted every source payload, so
+  "are we losing data?" became a measurable join (stored column × payload field) instead of
+  spot-checking. Auditing all ~4,000 payloads turned single user-reported anomalies into
+  quantified classes and recovered value the pipeline had been silently discarding: struck-through
+  prices for **~21% of offers** (an entire unparsed deal type), and comparable €/kg coverage
+  **53% → 72%** by normalizing the feed's inconsistent per-unit formats — parenthesized values an
+  anchored regex rejected (which were also rendering as UI garbage), and labels standing in for
+  values. Every fix shipped behind an old-vs-new diff over the full dataset proving zero
+  regressions, with the parser rules locked in by unit tests.
+- **Runtime/toolchain drift detection** — Caught that dependency floors had advanced past the
+  documented dev interpreter while a long-lived virtualenv masked it (only a *fresh* install fails).
+  Migrated dev onto the same Python as CI and the production image, verified with a dry-run resolve
+  before committing and by a from-scratch CI build.
 
 ## Roadmap
 
