@@ -365,6 +365,16 @@ Engineering practices demonstrated while building and operating this project:
   merged SHA is live (failing closed when the platform build never swaps), then asserts
   the service serves real data. A scheduled data-quality gate checks retailer coverage and
   parse-rate floors weekly, feeding an auto-opening, auto-closing incident issue workflow.
+- **Polite, resilient outbound scraping** — Made the data collector a well-behaved client
+  of the third-party sites it depends on. Centralized every outbound call through a custom
+  HTTP transport that paces requests (a global minimum gap + jitter) so a scrape no longer
+  hits the flyer aggregators as one detectable burst, and retries transient rate-limit/5xx
+  responses with `Retry-After`-aware exponential backoff — capped so an unattended weekly job
+  can't hang, and never retrying a hard block. Made throttling observable (a 429 was previously
+  indistinguishable from a parse failure that silently served sample data) by metering it into
+  the outbound-call dashboard. Bounded a request-amplification vector by rate-limiting the
+  public endpoint that fans out to a free geocoding service, protecting the server's standing
+  with that upstream.
 - **CI/CD pipeline design & hardening** — Built a multi-job GitHub Actions pipeline
   (lint, tests + coverage, Docker image build) that gates an automated Render
   deployment and an Expo over-the-air release. Closed an unguarded release path by
