@@ -126,3 +126,21 @@ def test_normalize_price_per_unit(ppu, price_cents, expected):
 )
 def test_normalized_value_feeds_the_eur_per_kg_sort(ppu, price_cents, expected_cents):
     assert unit_price_cents(normalize_price_per_unit(ppu, price_cents)) == expected_cents
+
+
+@pytest.mark.parametrize(
+    "ppu, expected",
+    [
+        # The feed often omits the space ("1kg=5,66"). The app's fmtPricePerUnit strips a
+        # leading "1" only when a space follows, so these rendered as "5,66 €/1kg" on the
+        # card — 1385 of 3599 stored Grundpreise. Canonicalizing the spacing fixes them.
+        ("1kg = 5,66", "1 kg = 5,66"),
+        ("1kg=11,98", "1 kg = 11,98"),
+        ("1L = 0,43", "1 L = 0,43"),          # the feed's own unit casing is preserved
+        ("1 l= 2.65", "1 l = 2.65"),
+        ("1 l = 4.-", "1 l = 4.-"),           # German whole-euro shorthand stays "4,- €/l"
+        ("1kg = 19,90, 100g", "1 kg = 19,90"),  # trailing junk dropped ("19,90, 100g €/1kg")
+    ],
+)
+def test_normalize_canonicalizes_spacing_and_drops_trailing_junk(ppu, expected):
+    assert normalize_price_per_unit(ppu, 399) == expected

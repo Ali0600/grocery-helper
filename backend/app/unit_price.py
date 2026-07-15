@@ -51,6 +51,20 @@ _PAREN = re.compile(r"^\s*\((.*)\)\s*$")  # "(1 kg = 8.05)" -> "1 kg = 8.05"
 _UNIT_LABEL = re.compile(r"^\s*(kg|100\s*-?\s*g)\s*-?\s*preis\s*(?:=\s*(.+))?\s*$", re.IGNORECASE)
 # German flyer shorthand: "-.90" / "-,90" means 0.90 (the dash stands in for the euros).
 _DASH_PLACEHOLDER = re.compile(r"(?<![\d)])-(?=[.,]\d)")
+# ALDI omits the leading amount every other chain prints ("kg = 5.97", "(Liter = 0.99)" vs
+# "1 kg = 5.97") and spells the volume unit as a word. Only an *optional literal 1* is
+# allowed, never a general number: "100 g = 2.19" / "100g = 39,90" occur in the feed and
+# must not be read as a per-kg price. "liter" precedes "l" so the longest unit wins.
+_BARE_UNIT = re.compile(r"^\s*(?:1\s*)?(kg|liter|l)\s*=\s*(.+)$", re.IGNORECASE)
+# A colon typo'd as the decimal separator ("Liter = 1:75" = 1.75). Substituted before the
+# value is read, or the number regex stops at the colon and silently yields 1.00 — and a
+# wrong €/l is worse than none.
+_COLON_DECIMAL = re.compile(r"(?<=\d):(?=\d)")
+# The leading number of a value, dropping any trailing qualifier: "9.58 ATG" (Abtropfgewicht
+# = drained weight) -> "9.58", and a range "6.64/5.98" -> "6.64" — already the value both
+# `unit_price_cents` and the app's `fmtPricePerUnit` pick, so the card is unchanged. The
+# German whole-euro shorthand ("4.-" = 4,00 €) is kept intact so it still reads "4,- €/l".
+_LEAD_NUM = re.compile(r"^-?\d+(?:[.,]\d+)?(?:[.,]-)?")
 
 
 def normalize_price_per_unit(ppu: Optional[str], price_cents: Optional[int]) -> Optional[str]:
@@ -65,6 +79,11 @@ def normalize_price_per_unit(ppu: Optional[str], price_cents: Optional[int]) -> 
         feed itself does elsewhere: EDEKA's 0,39 € / 100 g cherries carry "1kg = 3,90").
       * "kg-Preis = 4.98" — label with the value attached.
       * "1 kg = -.90"    — German shorthand for 0.90.
+      * "kg = 5.97" / "(Liter = 0.99)" — ALDI drops the leading "1" and writes the volume
+        unit as a word, so the anchored `_EQ_RE` rejects it (only 2% of ALDI's offers were
+        sortable). The string is *truthy*, so it also suppressed the derive fallback.
+      * "Liter = 1:75"   — a colon typo'd as the decimal separator.
+      * "(kg = 9.58 ATG)" — a trailing drained-weight qualifier on the value.
     Returns None for a label with no usable price, so the caller's `derive_price_per_unit`
     fallback can run instead of being suppressed by a non-null junk string. Unknown shapes
     pass through untouched; already-clean strings are unchanged (idempotent).
@@ -87,6 +106,16 @@ def normalize_price_per_unit(ppu: Optional[str], price_cents: Optional[int]) -> 
             euros = price_cents / 100
             s = f"1 kg = {euros if per_kg else euros * 10:.2f}"
     s = _DASH_PLACEHOLDER.sub("0", s)
+    bare = _BARE_UNIT.match(s)
+    if bare:
+        # Keep the feed's own spelling of an already-valid unit ("1 L = 1.05" stays "L", so
+        # the card reads as it always has); only the word "Liter" needs mapping to the axis.
+        raw_unit = bare.group(1)
+        axis = "l" if raw_unit.lower() == "liter" else raw_unit
+        value = _COLON_DECIMAL.sub(".", bare.group(2).strip())
+        num = _LEAD_NUM.match(value)
+        if num:  # no number -> leave the string alone rather than invent one
+            s = f"1 {axis} = {num.group(0)}"
     return s or None
 
 
