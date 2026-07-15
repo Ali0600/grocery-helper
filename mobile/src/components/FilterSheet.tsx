@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppModal } from './AppModal';
 
+import { chainLabel } from '../chains';
 import { SORT_OPTIONS } from '../sort';
 import { SortMode } from '../storage';
 import { colors, font, radius, space } from '../theme';
@@ -41,8 +42,13 @@ export function FilterSheet(props: {
   onReset: () => void;
   sortMode: SortMode;
   onChangeSort: (m: SortMode) => void;
-  // Store visibility lives in the Stores modal now — it IS "my stores", and having the same
-  // switch in two places (one of which looked decorative) is what confused it.
+  // Store MEMBERSHIP lives in the Stores modal (Add/Added). This is different: a
+  // transient single-select "Only show" lens for quickly peeking at one store's deals —
+  // one tap isolates, one tap (All / the bar chip's ✕) restores. Session-only.
+  chains: string[]; // the VISIBLE chains (membership already applied)
+  chainCounts: Record<string, number>;
+  storeLens: string | null;
+  onChangeStoreLens: (chain: string | null) => void;
   hasDayLimited: boolean;
   dayLimitedCount: number;
   specialDays: boolean;
@@ -82,6 +88,25 @@ export function FilterSheet(props: {
               onPress: () => props.onChangeSort(o.value),
             }))}
           />
+
+          {props.chains.length >= 2 && (
+            <Section
+              title="Only show"
+              options={[
+                {
+                  label: 'All',
+                  active: props.storeLens == null,
+                  onPress: () => props.onChangeStoreLens(null),
+                },
+                ...props.chains.map((c) => ({
+                  label: `${chainLabel(c)} (${props.chainCounts[c] ?? 0})`,
+                  active: props.storeLens === c,
+                  // Tapping the active store again clears back to All.
+                  onPress: () => props.onChangeStoreLens(props.storeLens === c ? null : c),
+                })),
+              ]}
+            />
+          )}
 
           {props.hasDayLimited && (
             <Section
