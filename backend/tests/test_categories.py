@@ -5,7 +5,7 @@ misfired (a flavour/brand word won over the real category).
 """
 import pytest
 
-from app.categories import CATEGORIES, classify
+from app.categories import BRAND_CATEGORY, CATEGORIES, classify
 
 
 @pytest.mark.parametrize(
@@ -309,3 +309,66 @@ def test_unknown_is_other():
 def test_every_result_is_a_known_category():
     for name in ["Bananen", "Gouda", "Cola", "Mystery item 123"]:
         assert classify(name) in CATEGORIES
+
+
+# --- ALDI's items land on the brand/keyword layers ------------------------------------
+# ALDI's category paths dead-end at generic nodes ("… > Marken > Marken Lebensmittel"),
+# which carry no category signal — so unlike a mis-filed path this needs no _FORM_OVERRIDES
+# guard, just brand/keyword coverage. This pass took ALDI from 9.4% "other" to 0.8%.
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("Halloren Classic", "sweets"),
+        ("Storck Knoppers minis", "sweets"),
+        ("Ahoj-Brause", "sweets"),                       # candy powder, not a soft drink
+        ("Philadelphia", "cheese"),
+        ("Eberswalder Bockwürste", "pork"),              # umlaut plural the bare "wurst" missed
+        ("ALPENSCHMAUS Mini-Haxen", "pork"),
+        ("GOURMET FINEST CUISINE Ganze Wachteln", "poultry"),
+        ("Kresse", "vegetables"),
+        ("Focaccia", "bakery"),
+        ("MILSANI Kasländer Würzig", "cheese"),
+        ("Trader Joe's Walnusskerne", "snacks"),
+        ("Tuc Original", "snacks"),
+        ("Pottkieker Beste Eintöpfe", "pantry"),
+        ("SPEISEZEIT Leichte Suppe Gulasch-Suppe", "pantry"),
+        ("Lasagne-blätter", "pantry"),
+        ("Gigli", "pantry"),
+        ("WORKZONE Federzwingen-Set", "household"),
+        ("joie Trinkhalm-abdeckung", "household"),
+        ("Profiteroles", "sweets"),
+        ("Milsani Japanese Cheesecake Style", "sweets"),
+    ],
+)
+def test_classifies_aldi_items(name, expected):
+    assert classify(name, None, None) == expected
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        # "suppe " keeps its trailing space: pantry sits second-to-last, so an unguarded
+        # "suppe" would swallow anything Suppen-prefixed that no earlier rule claims.
+        ("GUT&GÜNSTIG Suppenhuhn", "poultry"),
+        ("Rinderwurst", "beef"),          # "würst"/"wurst" must not outrank beef
+        ("Geflügelwurst", "poultry"),
+        ("Kalbshaxe", "beef"),            # "haxe" must not outrank beef
+        ("Putenhaxe", "poultry"),
+        ("Brunnenkresse", "vegetables"),
+        ("Lorenzo Pizza", "frozen"),      # the "lorenz " guard still holds
+    ],
+)
+def test_aldi_keywords_do_not_steal_from_earlier_rules(name, expected):
+    assert classify(name, None, None) == expected
+
+
+def test_suppe_guard_does_not_drag_suppengruen_into_pantry():
+    """Suppengrün is a vegetable bundle; the space-guarded "suppe " must not claim it."""
+    assert classify("Suppengrün", None, None) != "pantry"
+
+
+def test_multi_category_aldi_house_brands_stay_off_the_brand_map():
+    """MILSANI/Trader Joe's span categories (milk, cheese, nuts, candy), so pinning them to
+    one slug would mis-file the rest — same rule as Gut&Günstig / Deluxe / Dr.Oetker."""
+    for brand in ("milsani", "trader joe", "meine metzgerei", "gourmet finest cuisine"):
+        assert brand not in BRAND_CATEGORY

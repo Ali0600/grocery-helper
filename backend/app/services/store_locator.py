@@ -42,7 +42,19 @@ CHAINS: Dict[str, Tuple[str, List[str]]] = {
     "kaufland": ("Kaufland", ["kaufland"]),
 }
 # Chains we actually scrape deals for; everything else is a placeholder.
-ACTIVE_CHAINS = {"lidl", "rewe", "edeka", "edeka_center"}
+ACTIVE_CHAINS = {"lidl", "rewe", "edeka", "edeka_center", "aldi"}
+
+# ALDI is two independent companies with disjoint territories (the "Aldi-Äquator"), and each
+# has its own meinprospekt publisher. Unlike REWE/EDEKA, BOTH publishers are national and
+# ignore the `location` cookie — they serve the identical brochure to Berlin and Munich — so
+# the source will happily hand a Berlin user ALDI SÜD deals from ~300 km away. OSM tags the
+# division per branch, so the nearest ALDI tells us whose territory a postal code is in.
+# Ordered specific-first; matched as a substring of brand/name/operator.
+_ALDI_DIVISIONS: List[Tuple[str, List[str]]] = [
+    ("nord", ["aldi nord", "aldi-nord"]),
+    ("sued", ["aldi süd", "aldi sued", "aldi-süd", "aldi-sued"]),
+]
+_DIVISION_CACHE: Dict[Tuple[float, float], Tuple[float, str]] = {}
 
 OVERPASS_MIRRORS = [
     "https://overpass-api.de/api/interpreter",
@@ -204,6 +216,72 @@ def chain_branches(
         branches = _all_branches(elements, lat, lng)
         _BRANCH_CACHE[key] = (time.time(), branches)
     return [s for s in branches if s.chain == chain][:limit]
+
+
+def _division_for(tags: dict) -> Optional[str]:
+    """The ALDI division one OSM element belongs to, or None if it carries no signal.
+
+    Berlin tags 22 branches ``brand="Aldi Nord"`` but 23 plain ``name="Aldi"``, so brand and
+    operator matter as much as name — and a signal-less element must be skipped, not fatal.
+    """
+    texts = [str(tags.get(f) or "").lower() for f in ("brand", "name", "operator")]
+    for division, needles in _ALDI_DIVISIONS:
+        if any(n in t for t in texts for n in needles):
+            return division
+    return None
+
+
+def aldi_division(
+    lat: float, lng: float, radius_m: int = 6000, client: Optional[httpx.Client] = None
+) -> Optional[str]:
+    """Which ALDI company operates around (lat, lng): "nord", "sued", or None if unknown.
+
+    Picks the *nearest* branch that carries a division tag — the honest answer near the
+    territory border, where both operate. None means "couldn't determine" (Overpass down, or
+    no ALDI nearby); the caller must then skip ALDI rather than guess a region, because a
+    missing chain is visible while wrong-region deals are not.
+
+    A resolved division is cached (territories are static); a failure is **never** cached, so
+    a transient Overpass outage can't pin "no ALDI" for the whole TTL.
+    """
+    key = (round(lat, 3), round(lng, 3))
+    cached = _DIVISION_CACHE.get(key)
+    if cached and time.time() - cached[0] < _CACHE_TTL:
+        return cached[1]
+
+    own = client is None
+    client = client or tracked_client(timeout=30, headers=HEADERS)
+    try:
+        elements = _fetch_overpass(_overpass_query(lat, lng, radius_m), client)
+    finally:
+        if own:
+            client.close()
+    if elements is None:
+        logger.warning("aldi_division: all Overpass mirrors failed; division undetermined")
+        return None  # don't cache a failure — retry next run
+
+    branches = sorted(
+        (
+            (_haversine(lat, lng, blat, blng), tags)
+            for tags, blat, blng in (
+                (
+                    el.get("tags") or {},
+                    el.get("lat") or (el.get("center") or {}).get("lat"),
+                    el.get("lon") or (el.get("center") or {}).get("lon"),
+                )
+                for el in elements
+            )
+            if blat is not None and blng is not None
+        ),
+        key=lambda x: x[0],
+    )
+    for _, tags in branches:
+        division = _division_for(tags)
+        if division:
+            _DIVISION_CACHE[key] = (time.time(), division)
+            return division
+    logger.warning("aldi_division: no division-tagged ALDI within %d m", radius_m)
+    return None
 
 
 def _overpass_query(lat: float, lng: float, radius_m: int) -> str:

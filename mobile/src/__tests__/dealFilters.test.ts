@@ -30,6 +30,11 @@ describe('presentChains / chainCounts', () => {
     expect(presentChains(offers)).toEqual(['lidl', 'edeka', 'zzz-neu']);
   });
 
+  it('places aldi last among the known chains, not alphabetically first', () => {
+    const withAldi = [makeOffer({ chain: 'aldi' }), makeOffer({ chain: 'lidl' })];
+    expect(presentChains(withAldi)).toEqual(['lidl', 'aldi']);
+  });
+
   it('tallies offers per chain', () => {
     expect(chainCounts(offers)).toEqual({ lidl: 2, edeka: 1, 'zzz-neu': 1 });
   });

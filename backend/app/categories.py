@@ -138,7 +138,7 @@ _RULES: list[tuple[str, list[str]]] = [
     ("fish", ["fisch", "lachs", "thunfisch", "garnele", "forelle", "hering", "sardin", "sardelle",
               "scampi", "matjes", "meeresfrüchte", "octopus", "tentakel", "kalmar", "calamares", "prawn"]),
     ("poultry", ["hähnchen", "haehnchen", "huhn", "hühner", "pute", "puten", "geflügel", "chicken",
-                 "corned turkey", "knusperdino"]),  # Knusperdinos = Hähnchenbrust nuggets
+                 "corned turkey", "knusperdino", "wachtel"]),  # Knusperdinos = Hähnchenbrust nuggets
     # "gulasch"/"steak" are intentionally NOT here — they appear in Schweinegulasch
     # / Schweinesteak (pork); beef relies on "rind" and beef-specific cuts.
     ("beef", ["rind", "rinder", "tafelspitz", "angus", "t-bone", "rumpsteak", "rib eye", "hüftsteak",
@@ -147,11 +147,14 @@ _RULES: list[tuple[str, list[str]]] = [
               "speck", "schinken", "salami", "kasseler", "leberkäse", "chorizo", "jamón", "jamon", "serrano",
               "fuet", "lyoner", "frikadelle", "kaminwurzerl", "bacon", "kebab", "cevapcici", "corned", "kaninchen", "rügenwalder",
               "pastrami", "mortadella", "kabanos", "krustenbraten", "sparerib", "rippchen", " lamm",
-              "spare rib", "nackensteak"]),
+              # "würst" catches the umlaut plurals the bare "wurst" misses (Bockwürste,
+              # Bratwürste); "haxe" is the pork knuckle — Kalbs-/Putenhaxe are safe because
+              # the beef/poultry rules run first.
+              "spare rib", "nackensteak", "würst", "haxe"]),
     ("butter", ["markenbutter", "deutsche butter", "süßrahm", "suessrahm", "butter ", "margarine", "rama", "kaergarden"]),
     ("cheese", ["käse", "kaese", "gouda", "mozzarella", "feta", "camembert", "parmesan", "frischkäse",
                 "emmentaler", "edamer", "grana", "manchego", "obazda", "zottarella", "queso", "brunch",
-                "burrata", "kashkaval"]),
+                "burrata", "kashkaval", "kasländer"]),
     ("dairy", ["milch", "joghurt", "jogurt", "quark", "sahne", "schmand", "buttermilch", "pudding", "skyr",
                "almighurt", "ehrmann", "kefir", "ayran", "grütze", "milchreis", "fruchtzwerge", "monte ", "paradies creme",
                "crème fraîche", "creme fraiche", "crème fraiche", "zaziki", "tzatziki", "milchschnitte", "pingui"]),
@@ -163,20 +166,24 @@ _RULES: list[tuple[str, list[str]]] = [
     ("bakery", ["brot", "brötchen", "broetchen", "baguette", "croissant", "toast", "kuchen", "gebäck", "brezel",
                 "crusti", "donut", "törtchen", "nata", "magdalena", "muffin", "torte", "linzeraugen", "nusshappen",
                 "buns", "laugen", "lauge", "plunder", "pita", "wrap", "blätterteig",
-                "pane ", "tigerkruste", "grillkruste", "holzfäller", "knusperjung"]),  # Weizenbrötchen
+                "pane ", "tigerkruste", "grillkruste", "holzfäller", "knusperjung",  # Weizenbrötchen
+                "focaccia"]),
     ("vegetables", ["tomate", "gurke", "salat", "kartoffel", "zwiebel", "paprika", "möhre", "moehre", "karotte",
                     "brokkoli", "blumenkohl", "spinat", "zucchini", "champignon", "pilz", "knoblauch", "lauch",
-                    "sellerie", "kürbis", "rucola", "spargel", "kohlrabi", "coleslaw"]),
+                    "sellerie", "kürbis", "rucola", "spargel", "kohlrabi", "coleslaw", "kresse"]),
     ("sweets", ["schokolade", "schoko", "praline", "keks", "bonbon", "gummibär", "riegel", "waffel", "nutella",
                 "milka", "haribo", "ritter sport", "toffifee", "duplo", "snickers", "twix", "ferrero", "hanuta",
                 "loacker", "celebrations", "nudossi", "kinder cards", "fritt", "sondey", "tenerezze",
                 "fruchtgummi", "big choc", "smarties", "amicelli", "daim", "m&m", "maxi king",
-                "kinder bueno", "bärchen"]),
+                # "cheesecake" is a dessert either way (a Becher one is still sweet); the
+                # ice_cream rule + the brand layer both run first, so Ben & Jerry's is safe.
+                "kinder bueno", "bärchen", "profiterole", "cheesecake", "knister-pop"]),
     # NOTE: "knusper" removed — it's a coating adjective, not a snack noun; it mis-caught cat food
     # (Knuspermenü), chicken nuggets (Knusperdinos) and bread rolls (Knusperjungs), and matched 0
     # real snacks in the live feed. Specific "knusper*" products are pinned above (poultry/bakery).
     ("snacks", ["chips", "cracker", "nüsse", "nuesse", "erdnuss", "popcorn", "salzstange", "flips", "tortilla",
-                "studentenfutter", "alesto", "trockenfrüchte", "knabber", "bake rolls", "snackmix"]),
+                "studentenfutter", "alesto", "trockenfrüchte", "knabber", "bake rolls", "snackmix",
+                "walnusskern"]),
     ("alcoholic", [" bier", "lagerbier", " pils", "wein", "vodka", "champagner", "pilsener", "sangria",
                    "doppelkorn", "goldkrone", "weinbrand", "licor", "san miguel", "holsten", "moët", "moet",
                    "absolut", "korol", "cimarosa", "sauvignon", "primitivo"]),
@@ -189,7 +196,11 @@ _RULES: list[tuple[str, list[str]]] = [
                 "penne", "fusilli", "spaghetti", "tagliatelle", "tortellini", "ravioli", "baked beans",
                 "hummus", "tofu", "tempeh", "falafel", "mayonnaise", "maultaschen", "tahina", "tahin",
                 "rapskernöl", "kernöl", "rapsöl", "sonnenblumenöl", "pinienkerne", "allioli",
-                "fleischalternativ", "like meat", "likemeat", "nesquik"]),
+                # "suppe " keeps the trailing space on purpose: it matches "Gulasch-Suppe"
+                # but not Suppengrün (vegetables) or Suppenhuhn/-fleisch, which would
+                # otherwise reach pantry — it sits second-to-last, so it can't be outranked.
+                "fleischalternativ", "like meat", "likemeat", "nesquik",
+                "suppe ", "eintopf", "eintöpf", "lasagne-blätter", "lasagneblätter", "gigli "]),
     ("household", ["spülmittel", "spuelmittel", "waschmittel", "toilettenpapier", "küchenrolle", "reiniger",
                    "windel", "müllbeutel", "weichspüler", "oleander", "pflanze", "blume", "kleid", "jacke", "schuhe",
                    "garten", "werkzeug", "kissen", "bettdecke", "matratze", "wäschest", "haushaltshelfer",
@@ -252,6 +263,14 @@ BRAND_CATEGORY: dict[str, str] = {
     "wenko": "household", "whiskas": "household", "head & shoulders": "household", "l'oréal": "household",
     "karibu": "household", "cleanmaxx": "household", "auriol": "household", "mexx": "household",
     "qeridoo": "household", "eufab": "household", "ridder": "household", "pergoline": "household",
+    # ALDI: single-category brands only. Its multi-category house brands (MILSANI, Trader
+    # Joe's, Meine Metzgerei, GOURMET FINEST CUISINE) are deliberately left to the keyword
+    # layer, like Gut&Günstig / Deluxe / Dr.Oetker. "tuc "/"joie " keep a trailing space —
+    # these are matched as substrings, so a bare 3-4 letter key would fire mid-word (cf.
+    # "lorenz " swallowing Lorenzo).
+    "halloren": "sweets", "storck": "sweets", "ahoj": "sweets", "philadelphia": "cheese",
+    "eberswalder": "pork", "pottkieker": "pantry", "tuc ": "snacks",
+    "workzone": "household", "joie ": "household",
 }
 
 # Definitive *form* words (and single-category product brands): a product literally called a

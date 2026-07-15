@@ -12,6 +12,7 @@ location-gated); the others reuse them, since a Berlin PLZ resolves to one broch
 from __future__ import annotations
 
 import json
+import logging
 from typing import List, Optional
 
 from sqlalchemy import select
@@ -20,9 +21,19 @@ from sqlalchemy.orm import Session
 from .. import categories
 from ..dedup import dedup_scraped
 from ..models import Offer, Store
+from ..services.store_locator import aldi_division
 from .base import ScrapedOffer, ScrapeResult
-from .bonial import BonialScraper, EdekaCenterScraper, EdekaScraper, ReweScraper
+from .bonial import (
+    AldiNordScraper,
+    AldiSuedScraper,
+    BonialScraper,
+    EdekaCenterScraper,
+    EdekaScraper,
+    ReweScraper,
+)
 from .lidl import LidlScraper
+
+logger = logging.getLogger(__name__)
 
 
 def _discount_pct(price: int, regular: Optional[int]) -> Optional[float]:
@@ -125,6 +136,22 @@ def run_scrapers(session: Session, plz: str) -> int:
         ecenter = ecenter_scraper.fetch(plz, store.lat, store.lng)
         ecenter_store = _get_or_create_store(session, ecenter)
         total += _upsert(session, ecenter_store, ecenter.offers, source=ecenter_scraper.source)
+
+        # 6. ALDI — two independent companies with disjoint territories, and BOTH their
+        #    publishers are national, so the feed can't tell us which one applies here.
+        #    Ask OSM which division actually operates at these coordinates; if that can't
+        #    be answered, skip ALDI rather than guess — a missing chain is visible, whereas
+        #    wrong-region deals look exactly like real ones.
+        division = aldi_division(store.lat, store.lng)
+        if division is None:
+            logger.warning(
+                "aldi: could not determine Nord/SÜD for plz=%s; skipping ALDI this run", plz
+            )
+        else:
+            aldi_scraper = AldiNordScraper() if division == "nord" else AldiSuedScraper()
+            aldi = aldi_scraper.fetch(plz, store.lat, store.lng)
+            aldi_store = _get_or_create_store(session, aldi)
+            total += _upsert(session, aldi_store, aldi.offers, source=aldi_scraper.source)
 
     session.commit()
     return total

@@ -343,6 +343,55 @@ class EdekaCenterScraper(MeinprospektScraper):
         ]
 
 
+class _AldiScraper(MeinprospektScraper):
+    """ALDI's weekly Prospekt. ALDI is **two independent companies** with disjoint
+    territories, each with its own publisher — and unlike REWE/EDEKA, BOTH publisher pages
+    are *national*: they ignore the `location` cookie and serve the identical brochure to
+    Berlin and Munich (measured). So the source will not stop us from showing a Berlin user
+    ALDI SÜD deals from ~300 km away — `run.py` must pick the division that actually operates
+    at the postal code (`store_locator.aldi_division`).
+
+    Both subclasses deliberately share ``chain = "aldi"``: the two never coexist in one
+    place, so there is nothing to compare (unlike EDEKA vs E center) and the app shows a
+    single "Aldi". The division stays visible in the store name ("ALDI Nord 10115").
+    """
+
+    chain = "aldi"
+
+    def _sample(self) -> List[ScrapedOffer]:
+        today = date.today()
+        end = today + timedelta(days=6)
+
+        def o(ext, name, price, regular, unit, brand=None):
+            return ScrapedOffer(external_id=ext, name=name, price_cents=price,
+                                regular_price_cents=regular, unit=unit, brand=brand,
+                                valid_from=today, valid_to=end)
+
+        # Most ALDI offers print no struck-through price (72% live), like REWE's flyer.
+        return [
+            o("al-001", "Rispentomaten", 149, None, "500 g"),
+            o("al-002", "MILSANI Frische Vollmilch", 115, None, "1 l", "MILSANI"),
+            o("al-003", "Gut Bio Eier", 249, 299, "10 Stück", "Gut Bio"),
+            o("al-004", "Trader Joe's Walnusskerne", 199, None, "200 g", "Trader Joe's"),
+        ]
+
+
+class AldiNordScraper(_AldiScraper):
+    """ALDI Nord (publisher ``DE-75``) — northern/eastern Germany, incl. Berlin."""
+
+    publisher_id = "DE-75"
+    publisher_page = "https://www.meinprospekt.de/aldinord-de"
+    store_label = "ALDI Nord"
+
+
+class AldiSuedScraper(_AldiScraper):
+    """ALDI SÜD (publisher ``DE-77``) — southern/western Germany."""
+
+    publisher_id = "DE-77"
+    publisher_page = "https://www.meinprospekt.de/aldisued-de"
+    store_label = "ALDI SÜD"
+
+
 def _location_cookie(lat: float, lng: float, plz: Optional[str] = None) -> str:
     """Build the meinprospekt `location` cookie for the target coordinates.
 

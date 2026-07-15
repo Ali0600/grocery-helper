@@ -52,7 +52,8 @@ def test_store_without_address_is_still_listed():
 def test_active_flags():
     by = {s.chain: s for s in _stores()}
     assert by["lidl"].active and by["rewe"].active and by["edeka"].active
-    assert not by["kaufland"].active and not by["aldi"].active  # not scraped yet
+    assert by["aldi"].active  # scraped since the Nord/SÜD division routing landed
+    assert not by["kaufland"].active and not by["penny"].active  # not scraped yet
 
 
 def test_way_element_parsed_via_center():
@@ -186,3 +187,83 @@ def test_plz_centroid_empty_or_bad_is_none():
     sl._PLZ_CACHE.clear()
     assert sl.plz_centroid("99999", client=_FakeClient([])) is None
     assert sl.plz_centroid("00000", client=_FakeClient([{"lat": "x", "lon": "y"}])) is None
+
+
+# --- ALDI Nord/SÜD division detection -------------------------------------------------
+# ALDI is two independent companies with disjoint territories, and BOTH meinprospekt
+# publishers are national (they serve the identical brochure to Berlin and Munich), so the
+# feed can't say which one applies. OSM's per-branch tags are the routing signal.
+
+def _aldi_el(lat, lng, **tags):
+    return {"type": "node", "lat": lat, "lon": lng, "tags": {"shop": "supermarket", **tags}}
+
+
+def test_division_for_reads_brand_name_or_operator():
+    assert sl._division_for({"brand": "Aldi Nord"}) == "nord"
+    assert sl._division_for({"brand": "ALDI SÜD"}) == "sued"
+    assert sl._division_for({"name": "ALDI Süd Musterstadt"}) == "sued"
+    assert sl._division_for({"operator": "ALDI-Nord"}) == "nord"       # hyphenated variant
+    assert sl._division_for({"brand": "Aldi Sued"}) == "sued"          # umlaut-less variant
+    # Berlin tags 23 branches a bare "Aldi" with no division — not a signal, not a guess.
+    assert sl._division_for({"name": "Aldi"}) is None
+    assert sl._division_for({"brand": "Lidl"}) is None
+
+
+def test_aldi_division_uses_the_nearest_division_tagged_branch(monkeypatch):
+    """A signal-less "Aldi" nearer than a tagged one must be skipped, not give up — and the
+    nearest *tagged* branch wins (the honest answer at the territory border)."""
+    sl._DIVISION_CACHE.clear()
+    monkeypatch.setattr(sl, "_fetch_overpass", lambda q, c: [
+        _aldi_el(52.5001, 13.4001, name="Aldi"),                       # nearest, no division
+        _aldi_el(52.502, 13.402, brand="Aldi Nord", name="ALDI"),      # nearest tagged
+        _aldi_el(52.52, 13.42, brand="Aldi Süd", name="ALDI SÜD"),     # farther
+    ])
+    assert sl.aldi_division(*CENTER, client=object()) == "nord"
+
+
+def test_aldi_division_picks_sued_where_sued_operates(monkeypatch):
+    sl._DIVISION_CACHE.clear()
+    monkeypatch.setattr(sl, "_fetch_overpass", lambda q, c: [
+        _aldi_el(48.14, 11.58, brand="Aldi Süd", name="Aldi Süd"),
+    ])
+    assert sl.aldi_division(48.1372, 11.5755, client=object()) == "sued"
+
+
+def test_aldi_division_is_none_when_no_aldi_nearby(monkeypatch):
+    sl._DIVISION_CACHE.clear()
+    monkeypatch.setattr(sl, "_fetch_overpass", lambda q, c: [
+        _aldi_el(52.5001, 13.4001, brand="Lidl", name="Lidl"),
+    ])
+    assert sl.aldi_division(*CENTER, client=object()) is None
+
+
+def test_aldi_division_never_caches_a_failure(monkeypatch):
+    """A transient Overpass outage must not pin "undetermined" for the whole 24h TTL —
+    otherwise one blip silently drops ALDI from every scrape for a day."""
+    sl._DIVISION_CACHE.clear()
+    monkeypatch.setattr(sl, "_fetch_overpass", lambda q, c: None)  # all mirrors down
+    assert sl.aldi_division(*CENTER, client=object()) is None
+    assert sl._DIVISION_CACHE == {}
+
+    monkeypatch.setattr(sl, "_fetch_overpass", lambda q, c: [
+        _aldi_el(52.501, 13.401, brand="Aldi Nord"),
+    ])
+    assert sl.aldi_division(*CENTER, client=object()) == "nord"  # recovers on the next run
+
+
+def test_aldi_division_caches_a_resolved_answer(monkeypatch):
+    sl._DIVISION_CACHE.clear()
+    monkeypatch.setattr(sl, "_fetch_overpass", lambda q, c: [
+        _aldi_el(52.501, 13.401, brand="Aldi Nord"),
+    ])
+    assert sl.aldi_division(*CENTER, client=object()) == "nord"
+    monkeypatch.setattr(sl, "_fetch_overpass", lambda q, c: 1 / 0)  # must not be called again
+    assert sl.aldi_division(*CENTER, client=object()) == "nord"
+
+
+def test_aldi_is_an_active_chain():
+    """We scrape ALDI now, so the Stores directory must mark it active rather than a
+    "deals coming soon" placeholder."""
+    assert "aldi" in sl.ACTIVE_CHAINS
+    aldi = next(s for s in _stores() if s.chain == "aldi")
+    assert aldi.active is True
