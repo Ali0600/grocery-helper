@@ -725,3 +725,39 @@ lens), so the redundancy is gone without the job being lost.
 **Takeaway:** redundancy lives at the level of user jobs, not state variables. Before deleting a
 control that "duplicates" another, enumerate the workflows it serves; if one has no other home,
 give it one — often the split reveals the right design (persistent choice vs transient lens).
+
+## Property-based testing: generate the inputs you haven't met yet, pin the ones it finds
+
+Example tests cover the input shapes you've seen; a parser fed by a third party keeps meeting
+shapes you haven't. Property-based testing (Hypothesis) generates thousands of adversarial inputs
+against an *invariant* ("never raises", "idempotent", "never inverts a strike price") instead of a
+hand-picked list.
+
+**Why it came up:** the Grundpreis bug family (parenthesised values, colon decimals, missing
+leading "1") all arrived as unseen feed shapes. A first hunt over the parsers found four real
+defects in an afternoon: a non-idempotent normalizer (nested parens), a derived "1 kg = 0.00" the
+card would display, a NaN discount badge that would *raise* inside `_parse_offer`, and non-dict
+junk anywhere in the payload doing the same. The last two share a severe blast radius:
+`_offers_from_pages` has no per-offer try, so ONE malformed element sends the whole chain to
+sample data for the week — which forced the real design insight: the parse path must be
+**junk-total** (any input → offer or None, never an exception). Determinism was preserved by
+policy: CI runs derandomized (`HYPOTHESIS_PROFILE=ci`), every counterexample is pinned as a plain
+`@example`, and the changes were proven behavior-identical on all 5,871 stored real payloads
+(0 diffs old-parser-vs-new) before merging.
+
+**Takeaway:** for any parser over external data, write properties for the invariants and let the
+tool hunt; treat each counterexample like a bug report (adjudicate, fix, pin). And check the blast
+radius of a single bad element — a loop with no per-item isolation turns one junk entry into a
+whole-feed outage.
+
+## A coverage number is only as honest as its file universe
+
+jest's default only instruments files your tests import — untested files simply don't exist in the
+report. Ours read **81%** while ~3,700 lines (the 815-line DealsScreen among them) were invisible;
+with `collectCoverageFrom: src/**` the honest figure was **64%**. The lie matters because the
+fake number said "well tested" about exactly the code where this week's cache bug lived. Same
+trap exists anywhere the instrumented universe is implicit (`--cov=app` measures the `app` package
+— code outside it never lowers the number).
+
+**Takeaway:** before trusting (or ratcheting) a coverage number, check what universe it measures —
+then pin the floor as a CI ratchet at the honest value and only ever raise it.
