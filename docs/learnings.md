@@ -666,3 +666,44 @@ never caches), while a genuinely empty area (no remark) stays a valid, cacheable
 **Takeaway:** when an API has a soft-error channel (a `remark`/`warnings`/`status` field alongside a
 200), read it — and never let "the call failed" become a cached "the answer is nothing". Separate
 *fetched-and-got-nothing* from *fetch-failed* before anything caches the result.
+
+## Two controls for one concept: the authoritative-looking one is the one that does nothing
+
+When the same idea is represented twice, users trust whichever *looks* official — so the harm isn't
+the duplication, it's that the decorative one absorbs the intent meant for the working one.
+
+**Why it came up:** "I added Aldi to my stores, but its deals didn't show" (2026-07-15). The app had
+**two** store pickers: `myStores` ("+ Add", in a modal literally titled Nearby stores) was used
+nowhere outside that modal — a pure bookmark — while `hiddenStores`, tucked inside Filters →
+"Stores shown", was what actually filtered the deals list, Basket and Recipes. A grep for the state
+name across `src/` was all it took to prove which one was load-bearing. Merged onto `hiddenStores`.
+
+The direction of the merge mattered more than the merge: making `myStores` the *visible*-list reads
+naturally but has a catastrophic default — an empty list means "show nothing" on a fresh install, and
+adding your first store would silently hide every other chain. A **hidden**-set defaults to
+everything-visible, makes a newly added chain visible on arrival, and already had a
+never-hide-the-last-store guard. The "bug" the user reported (tracked chains showing "+ Add") then
+just… disappeared: under a hidden-set, a tracked chain is added by definition.
+
+**Takeaway:** when a UI concept has two representations, grep for which one the rest of the code
+actually reads before choosing a winner — and prefer the encoding whose *empty* state is the safe
+default, because that's the state every new user and every new item starts in.
+
+## An authoritative cache needs a version, or a shipped change can't reach anyone
+
+A cache that's allowed to skip the network entirely is a deployment gate: nothing you ship can be
+seen through it until it expires on its own.
+
+**Why it came up:** ALDI shipped, was live in prod with 244 offers — and no user could see it. The
+deals cache is *authoritative for the flyer week* (a deliberate optimisation: flyers are weekly, so
+a mid-week open makes **zero** backend calls and the sleepy free tier never blocks the UI). But
+`CachedDeals` carried no version, so a release that adds a chain stayed invisible until Sunday
+unless the user knew to hit Options → "Clear cached deals". E center had exactly the same problem
+and was written off as user guidance. Fixed with `DEALS_CACHE_VERSION` + `dealsCacheStale`, bumped
+by any release that changes served data a cached week can't represent. Crucially the mismatch is
+treated as **stale, not absent**: the old deals still render instantly and a background refresh
+swaps in the new ones — invalidation without a cold-start spinner.
+
+**Takeaway:** any cache that can short-circuit the network needs a version stamp you can bump from
+the code that ships the change; time-based expiry alone means your release waits for the clock.
+Treat a version mismatch as stale (serve + revalidate), not empty (spinner).
