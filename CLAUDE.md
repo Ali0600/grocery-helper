@@ -144,23 +144,32 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   its Lidl/REWE stay consistent with the deals (deliberate split). Pure logic
   (`_select_nearest`, `_all_branches`, `plz_centroid` parsing) is fixture/fake-client
   tested — no live API in tests.
-- **Outbound calls are counted** (`app/metrics.py` + `app/http.py`): every scraper/
-  locator builds its httpx client via `tracked_client()`, whose request hook tallies
-  each call by host. `GET /api/scrape-stats` (JSON) shows totals (since startup) +
-  `recent` — the latest ~20 individual calls (newest first, each with a UTC
-  timestamp + friendly source), so a standalone Overpass call (opening Stores)
-  shows up too, not just scrape runs; `GET /stats` is an HTML dashboard for it
-  (`app/stats_page.py`, served from `main.py`), rendering the recent-calls log with
-  relative "Xs ago" times; it fetches on demand via a **Refresh** button (loads once
-  on open, then no auto-poll). Counts are in-memory (reset on restart). **Reference numbers**
-  (measured 2026-07-15): browsing = 0
-  external calls; one scrape run = **~15** (2 Lidl Plus + ~12 meinprospekt: **5** publisher
-  pages — Lidl/REWE/EDEKA/E center/ALDI — + ~7 brochure-pages, varies with active-brochure
-  count — plus **1 Overpass** for ALDI's Nord/SÜD division, cached 24h);
-  opening Stores = 1
-  Overpass call; tapping **Change** = 1 Nominatim (PLZ centroid) + 1 Overpass, all
-  cached 24h. New external client code should use
-  `tracked_client` so it's counted.
+- **Outbound calls are counted, paced, and backed off** (`app/metrics.py` + `app/http.py`):
+  every scraper/locator builds its httpx client via `tracked_client()`, which (1) tallies each
+  call by host via a request hook, (2) **paces** every send by a global min-gap + jitter
+  (`settings.scrape_request_gap_s` 0.7 + `scrape_request_jitter_s` 0.6) via a custom transport, so
+  a scrape's ~15 requests don't hit the flyer aggregators as one datacenter-IP burst (the exact
+  shape they soft-throttle), and (3) **retries** a 429/502/503/504 up to `scrape_max_retries` (2),
+  honoring `Retry-After` (secs or HTTP-date) capped at `scrape_retry_cap_s` (30s so the weekly job
+  can't hang), with exponential backoff otherwise — **403 is never retried** (a hard block; retrying
+  worsens it). When retries are exhausted (or on a 403) it calls `metrics.record_throttle(host,
+  status)` and hands back the last response, so the scrapers' existing fail-soft-to-samples still
+  fires but the throttle is now **logged + metered** instead of vanishing (a 429 was previously
+  indistinguishable from "served samples"). Pacing is a **module-global** lock (shared across the
+  per-chain clients; process-local, matches the single free-tier worker); **tests set the gap+jitter
+  to 0** (`tests/conftest.py`) so the suite never sleeps (retry logic is still tested via
+  `test_http.py`, which monkeypatches `time.sleep`). `GET /api/scrape-stats` (JSON) shows totals
+  (since startup), `throttled_total` + `throttles` (by host), and `recent` — the latest ~20
+  individual calls (newest first, each with a UTC timestamp + friendly source), so a standalone
+  Overpass call (opening Stores) shows up too, not just scrape runs; `GET /stats` is an HTML
+  dashboard (`app/stats_page.py`, served from `main.py`) with relative "Xs ago" times and an
+  on-demand **Refresh** button. Counts are in-memory (reset on restart). **Reference numbers**
+  (measured 2026-07-15): browsing = 0 external calls; one scrape run = **~15** (2 Lidl Plus + ~12
+  meinprospekt: **5** publisher pages — Lidl/REWE/EDEKA/E center/ALDI — + ~7 brochure-pages, varies
+  with active-brochure count — plus **1 Overpass** for ALDI's Nord/SÜD division, cached 24h), now
+  **spread over ~15–30s** by the pacing (same call count, measured 30s for 1646 offers); opening
+  Stores = 1 Overpass call; tapping **Change** = 1 Nominatim (PLZ centroid) + 1 Overpass, all cached
+  24h. New external client code should use `tracked_client` so it's counted **and** paced/backed off.
 - **Categorization is path-aware** (`app/categories.py`): for flyer offers,
   Bonial's `categoryPaths` is the primary signal (non-food level-1 node →
   household; product node → category); coupons + brand-only flyer food fall back
@@ -248,8 +257,11 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   category mis-classification *visible* (a peach-flavoured drink lands under
   "Pfirsich"), so it's a good lens for tuning `categories.py`.
 - **Aggregators soft-throttle bursts** (marktguru, Bonial): they return empty
-  after many quick requests. Scrape weekly with backoff; both scrapers fall back
-  to sample data on failure.
+  after many quick requests. Scrape weekly, and `tracked_client` now **paces** every
+  outbound call (global min-gap + jitter) and **backs off/retries** on 429/5xx honoring
+  `Retry-After` (see the "Outbound calls are counted, paced, and backed off" note above);
+  both scrapers still fall back to sample data on failure, but a throttle is now metered
+  (`/api/scrape-stats` `throttles`), not silently hidden behind the sample fallback.
 - **Brochure discovery is location-pinned via a cookie** (`bonial.py`
   `_location_cookie`, `_current_brochures`): meinprospekt's publisher page (`/rewe-de`
   etc.) picks which **regional** brochures to show from a `location` cookie it otherwise

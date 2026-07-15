@@ -761,3 +761,24 @@ trap exists anywhere the instrumented universe is implicit (`--cov=app` measures
 
 **Takeaway:** before trusting (or ratcheting) a coverage number, check what universe it measures —
 then pin the floor as a CI ratchet at the honest value and only ever raise it.
+
+## Politeness is cheaper than evasion: pace bursts and honor Retry-After
+
+The reliable way to not get a scraper banned isn't disguising it harder — it's being low-volume and
+well-behaved. Our weekly cadence + client-side cache already made browsing hit zero external
+endpoints, but a scrape still fired ~15 requests back-to-back with no gaps and no 429 handling — a
+datacenter-IP burst is exactly what aggregators soft-throttle. The fix lives in one place
+(`app/http.py` `tracked_client`), since every scraper funnels through it: a custom `httpx`
+transport that **paces** each send (global min-gap + jitter) and **backs off** on 429/5xx honoring
+`Retry-After` (capped so the job can't hang), with **403 never retried** (a hard block doesn't
+yield to retries). httpx's built-in `retries=` only covers connection errors, so status-code retry
+needs the custom transport — cleanly testable by wrapping a `httpx.MockTransport`.
+
+**Why it came up:** the user asked how to avoid getting banned. The honest answer was "you're
+mostly fine — your architecture does the work — but stop bursting," and to *decline* the evasion
+path (proxy rotation / fingerprint spoofing): an arms race, against the sites' wishes, and useless
+when the real lever is volume.
+
+**Takeaway:** a fallback must announce a throttle, not swallow it. `except: serve samples` made a
+429 (slow down!) indistinguishable from a parse bug — record it (`metrics.record_throttle`) so the
+rate-limit is visible. And pace bursts + honor Retry-After before reaching for anything fancier.
