@@ -18,3 +18,7 @@ sentry-sdk[fastapi]>=2.63.0
 pytest>=9.1.1
 pytest-cov>=7.1.0
 ruff>=0.15
+# Property-based testing for the parsers that eat external junk (Grundpreis strings,
+# discount labels, validity timestamps). CI runs it derandomized (see tests/conftest.py),
+# so it can never flake there; randomness only hunts locally.
+hypothesis>=6.100

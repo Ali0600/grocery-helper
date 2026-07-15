@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional, Tuple
@@ -167,24 +168,37 @@ class MeinprospektScraper:
     @classmethod
     def _offers_from_pages(cls, pages_json: dict, valid_from, valid_to) -> List[ScrapedOffer]:
         out = []
-        for page in pages_json.get("contents", []):
-            for wrapper in page.get("offers") or []:
+        for page in _dicts(pages_json.get("contents")):
+            for wrapper in _dicts(page.get("offers")):
                 content = wrapper.get("content")
-                offer = cls._parse_offer(content, valid_from, valid_to) if content else None
+                if not isinstance(content, dict):
+                    continue
+                offer = cls._parse_offer(content, valid_from, valid_to)
                 if offer:
                     out.append(offer)
         return out
 
     @staticmethod
     def _parse_offer(c: dict, valid_from, valid_to) -> Optional[ScrapedOffer]:
+        """Junk-total: any malformed content dict parses to an offer or None, never an
+        exception — `_offers_from_pages` has no per-offer try, so a single raising offer
+        would fail the whole `_fetch_live` and silently degrade the chain to sample data
+        for the week. Property-tested against arbitrary JSON-shaped junk."""
         sales = _deal(c, "SALES_PRICE")
-        if sales is None:
-            return None  # not a priced offer
-        product = (c.get("products") or [{}])[0]
-        brand = product.get("brandName") or None
-        name = " ".join(x for x in [brand, product.get("name")] if x) or "Angebot"
-        desc = product.get("description") or []
-        unit = (desc[0] or {}).get("paragraph") if desc else None
+        if sales is None or sales <= 0:
+            return None  # not a (sanely) priced offer
+        products = _dicts(c.get("products"))
+        product = products[0] if products else {}
+        brand = product.get("brandName")
+        if not isinstance(brand, str) or not brand.strip():
+            brand = None
+        pname = product.get("name")
+        name_parts = [x for x in (brand, pname) if isinstance(x, str) and x]
+        name = " ".join(name_parts) or "Angebot"
+        descs = _dicts(product.get("description"))
+        unit = descs[0].get("paragraph") if descs else None
+        if not isinstance(unit, str):
+            unit = None
         regular = _deal(c, "REGULAR_PRICE")
         if regular is None:
             # Branded/non-food items carry the struck-through price as an RRP/UVP deal
@@ -194,13 +208,17 @@ class MeinprospektScraper:
             if rrp is not None and rrp > sales:
                 regular = rrp
         if regular is None:
-            regular = _regular_from_label(sales, c.get("discountLabel"))
+            label = c.get("discountLabel")
+            regular = _regular_from_label(sales, label if isinstance(label, dict) else None)
         category_path = [
-            cp["name"] for cp in (product.get("categoryPaths") or []) if cp.get("name")
+            cp["name"]
+            for cp in _dicts(product.get("categoryPaths"))
+            if isinstance(cp.get("name"), str) and cp["name"]
         ]
         # Prefer the offer's own on-sale window (day-limited specials) over the brochure's.
         own = _offer_validity(c, valid_from, valid_to)
         vf, vt = own if own else (valid_from, valid_to)
+        image = c.get("image")
         return ScrapedOffer(
             external_id=str(c.get("id")),
             name=name,
@@ -211,7 +229,7 @@ class MeinprospektScraper:
             price_per_unit=_base_unit(c) or _kg_price(c, sales),
             loyalty_note=_loyalty_note(c),
             app_price_cents=_app_price(c),
-            image_url=c.get("image"),
+            image_url=image if isinstance(image, str) else None,
             valid_from=vf,
             valid_to=vt,
             category_path=category_path,
@@ -407,22 +425,36 @@ def _location_cookie(lat: float, lng: float, plz: Optional[str] = None) -> str:
     return "location=" + quote(json.dumps(payload, separators=(",", ":")))
 
 
+def _dicts(value) -> List[dict]:
+    """Only the dict elements of a maybe-list. The feed's list-of-objects fields have
+    drifted before; a stray scalar where an object belongs must be skipped, not raised —
+    one raising element fails the whole chain to sample data."""
+    if not isinstance(value, list):
+        return []
+    return [v for v in value if isinstance(v, dict)]
+
+
 def _deal(content: dict, deal_type: str) -> Optional[float]:
-    for d in content.get("deals") or []:
+    for d in _dicts(content.get("deals")):
         if d.get("type") == deal_type and d.get("max") is not None:
             try:
-                return float(d["max"])
+                value = float(d["max"])
             except (TypeError, ValueError):
                 continue
+            # A JSON-adjacent "NaN"/"Infinity" string parses as a float but blows up
+            # round() downstream — treat it as no price, like any other junk.
+            if math.isfinite(value):
+                return value
     return None
 
 
 def _base_unit(content: dict) -> Optional[str]:
     """The sale per-unit price string ("1 kg = 13.33") off the SALES_PRICE deal,
     when the flyer provides one (it's empty for ~25% of offers)."""
-    for d in content.get("deals") or []:
+    for d in _dicts(content.get("deals")):
         if d.get("type") == "SALES_PRICE":
-            value = (d.get("priceByBaseUnit") or "").strip()
+            raw = d.get("priceByBaseUnit")
+            value = raw.strip() if isinstance(raw, str) else ""
             if value:
                 return value
     return None
@@ -435,10 +467,10 @@ def _kg_price(content: dict, sales: float) -> Optional[str]:
     that unit_price_cents + the app's fmtPricePerUnit already parse. The condition must
     normalize to exactly "kg-preis": a REWE travel offer carries "Festpreis" inside a
     long condition string and must NOT match."""
-    for d in content.get("deals") or []:
+    for d in _dicts(content.get("deals")):
         if d.get("type") != "SALES_PRICE":
             continue
-        for cond in d.get("conditions") or []:
+        for cond in _dicts(d.get("conditions")):
             other = cond.get("other")
             if isinstance(other, str) and other.strip().rstrip("*").lower() == "kg-preis":
                 return f"1 kg = {sales:.2f}"
@@ -452,11 +484,12 @@ def _loyalty_note(content: dict) -> Optional[str]:
     """A REWE bonus ("1,00 € Bonus") on an OTHER deal — collected with the loyalty
     card/app. The amount sits in the deal description or a condition's free-text
     `other` field, often amid noise, so pull just the canonical "X,XX € Bonus"."""
-    for d in content.get("deals") or []:
+    for d in _dicts(content.get("deals")):
         if d.get("type") != "OTHER":
             continue
-        candidates = list((d.get("description") or "").splitlines())
-        for cond in d.get("conditions") or []:
+        desc = d.get("description")
+        candidates = list(desc.splitlines()) if isinstance(desc, str) else []
+        for cond in _dicts(d.get("conditions")):
             if isinstance(cond.get("other"), str):
                 candidates.append(cond["other"])
         for text in candidates:
@@ -472,10 +505,10 @@ def _app_price(content: dict) -> Optional[int]:
     lower price you pay with the chain's app. None otherwise: Payback, "6 für"
     multibuy, "ab 2 Kisten" bulk and day-only specials are excluded on purpose (they
     aren't a simple per-item price)."""
-    for d in content.get("deals") or []:
+    for d in _dicts(content.get("deals")):
         if d.get("type") != "SPECIAL_PRICE" or d.get("max") is None:
             continue
-        for cond in d.get("conditions") or []:
+        for cond in _dicts(d.get("conditions")):
             other = cond.get("other")
             if isinstance(other, str) and "app" in other.lower():
                 try:
@@ -487,19 +520,29 @@ def _app_price(content: dict) -> Optional[int]:
 
 def _regular_from_label(sales: float, label: Optional[dict]) -> Optional[float]:
     """Recover a regular price from the offer's discount badge when REGULAR_PRICE
-    is absent: a "-0.50 €" amount or a "-20 %" percentage both imply it."""
+    is absent: a "-0.50 €" amount or a "-20 %" percentage both imply it.
+
+    Guards (property-tested): the value must be a finite positive number — a zero or
+    negative amount would store an inverted strike price (the RRP path already holds this
+    line with ``rrp > sales``), and a NaN would blow up ``round()`` in ``_parse_offer``,
+    failing the whole chain to sample data over one bad badge."""
     if not label:
         return None
     try:
         value = float(label.get("value"))
     except (TypeError, ValueError):
         return None
+    if not math.isfinite(value) or value <= 0:
+        return None
     kind = label.get("type")
+    regular = None
     if kind == "DISCOUNT_AMOUNT":
-        return round(sales + value, 2)
-    if kind == "DISCOUNT_PERCENTAGE" and 0 < value < 100:
-        return round(sales / (1 - value / 100), 2)
-    return None
+        regular = round(sales + value, 2)
+    elif kind == "DISCOUNT_PERCENTAGE" and value < 100:
+        regular = round(sales / (1 - value / 100), 2)
+    # Strictly above the sales price, AFTER rounding — a 0.5% badge on a 0,50 € item
+    # rounds back to the sales price itself, and an equal strike-through is meaningless.
+    return regular if regular is not None and regular > sales else None
 
 
 def _offer_validity(
@@ -517,8 +560,10 @@ def _offer_validity(
     """
     starts: List[date] = []
     ends: List[date] = []
-    for pp in content.get("publicationProfiles") or []:
-        validity = (pp or {}).get("validity") or {}
+    for pp in _dicts(content.get("publicationProfiles")):
+        validity = pp.get("validity")
+        if not isinstance(validity, dict):
+            continue
         sd, ed = _parse_dt(validity.get("startDate")), _parse_dt(validity.get("endDate"))
         if not (sd and ed):
             continue
