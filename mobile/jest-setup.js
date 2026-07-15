@@ -23,7 +23,6 @@ jest.mock('@expo/vector-icons', () => {
 });
 
 beforeEach(() => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const mod = require('@react-native-async-storage/async-storage');
   (mod.default ?? mod).clear();
 });
@@ -32,6 +31,5 @@ beforeEach(() => {
 jest.spyOn(console, 'error').mockImplementation((...args) => {
   const msg = String(args[0] ?? '');
   if (msg.includes('not configured to support act(')) return;
-  // eslint-disable-next-line no-console
   console.warn(...args);
 });
