@@ -5,18 +5,19 @@ from .models import Offer
 from .organic import is_organic
 from .product_group import product_group
 from .schemas import OfferOut
-from .unit_price import derive_price_per_unit, unit_price_cents
+from .unit_price import derive_price_per_unit, normalize_price_per_unit, unit_price_cents
 from .validity import is_day_limited, valid_days_label
 
 
 def offer_to_out(offer: Offer) -> OfferOut:
     """Build the API representation of an Offer (pulls chain/name from its store)."""
     group, group_label = product_group(offer.name, offer.brand, offer.category)
-    # Fall back to a per-unit price derived from the quantity when the source omitted
-    # the Grundpreis (e.g. produce sold per "1 kg") so the card + €/kg sort still work.
-    price_per_unit = offer.price_per_unit or derive_price_per_unit(
-        offer.unit, offer.price_cents
-    )
+    # Canonicalize the source's raw Grundpreis ("(1 kg = 8.05)", "100-g-Preis", "-.90"),
+    # then fall back to deriving one from the quantity when it omitted the Grundpreis
+    # entirely (e.g. produce sold per "1 kg") — so the card + €/kg sort both work.
+    price_per_unit = normalize_price_per_unit(
+        offer.price_per_unit, offer.price_cents
+    ) or derive_price_per_unit(offer.unit, offer.price_cents)
     return OfferOut(
         id=offer.id,
         store_id=offer.store_id,

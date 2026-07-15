@@ -42,6 +42,54 @@ def unit_price_cents(ppu: Optional[str]) -> Optional[int]:
     return round(v * 100) if v > 0 else None
 
 
+# --- normalizing the source's raw Grundpreis string -------------------------------
+# The feed emits the Grundpreis in several shapes; only "1 kg = X" parses (here and in
+# the app's fmtPricePerUnit), so the rest are canonicalized on read.
+_PAREN = re.compile(r"^\s*\((.*)\)\s*$")  # "(1 kg = 8.05)" -> "1 kg = 8.05"
+# A label meaning "the advertised price IS the per-kg / per-100g price", optionally with
+# the value already attached ("kg-Preis = 4.98").
+_UNIT_LABEL = re.compile(r"^\s*(kg|100\s*-?\s*g)\s*-?\s*preis\s*(?:=\s*(.+))?\s*$", re.IGNORECASE)
+# German flyer shorthand: "-.90" / "-,90" means 0.90 (the dash stands in for the euros).
+_DASH_PLACEHOLDER = re.compile(r"(?<![\d)])-(?=[.,]\d)")
+
+
+def normalize_price_per_unit(ppu: Optional[str], price_cents: Optional[int]) -> Optional[str]:
+    """Canonicalize the source's raw Grundpreis into the "1 kg = X" / "1 l = X" shape.
+
+    `Offer.price_per_unit` mirrors the feed verbatim, and the feed is inconsistent:
+      * "(1 kg = 8.05)"  — parenthesized; the anchored `_EQ_RE` can't read it, and the card
+        renders it as garbage ("8,05) €/(1 kg"). Unwrapped for every unit, so non-kg/l
+        Grundpreise (1 WL / 1 Tab / 1 m²) display right while staying unsortable.
+      * "kg-Preis" / "100-g-Preis" — a *label*, not a value: the advertised price IS the
+        per-unit price. Rebuilt from `price_cents`; per-100g is normalized to kg (what the
+        feed itself does elsewhere: EDEKA's 0,39 € / 100 g cherries carry "1kg = 3,90").
+      * "kg-Preis = 4.98" — label with the value attached.
+      * "1 kg = -.90"    — German shorthand for 0.90.
+    Returns None for a label with no usable price, so the caller's `derive_price_per_unit`
+    fallback can run instead of being suppressed by a non-null junk string. Unknown shapes
+    pass through untouched; already-clean strings are unchanged (idempotent).
+    """
+    if not ppu:
+        return None
+    s = ppu.strip()
+    paren = _PAREN.match(s)
+    if paren:
+        s = paren.group(1).strip()
+    label = _UNIT_LABEL.match(s)
+    if label:
+        per_kg = label.group(1).lower().startswith("kg")
+        value = label.group(2)
+        if value:  # "kg-Preis = 4.98"
+            s = f"{'1 kg' if per_kg else '100 g'} = {value.strip()}"
+        else:  # bare label -> the sales price is the per-unit price
+            if not price_cents or price_cents <= 0:
+                return None
+            euros = price_cents / 100
+            s = f"1 kg = {euros if per_kg else euros * 10:.2f}"
+    s = _DASH_PLACEHOLDER.sub("0", s)
+    return s or None
+
+
 # A Grundpreis the source embedded in the description but never lifted into
 # `price_per_unit` (e.g. "… 1 kg = 5.67 150 g"); the amount is always 1 kg / 1 l.
 _INLINE_GRUNDPREIS = re.compile(r"\b1\s*(kg|l)\s*=\s*(\d+(?:[.,]\d+)?)", re.IGNORECASE)
