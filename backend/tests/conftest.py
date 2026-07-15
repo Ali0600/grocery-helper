@@ -17,3 +17,10 @@ settings.register_profile("ci", derandomize=True, max_examples=60)
 settings.register_profile("default", max_examples=200)
 settings.register_profile("hunt", max_examples=3000)
 settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "default"))
+
+# Turn off outbound-request pacing so the suite never sleeps. app/http.py reads these at
+# client construction; this runs when pytest loads conftest, before any test module
+# imports the app, so the Settings() singleton picks them up. Retry/backoff is still
+# exercised in test_http.py, which monkeypatches time.sleep instead of actually waiting.
+os.environ.setdefault("SCRAPE_REQUEST_GAP_S", "0")
+os.environ.setdefault("SCRAPE_REQUEST_JITTER_S", "0")

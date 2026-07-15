@@ -22,5 +22,18 @@ class Settings(BaseSettings):
     # mirrors the ADMIN_TOKEN "off-unless-set" pattern, so CI/local stay clean.
     sentry_dsn: str = ""
 
+    # --- Outbound-request politeness (see app/http.py) ---------------------------
+    # A scrape fires ~15 requests; firing them back-to-back from a datacenter IP is the
+    # "burst" the flyer aggregators soft-throttle. `tracked_client` paces every outbound
+    # call by at least this many seconds (globally, across all scrapers in a run) plus a
+    # random 0..jitter, and backs off + retries on 429/5xx. Tests set the gap+jitter to 0
+    # (see tests/conftest.py) so the suite never sleeps.
+    scrape_request_gap_s: float = 0.7
+    scrape_request_jitter_s: float = 0.6
+    # Retry a 429/502/503/504 at most this many times, honoring Retry-After up to the cap
+    # (beyond that, give up so the weekly job can't hang) with exponential backoff otherwise.
+    scrape_max_retries: int = 2
+    scrape_retry_cap_s: float = 30.0
+
 
 settings = Settings()
