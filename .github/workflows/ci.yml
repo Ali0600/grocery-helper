@@ -101,6 +101,7 @@ jobs:
   deploy:
     name: Deploy to Render
     runs-on: ubuntu-latest
+    timeout-minutes: 25 # the verify steps poll a slow free-tier build+swap
     needs: [backend, docker-build] # gate on the backend artifact's checks
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
@@ -131,6 +132,7 @@ jobs:
             echo "Only lint/test/example (or mobile/docs) files changed — skipping deploy."
           fi
       - name: Trigger Render deploy hook
+        id: trigger
         if: steps.detect.outputs.changed == 'true'
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
@@ -138,7 +140,58 @@ jobs:
           if [ -z "$HOOK" ]; then
             echo "RENDER_DEPLOY_HOOK_URL not set — skipping deploy."
             echo "Add the secret (and turn off Render auto-deploy) to enable gated deploys."
+            echo "fired=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           curl -fsS -X POST "$HOOK"
+          echo "fired=true" >> "$GITHUB_OUTPUT"
           echo "Triggered Render deploy."
+
+      # The hook only TRIGGERS Render — "success" above means the curl fired, nothing
+      # more; Render then builds + swaps for several minutes. This bit for real: a
+      # feature shipped green and never appeared in prod because its degraded path fired
+      # on every run. So: poll /health until the RUNNING commit is the merged SHA (the
+      # backend exposes RENDER_GIT_COMMIT), then verify the served FEATURE, not the
+      # trigger. If a newer merge deployed over us mid-poll, note it and stand down —
+      # that run's own verify covers prod.
+      - name: Wait until the new code is live
+        if: steps.trigger.outputs.fired == 'true'
+        env:
+          BASE: https://grocery-helper-sw6c.onrender.com
+        run: |
+          want="${GITHUB_SHA}"
+          echo "Waiting for /health to report commit ${want}…"
+          for i in $(seq 1 45); do
+            live=$(curl -fsS --max-time 30 "$BASE/health" | python3 -c \
+              'import sys,json;print(json.load(sys.stdin).get("commit") or "")' 2>/dev/null || true)
+            if [ "$live" = "$want" ]; then
+              echo "New code is live (poll $i)."
+              exit 0
+            fi
+            sleep 20
+          done
+          if [ -n "$live" ] && [ "$live" != "$want" ]; then
+            echo "::warning::a different commit (${live}) is live — superseded by a newer deploy; standing down."
+            exit 0
+          fi
+          echo "::error::deploy never became live within ~15 min (last seen commit: '${live:-none}')"
+          exit 1
+
+      - name: Verify the served deals (the feature, not the deploy)
+        if: steps.trigger.outputs.fired == 'true'
+        env:
+          BASE: https://grocery-helper-sw6c.onrender.com
+        run: |
+          # The boot-scrape runs at startup; give it a few retries before judging.
+          for i in $(seq 1 10); do
+            count=$(curl -fsS --max-time 60 "$BASE/api/offers?plz=10115&limit=2000" \
+              | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
+            echo "poll $i: served offers = $count"
+            if [ "$count" -gt 0 ] 2>/dev/null; then
+              echo "Prod serves data on the new code."
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "::error::prod serves no offers on the new deploy — the boot-scrape likely failed"
+          exit 1

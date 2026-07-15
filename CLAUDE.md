@@ -595,7 +595,17 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   runtime file still deploys (err toward deploying: a missed deploy ships stale code, an extra
   one just re-scrapes the ephemeral DB), and a mixed `app/`+`tests/` change still deploys. So
   mobile-only / docs / lint-only merges don't redeploy Render and wipe its ephemeral DB; the
-  *same* filter idea as eas-update's `mobile/**` gate, inverted), `eas-update.yml` (OTA via `eas update --branch production`, **gated
+  *same* filter idea as eas-update's `mobile/**` gate, inverted). **The deploy job then verifies the OUTCOME, not the trigger** (2026-07-15): `/health`
+  exposes the running commit (`RENDER_GIT_COMMIT`), the job polls it until the merged SHA is
+  actually live (~15 min bound; a newer deploy superseding mid-poll stands down with a warning),
+  then asserts `/api/offers` serves >0 offers — a red here means the boot-scrape failed even
+  though the deploy "succeeded". `scrape.yml` additionally runs a **data-quality gate** after the
+  Sunday reset (`.github/scripts/verify_deals.py`, offline-testable via `--file`): **chains ≥5**
+  (a missing chain pages even when the skip was a designed degradation — fail-closed must
+  announce itself; the issue auto-closes on recovery), offers ≥800, €/kg-sortable ≥50%, "other"
+  ≤15% (~2× the measured 7.4% norm — calibrating this gate corrected an earlier stale ~1%
+  belief). A gate failure flows into the existing alert-issue machinery unchanged. Thresholds
+  live at the top of the script; recalibrate against measured norms, don't guess), `eas-update.yml` (OTA via `eas update --branch production`, **gated
   on a green CI run**: triggers via `workflow_run` *after* the `CI` workflow succeeds on `main`,
   not on raw push — so a broken bundle can't ship; `workflow_run` can't path-filter, so the job
   pins checkout to the passing commit's SHA and re-applies the `mobile/**` filter via `git diff

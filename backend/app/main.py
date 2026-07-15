@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -55,7 +56,10 @@ app.include_router(offers_router, prefix="/api")
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    # `commit` makes "is my code live yet?" a queryable fact: Render injects
+    # RENDER_GIT_COMMIT at runtime, and the CI deploy job polls this until it matches the
+    # merged SHA before verifying the served feature. None locally / off-Render.
+    return {"status": "ok", "commit": os.getenv("RENDER_GIT_COMMIT")}
 
 
 @app.get("/stats", response_class=HTMLResponse)
