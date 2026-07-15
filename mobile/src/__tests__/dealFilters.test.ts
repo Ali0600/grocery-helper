@@ -12,6 +12,7 @@ import { makeOffer } from './fixtures';
 const OPTS: DealFilterOptions = {
   showNonFood: false,
   hiddenStores: [],
+  storeLens: null,
   specialDays: false,
   bioOnly: false,
   query: '',
@@ -139,5 +140,59 @@ describe('buildSections', () => {
       makeOffer({ group: 'tomate', group_label: 'Tomate', price_cents: p });
     const sections = buildSections([avo(1), avo(2), tom(1), tom(2), tom(3)], 'price');
     expect(sections.map((s) => s.label)).toEqual(['Tomate', 'Avocado']); // 3 > 2
+  });
+});
+
+describe('filterDeals — "Only this store" lens', () => {
+  const offers = [
+    makeOffer({ chain: 'lidl', name: 'Lidl Milch' }),
+    makeOffer({ chain: 'edeka', name: 'Edeka Milch' }),
+    makeOffer({ chain: 'edeka', name: 'Edeka Brot' }),
+    makeOffer({ chain: 'aldi', name: 'Aldi Käse' }),
+  ];
+
+  it('isolates one chain', () => {
+    const out = filterDeals(offers, { ...OPTS, storeLens: 'edeka' });
+    expect(out).toHaveLength(2);
+    expect(out.every((o) => o.chain === 'edeka')).toBe(true);
+  });
+
+  it('is a no-op for a chain with no visible offers (the stale-lens guard)', () => {
+    // e.g. the lensed store was removed from the store list, or the PLZ changed —
+    // the list must never go empty because of a stale lens.
+    const out = filterDeals(offers, { ...OPTS, storeLens: 'rewe' });
+    expect(out).toHaveLength(offers.length);
+  });
+
+  it('composes AFTER the store list: a hidden chain cannot be lensed into view', () => {
+    const out = filterDeals(offers, { ...OPTS, hiddenStores: ['edeka'], storeLens: 'edeka' });
+    // edeka is hidden, so the lens finds nothing visible → no-op over the remaining set.
+    expect(out.every((o) => o.chain !== 'edeka')).toBe(true);
+    expect(out).toHaveLength(2);
+  });
+
+  it('composes with search and category', () => {
+    const bySearch = filterDeals(offers, { ...OPTS, storeLens: 'edeka', query: 'milch' });
+    expect(bySearch.map((o) => o.name)).toEqual(['Edeka Milch']);
+
+    const withCat = [
+      makeOffer({ chain: 'edeka', category: 'dairy' }),
+      makeOffer({ chain: 'edeka', category: 'bakery' }),
+      makeOffer({ chain: 'lidl', category: 'dairy' }),
+    ];
+    const byCat = filterDeals(withCat, { ...OPTS, storeLens: 'edeka', selected: 'dairy' });
+    expect(byCat).toHaveLength(1);
+    expect(byCat[0].chain).toBe('edeka');
+  });
+
+  it('composes with bio', () => {
+    const mixed = [
+      makeOffer({ chain: 'edeka', is_bio: true }),
+      makeOffer({ chain: 'edeka', is_bio: false }),
+      makeOffer({ chain: 'lidl', is_bio: true }),
+    ];
+    const out = filterDeals(mixed, { ...OPTS, storeLens: 'edeka', bioOnly: true });
+    expect(out).toHaveLength(1);
+    expect(out[0].chain).toBe('edeka');
   });
 });

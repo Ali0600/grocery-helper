@@ -434,6 +434,18 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   the live `chainCounts` ("244 deals" / "No deals loaded — pull to refresh") so "did adding it work?"
   is answerable. The FilterBar store chip (✕ = show all) stays as the escape hatch, but the sheet's
   **Reset no longer clears `hiddenStores`** — it's a persisted store choice, not a transient filter.
+  **Two store controls, two meanings — don't re-merge them** (the user uses both): the Stores
+  modal's Add/Added = *membership* (persistent, `hiddenStores`); the FilterSheet's **"Only show"**
+  = a **single-select session lens** (`storeLens` in `DealsScreen`, `DealFilterOptions.storeLens`)
+  for quickly peeking at one store's deals — one tap isolates, one tap (All / the "Only X" bar
+  chip's ✕ / Reset) restores. Deliberately **not persisted** (a peek can't leave the app stuck on
+  one store) and applied **after** `hiddenStores` in `filterDeals` with the same
+  only-when-present guard as special-days/bio, so a stale lens (store removed/hidden mid-session,
+  PLZ switch) is a no-op instead of an empty list; `DealsScreen` derives `activeLens` via
+  `visibleStoreChains` so the chip/sheet self-clear too. Deals list only — Basket/Recipes keep
+  the full store list. (History: the sheet's old multi-select "Stores shown" was removed in PR
+  #69 as redundant; the user actually used it to see single stores' deals — 4 taps to isolate —
+  so it came back as this one-tap lens in PR #70.)
 - **The deals cache is versioned** (`format.ts` `DEALS_CACHE_VERSION` + `dealsCacheStale`): the
   weekly cache is *authoritative*, so while it's fresh `DealsScreen` makes **zero backend calls** —
   which meant a newly scraped chain stayed **invisible until Sunday** unless the user knew to hit
@@ -444,7 +456,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 - **Deals-screen filter UI (redesigned)**: secondary filters live in a **bottom sheet**
   (`components/FilterSheet.tsx`) opened from a single **`FilterBar`** (sort summary + a "Filters"
   button badged with the active-filter count + a removable chip per active filter). The sheet holds
-  Sort / Special days /
+  Sort / **"Only show"** (see below) / Special days /
   Bio / Non-food as labelled pill sections **with the per-option counts**; the category-chips row is
   the only inline filter now. Filter state stays in `DealsScreen`; the old
   `StoreFilter`/`SpecialDaysToggle`/`BioToggle`/`SortToggle` row components

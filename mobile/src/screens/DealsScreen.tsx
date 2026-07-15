@@ -98,6 +98,10 @@ export default function DealsScreen() {
   const [sortMode, setSortMode] = useState<SortMode>('discount');
   const [hiddenStores, setHiddenStores] = useState<string[]>([]); // persisted: chains hidden from the deals list
   const [specialDays, setSpecialDays] = useState(false); // session lens: only day-limited specials
+  // Session lens: isolate ONE store's deals for a quick look (the Filters "Only show"
+  // row). Deliberately not persisted — a peek must never leave the app stuck on one
+  // store — and distinct from `hiddenStores`, the persistent store list.
+  const [storeLens, setStoreLens] = useState<string | null>(null);
   const [bioOnly, setBioOnly] = useState(false); // session lens: only organic ("Bio") offers
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [basketModal, setBasketModal] = useState(false);
@@ -453,9 +457,24 @@ export default function DealsScreen() {
   // toggled on; a search matches name/brand across all categories (it ignores the
   // selected chip), otherwise the selected category filters.
   const q = query.trim().toLowerCase();
+  // The lens only counts while its store is still visible (present AND not removed from
+  // the store list) — derived, so removing the store mid-lens self-clears with no effect.
+  const activeLens =
+    storeLens && visibleStoreChains(presentChains, hiddenStores).includes(storeLens)
+      ? storeLens
+      : null;
   const visibleOffers = useMemo(
-    () => filterDeals(offers, { showNonFood, hiddenStores, specialDays, bioOnly, query, selected }),
-    [offers, showNonFood, hiddenStores, specialDays, bioOnly, query, selected],
+    () =>
+      filterDeals(offers, {
+        showNonFood,
+        hiddenStores,
+        storeLens: activeLens,
+        specialDays,
+        bioOnly,
+        query,
+        selected,
+      }),
+    [offers, showNonFood, hiddenStores, activeLens, specialDays, bioOnly, query, selected],
   );
 
   // Re-sort the filtered view by the active mode (lowest price / biggest discount /
@@ -477,6 +496,13 @@ export default function DealsScreen() {
   const nonFoodCount = cats.find((c) => c.category === 'household')?.count ?? null;
   // Active (non-default) filters → removable chips on the bar; their count badges "Filters".
   const filterChips = [
+    activeLens
+      ? {
+          key: 'lens',
+          label: `Only ${chainLabel(activeLens)}`,
+          onRemove: () => setStoreLens(null),
+        }
+      : null,
     hasHiddenPresent(presentChains, hiddenStores)
       ? {
           key: 'store',
@@ -495,6 +521,7 @@ export default function DealsScreen() {
   // your store list, so resetting *filters* must not silently re-add a store you removed.
   // The store chip's ✕ (showAllStores) is still the direct way back.
   const resetFilters = () => {
+    setStoreLens(null); // the lens IS a transient filter, unlike the store list
     setSpecialDays(false);
     setBioOnly(false);
     if (showNonFood) onToggleNonFood();
@@ -744,6 +771,10 @@ export default function DealsScreen() {
         onReset={resetFilters}
         sortMode={sortMode}
         onChangeSort={onChangeSort}
+        chains={visibleStoreChains(presentChains, hiddenStores)}
+        chainCounts={chainCounts}
+        storeLens={activeLens}
+        onChangeStoreLens={setStoreLens}
         hasDayLimited={hasDayLimited}
         dayLimitedCount={dayLimitedCount}
         specialDays={specialDays}

@@ -49,6 +49,10 @@ export function compareOffers(a: Offer, b: Offer, mode: SortMode): number {
 export type DealFilterOptions = {
   showNonFood: boolean;
   hiddenStores: string[];
+  /** Transient "Only this store" lens (session-only, never persisted) — isolates one
+   * chain's deals for a quick look. Distinct from `hiddenStores`, which is the user's
+   * persistent store list; the lens composes AFTER it, so it can't unhide a store. */
+  storeLens: string | null;
   specialDays: boolean;
   bioOnly: boolean;
   query: string;
@@ -57,16 +61,23 @@ export type DealFilterOptions = {
 
 /**
  * The deals-list filter stack, in its long-standing order: non-food → hidden stores →
- * special-days → bio → search/category. The special-days and bio lenses only apply when
+ * store lens → special-days → bio → search/category. The store, special-days and bio lenses only apply when
  * the loaded set actually contains such offers (same guard the screen always had), so a
  * stale toggle can't filter the list to empty.
  */
 export function filterDeals(offers: Offer[], opts: DealFilterOptions): Offer[] {
   const foodBase = opts.showNonFood ? offers : offers.filter((o) => o.category !== 'household');
   const storeBase = filterByVisibleStores(foodBase, opts.hiddenStores);
+  // Same only-when-present guard as special-days/bio below: a lens whose chain has no
+  // offers left after the store filter (hidden mid-session, PLZ switched) is a no-op
+  // rather than emptying the list.
+  const lensBase =
+    opts.storeLens && storeBase.some((o) => o.chain === opts.storeLens)
+      ? storeBase.filter((o) => o.chain === opts.storeLens)
+      : storeBase;
   const hasDayLimited = offers.some((o) => o.day_limited);
   const base =
-    opts.specialDays && hasDayLimited ? storeBase.filter((o) => o.day_limited) : storeBase;
+    opts.specialDays && hasDayLimited ? lensBase.filter((o) => o.day_limited) : lensBase;
   const hasBio = offers.some((o) => o.is_bio);
   const bioBase = opts.bioOnly && hasBio ? base.filter((o) => o.is_bio) : base;
 
