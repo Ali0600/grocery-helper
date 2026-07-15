@@ -310,9 +310,22 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   (`discount_pct` desc, default), *Cheapest €/kg* (`unit_price_cents` asc) — all via one
   `compareOffers(a,b,mode)` comparator reused by the flat list, the within-group order, and
   the "More" bucket (so "discount" ranks by % even inside a category, not by price).
+- **The raw Grundpreis is normalized at serve time** (`unit_price.py`
+  `normalize_price_per_unit(ppu, price_cents)`, called by the serializer **before** the
+  derive fallback). `Offer.price_per_unit` mirrors the feed verbatim and the feed is
+  inconsistent — only `"1 kg = X"` parses (both here and in the app's `fmtPricePerUnit`), so:
+  **`"(1 kg = 8.05)"`** (parenthesized — ~19% of served offers!) is unwrapped (the anchored
+  `_EQ_RE` can't read it, and the card rendered literal garbage `"8,05) €/(1 kg"`); a bare
+  **label** `"kg-Preis"`/`"100-g-Preis"` (the price IS the per-unit price) is rebuilt from
+  `price_cents`, with per-100g normalized **to kg** (the feed's own convention — EDEKA's
+  0,39 €/100 g cherries carry `"1kg = 3,90"`); `"kg-Preis = 4.98"` → `"1 kg = 4.98"`; and the
+  German shorthand `"-.90"` → `"0.90"`. A label with no price returns None **so the derive
+  fallback can run** (a non-null junk string used to suppress it). Non-kg/l units (`1 WL`,
+  `1 m²`) are unwrapped for display but stay unsortable. Lifted €/kg coverage **53% → 72%**
+  of a Berlin PLZ (+272), display + sort fixed in one place — **no OTA, no re-scrape**.
 - **Missing Grundpreis is recovered at serve time** (`unit_price.py`
   `derive_price_per_unit(unit, price_cents)`, used by the serializer when
-  `Offer.price_per_unit` is null), three cases: (1) the Grundpreis is **embedded in
+  `Offer.price_per_unit` is null/unnormalizable), three cases: (1) the Grundpreis is **embedded in
   the description** ("…1 kg = 5.67 150 g") → extract it; (2) the item is sold as a
   **single net weight/volume** → **divide** the price by that amount on the €/kg|€/l
   axis ("500-g-Schale" @ 1,49 € → "1 kg = 2.98", "2,5 l" → €/l, "Klasse I 1 kg" is

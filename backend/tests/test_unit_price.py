@@ -1,7 +1,7 @@
 """Tests for normalizing a per-unit price string to comparable cents/kg|l."""
 import pytest
 
-from app.unit_price import derive_price_per_unit, unit_price_cents
+from app.unit_price import derive_price_per_unit, normalize_price_per_unit, unit_price_cents
 
 
 @pytest.mark.parametrize(
@@ -77,3 +77,52 @@ def test_derived_value_feeds_the_eur_per_kg_sort():
     # End to end: a 1-kg tray with no Grundpreis still gets a comparable €/kg.
     ppu = derive_price_per_unit("Spanien/Italien/Portugal Klasse I 1 kg", 249)
     assert unit_price_cents(ppu) == 249
+
+
+@pytest.mark.parametrize(
+    "ppu, price_cents, expected",
+    [
+        # parenthesized Grundpreis — the feed's most common variant (~19% of served offers);
+        # the anchored _EQ_RE can't read it and the card renders "8,05) €/(1 kg".
+        ("(1 kg = 8.05)", 399, "1 kg = 8.05"),
+        ("(1 L = 1.05)", 79, "1 L = 1.05"),
+        # non-kg/l units are unwrapped too (fixes the card); they stay unsortable below.
+        ("(1 WL = 0.19)", 499, "1 WL = 0.19"),
+        # German shorthand: the dash stands in for the euros.
+        ("1 kg = -.90", 179, "1 kg = 0.90"),
+        ("1 l = -,75", 99, "1 l = 0,75"),
+        # bare label: the advertised price IS the per-unit price
+        ("kg-Preis", 149, "1 kg = 1.49"),
+        ("100-g-Preis", 33, "1 kg = 3.30"),  # per-100g normalized to kg (the feed's own convention)
+        # label with the value attached
+        ("kg-Preis = 4.98", 259, "1 kg = 4.98"),
+        # a label with no usable price -> None, so derive_price_per_unit can run instead
+        ("kg-Preis", 0, None),
+        ("100-g-Preis", None, None),
+        # already-clean strings are untouched (idempotent), unknown shapes pass through
+        ("1 kg = 8.05", 399, "1 kg = 8.05"),
+        ("22.79 €/kg", 799, "22.79 €/kg"),
+        ("1 Topf", 149, "1 Topf"),
+        (None, 199, None),
+        ("", 199, None),
+    ],
+)
+def test_normalize_price_per_unit(ppu, price_cents, expected):
+    assert normalize_price_per_unit(ppu, price_cents) == expected
+
+
+@pytest.mark.parametrize(
+    "ppu, price_cents, expected_cents",
+    [
+        ("(1 kg = 8.05)", 399, 805),      # was None -> now sortable
+        ("(1 L = 1.05)", 79, 105),
+        ("1 kg = -.90", 179, 90),
+        ("100-g-Preis", 33, 330),         # the reported Lidl "Kirschen" (0,33 €/100 g)
+        ("kg-Preis", 149, 149),
+        ("kg-Preis = 4.98", 259, 498),
+        ("(1 WL = 0.19)", 499, None),     # cleaned for display, still not a €/kg|€/l axis
+        ("(1 m² = 11.90)", 2499, None),
+    ],
+)
+def test_normalized_value_feeds_the_eur_per_kg_sort(ppu, price_cents, expected_cents):
+    assert unit_price_cents(normalize_price_per_unit(ppu, price_cents)) == expected_cents
