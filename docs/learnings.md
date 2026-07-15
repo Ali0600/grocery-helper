@@ -707,3 +707,21 @@ swaps in the new ones — invalidation without a cold-start spinner.
 **Takeaway:** any cache that can short-circuit the network needs a version stamp you can bump from
 the code that ships the change; time-based expiry alone means your release waits for the clock.
 Treat a version mismatch as stale (serve + revalidate), not empty (spinner).
+
+## Before removing a "redundant" control, ask what it's used FOR — not what it duplicates
+
+Two controls can write the same state yet serve different jobs; deduplicating by state identity
+deletes one of the jobs.
+
+**Why it came up:** PR #69 removed the FilterSheet's "Stores shown" pills as redundant — they wrote
+the same `hiddenStores` the Stores modal's Add/Added now owned. The user immediately missed them:
+they'd been using the pills not for membership but as a quick *lens* ("show me only what EDEKA
+has"). Same state, different job. The fix (PR #70) wasn't restoring the duplicate but giving the
+lost job its own, better-fitting control: a single-select, session-only "Only show" row — one tap
+isolates a store (the old multi-select needed 4), and because it's transient a peek can never leave
+the app persistently stuck on one store. The two controls now differ in *meaning* (membership vs
+lens), so the redundancy is gone without the job being lost.
+
+**Takeaway:** redundancy lives at the level of user jobs, not state variables. Before deleting a
+control that "duplicates" another, enumerate the workflows it serves; if one has no other home,
+give it one — often the split reveals the right design (persistent choice vs transient lens).
