@@ -353,6 +353,18 @@ Engineering practices demonstrated while building and operating this project:
   geospatial routing from an independent data source to select the correct regional
   operator — designed to fail closed and emit a warning when it can't decide, on the
   principle that a missing data source is visible while wrong data is not.
+- **Property-based testing & test-gate engineering** — Introduced Hypothesis property
+  tests over the feed parsers (run deterministically in CI, exploratory locally) that
+  uncovered four latent defects in one pass, including a single-malformed-element failure
+  mode that degraded a whole retailer to sample data; hardened the parse path to be total
+  over arbitrary JSON and proved the change behavior-identical across all 5,800+ stored
+  real payloads. Corrected a misleading coverage setup (only-imported-files reporting 81%
+  vs. a true 64%) and pinned both stacks under ratcheting coverage floors in CI.
+- **Self-verifying continuous deployment** — Deploys no longer trust the trigger: the
+  health endpoint exposes the running commit, and the pipeline polls production until the
+  merged SHA is live (failing closed when the platform build never swaps), then asserts
+  the service serves real data. A scheduled data-quality gate checks retailer coverage and
+  parse-rate floors weekly, feeding an auto-opening, auto-closing incident issue workflow.
 - **CI/CD pipeline design & hardening** — Built a multi-job GitHub Actions pipeline
   (lint, tests + coverage, Docker image build) that gates an automated Render
   deployment and an Expo over-the-air release. Closed an unguarded release path by
