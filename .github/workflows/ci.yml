@@ -143,6 +143,11 @@ jobs:
             echo "fired=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          before=$(curl -fsS --max-time 30 "https://grocery-helper-sw6c.onrender.com/health" \
+            | python3 -c 'import sys,json;print(json.load(sys.stdin).get("commit") or "")' \
+            2>/dev/null || true)
+          echo "before=${before}" >> "$GITHUB_OUTPUT"
+          echo "Commit live before this deploy: '${before:-unknown}'"
           curl -fsS -X POST "$HOOK"
           echo "fired=true" >> "$GITHUB_OUTPUT"
           echo "Triggered Render deploy."
@@ -170,6 +175,13 @@ jobs:
             fi
             sleep 20
           done
+          before="${{ steps.trigger.outputs.before }}"
+          if [ -n "$live" ] && [ "$live" = "$before" ]; then
+            # Fail CLOSED: still serving the pre-deploy commit after ~15 min means Render
+            # never swapped — most likely its build failed. "Superseded" must not swallow this.
+            echo "::error::prod still serves the pre-deploy commit (${live}) — the Render build likely failed"
+            exit 1
+          fi
           if [ -n "$live" ] && [ "$live" != "$want" ]; then
             echo "::warning::a different commit (${live}) is live — superseded by a newer deploy; standing down."
             exit 0
