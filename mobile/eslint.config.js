@@ -18,8 +18,8 @@ module.exports = defineConfig([
     },
   },
   {
-    // Jest globals for the unit tests (run via jest-expo).
-    files: ['**/__tests__/**'],
+    // Jest globals for the unit tests (run via jest-expo) and the shared setup file.
+    files: ['**/__tests__/**', 'jest-setup.js'],
     languageOptions: {
       globals: {
         jest: 'readonly',

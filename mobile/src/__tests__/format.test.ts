@@ -2,6 +2,8 @@
 
 import {
   cleanUnit,
+  DEALS_CACHE_VERSION,
+  dealsCacheStale,
   dealsStale,
   euro,
   fmtPricePerUnit,
@@ -99,5 +101,44 @@ describe('todayISO / dealsStale (weekly Sunday expiry)', () => {
     expect(dealsStale(NOW.getTime() - 60 * 60 * 1000)).toBe(false); // earlier today
     expect(dealsStale(NOW.getTime() - 8 * DAY)).toBe(true); // last week, past its Sunday
     expect(dealsStale(null)).toBe(false); // no cache → not stale
+  });
+});
+
+describe('dealsCacheStale (version + weekly expiry)', () => {
+  // The weekly cache is authoritative: while it's fresh the app makes NO backend call at
+  // all. So a release that adds a chain must be able to invalidate it, or the new chain
+  // stays invisible until Sunday (this is what hid ALDI, and E center before it).
+  const NOW = new Date('2026-06-24T12:00:00'); // a Wednesday
+  const DAY = 24 * 60 * 60 * 1000;
+  const cache = (over: Partial<{ version: number; cachedAt: number }> = {}) => ({
+    version: DEALS_CACHE_VERSION,
+    cachedAt: NOW.getTime(),
+    ...over,
+  });
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(NOW);
+  });
+  afterEach(() => jest.useRealTimers());
+
+  it('is fresh for a current-version cache from this flyer week', () => {
+    expect(dealsCacheStale(cache())).toBe(false);
+  });
+
+  it('is stale for an older version even WITHIN the flyer week', () => {
+    expect(dealsCacheStale(cache({ version: DEALS_CACHE_VERSION - 1 }))).toBe(true);
+  });
+
+  it('is stale for a pre-versioning cache (no version field)', () => {
+    expect(dealsCacheStale({ cachedAt: NOW.getTime() })).toBe(true);
+  });
+
+  it('is stale past the flyer week even on the current version', () => {
+    expect(dealsCacheStale(cache({ cachedAt: NOW.getTime() - 8 * DAY }))).toBe(true);
+  });
+
+  it('is stale when there is no cache at all', () => {
+    expect(dealsCacheStale(null)).toBe(true);
   });
 });

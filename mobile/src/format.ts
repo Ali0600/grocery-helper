@@ -90,6 +90,26 @@ export const dealsStale = (cachedAt: number | null): boolean =>
   cachedAt != null && Date.now() > endOfDealWeek(cachedAt);
 
 /**
+ * Bump when a release changes the served deals in a way a cached week can't represent —
+ * a new chain above all. Because the weekly cache is authoritative, the app makes *no*
+ * backend call at all while it's current, so without this a newly scraped chain stays
+ * invisible until Sunday unless the user knows to hit Options → "Clear cached deals".
+ * That happened with E center, and again with ALDI (2026-07-15 → v2).
+ */
+export const DEALS_CACHE_VERSION = 2;
+
+/**
+ * True when the cached deals must be refetched: absent, written by an older app version,
+ * or past the flyer week. A version mismatch is *stale*, not *absent*, on purpose — the
+ * old deals still render instantly (no spinner, no cold-start block) while the refresh
+ * swaps in the new ones behind them.
+ */
+export const dealsCacheStale = (
+  cached: { version?: number; cachedAt: number } | null,
+): boolean =>
+  !cached || cached.version !== DEALS_CACHE_VERSION || dealsStale(cached.cachedAt);
+
+/**
  * Pull-to-refresh feedback: describe how the deal count changed vs what was on
  * screen — "3 new deals" (more), "2 deals removed" (fewer), or `null` when the
  * count is unchanged (so the UI stays silent). Compared by count only, matching

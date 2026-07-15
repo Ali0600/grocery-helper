@@ -25,6 +25,12 @@ type Props = {
   plz: string;
   myStores: MyStore[];
   onChangeMyStores: (next: MyStore[]) => void;
+  /** Chains whose deals are hidden. This — not `myStores` — is what the deals list,
+   * Basket and Recipes actually filter on, so Add/Added reads and writes it. */
+  hiddenStores: string[];
+  onToggleStore: (chain: string) => void;
+  /** Deals currently loaded per chain, so a row can show what adding it actually got you. */
+  chainCounts: Record<string, number>;
   onClose: () => void;
 };
 
@@ -63,7 +69,16 @@ const sameBranch = (a: NearbyStore, b: NearbyStore): boolean =>
 const branchKey = (s: NearbyStore): string =>
   `${s.chain}:${s.address ?? ''}:${s.lat.toFixed(5)},${s.lng.toFixed(5)}`;
 
-export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose }: Props) {
+export function StoresModal({
+  visible,
+  plz,
+  myStores,
+  onChangeMyStores,
+  hiddenStores,
+  onToggleStore,
+  chainCounts,
+  onClose,
+}: Props) {
   const [stores, setStores] = useState<StoreRow[]>([]);
   const [selected, setSelected] = useState<Record<string, NearbyStore>>({});
   const [loading, setLoading] = useState(true);
@@ -122,13 +137,10 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
     // myStores intentionally omitted: add/change update `selected` directly below.
   }, [visible, plz]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const savedFor = (chain: string) => myStores.find((m) => m.chain === chain);
-
-  // One saved store per chain: Add/Change replaces, Remove drops it.
+  // One saved branch per chain — this is `myStores`' only remaining job: remembering WHICH
+  // branch is yours (for display). Which chains' *deals* you see is `hiddenStores`.
   const saveBranch = (s: NearbyStore) =>
     onChangeMyStores([...myStores.filter((m) => m.chain !== s.chain), toMyStore(s)]);
-  const removeChain = (chain: string) =>
-    onChangeMyStores(myStores.filter((m) => m.chain !== chain));
 
   const openPicker = async (chain: string, label: string) => {
     setPicking({ chain, label });
@@ -149,6 +161,8 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
   const pickBranch = (s: NearbyStore) => {
     setSelected((prev) => ({ ...prev, [s.chain]: s }));
     saveBranch(s); // picking a branch IS choosing your store — persist it
+    // ...and choosing your store implies wanting its deals, so un-hide it.
+    if (hiddenStores.includes(s.chain)) onToggleStore(s.chain);
     setPicking(null);
   };
 
@@ -212,8 +226,8 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
           ) : (
             <>
               <Text style={styles.intro}>
-                Deals are live for the chains marked Active. Tap Change on any store to
-                pick the branch that&apos;s actually yours; Add saves it to your list.
+                Added stores show their deals in your list — tap Added to hide one, Add to
+                bring it back. Change picks the branch that&apos;s actually yours.
               </Text>
 
               {loading ? (
@@ -230,7 +244,12 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
                     const chain = s.chain;
                     const disp = selected[chain] ?? s;
                     const b = chainColors(chain);
-                    const isSaved = !!savedFor(chain);
+                    // "Added" == this chain's deals are shown. Default (untouched) is
+                    // added, because `hiddenStores` is a hidden-set — so a chain we track
+                    // reads as added without the user having to do anything, and a newly
+                    // scraped chain (ALDI) arrives already on.
+                    const isAdded = !hiddenStores.includes(chain);
+                    const count = chainCounts[chain] ?? 0;
                     // A placeholder row displays its hint only while nothing better is
                     // known — a saved branch overlaid via `selected` replaces it.
                     const showingPlaceholder = disp === s && !!s.placeholder;
@@ -258,30 +277,41 @@ export function StoresModal({ visible, plz, myStores, onChangeMyStores, onClose 
                               : (disp.address ?? 'Address unavailable') +
                                 (disp.distance_m > 0 ? ' · ' + fmtDist(disp.distance_m) : '')}
                           </Text>
+                          {/* What adding this store actually got you. 0 on an active chain
+                              means the last scrape brought nothing back for it — say so
+                              rather than leaving an "Added ✓" that shows no deals. */}
+                          {s.active ? (
+                            <Text style={styles.dealCount} numberOfLines={1}>
+                              {count > 0
+                                ? `${count} deal${count === 1 ? '' : 's'}`
+                                : 'No deals loaded — pull to refresh'}
+                            </Text>
+                          ) : (
+                            <Text style={styles.soon} numberOfLines={1}>
+                              Deals coming soon
+                            </Text>
+                          )}
                         </View>
 
                         <View style={styles.actions}>
-                          {isSaved ? (
+                          {/* Add/Added only for chains we scrape: it means "show this
+                              store's deals", which is meaningless without any. */}
+                          {s.active ? (
                             <Pressable
-                              onPress={() => removeChain(chain)}
+                              onPress={() => onToggleStore(chain)}
+                              accessibilityRole="button"
+                              accessibilityLabel={
+                                isAdded ? `Hide ${s.label} deals` : `Show ${s.label} deals`
+                              }
                               style={({ pressed }) => [
                                 styles.action,
-                                styles.savedTag,
+                                isAdded ? styles.savedTag : styles.addBtn,
                                 pressed && styles.pressed,
                               ]}
                             >
-                              <Text style={styles.savedText}>Added ✓</Text>
-                            </Pressable>
-                          ) : !showingPlaceholder ? (
-                            <Pressable
-                              onPress={() => saveBranch(selected[chain] ?? s)}
-                              style={({ pressed }) => [
-                                styles.action,
-                                styles.addBtn,
-                                pressed && styles.pressed,
-                              ]}
-                            >
-                              <Text style={styles.addText}>+ Add</Text>
+                              <Text style={isAdded ? styles.savedText : styles.addText}>
+                                {isAdded ? 'Added ✓' : '+ Add'}
+                              </Text>
                             </Pressable>
                           ) : null}
                           <Pressable
@@ -362,6 +392,8 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
   name: { color: colors.text, fontSize: 15, fontWeight: '600', flexShrink: 1 },
   meta: { color: colors.muted, fontSize: 12, marginTop: 4 },
+  dealCount: { color: colors.accent, fontSize: 12, fontWeight: '600', marginTop: 2 },
+  soon: { color: colors.muted, fontSize: 12, fontStyle: 'italic', marginTop: 2 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   action: {
     minWidth: 64,

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { CatalogItem, GROCERY_CATALOG } from './catalog';
+import { DEALS_CACHE_VERSION } from './format';
 import { DEFAULT_RECIPE_PREFS } from './recipes';
 import { BasketItem, CategoryCount, MyStore, Offer, PayloadMap, RecipePrefs } from './types';
 
@@ -141,6 +142,7 @@ export type CachedDeals = {
   cats: CategoryCount[];
   storeName: string | null;
   cachedAt: number; // ms epoch of the fetch
+  version?: number; // DEALS_CACHE_VERSION at write time; absent on pre-versioning caches
 };
 
 export async function getDealsCache(): Promise<CachedDeals | null> {
@@ -155,7 +157,10 @@ export async function getDealsCache(): Promise<CachedDeals | null> {
 
 export async function setDealsCache(data: CachedDeals): Promise<void> {
   try {
-    await AsyncStorage.setItem(DEALS_CACHE_KEY, JSON.stringify(data));
+    // Stamped here rather than at every call site, so a cache written by this build is
+    // always readable by it (an unstamped write would look stale forever).
+    const stamped: CachedDeals = { ...data, version: DEALS_CACHE_VERSION };
+    await AsyncStorage.setItem(DEALS_CACHE_KEY, JSON.stringify(stamped));
   } catch (e) {
     console.warn('storage: setDealsCache failed', e);
     // best-effort (e.g. storage quota) — the app still works without the cache

@@ -40,7 +40,7 @@ import {
   filterDeals,
   presentChains as derivePresentChains,
 } from '../dealFilters';
-import { dealsStale, refreshDeltaMessage } from '../format';
+import { dealsCacheStale, dealsStale, refreshDeltaMessage } from '../format';
 import { sortLabel } from '../sort';
 import { filterByVisibleStores, hasHiddenPresent, toggleHiddenStore, visibleStoreChains } from '../stores';
 import { resolveBasketItem } from '../basketResolve';
@@ -259,9 +259,11 @@ export default function DealsScreen() {
       if (cancelled) return;
       const hit = !!cached && cached.plz === plz;
       // Flyers are weekly, so a cache from the current flyer week is still current: serve
-      // it and skip the (sleepy) backend entirely. Only fetch when there's no cache or it's
-      // past the cached week's Sunday. Pull-to-refresh always forces a fetch.
-      const fresh = hit && cached != null && !dealsStale(cached.cachedAt);
+      // it and skip the (sleepy) backend entirely. Only fetch when there's no cache, it's
+      // past the cached week's Sunday, or the release bumped DEALS_CACHE_VERSION (a new
+      // chain — otherwise this branch skips the backend and the chain stays invisible for
+      // the rest of the week). Pull-to-refresh always forces a fetch.
+      const fresh = hit && !dealsCacheStale(cached);
       if (hit && cached) {
         setOffers(cached.offers);
         setCats(cached.cats);
@@ -488,8 +490,11 @@ export default function DealsScreen() {
     bioOnly ? { key: 'bio', label: 'Bio', onRemove: () => setBioOnly(false) } : null,
     showNonFood ? { key: 'nonfood', label: 'Non-food', onRemove: onToggleNonFood } : null,
   ].filter(Boolean) as { key: string; label: string; onRemove: () => void }[];
+  // The sheet's "Reset" clears the sheet's own filters. Store visibility is deliberately
+  // NOT reset here any more: it moved to the Stores modal and is a persisted choice about
+  // your store list, so resetting *filters* must not silently re-add a store you removed.
+  // The store chip's ✕ (showAllStores) is still the direct way back.
   const resetFilters = () => {
-    showAllStores();
     setSpecialDays(false);
     setBioOnly(false);
     if (showNonFood) onToggleNonFood();
@@ -701,6 +706,9 @@ export default function DealsScreen() {
         plz={plz}
         myStores={myStores}
         onChangeMyStores={onChangeMyStores}
+        hiddenStores={hiddenStores}
+        onToggleStore={onToggleStore}
+        chainCounts={chainCounts}
         onClose={() => setStoresModal(false)}
       />
       <BasketModal
@@ -736,10 +744,6 @@ export default function DealsScreen() {
         onReset={resetFilters}
         sortMode={sortMode}
         onChangeSort={onChangeSort}
-        chains={presentChains}
-        chainCounts={chainCounts}
-        hiddenStores={hiddenStores}
-        onToggleStore={onToggleStore}
         hasDayLimited={hasDayLimited}
         dayLimitedCount={dayLimitedCount}
         specialDays={specialDays}
