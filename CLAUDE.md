@@ -130,7 +130,13 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   ALDIs into one chain; `aldi_division` reads the same tags to route the **scrape**).
   `active` = chain in
   `ACTIVE_CHAINS` (lidl/rewe/edeka/edeka_center/aldi — the ones we scrape). Public Overpass instances 504 a lot → tries
-  mirrors in order + caches per-area (24h) + returns `[]` on total failure. These
+  mirrors in order + caches per-area (24h) + returns `[]` on total failure. **The endpoint
+  is globally rate-limited** (`app/throttle.py` `RateLimiter` token bucket → `_NEARBY_LIMITER`
+  in `api/offers.py`, ~30/min, burst 30): it fans out to Overpass/Nominatim on a cache miss, so
+  leaving it unthrottled let a stranger iterate coordinates and make *our* server hammer Overpass
+  → our IP rate-limited. Over budget it returns `[]` (same graceful contract as mirrors-down);
+  a single real user (~1 call opening Stores / tapping Change) never hits it. `/api/scrape` keeps
+  its own separate cooldown throttle. These
   are **not** persisted as `Store` rows; the app's "My stores" saved list lives
   client-side (`mobile/src/storage.ts`, key `myStores`, **one entry per chain** —
   the branch the user picked). `GET /api/nearby-stores?chain=<slug>` returns **every

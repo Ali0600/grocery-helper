@@ -26,6 +26,7 @@ from ..schemas import (
 )
 from ..serializers import offer_to_out
 from ..services.optimizer import optimize_basket
+from ..throttle import RateLimiter
 from ..validity import berlin_today
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,15 @@ _SCRAPE_COOLDOWN_S = 600.0
 _SCRAPE_MIN_GAP_S = 15.0
 _last_scrape_at: dict = {}  # plz -> time.monotonic() of its last accepted scrape
 _last_any_scrape: Optional[float] = None
+
+# Public store-lookup rate limit: /api/nearby-stores fans out to Overpass/Nominatim on a
+# cache miss, so a stranger iterating coordinates (the cache keys on ~110 m) could make THIS
+# server hammer Overpass and get our IP rate-limited. Bound it to ~30/min (burst 30) — a
+# single real user makes ~1 call (opening Stores / tapping Change), so this is invisible to
+# them but a hard ceiling for an abuser. Over budget → return [] (the same graceful contract
+# the endpoint already returns when the mirrors are unreachable). Global, not per-IP (simpler,
+# and the goal is protecting our own outbound reputation); per-IP is a future refinement.
+_NEARBY_LIMITER = RateLimiter(capacity=30, refill_per_s=0.5)
 
 
 @router.get("/offers", response_model=List[OfferOut])
@@ -186,7 +196,13 @@ def list_nearby_stores(
     `chain=<slug>`: every branch of that one chain near the PLZ, nearest first — the
     "Change branch" picker, so the user can pick the store actually near them rather
     than the one merely nearest the PLZ centroid. Empty list = mirrors unreachable.
+
+    Rate-limited so a third party can't drive this endpoint's outbound Overpass/Nominatim
+    fan-out unbounded (which would burn our IP's reputation with the free OSM services).
     """
+    if not _NEARBY_LIMITER.allow():
+        logger.warning("nearby-stores rate limit reached; returning [] to protect the OSM fan-out budget")
+        return []
     from ..services.store_locator import CHAINS, chain_branches, nearby_stores, plz_centroid
 
     if lat is None or lng is None:

@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.db import get_session
 from app.main import app
 from app.models import Base, Offer, Store
+from app.throttle import RateLimiter
 from app.validity import berlin_today
 
 TODAY = berlin_today()
@@ -184,6 +185,29 @@ def test_scrape_throttled_only_when_plz_has_rows(client, monkeypatch):
     # An EMPTY PLZ scrapes even right after (cold-start path must never block).
     third = client.post("/api/scrape?plz=20095").json()
     assert "skipped" not in third and calls == ["10115", "20095"]
+
+
+def test_nearby_stores_is_rate_limited(client, monkeypatch):
+    """A stranger iterating coordinates can't drive unbounded Overpass fan-out: once the
+    token bucket is empty the endpoint returns [] WITHOUT calling the locator (which is
+    what protects our IP's standing with the free OSM mirrors)."""
+    calls = {"n": 0}
+
+    def fake_nearby(lat, lng, **kw):
+        calls["n"] += 1
+        return []
+
+    monkeypatch.setattr("app.services.store_locator.nearby_stores", fake_nearby)
+    # A tiny, frozen-clock limiter: 2 tokens, no refill.
+    monkeypatch.setattr(offers_api, "_NEARBY_LIMITER", RateLimiter(2, 0, clock=lambda: 0.0))
+
+    # Explicit lat/lng → no PLZ resolution; each allowed call fans out to the (faked) locator.
+    urls = "/api/nearby-stores?lat=52.52&lng=13.4"
+    r1, r2, r3 = client.get(urls), client.get(urls), client.get(urls)
+
+    assert r1.status_code == r2.status_code == r3.status_code == 200
+    assert r1.json() == r3.json() == []
+    assert calls["n"] == 2  # the 3rd request was rate-limited → locator never invoked
 
 
 def test_health_exposes_the_running_commit(monkeypatch):

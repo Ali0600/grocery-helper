@@ -782,3 +782,20 @@ when the real lever is volume.
 **Takeaway:** a fallback must announce a throttle, not swallow it. `except: serve samples` made a
 429 (slow down!) indistinguishable from a parse bug — record it (`metrics.record_throttle`) so the
 rate-limit is visible. And pace bursts + honor Retry-After before reaching for anything fancier.
+
+## Bound every public endpoint that fans out to a third party, not just the obvious one
+
+`/api/scrape` had a throttle; `/api/nearby-stores` did not — yet it also fans out (to
+Overpass/Nominatim) on a cache miss, keyed by ~110 m coordinates. So a stranger iterating
+coordinates could make *our* server hammer Overpass and get *our* IP rate-limited — an
+amplification vector hiding in a read-only lookup. A small token-bucket (`app/throttle.py`
+`RateLimiter`, ~30/min) on the endpoint caps it; over budget it returns `[]`, the same graceful
+"mirrors unreachable" contract the app already handles, so a real user (≈1 call) never notices.
+
+**Why it came up:** hardening the scrapers against bans, the risk wasn't only *our* scraping
+cadence — it was that a *public* endpoint let anyone borrow our IP to hammer a free upstream.
+
+**Takeaway:** when you protect one path that triggers outbound calls, enumerate the others. Any
+public endpoint whose work fans out to a third party (geocoder, search, webhook) is a
+request-amplification/DoS vector until it's bounded — cache alone doesn't help when the caller
+controls the cache key.
