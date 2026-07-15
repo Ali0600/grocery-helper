@@ -219,7 +219,7 @@ def chain_branches(
 
 
 def _division_for(tags: dict) -> Optional[str]:
-    """"nord"/"sued" from one OSM element's tags, or None if it carries no division.
+    """The ALDI division one OSM element belongs to, or None if it carries no signal.
 
     Berlin tags 22 branches ``brand="Aldi Nord"`` but 23 plain ``name="Aldi"``, so brand and
     operator matter as much as name — and a signal-less element must be skipped, not fatal.
