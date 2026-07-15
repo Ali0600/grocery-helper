@@ -483,6 +483,23 @@ Deduping only at serve time hid it from users but left the raw count (and the DB
 **Takeaway:** dedup at ingestion (not just at read) when the upstream's record count is
 non-deterministic, so stored size and any reported counts reflect distinct entities.
 
+### A field you "already parse" can still be silently dropping most of its values
+Presence ≠ parseability. One free-text field from an external feed usually arrives in *several*
+shapes, and a parser written for the canonical one drops the rest without erroring — so
+coverage metrics that count "has a value" look healthy while the feature is half-broken.
+**Why it came up:** the user reported one cherry offer missing its €/kg. Bucketing every raw
+`priceByBaseUnit` by **shape** (not by presence) showed 74% of served offers carried a Grundpreis
+string but only **53%** produced a €/kg: 263 of them were parenthesised — `"(1 kg = 8.05)"` — and
+`unit_price_cents`' regex was anchored `^\s*1`, so a leading `(` never matched. The *same* string
+also rendered as literal garbage on the card (`"8,05) €/(1 kg"`), a visible bug nobody had reported.
+Normalising the shapes on read took coverage to 72% and fixed the display in the same line.
+A second trap compounded it: `offer.price_per_unit or derive_price_per_unit(...)` — the feed's junk
+label `"100-g-Preis"` is **truthy**, so it silently disabled the fallback that would have rescued it.
+**Takeaway:** audit an external free-text field by grouping its RAW values into shape buckets and
+counting what each one *yields* — "we parse that field" is not "we parse its values". And never put
+an unvalidated external value on the left of `x or fallback()`: any truthy junk disables the
+fallback. Normalise first, return None for what you can't use, and let the fallback run.
+
 ### Don't assume a payload field is redundant — measure it
 A field that looks like a duplicate of data you already have can carry finer-grained truth.
 **Why it came up:** each flyer offer has a `publicationProfiles[].validity` window that the
