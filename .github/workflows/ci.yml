@@ -34,7 +34,13 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
       - run: ruff check .
-      - run: pytest -q --cov=app --cov-report=term-missing --cov-report=xml
+      # HYPOTHESIS_PROFILE=ci derandomizes the property tests (tests/conftest.py) so this
+      # gate can never flake; randomness only hunts locally. --cov-fail-under is a ratchet:
+      # set to the measured floor at the time of each change — raise it as coverage climbs,
+      # never lower it to make a PR pass.
+      - run: pytest -q --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=85
+        env:
+          HYPOTHESIS_PROFILE: ci
       # Build the schema from migrations on a throwaway SQLite, then fail if the
       # ORM models have drifted from the migrations (a model change with no migration).
       - run: alembic upgrade head

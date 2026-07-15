@@ -91,9 +91,13 @@ def normalize_price_per_unit(ppu: Optional[str], price_cents: Optional[int]) -> 
     if not ppu:
         return None
     s = ppu.strip()
-    paren = _PAREN.match(s)
-    if paren:
-        s = paren.group(1).strip()
+    # Unwrap to a fixpoint, not once: normalize must be idempotent, or the serialized
+    # value would depend on how many times a string passed through the pipeline.
+    while (paren := _PAREN.match(s)) is not None:
+        inner = paren.group(1).strip()
+        if inner == s:  # e.g. "()" — no progress; stop rather than loop
+            break
+        s = inner
     label = _UNIT_LABEL.match(s)
     if label:
         per_kg = label.group(1).lower().startswith("kg")
@@ -193,4 +197,8 @@ def derive_price_per_unit(unit: Optional[str], price_cents: int) -> Optional[str
         per, axis = euros / (num / 100), "l"
     else:
         return None  # stück / stk / st -> no €/kg|€/l axis
+    if round(per, 2) <= 0:
+        # A per-unit below half a cent formats as "0.00" — the card would display a zero
+        # Grundpreis while the sort rejects it. Corrupt-input territory; emit nothing.
+        return None
     return f"1 {axis} = {per:.2f}"
