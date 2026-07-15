@@ -628,3 +628,41 @@ push path must be verified manually first (HTTPS credential helper / `gh`).
 build-gate, not a CI key. And never trust the interactive shell's env in a scheduled job —
 resolve every binary (and auth) explicitly; a tool that works in your terminal can be absent under
 launchd/cron.
+
+## A fail-closed default that always fires looks exactly like the feature not existing
+
+A skip-rather-than-guess safety valve is only safe if the *happy path* actually works; if it fires
+100% of the time, the feature is silently absent and every test still passes.
+
+**Why it came up:** adding ALDI (2026-07-15). ALDI is two independent companies (Nord/SÜD) whose
+meinprospekt publishers are both *national* — each serves the identical brochure to Berlin and
+Munich — so the feed can't say which is yours, and picking wrong shows deals from ~300 km away. We
+resolve the division from OpenStreetMap and, if that can't answer, **skip ALDI and log** rather than
+guess. Shipped green: 433 tests, CI pass, deploy fired. But **ALDI never appeared in production** —
+because `aldi_division` reused the existing `_overpass_query` (every supermarket within 6 km), which
+is far too heavy for public Overpass and **504s every time** (measured 3/3, from a home connection
+too — not a Render problem). The fail-closed path was working perfectly and firing on every single
+scrape. Unit tests couldn't catch it: they mock `_fetch_overpass`, so they only ever exercised the
+branch where the query *succeeds*. Only polling prod for the actual outcome exposed it. Asking
+Overpass for **just ALDI branches** returns in ~11s and resolved 6/6 live runs.
+
+**Takeaway:** don't reuse a general-purpose query/client for a narrow need without checking it's fit
+for the new call's cost — and after shipping, verify the *feature* in prod, not the deploy. If a
+degradation path can fire, prove the non-degraded path works against the real dependency at least
+once.
+
+## Overpass answers a dead query with 200 + empty + a `remark`
+
+An external API can report success while having evaluated nothing — an empty result that is
+indistinguishable from "there is genuinely nothing here" unless you read the error channel.
+
+**Why it came up:** while fixing the above, a too-expensive query came back **HTTP 200, `elements:
+[]`, plus `"remark": "runtime error: Query timed out"`**. Our `_fetch_overpass` did
+`resp.json().get("elements", [])` → `[]`, and `nearby_stores` **cached that for 24h** — so one bad
+moment stored "there are no supermarkets near you" for a whole day, with no error anywhere. The fix
+treats a `remark` as a mirror failure (fail over; all-remark → `None` so the caller degrades and
+never caches), while a genuinely empty area (no remark) stays a valid, cacheable result.
+
+**Takeaway:** when an API has a soft-error channel (a `remark`/`warnings`/`status` field alongside a
+200), read it — and never let "the call failed" become a cached "the answer is nothing". Separate
+*fetched-and-got-nothing* from *fetch-failed* before anything caches the result.
