@@ -20,7 +20,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 - DB migration (after a model change): `cd backend && alembic revision --autogenerate -m "msg"`,
   review the file, commit. Runtime auto-runs `upgrade head` at startup (`app/migrations.py`).
 - Mobile typecheck: `cd mobile && npx tsc --noEmit`
-- Mobile tests: `cd mobile && npm test` (jest-expo; CI runs `npm test -- --ci`)
+- Mobile tests: `cd mobile && npm test` (jest-expo; CI runs `npm test -- --ci`). **Component tests
+  work now** (`__tests__/StoresModal.test.tsx` is the first) — three things had to be true and each
+  one fails with a misleading error: (1) `testMatch` must include **`*.test.tsx`** (it was `.ts`
+  only, which is why RNTL sat installed-but-unused); (2) `setupFiles` needs
+  gesture-handler's own `jestSetup.js` (else `RNGestureHandlerModule.default.install is not a
+  function`, since every modal is an `AppModal`); (3) `jest-setup.js` sets
+  **`IS_REACT_ACT_ENVIRONMENT`**, which jest-expo doesn't — React 19 then refuses `act()`.
+  **RNTL v14's `render` is `async`** (it was sync in v13): `await render(...)`, or `screen` is
+  unbound and *every* assertion fails with "render function has not been called".
 - Mobile lint: `cd mobile && npm run lint` (ESLint, `eslint-config-expo` flat config)
 - Mobile run: `cd mobile && npx expo start` (open on the iOS simulator).
 - Web run: `cd mobile && npm run web` (Expo Web / react-native-web; serves the
@@ -412,12 +420,31 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   The app badges Bio offers (green pill, `OfferCard`) + a **"Bio only"** option in the FilterSheet
   (shown only when some offer is `is_bio`; filters client-side, composes with
   store/category/search/special-days). ~6% of a Berlin PLZ's offers.
+- **Store visibility IS "My stores"** (2026-07-15): which chains' deals you see is controlled from
+  the **Stores modal** (`StoresModal`'s Add/Added ✓), **not** the FilterSheet — the "Stores shown"
+  section was removed. Backed by the **existing `hiddenStores`** key (+ `stores.ts` helpers), NOT by
+  `myStores`: it's a *hidden*-set, so an untouched chain is visible, a **newly scraped chain is
+  visible automatically**, and the never-hide-the-last guard still applies. Inverting to a
+  visible-list would mean "show nothing" on a fresh install and would hide 4 chains the moment you
+  added your first store. So a tracked chain reads **"Added ✓" by default** (the user read
+  tracked-but-unadded as a bug — it was that `myStores` did *nothing* outside the modal, a pure
+  bookmark, while the real switch was buried in a filter sheet). `myStores` now has exactly one job:
+  remembering **which branch** you picked via Change (display only). Add/Added is shown **only for
+  `active` chains** — an inactive one gets "Deals coming soon" (no deals to show ⇒ no Add). Rows show
+  the live `chainCounts` ("244 deals" / "No deals loaded — pull to refresh") so "did adding it work?"
+  is answerable. The FilterBar store chip (✕ = show all) stays as the escape hatch, but the sheet's
+  **Reset no longer clears `hiddenStores`** — it's a persisted store choice, not a transient filter.
+- **The deals cache is versioned** (`format.ts` `DEALS_CACHE_VERSION` + `dealsCacheStale`): the
+  weekly cache is *authoritative*, so while it's fresh `DealsScreen` makes **zero backend calls** —
+  which meant a newly scraped chain stayed **invisible until Sunday** unless the user knew to hit
+  Options → "Clear cached deals" (this hid E center, then ALDI). **Bump `DEALS_CACHE_VERSION` in any
+  release that adds a chain** (or otherwise changes served deals a cached week can't represent);
+  `setDealsCache` stamps it. A mismatch is treated as **stale, not absent** — the old deals still
+  render instantly (no spinner, no cold-start block) while a background `revalidate` swaps them.
 - **Deals-screen filter UI (redesigned)**: secondary filters live in a **bottom sheet**
   (`components/FilterSheet.tsx`) opened from a single **`FilterBar`** (sort summary + a "Filters"
   button badged with the active-filter count + a removable chip per active filter). The sheet holds
-  Sort / **Stores shown** (multi-select hide/show, persisted `hiddenStores` key — a hidden-set with a
-  never-hide-the-last-store guard in `stores.ts`; hiding applies to the deals list AND the Basket/
-  Recipes matchers via `modalOffers`, per the user — Compare keeps its own picker) / Special days /
+  Sort / Special days /
   Bio / Non-food as labelled pill sections **with the per-option counts**; the category-chips row is
   the only inline filter now. Filter state stays in `DealsScreen`; the old
   `StoreFilter`/`SpecialDaysToggle`/`BioToggle`/`SortToggle` row components

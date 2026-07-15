@@ -3,7 +3,6 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppModal } from './AppModal';
 
-import { chainLabel } from '../chains';
 import { SORT_OPTIONS } from '../sort';
 import { SortMode } from '../storage';
 import { colors, font, radius, space } from '../theme';
@@ -42,10 +41,8 @@ export function FilterSheet(props: {
   onReset: () => void;
   sortMode: SortMode;
   onChangeSort: (m: SortMode) => void;
-  chains: string[];
-  chainCounts: Record<string, number>;
-  hiddenStores: string[];
-  onToggleStore: (c: string) => void;
+  // Store visibility lives in the Stores modal now — it IS "my stores", and having the same
+  // switch in two places (one of which looked decorative) is what confused it.
   hasDayLimited: boolean;
   dayLimitedCount: number;
   specialDays: boolean;
@@ -85,17 +82,6 @@ export function FilterSheet(props: {
               onPress: () => props.onChangeSort(o.value),
             }))}
           />
-
-          {props.chains.length >= 2 && (
-            <Section
-              title="Stores shown"
-              options={props.chains.map((c) => ({
-                label: `${chainLabel(c)} (${props.chainCounts[c] ?? 0})`,
-                active: !props.hiddenStores.includes(c),
-                onPress: () => props.onToggleStore(c),
-              }))}
-            />
-          )}
 
           {props.hasDayLimited && (
             <Section
