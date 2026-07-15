@@ -218,6 +218,24 @@ def chain_branches(
     return [s for s in branches if s.chain == chain][:limit]
 
 
+def _aldi_query(lat: float, lng: float, radius_m: int) -> str:
+    """Overpass query for ALDI branches only — NOT the generic supermarket one.
+
+    Reusing `_overpass_query` here was a live bug: every-supermarket-in-6-km is far too
+    heavy for the public instances and **504s every time** (measured 3/3, from a home
+    connection as well as Render), so the division never resolved and ALDI was skipped on
+    every prod scrape. Asking only for ALDI returns in ~11s. Regexing `name` too pushed it
+    back into a server-side timeout, and brand/operator carry the division in the real data
+    anyway (a name-only branch just falls through to the next-nearest one).
+    """
+    clauses = "".join(
+        f'{kind}["shop"="supermarket"]["{tag}"~"aldi",i](around:{radius_m},{lat},{lng});'
+        for kind in ("node", "way")
+        for tag in ("brand", "operator")
+    )
+    return f"[out:json][timeout:25];({clauses});out center tags;"
+
+
 def _division_for(tags: dict) -> Optional[str]:
     """The ALDI division one OSM element belongs to, or None if it carries no signal.
 
@@ -252,7 +270,7 @@ def aldi_division(
     own = client is None
     client = client or tracked_client(timeout=30, headers=HEADERS)
     try:
-        elements = _fetch_overpass(_overpass_query(lat, lng, radius_m), client)
+        elements = _fetch_overpass(_aldi_query(lat, lng, radius_m), client)
     finally:
         if own:
             client.close()
@@ -294,12 +312,24 @@ def _overpass_query(lat: float, lng: float, radius_m: int) -> str:
 
 
 def _fetch_overpass(query: str, client: httpx.Client) -> Optional[List[dict]]:
-    """Try each mirror in order; first 200 wins. None if all fail."""
+    """Try each mirror in order; first usable 200 wins. None if all fail.
+
+    A query that dies server-side (its own `[timeout:]`, or the instance shedding load) is
+    answered with **HTTP 200 + an empty `elements` + a `remark`** — indistinguishable from
+    "there is genuinely nothing here" unless the remark is read. Treating that as data meant
+    a died query got cached as "no stores nearby" for the full 24h TTL, so one bad moment
+    silently emptied the directory for a day. A remark is a mirror failure, not a result.
+    """
     for url in OVERPASS_MIRRORS:
         try:
             resp = client.post(url, data={"data": query})
             resp.raise_for_status()
-            return resp.json().get("elements", [])
+            body = resp.json()
+            remark = body.get("remark")
+            if remark:
+                logger.warning("Overpass mirror %s returned a remark: %s", url, remark)
+                continue  # a dead query, not an empty area — try the next mirror
+            return body.get("elements", [])
         except Exception:
             logger.debug("Overpass mirror failed: %s", url, exc_info=True)
             continue

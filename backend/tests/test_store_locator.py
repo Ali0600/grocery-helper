@@ -267,3 +267,71 @@ def test_aldi_is_an_active_chain():
     assert "aldi" in sl.ACTIVE_CHAINS
     aldi = next(s for s in _stores() if s.chain == "aldi")
     assert aldi.active is True
+
+
+def test_aldi_query_asks_only_for_aldi_branches():
+    """The generic every-supermarket query 504s at this radius on the public instances
+    (measured 3/3), which silently skipped ALDI on every prod scrape. Keep it targeted."""
+    q = sl._aldi_query(52.5, 13.4, 6000)
+    assert '"brand"~"aldi",i' in q and '"operator"~"aldi",i' in q
+    assert "node[" in q and "way[" in q
+    # Regexing `name` as well pushed the query back into a server-side timeout.
+    assert '"name"~' not in q
+    # ...and it must not degrade into the broad scan again.
+    assert q != sl._overpass_query(52.5, 13.4, 6000)
+
+
+def test_aldi_division_uses_the_targeted_query(monkeypatch):
+    seen = {}
+    def fake(query, client):
+        seen["q"] = query
+        return [_aldi_el(52.501, 13.401, brand="Aldi Nord")]
+    sl._DIVISION_CACHE.clear()
+    monkeypatch.setattr(sl, "_fetch_overpass", fake)
+    assert sl.aldi_division(*CENTER, client=object()) == "nord"
+    assert '"brand"~"aldi",i' in seen["q"]
+
+
+class _FakeResp:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self._payload
+
+
+def test_fetch_overpass_treats_a_remark_as_a_mirror_failure():
+    """Overpass answers a died query with 200 + [] + a remark. Returning that as data
+    cached "no stores here" for 24h — a failure must fail over, not be believed."""
+    calls = []
+
+    class Client:
+        def post(self, url, data):
+            calls.append(url)
+            if len(calls) == 1:  # first mirror's query dies server-side
+                return _FakeResp({"elements": [], "remark": "runtime error: Query timed out"})
+            return _FakeResp({"elements": [{"type": "node", "id": 1}]})
+
+    out = sl._fetch_overpass("q", Client())
+    assert out == [{"type": "node", "id": 1}]  # fell over to the healthy mirror
+    assert len(calls) == 2
+
+
+def test_fetch_overpass_still_returns_a_genuinely_empty_area():
+    """No remark + no elements = the area really has no stores; that IS a valid result."""
+    class Client:
+        def post(self, url, data):
+            return _FakeResp({"elements": []})
+
+    assert sl._fetch_overpass("q", Client()) == []
+
+
+def test_fetch_overpass_is_none_when_every_mirror_remarks():
+    class Client:
+        def post(self, url, data):
+            return _FakeResp({"elements": [], "remark": "runtime error"})
+
+    assert sl._fetch_overpass("q", Client()) is None  # -> caller skips + never caches
