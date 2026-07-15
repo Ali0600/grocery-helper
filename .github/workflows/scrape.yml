@@ -28,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # Needed for the data-quality gate script below; the reset step itself is pure curl.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: POST /api/reset (retry transient failures)
         env:
           # SCRAPE_PLZ is a *secret* (not a variable) so a personal postal code is masked
@@ -49,6 +51,18 @@ jobs:
           done
           echo "::error::refresh failed after 3 attempts"
           exit 1
+
+      # A successful reset can still have produced BAD data (a chain silently skipped, a
+      # feed shape drift collapsing the parse rates, samples instead of real offers). The
+      # gate asserts the served OUTCOME against measured floors; a violation fails this
+      # job, which flows into the exact same alert-issue + close-on-recovery machinery
+      # below — no new plumbing. Prints counts only (the PLZ secret never echoes).
+      - name: Data-quality gate on the served deals
+        env:
+          PLZ: ${{ github.event.inputs.plz || secrets.SCRAPE_PLZ || '10115' }}
+        run: |
+          python3 .github/scripts/verify_deals.py \
+            --url "https://grocery-helper-sw6c.onrender.com/api/offers" --plz "${PLZ}"
 
       # A silent weekly failure is invisible; surface it as a (deduplicated) issue.
       - name: Alert on repeated failure

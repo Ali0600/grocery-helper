@@ -184,3 +184,16 @@ def test_scrape_throttled_only_when_plz_has_rows(client, monkeypatch):
     # An EMPTY PLZ scrapes even right after (cold-start path must never block).
     third = client.post("/api/scrape?plz=20095").json()
     assert "skipped" not in third and calls == ["10115", "20095"]
+
+
+def test_health_exposes_the_running_commit(monkeypatch):
+    """The deploy job polls /health until `commit` equals the merged SHA — that's what
+    makes "is my code live yet?" a queryable fact instead of an inference from data
+    shapes. None when not on Render (local dev)."""
+    from app.main import health
+
+    monkeypatch.delenv("RENDER_GIT_COMMIT", raising=False)
+    assert health() == {"status": "ok", "commit": None}
+
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "abc123")
+    assert health() == {"status": "ok", "commit": "abc123"}
