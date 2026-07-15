@@ -323,6 +323,17 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   fallback can run** (a non-null junk string used to suppress it). Non-kg/l units (`1 WL`,
   `1 m²`) are unwrapped for display but stay unsortable. Lifted €/kg coverage **53% → 72%**
   of a Berlin PLZ (+272), display + sort fixed in one place — **no OTA, no re-scrape**.
+  **The leading `1` is optional and the unit may be a word** (`_BARE_UNIT`, added for ALDI):
+  `"kg = 5.97"`/`"(Liter = 0.99)"` → `"1 kg = 5.97"`/`"1 l = 0.99"` — ALDI drops the amount every
+  other chain prints, so `_EQ_RE`'s `^\s*1` anchor rejected it (only **2%** of ALDI was sortable →
+  **66%**). Only an *optional literal `1`* is allowed — `"100 g = 2.19"` must NOT read as per-kg.
+  Also: a colon typo'd as the decimal separator (`"Liter = 1:75"`) is substituted **before** the
+  value is read (else it silently parses as 1.00 — a wrong €/kg is worse than none); the value is
+  cut to its leading number, dropping `ATG` (Abtropfgewicht) and range tails (`"6.64/5.98"` → the
+  value the card already showed) while **keeping** the German whole-euro `"4.-"`. This also
+  canonicalizes the feed's missing spaces (`"1kg=5,66"`), which **1385 of 3599** stored Grundpreise
+  had — they were rendering **`"5,66 €/1kg"`** on the card (`fmtPricePerUnit` strips `^1\s+`, so it
+  needs the space). Verified: 0 regressions over all 5505 stored offers, +12 newly sortable.
 - **Missing Grundpreis is recovered at serve time** (`unit_price.py`
   `derive_price_per_unit(unit, price_cents)`, used by the serializer when
   `Offer.price_per_unit` is null/unnormalizable), three cases: (1) the Grundpreis is **embedded in
