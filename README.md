@@ -5,9 +5,9 @@ weekly offers ("Angebote") from local supermarket chains, normalizes and
 categorizes them, computes the **% discount** for every item, and helps you
 build the cheapest basket across one or two stores.
 
-> **Status:** v1.1 in progress. **Live Lidl + REWE + EDEKA + E center offers** + API +
+> **Status:** v1.1 in progress. **Live Lidl + REWE + EDEKA + E center + ALDI offers** + API +
 > the React Native app work end-to-end — real Berlin prices, resolved from your postal
-> code via the Lidl Plus endpoints and the meinprospekt weekly-flyer feed. Four
+> code via the Lidl Plus endpoints and the meinprospekt weekly-flyer feed. Five
 > chains make the basket optimizer, the per-product grouping, and the **Compare
 > Stores** face-off meaningful. The **backend is deployed on Render** (HTTPS), and
 > the iOS app ships via **EAS → TestFlight** (build 1.1.0) with OTA updates.
@@ -80,8 +80,8 @@ build the cheapest basket across one or two stores.
   recipe filtering, store comparison, catalog trap-guards); a model-vs-migration
   **drift check** (`alembic check`) fails CI if the ORM and schema diverge.
 - **Multi-retailer ingestion across heterogeneous sources** — a single
-  publisher-parameterized engine normalizes four German chains (Lidl, REWE, EDEKA,
-  E center) from two feed types (a private mobile coupon API and structured
+  publisher-parameterized engine normalizes five German chains (Lidl, REWE, EDEKA,
+  E center, ALDI) from two feed types (a private mobile coupon API and structured
   weekly-flyer data) into one schema, tagged by chain/source, powering a cross-store
   basket optimizer.
 - **Geospatial store discovery** — an OpenStreetMap Overpass integration that
@@ -279,6 +279,14 @@ hypermarket format has its **own** meinprospekt publisher (`DE-3443181`), so it'
 scraped as a fourth, separate chain (~290 offers/PLZ) — which is what makes the
 EDEKA-vs-E-center face-off in **Compare Stores** possible.
 
+**ALDI weekly flyer** (`source="flyer"`, `chain="aldi"`) — ALDI is two independent
+companies with disjoint territories (ALDI Nord `DE-75`, ALDI SÜD `DE-77`), and **both**
+meinprospekt publishers are national: each serves the identical brochure to Berlin and
+Munich, so the feed will not say which one is actually yours. The scraper picks the
+division that operates at the postal code from OpenStreetMap's per-branch tags, and
+scrapes only that one — if it can't tell, ALDI is skipped and logged rather than guessed,
+because a missing chain is visible whereas wrong-region deals are not (~244 offers/PLZ).
+
 **Categorization.** [`categories.py`](backend/app/categories.py) classifies each
 offer with a path-aware, deterministic pipeline:
 
@@ -338,6 +346,13 @@ zero-risk docs can still be pushed directly.
 
 Engineering practices demonstrated while building and operating this project:
 
+- **Correctness engineering against an unreliable upstream** — Established that a
+  third-party feed served *nationally scoped* data while presenting it as local, which
+  would have shown users deals from retailers ~300 km away. Proved it by differential
+  probing (same query from two locations, against a known-regional control), then built
+  geospatial routing from an independent data source to select the correct regional
+  operator — designed to fail closed and emit a warning when it can't decide, on the
+  principle that a missing data source is visible while wrong data is not.
 - **CI/CD pipeline design & hardening** — Built a multi-job GitHub Actions pipeline
   (lint, tests + coverage, Docker image build) that gates an automated Render
   deployment and an Expo over-the-air release. Closed an unguarded release path by

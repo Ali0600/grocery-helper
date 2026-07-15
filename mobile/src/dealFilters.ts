@@ -11,7 +11,7 @@ import { SortMode } from './storage';
 import { Offer } from './types';
 
 // Preferred order for the store filter; any other chains follow, alphabetically.
-export const CHAIN_ORDER = ['lidl', 'rewe', 'edeka', 'edeka_center'];
+export const CHAIN_ORDER = ['lidl', 'rewe', 'edeka', 'edeka_center', 'aldi'];
 
 /** Chains present in the loaded set, CHAIN_ORDER first, unknown chains appended A–Z. */
 export function presentChains(offers: Offer[]): string[] {

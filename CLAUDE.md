@@ -48,7 +48,27 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   job's logs are world-readable, so a variable would leak the PLZ — secrets are masked (`***`).
   The repo was history-rewritten on 2026-06-30 to purge a personal PLZ — do NOT reintroduce one
   in any committed file (code, docs, tests, CI, compose, blueprint).
-- **Two sources × four chains, tagged `Offer.source` / `Store.chain`**: `coupon`
+- **ALDI is TWO companies, and the feed will not tell you which one is yours**
+  (`bonial.py` `AldiNordScraper`/`AldiSuedScraper`, routed in `run.py` via
+  `store_locator.aldi_division`). ALDI Nord (publisher **`DE-75`**, page `/aldinord-de`) and
+  ALDI SÜD (**`DE-77`**, `/aldisued-de`) are independent companies with **disjoint**
+  territories (the "Aldi-Äquator"; Berlin is Nord). **Both publisher pages are NATIONAL**:
+  measured, each serves the *identical* brochure to Berlin and Munich and ignores the
+  `location` cookie — unlike REWE/EDEKA, which correctly return different brochures per city.
+  So nothing upstream stops us showing a Berlin user ALDI SÜD deals from ~300 km away. We pick
+  the division from **OSM** (`aldi_division` → nearest branch whose brand/name/operator carries
+  "Nord"/"Süd"; Berlin→nord, Munich/Frankfurt→sued, verified live) and scrape only that one.
+  **If the division can't be determined, ALDI is skipped + logged — never guessed** (fail
+  closed: a missing chain is visible, wrong-region deals are not). A resolved division is
+  cached 24h; a **failure is never cached**, so one Overpass blip can't drop ALDI all day.
+  Both scrapers deliberately share **`chain = "aldi"`** (the two never coexist, so there's
+  nothing to compare — unlike EDEKA vs E center); the division shows in the *store name*
+  ("ALDI Nord 10115"). Don't re-probe the publisher IDs. ~244 offers/Berlin PLZ, of which
+  **~37% are household** (Aktionsartikel: leggings, tools) — correct, and hidden by the
+  existing "+ Non-food" toggle. Its `Marken > Marken Aldi Süd` path nodes inside a *Nord*
+  brochure are a meinprospekt taxonomy quirk, **not** a routing leak (`_collect_brochures`
+  filters on `publisher.id`).
+- **Two sources × five chains, tagged `Offer.source` / `Store.chain`**: `coupon`
   (Lidl Plus app endpoints, `app/scrapers/lidl.py`) and `flyer`
   (meinprospekt weekly Prospekt, `app/scrapers/bonial.py`). `bonial.py` is a
   publisher-parameterized engine (`MeinprospektScraper`): `BonialScraper` =
@@ -67,10 +87,11 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   note was wrong), then a `discountLabel` fallback. **REWE remains the outlier** —
   its "Dein Markt" flyer carries none of the three on most items, so most REWE
   offers still have no `discount_pct` (they sink under discount-sort but the
-  optimizer ranks by absolute price). Four
-  chains measured ~1425 raw / **~1409 deduped** for a Berlin PLZ, still under the
-  `/api/offers` `limit` cap of **2000** (also the app's load); a denser PLZ crossing
-  2000 → move search server-side (`q` param) rather than raising it again.
+  optimizer ranks by absolute price). ALDI is the same story (~72% carry no strike price).
+  **Five** chains measured **1650 deduped** for a Berlin PLZ (2026-07-15, ALDI +244), under the
+  `/api/offers` `limit` cap of **2000** (also the app's load) but with only **~350 headroom
+  left** — a *sixth* chain almost certainly crosses it, at which point move search server-side
+  (`q` param) rather than raising the cap again.
 - **Offers are de-duplicated at serve time** (`app/dedup.py`, used by both
   `/api/offers` and `/api/categories` so list and chip counts agree). A chain
   publishes several weekly brochures, so the flyer feed repeats a product across
@@ -88,8 +109,10 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   store_locator.py`, `GET /api/nearby-stores`): finds the nearest branch of each
   allowlisted chain (lidl/rewe/edeka/aldi/netto/penny/kaufland) via **OpenStreetMap
   Overpass** — `node/way["shop"="supermarket"]` + haversine, brand-prefix
-  normalization (Aldi Nord→aldi, Netto Marken-Discount→netto). `active` = chain in
-  `ACTIVE_CHAINS` (lidl/rewe/edeka — the ones we scrape). Public Overpass instances 504 a lot → tries
+  normalization (Aldi Nord→aldi, Netto Marken-Discount→netto — the *directory* collapses both
+  ALDIs into one chain; `aldi_division` reads the same tags to route the **scrape**).
+  `active` = chain in
+  `ACTIVE_CHAINS` (lidl/rewe/edeka/edeka_center/aldi — the ones we scrape). Public Overpass instances 504 a lot → tries
   mirrors in order + caches per-area (24h) + returns `[]` on total failure. These
   are **not** persisted as `Store` rows; the app's "My stores" saved list lives
   client-side (`mobile/src/storage.ts`, key `myStores`, **one entry per chain** —
@@ -112,9 +135,11 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   shows up too, not just scrape runs; `GET /stats` is an HTML dashboard for it
   (`app/stats_page.py`, served from `main.py`), rendering the recent-calls log with
   relative "Xs ago" times; it fetches on demand via a **Refresh** button (loads once
-  on open, then no auto-poll). Counts are in-memory (reset on restart). **Reference numbers**: browsing = 0
-  external calls; one scrape run = **~9** (2 Lidl Plus + ~7 meinprospekt: 3 publisher
-  pages — Lidl/REWE/EDEKA — + ~4 brochure-pages, varies with active-brochure count);
+  on open, then no auto-poll). Counts are in-memory (reset on restart). **Reference numbers**
+  (measured 2026-07-15): browsing = 0
+  external calls; one scrape run = **~15** (2 Lidl Plus + ~12 meinprospekt: **5** publisher
+  pages — Lidl/REWE/EDEKA/E center/ALDI — + ~7 brochure-pages, varies with active-brochure
+  count — plus **1 Overpass** for ALDI's Nord/SÜD division, cached 24h);
   opening Stores = 1
   Overpass call; tapping **Change** = 1 Nominatim (PLZ centroid) + 1 Overpass, all
   cached 24h. New external client code should use
@@ -138,7 +163,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   brand* (Lidl/EDEKA dump into a `Marken > Marken Lebensmittel > {brand}` subtree), so
   the path only helps when an *intermediate* node is a real category; brand-leaf paths
   stay on the brand/keyword layers (multi-category house brands like Gut&Günstig /
-  Deluxe / Dr.Oetker / Milbona are deliberately left there). To re-survey, fetch a
+  Deluxe / Dr.Oetker / Milbona / **MILSANI / Trader Joe's / Meine Metzgerei** are deliberately
+  left there). **ALDI leans on those layers hardest**: its paths dead-end at *generic* nodes
+  (`… > Marken > Marken Lebensmittel`, `… > Produkte > Lebensmittel`) carrying no category —
+  not a *mis-file*, so it needed brand/keyword entries, **not** `_FORM_OVERRIDES` guards
+  (9.4% → **0.8%** "other"; it also rescued 25 stored offers on the OTHER chains — Philadelphia
+  ×11, Storck, and Nürnberger Rostbrat**würste**, which the bare `wurst` keyword missed on the
+  umlaut plural → now `würst`). Space-guarded keys are load-bearing: `"tuc "`/`"joie "` (brands
+  are matched as **substrings**, so a 3–4 letter key fires mid-word — cf. `"lorenz "`/`"wasa "`)
+  and `"suppe "` (pantry is second-to-last, so a bare `suppe` would swallow Suppengrün). To re-survey, fetch a
   publisher's brochure pages and tally `products[].categoryPaths`. **`classify` order
   (6 layers)**: non-food path→household, **`_FORM_OVERRIDES`** (limonade/saft/joghurt/
   chips — definitive *form* words that beat even a *mis-filed* food path, e.g. the source
