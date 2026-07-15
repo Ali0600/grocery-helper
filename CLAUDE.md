@@ -29,6 +29,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   **`IS_REACT_ACT_ENVIRONMENT`**, which jest-expo doesn't — React 19 then refuses `act()`.
   **RNTL v14's `render` is `async`** (it was sync in v13): `await render(...)`, or `screen` is
   unbound and *every* assertion fails with "render function has not been called".
+  `jest-setup.js` also wires the official **AsyncStorage in-memory mock** (cleared per test — seed
+  via plain `AsyncStorage.setItem`) and stubs **@expo/vector-icons** (renders `icon:<name>` as
+  text; the real module needs expo-asset, which Metro resolves but jest can't). CI runs
+  `npm test -- --ci --coverage`: `collectCoverageFrom` covers **all of src/** (jest's default
+  counts only files tests import — the old "81%" was really 64%), and `coverageThreshold` in
+  package.json is a **ratchet** set just under the measured floor — raise it as coverage climbs,
+  never lower it to make a PR pass. `__tests__/DealsScreen.test.tsx` pins the cache contract
+  (fresh cache = zero backend calls; version mismatch = stale-not-absent; empty refresh never
+  clobbers; cold-PLZ on-demand scrape) — proven to fail against the reverted version check.
 - Mobile lint: `cd mobile && npm run lint` (ESLint, `eslint-config-expo` flat config)
 - Mobile run: `cd mobile && npx expo start` (open on the iOS simulator).
 - Web run: `cd mobile && npm run web` (Expo Web / react-native-web; serves the

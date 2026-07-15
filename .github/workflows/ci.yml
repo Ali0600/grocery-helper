@@ -71,7 +71,11 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
-      - run: npm test -- --ci
+      # --coverage enforces package.json's coverageThreshold — a ratchet set just under
+      # the measured floor (collectCoverageFrom covers ALL of src/, so the number is
+      # honest: untested files count, unlike jest's only-what-tests-import default).
+      # Raise the floors as coverage climbs; never lower them to make a PR pass.
+      - run: npm test -- --ci --coverage
 
   docker-build:
     name: Backend image builds
