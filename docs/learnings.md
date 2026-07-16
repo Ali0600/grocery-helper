@@ -818,3 +818,22 @@ can even score. A metric that's absent for half your rows isn't a ranking, it's 
 tail of unranked data — and per-segment coverage often inverts the global intuition. Corollary: one
 global default across heterogeneous segments will be wrong for some of them (€/kg is meaningless for
 household, where only 25% have one) — resolve the default per segment instead of shipping one.
+
+## "The modal rendered" is not "the modal is on top" — hit-test, don't eyeball
+
+react-native-web mounts **every** RN `<Modal>`'s portal into `document.body` at mount time in **JSX
+order**, and gives them all the same `zIndex`. So among simultaneously-visible modals, *DOM order —
+not visibility order — decides what paints on top and what receives clicks*. Native RN is the
+opposite (it presents in temporal order), so a modal pair that works perfectly on iOS can be
+silently inverted on web. Our `LikesModal` was declared after `FlyerModal`, so tapping a liked deal
+opened the detail **behind** the Likes backdrop: invisible, unclickable, and focus-trapped.
+CompareModal/EdekaVsModal only worked by accident of sitting earlier in the JSX.
+
+**Why it came up:** my browser QA tapped the deal row, saw the flyer appear in the screenshot, and
+moved on. It *had* rendered — it just wasn't on top. An adversarial review caught it; re-checking
+with `document.elementFromPoint(x, y)` proved it in one call.
+
+**Takeaway:** for any overlay, assert the observable the user depends on — *hit-testing*
+(`elementFromPoint`), not "is it in the tree" or "did it render". And when a platform decides
+stacking by declaration order, encode that as a test: the ordering constraint is invisible in the
+code that depends on it, so it will regress the moment someone appends a modal to the list.
