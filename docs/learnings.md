@@ -799,3 +799,22 @@ cadence — it was that a *public* endpoint let anyone borrow our IP to hammer a
 public endpoint whose work fans out to a third party (geocoder, search, webhook) is a
 request-amplification/DoS vector until it's bounded — cache alone doesn't help when the caller
 controls the cache key.
+
+## A default sort is only as good as the coverage of the field it ranks by
+
+Nulls sink, so sorting by a sparsely-populated field silently buries most of your data. Our global
+default was "Biggest discount" — but only **34%** of offers have a `discount_pct` at all (REWE and
+ALDI mostly print no struck-through price), so the default view meaningfully ranked a third of the
+catalogue and dumped the rest in arrival order. Measuring coverage *per category* showed €/kg beats
+discount in every category except household (72% vs 34% overall; fruits 77% vs 47%; pantry 93% vs
+18%) — the exact opposite of the assumption baked into the default.
+
+**Why it came up:** the user noticed Fruits "should" default to €/kg. The instinct was right, but for
+a better reason than expected: fruits' €/kg coverage (77%) is actually *low* for a food category —
+it wins because the incumbent default is worse there (47%).
+
+**Takeaway:** before picking a default sort/rank, measure what fraction of each segment the metric
+can even score. A metric that's absent for half your rows isn't a ranking, it's a coin flip with a
+tail of unranked data — and per-segment coverage often inverts the global intuition. Corollary: one
+global default across heterogeneous segments will be wrong for some of them (€/kg is meaningless for
+household, where only 25% have one) — resolve the default per segment instead of shipping one.

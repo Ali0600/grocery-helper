@@ -8,7 +8,8 @@ import { BasketItem, CategoryCount, MyStore, Offer, PayloadMap, RecipePrefs } fr
 const PLZ_KEY = 'plz';
 const NONFOOD_KEY = 'showNonFood';
 const MYSTORES_KEY = 'myStores';
-const SORT_KEY = 'sortMode';
+const SORT_KEY = 'sortMode'; // the global sort (used in "All")
+const SORT_BY_CATEGORY_KEY = 'sortByCategory'; // slug -> the user's explicit sort for it
 const HIDDEN_STORES_KEY = 'hiddenStores';
 const BASKET_KEY = 'basket';
 const DEALS_CACHE_KEY = 'dealsCache';
@@ -110,6 +111,36 @@ export async function setStoredSortMode(mode: SortMode): Promise<void> {
     await AsyncStorage.setItem(SORT_KEY, mode);
   } catch (e) {
     console.warn('storage: setStoredSortMode failed', e);
+    // best-effort
+  }
+}
+
+/** The user's explicit sort choice per category (slug -> mode). A category with no entry
+ * falls back to `defaultSortForCategory` (see sort.ts) — so this only records overrides,
+ * which keeps new/renamed categories on the sensible default instead of a stale pick. */
+export async function getStoredSortByCategory(): Promise<Record<string, SortMode>> {
+  try {
+    const raw = await AsyncStorage.getItem(SORT_BY_CATEGORY_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    // Drop anything that isn't a known mode — a corrupt/legacy value must not sort by junk.
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        ([, v]) => v === 'discount' || v === 'price' || v === 'unit',
+      ) as [string, SortMode][],
+    );
+  } catch (e) {
+    console.warn('storage: getStoredSortByCategory failed', e);
+    return {};
+  }
+}
+
+export async function setStoredSortByCategory(map: Record<string, SortMode>): Promise<void> {
+  try {
+    await AsyncStorage.setItem(SORT_BY_CATEGORY_KEY, JSON.stringify(map));
+  } catch (e) {
+    console.warn('storage: setStoredSortByCategory failed', e);
     // best-effort
   }
 }
@@ -218,6 +249,7 @@ export async function clearAllData(): Promise<void> {
       HIDDEN_STORES_KEY,
       MYSTORES_KEY,
       SORT_KEY,
+      SORT_BY_CATEGORY_KEY,
       BASKET_KEY,
       DEALS_CACHE_KEY,
       PAYLOAD_CACHE_KEY,

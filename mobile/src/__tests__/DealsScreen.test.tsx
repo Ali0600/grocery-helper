@@ -9,7 +9,7 @@
 // RNTL's async rendering behaves normally.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
 
 import { DEALS_CACHE_VERSION } from '../format';
@@ -162,5 +162,45 @@ describe('DealsScreen — cold start on an unscraped PLZ', () => {
     expect(await screen.findByText('Frisches ALDI Angebot')).toBeTruthy();
     expect(api.scrape).toHaveBeenCalledTimes(1);
     expect(api.offers.mock.calls.length).toBeGreaterThanOrEqual(2); // read → scrape → refetch
+  });
+});
+
+describe('DealsScreen — per-category sort', () => {
+  // One global sort couldn't fit both: €/kg is the axis you shop Fruits on (and out-covers
+  // "Biggest discount" there, 77% vs 47% measured), while household is only 25% €/kg-covered.
+  // Asserts the RENDERED label, not the state — the sort must visibly say what it's doing.
+  async function seedFruitCache() {
+    await seedCache({
+      offers: [
+        makeOffer({ name: 'Bananen', category: 'fruits', category_label: 'Fruits' }),
+        makeOffer({ name: 'Äpfel', category: 'fruits', category_label: 'Fruits' }),
+      ],
+      cats: [{ category: 'fruits', label: 'Fruits', count: 2 }],
+    });
+  }
+
+  it('switches to €/kg when a food category is selected, and back to discount in All', async () => {
+    await seedFruitCache();
+    await render(<DealsScreen />);
+
+    // "All" keeps the deal-hunting default — the app's headline.
+    await waitFor(() => expect(screen.getByText('Biggest discount')).toBeTruthy());
+
+    fireEvent.press(screen.getByText('Fruits (2)'));
+    await waitFor(() => expect(screen.getByText('Cheapest €/kg')).toBeTruthy());
+
+    fireEvent.press(screen.getByText('All'));
+    await waitFor(() => expect(screen.getByText('Biggest discount')).toBeTruthy());
+  });
+
+  it('honours a stored per-category override instead of the default', async () => {
+    await seedFruitCache();
+    await AsyncStorage.setItem('sortByCategory', JSON.stringify({ fruits: 'price' }));
+
+    await render(<DealsScreen />);
+    fireEvent.press(screen.getByText('Fruits (2)'));
+
+    // The user's pick for Fruits wins over the €/kg default.
+    await waitFor(() => expect(screen.getByText('Lowest price')).toBeTruthy());
   });
 });
