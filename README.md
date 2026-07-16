@@ -283,7 +283,11 @@ offers attach to a separate EDEKA store, giving a third chain to compare per pro
 **E center weekly flyer** (`source="flyer"`, `chain="edeka_center"`) — EDEKA's
 hypermarket format has its **own** meinprospekt publisher (`DE-3443181`), so it's
 scraped as a fourth, separate chain (~290 offers/PLZ) — which is what makes the
-EDEKA-vs-E-center face-off in **Compare Stores** possible.
+EDEKA-vs-E-center face-off in **Compare Stores** possible. Because the two flyers
+overlap heavily (measured: 103 of E center's 272 products are also at EDEKA, **98% at an
+identical price**), the deals list hides the E center copies that merely repeat EDEKA —
+unless E center is **cheaper**, since a lower price isn't a duplicate. All copies are
+kept in the data, so Compare and the EDEKA-vs-E-center page still show the full overlap.
 
 **ALDI weekly flyer** (`source="flyer"`, `chain="aldi"`) — ALDI is two independent
 companies with disjoint territories (ALDI Nord `DE-75`, ALDI SÜD `DE-77`), and **both**
