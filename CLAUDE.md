@@ -583,10 +583,30 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   user wanted "same name"): a "same item, different price" table (cheapest per chain, biggest gap
   first, cheaper highlighted) + an "Only at E center" list (names E center has that EDEKA doesn't,
   A–Z); tap → FlyerModal. Display-only/OTA (served chain/name/price_cents); big gaps can be same
-  name / different pack size, so rows show the unit. The header is a location control + circular icon
+  name / different pack size, so rows show the unit. The header is a **pin-only** location control +
+  six circular icon
   actions (`IconButton`) using **`@expo/vector-icons` Ionicons** behind `components/Icon.tsx`;
   search sits under the header. Spacing/type/tag colours come from `theme.ts` tokens
   (`space`/`radius`/`font`/`tint`), not per-component hardcodes.
+- **The header shows ONLY the location pin — no PLZ text** (2026-07-16): six 38px icon actions plus a
+  text block don't fit a phone. Adding the 6th (Likes) collapsed the location control 122px → 76px
+  and rendered "PLZ 10713" as **"P…"** at both 375 and 390pt (i.e. most iPhones, not just the SE).
+  The chains subline ("Lidl · REWE · …") went with it. **The code is not lost**: the pin opens
+  `PlzModal`, which shows it, and the pin's `accessibilityLabel` is
+  `` `Change postal code, currently ${plz}` `` — so it stays ANNOUNCED to screen readers and the
+  visual removal isn't an a11y regression (a test pins that label; sabotaging it fails). Don't
+  re-add text here without re-measuring at 375pt. Removing the subtitle also retired the `chainsSub`
+  derivation and the `storeName` **state** (the cache field + its write stay — `revalidate` uses a
+  local); `PlzModal` still passes a store name to `onApplied`, which now ignores it.
+- **The deal detail carries button counterparts of both swipes** (`FlyerModal`): a swipe is
+  unreachable for screen-reader/keyboard users, and **Like had no non-gesture entry point at all**.
+  So `FlyerModal` takes `onLike`/`onAddToBasket` + `liked`/`inBasket` and renders **Like** and
+  **Basket** buttons (DealsScreen is its single render site and reuses the *existing* stable
+  `onLikeOffer`/`onAddToBasket`, so there's no second copy of the dedupe rules). **Add-only and
+  `disabled` once added** — `Liked ✓` / `In basket ✓` — so the control is never inert-looking;
+  removal stays on the Likes/Basket pages. Note the DealsScreen toast renders *under* this modal, so
+  **the button's state flip is the feedback**, not a toast. `likes.ts` exports `likeKey(offer)` +
+  `isLiked(offer, likes)` — use those for the check, never `resolveLike` (it stamps `Date.now()`).
 - **Deployment**: backend is live on **Render** (free tier) at
   `https://grocery-helper-sw6c.onrender.com` via the IaC `render.yaml` Blueprint
   (Docker, `backend/Dockerfile`, binds `$PORT`, `/health` check). Render free tier

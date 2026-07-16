@@ -1,4 +1,4 @@
-import { matchLiked, onSaleCount, resolveLike } from '../likes';
+import { isLiked, likeKey, matchLiked, onSaleCount, resolveLike } from '../likes';
 import { LikedItem } from '../types';
 import { makeOffer } from './fixtures';
 
@@ -167,5 +167,22 @@ describe('onSaleCount', () => {
     expect(onSaleCount(likes, offers)).toBe(1);
     expect(onSaleCount([], offers)).toBe(0);
     expect(onSaleCount(likes, [])).toBe(0);
+  });
+});
+
+describe('likeKey / isLiked', () => {
+  it('likeKey is the identity resolveLike persists — one definition, not two', () => {
+    const o = makeOffer({ name: 'McCain Golden Longs' });
+    expect(likeKey(o)).toBe(resolveLike(o).key);
+    expect(likeKey(o)).toBe('mccain golden longs'); // normName-based
+  });
+
+  it('isLiked matches on product identity, not offer.id (ids churn weekly)', () => {
+    const liked = resolveLike(makeOffer({ name: 'McCain Golden Longs' }));
+    // Next week: same product, brand-new id and price.
+    const nextWeek = makeOffer({ name: 'MCCAIN  Golden-Longs!', price_cents: 199 });
+    expect(isLiked(nextWeek, [liked])).toBe(true);
+    expect(isLiked(makeOffer({ name: 'Wagner Pizza' }), [liked])).toBe(false);
+    expect(isLiked(nextWeek, [])).toBe(false);
   });
 });

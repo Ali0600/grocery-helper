@@ -15,7 +15,8 @@ import { api } from '../api';
 import { chainLabel } from '../chains';
 import { cleanUnit, euro, fmtPricePerUnit, formatBrand } from '../format';
 import { getPayloadCache } from '../storage';
-import { colors } from '../theme';
+import { colors, tint } from '../theme';
+import { Icon } from './Icon';
 import { Offer, OfferPayload } from '../types';
 
 // Per-chain link to the full weekly online leaflet (Prospekt).
@@ -24,7 +25,22 @@ const FLYER_LINKS: Record<string, { label: string; url: string }> = {
   rewe: { label: 'REWE', url: 'https://www.meinprospekt.de/rewe-de' },
 };
 
-export function FlyerModal({ offer, onClose }: { offer: Offer | null; onClose: () => void }) {
+export function FlyerModal({
+  offer,
+  onClose,
+  onLike,
+  onAddToBasket,
+  liked = false,
+  inBasket = false,
+}: {
+  offer: Offer | null;
+  onClose: () => void;
+  /** The button counterparts of the card's swipe gestures — see the actions block below. */
+  onLike?: (offer: Offer) => void;
+  onAddToBasket?: (offer: Offer) => void;
+  liked?: boolean;
+  inBasket?: boolean;
+}) {
   const flyer = offer ? FLYER_LINKS[offer.chain] : null;
 
   // "View payload": lazily fetch the offer's full raw source payload on demand.
@@ -120,6 +136,58 @@ export function FlyerModal({ offer, onClose }: { offer: Offer | null; onClose: (
               {offer.app_price_cents != null && offer.app_price_cents < offer.price_cents && (
                 <Text style={styles.app}>{`Mit App: ${euro(offer.app_price_cents)}`}</Text>
               )}
+
+              {/* The non-gesture path to both swipe actions (right-swipe = Like, left-swipe =
+                  Basket): a swipe is unreachable for screen-reader/keyboard users, and Like had
+                  no other entry point at all. Add-only and DISABLED once added, so the control is
+                  never inert-looking; removing lives on the Likes/Basket pages. The state flip is
+                  the feedback — DealsScreen's toast renders *under* this modal. */}
+              <View style={styles.actions}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.actionBtn,
+                    liked && styles.actionBtnDone,
+                    pressed && styles.flyerBtnPressed,
+                  ]}
+                  onPress={() => onLike?.(offer)}
+                  disabled={liked}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: liked }}
+                  accessibilityLabel={liked ? `${offer.name} is in your likes` : `Like ${offer.name}`}
+                >
+                  <Icon
+                    name={liked ? 'heart' : 'heart-outline'}
+                    size={16}
+                    color={liked ? tint.like.fg : colors.text}
+                  />
+                  <Text style={[styles.actionText, liked && { color: tint.like.fg }]}>
+                    {liked ? 'Liked ✓' : 'Like'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.actionBtn,
+                    inBasket && styles.actionBtnDone,
+                    pressed && styles.flyerBtnPressed,
+                  ]}
+                  onPress={() => onAddToBasket?.(offer)}
+                  disabled={inBasket}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: inBasket }}
+                  accessibilityLabel={
+                    inBasket ? `${offer.name} is in your basket` : `Add ${offer.name} to basket`
+                  }
+                >
+                  <Icon
+                    name={inBasket ? 'cart' : 'cart-outline'}
+                    size={16}
+                    color={inBasket ? colors.accent : colors.text}
+                  />
+                  <Text style={[styles.actionText, inBasket && { color: colors.accent }]}>
+                    {inBasket ? 'In basket ✓' : 'Basket'}
+                  </Text>
+                </Pressable>
+              </View>
 
               {flyer && (
                 <Pressable
@@ -218,6 +286,23 @@ const styles = StyleSheet.create({
   },
   flyerBtnPressed: { opacity: 0.7 },
   flyerBtnText: { color: colors.accent, fontSize: 15, fontWeight: '600' },
+
+  // Like / Basket — the button counterparts of the swipe gestures.
+  actions: { flexDirection: 'row', gap: 10, marginTop: 20, alignSelf: 'stretch' },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    backgroundColor: colors.card2,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 13,
+  },
+  actionBtnDone: { opacity: 0.85 },
+  actionText: { color: colors.text, fontSize: 15, fontWeight: '600' },
   payloadBtn: {
     marginTop: 10,
     backgroundColor: colors.card2,
