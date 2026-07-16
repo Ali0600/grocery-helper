@@ -21,6 +21,9 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
+# test coverage (jest --coverage, which CI and the documented local gate both run)
+coverage/
+
 # debug
 npm-debug.*
 yarn-debug.*
