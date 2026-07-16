@@ -51,6 +51,12 @@ build the cheapest basket across one or two stores.
   to the shopping basket (a melon offer adds "Melon", which then tracks the cheapest
   melon all week) — native gesture handling with haptic feedback, and a resolver
   that reconciles the server's product sub-groups with the client catalog.
+- **Swipe-to-like with brand-aware re-matching** — swipe a deal right to "Like" the
+  exact product; the Likes page re-checks your liked products against every new
+  flyer week (a header heart badges how many are on sale again right now). Products
+  are tracked by identity, not by id: if the flyer renames "McCain Golden Longs" to
+  "Golden Long" next week, the exact match falls back to the brand's other offers
+  (and to the product sub-group for brandless produce), ranked by name similarity.
 - **Persisted store visibility** — hide chains you never shop at; the preference
   survives restarts and applies everywhere prices are suggested (deals list, basket
   optimizer, recipe pricing), with a guard so the last visible store can't be hidden.

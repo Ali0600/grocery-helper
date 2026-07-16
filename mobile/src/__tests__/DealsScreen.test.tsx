@@ -9,7 +9,7 @@
 // RNTL's async rendering behaves normally.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import React from 'react';
 
 import { DEALS_CACHE_VERSION } from '../format';
@@ -162,6 +162,69 @@ describe('DealsScreen — cold start on an unscraped PLZ', () => {
     expect(await screen.findByText('Frisches ALDI Angebot')).toBeTruthy();
     expect(api.scrape).toHaveBeenCalledTimes(1);
     expect(api.offers.mock.calls.length).toBeGreaterThanOrEqual(2); // read → scrape → refetch
+  });
+});
+
+describe('DealsScreen — the Likes heart badge', () => {
+  // The badge counts liked products on sale NOW (exact name match), not the list size —
+  // it's the "something you like is back on sale" signal.
+  async function seedLike(over: Partial<Record<string, unknown>> = {}) {
+    await AsyncStorage.setItem(
+      'likedItems',
+      JSON.stringify([
+        {
+          key: 'cached bergkäse',
+          name: 'Cached Bergkäse',
+          brand: null,
+          group: null,
+          groupLabel: null,
+          chain: 'lidl',
+          likedPriceCents: 299,
+          likedAt: 1,
+          ...over,
+        },
+      ]),
+    );
+  }
+
+  it('shows the on-sale count when a liked product is in the current deals', async () => {
+    await seedCache();
+    await seedLike();
+    await render(<DealsScreen />);
+
+    await screen.findByText('Cached Bergkäse');
+    expect(within(screen.getByLabelText('Likes')).getByText('1')).toBeTruthy();
+  });
+
+  it('stays badge-less when no liked product is on sale', async () => {
+    await seedCache();
+    await seedLike({ key: 'nicht im angebot', name: 'Nicht im Angebot' });
+    await render(<DealsScreen />);
+
+    await screen.findByText('Cached Bergkäse');
+    expect(within(screen.getByLabelText('Likes')).queryByText(/\d/)).toBeNull();
+  });
+
+  it('mounts the Likes sheet BEFORE the deal detail so the detail paints above it', async () => {
+    // react-native-web mounts every modal's portal into document.body in JSX ORDER and
+    // gives them one z-index, so DOM order — not visibility — decides what paints on top.
+    // With LikesModal after FlyerModal, tapping a liked deal opened the detail *behind*
+    // the Likes backdrop: invisible and unclickable (confirmed live on web via
+    // elementFromPoint). getAllBy* returns matches in tree order, so with both sheets
+    // open the Likes row must come first.
+    await seedCache();
+    await seedLike();
+    await render(<DealsScreen />);
+    await screen.findByText('Cached Bergkäse');
+
+    fireEvent.press(screen.getByLabelText('Likes'));
+    fireEvent.press(await screen.findByLabelText('Open deal for Cached Bergkäse'));
+
+    // Likes row | FlyerModal footer — both sheets open once the detail state lands.
+    await waitFor(() => expect(screen.getAllByText(/liked at|View payload/)).toHaveLength(2));
+    const marks = screen.getAllByText(/liked at|View payload/);
+    expect(JSON.stringify(marks[0].props.children)).toContain('liked at');
+    expect(JSON.stringify(marks[1].props.children)).toContain('View payload');
   });
 });
 

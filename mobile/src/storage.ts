@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CatalogItem, GROCERY_CATALOG } from './catalog';
 import { DEALS_CACHE_VERSION } from './format';
 import { DEFAULT_RECIPE_PREFS } from './recipes';
-import { BasketItem, CategoryCount, MyStore, Offer, PayloadMap, RecipePrefs } from './types';
+import { BasketItem, CategoryCount, LikedItem, MyStore, Offer, PayloadMap, RecipePrefs } from './types';
 
 const PLZ_KEY = 'plz';
 const NONFOOD_KEY = 'showNonFood';
@@ -12,6 +12,7 @@ const SORT_KEY = 'sortMode'; // the global sort (used in "All")
 const SORT_BY_CATEGORY_KEY = 'sortByCategory'; // slug -> the user's explicit sort for it
 const HIDDEN_STORES_KEY = 'hiddenStores';
 const BASKET_KEY = 'basket';
+const LIKES_KEY = 'likedItems';
 const DEALS_CACHE_KEY = 'dealsCache';
 const PAYLOAD_CACHE_KEY = 'payloadCache';
 const RECIPE_PREFS_KEY = 'recipePrefs';
@@ -164,6 +165,42 @@ export async function setStoredBasket(items: BasketItem[]): Promise<void> {
   }
 }
 
+/** Liked products (right-swipe). Per-element shape filter (not just a cast) because the
+ * Likes page dereferences these on every render — a corrupt entry must be dropped, not
+ * crash the page. Guard EVERY field the UI calls a method on: `chainLabel(item.chain)`
+ * does `chain.charAt(0)`, so a missing `chain` is a TypeError, not a blank label. */
+export async function getStoredLikes(): Promise<LikedItem[]> {
+  try {
+    const raw = await AsyncStorage.getItem(LIKES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (l): l is LikedItem =>
+        !!l &&
+        typeof l === 'object' &&
+        typeof l.key === 'string' &&
+        l.key.length > 0 &&
+        typeof l.name === 'string' &&
+        typeof l.chain === 'string' &&
+        typeof l.likedPriceCents === 'number' &&
+        typeof l.likedAt === 'number',
+    );
+  } catch (e) {
+    console.warn('storage: getStoredLikes failed', e);
+    return [];
+  }
+}
+
+export async function setStoredLikes(items: LikedItem[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(LIKES_KEY, JSON.stringify(items));
+  } catch (e) {
+    console.warn('storage: setStoredLikes failed', e);
+    // best-effort
+  }
+}
+
 // The last good deals payload, cached so the app shows something instantly while the
 // (free-tier, sleepy) backend cold-starts. One key = only the most recently loaded PLZ
 // is cached, which bounds the size to ~1 MB (the app is overwhelmingly single-PLZ).
@@ -251,6 +288,7 @@ export async function clearAllData(): Promise<void> {
       SORT_KEY,
       SORT_BY_CATEGORY_KEY,
       BASKET_KEY,
+      LIKES_KEY,
       DEALS_CACHE_KEY,
       PAYLOAD_CACHE_KEY,
       RECIPE_PREFS_KEY,
