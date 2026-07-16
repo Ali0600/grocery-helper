@@ -94,7 +94,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `DE-220164`, page `/edeka`), `EdekaCenterScraper` = **E center** (EDEKA's
   hypermarket format — its OWN publisher `DE-3443181`, page `/edekacenter-de`;
   deliberately a separate `chain="edeka_center"` so it can be compared against
-  regular EDEKA). The flyer feed is location-gated and reuses the lat/lng the
+  regular EDEKA — but see the **E-center duplicate filter** below: the two flyers overlap
+  heavily, so the deals *list* hides the E center copies that merely repeat EDEKA).
+  The flyer feed is location-gated and reuses the lat/lng the
   Lidl Plus lookup resolves; REWE/EDEKA/E center are **separate stores** reusing
   those PLZ coords (a Berlin PLZ → one brochure region). **Strike prices come from
   THREE payload shapes** (`bonial.py` `_parse_offer`): `REGULAR_PRICE` deals, then
@@ -504,6 +506,29 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   were **retired** (absorbed by the sheet). **The pure pipeline lives in `dealFilters.ts`**
   (presentChains/chainCounts/compareOffers/filterDeals/buildSections, unit-tested) and the screen
   memoizes it — don't re-inline derived filtering into the render body.
+- **E center's duplicates of EDEKA are hidden from the deals list** (2026-07-16,
+  `dealFilters.ts` `dropEdekaCenterDuplicates`, always on, no toggle): E center is EDEKA's
+  hypermarket format, so the flyers overlap hard — measured on a Berlin PLZ, **103 of E center's
+  272 products are also at EDEKA and 98% of those are priced identically**, i.e. pure list noise.
+  An E center offer is dropped only when a same-named EDEKA offer exists **and it is not cheaper**;
+  a lower price isn't a duplicate but the better deal (Axe Duschgel: EDEKA 2,79 → E center **2,29**
+  — note both may carry the same *Mit App* price, so compare the guaranteed `price_cents`, which is
+  what the rule does). **That exception is what makes it safe to apply silently: a dropped offer is
+  never cheaper than the EDEKA row that survives, so the filter can't remove a best price** —
+  Basket totals and Compare cells are provably unaffected. Live: E center **272 → 170** (169
+  exclusive + 1 cheaper), EDEKA untouched.
+  **Position in `filterDeals` is load-bearing on both sides**: AFTER `filterByVisibleStores` (if
+  EDEKA is hidden, suppression must switch off or the shared products vanish from the list
+  entirely) and BEFORE the store lens (lensing to "Only E center" strips EDEKA from the set, which
+  would disable the guard and bring every duplicate back in the view that most needs them gone).
+  Both directions are pinned by tests. Matching reuses `edekaVs.ts`'s exported `normName` +
+  `cheapestByName`, so the list and the EDEKA-vs-E-center page can never drift on what "the same
+  product" means. **Display-only**: Compare/EdekaVs get the raw `offers` and still show the full
+  overlap (that page's "Same item, different price" + "Only at E center 169" is where it lives);
+  Basket/Recipes/Likes use `modalOffers` and are untouched. Known wart: `chainCounts` (Stores modal,
+  the "Only show" pills) and the category chips stay **whole-set**, so E center reads *272* while
+  the list shows *170* — consistent with the existing convention that those counts ignore
+  client-side filters.
 - **Swipe-to-basket is NATIVE (runtime 1.1.0)**: `SwipeableOfferCard` wraps `OfferCard` in
   gesture-handler's built-in `Swipeable` (NOT ReanimatedSwipeable — deliberately no reanimated/
   worklets dep); left-swipe adds the offer's sub-category via the pure resolver

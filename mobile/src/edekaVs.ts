@@ -7,8 +7,10 @@
 // price_cents), so it's display-only — no backend.
 import { Offer } from './types';
 
-const EDEKA = 'edeka';
-const ECENTER = 'edeka_center';
+// Exported so the deals list's duplicate filter (dealFilters.ts) keys off the SAME chain
+// slugs and the same "same product" definition — the two must never drift apart.
+export const EDEKA = 'edeka';
+export const ECENTER = 'edeka_center';
 
 /** Normalise a product name to a match key: lowercase, punctuation→spaces, collapsed. */
 export function normName(name: string): string {
@@ -34,8 +36,9 @@ export type EdekaVsResult = {
   hasBoth: boolean; // both chains present in the loaded set
 };
 
-// Keep the cheapest offer per normalised name for one chain.
-function cheapestByName(offers: Offer[]): Map<string, Offer> {
+// Keep the cheapest offer per normalised name for one chain. Exported: the deals list's
+// E-center duplicate filter needs the identical lookup (see dealFilters.ts).
+export function cheapestByName(offers: Offer[]): Map<string, Offer> {
   const m = new Map<string, Offer>();
   for (const o of offers) {
     const k = normName(o.name);

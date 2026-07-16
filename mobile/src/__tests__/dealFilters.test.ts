@@ -3,6 +3,7 @@ import {
   chainCounts,
   compareOffers,
   DealFilterOptions,
+  dropEdekaCenterDuplicates,
   filterDeals,
   presentChains,
 } from '../dealFilters';
@@ -194,5 +195,93 @@ describe('filterDeals — "Only this store" lens', () => {
     const out = filterDeals(mixed, { ...OPTS, storeLens: 'edeka', bioOnly: true });
     expect(out).toHaveLength(1);
     expect(out[0].chain).toBe('edeka');
+  });
+});
+
+describe('dropEdekaCenterDuplicates', () => {
+  // E center is EDEKA's hypermarket format, so their flyers overlap heavily: 103 of E center's
+  // 272 products are also at EDEKA on a real Berlin PLZ, 98% of them at an identical price.
+  // Only what E center actually ADDS should reach the list.
+  const ed = (name: string, price: number) =>
+    makeOffer({ chain: 'edeka', store_name: 'Edeka', name, price_cents: price });
+  const ec = (name: string, price: number) =>
+    makeOffer({ chain: 'edeka_center', store_name: 'E center', name, price_cents: price });
+  const names = (out: Offer[]) => out.map((o) => `${o.chain}:${o.name}`);
+
+  it('drops the E center copy when the price is identical (the 98% case)', () => {
+    const out = dropEdekaCenterDuplicates([ed('Milka Tafel', 149), ec('Milka Tafel', 149)]);
+    expect(names(out)).toEqual(['edeka:Milka Tafel']);
+  });
+
+  it('KEEPS the E center copy when it undercuts EDEKA — a cheaper price is not a duplicate', () => {
+    // The real case this exception exists for: Axe Duschgel, EDEKA 2,79 vs E center 2,29.
+    const out = dropEdekaCenterDuplicates([ed('Axe Duschgel', 279), ec('Axe Duschgel', 229)]);
+    expect(names(out)).toEqual(['edeka:Axe Duschgel', 'edeka_center:Axe Duschgel']);
+  });
+
+  it('drops the E center copy when EDEKA is cheaper', () => {
+    const out = dropEdekaCenterDuplicates([ed('Nutella', 199), ec('Nutella', 249)]);
+    expect(names(out)).toEqual(['edeka:Nutella']);
+  });
+
+  it('keeps products only E center carries', () => {
+    const out = dropEdekaCenterDuplicates([ed('Milka Tafel', 149), ec('Riesen Grillplatte', 999)]);
+    expect(names(out)).toEqual(['edeka:Milka Tafel', 'edeka_center:Riesen Grillplatte']);
+  });
+
+  it('matches case- and punctuation-insensitively (normName), like the EDEKA-vs-E-center page', () => {
+    const out = dropEdekaCenterDuplicates([ed('Milka Tafel', 149), ec('MILKA  Tafel!', 149)]);
+    expect(names(out)).toEqual(['edeka:Milka Tafel']);
+  });
+
+  it('is a no-op when there is no EDEKA to compare against', () => {
+    // A PLZ with no EDEKA: suppressing here would hide the product from every chain at once.
+    const out = dropEdekaCenterDuplicates([ec('Milka Tafel', 149), makeOffer({ chain: 'lidl' })]);
+    expect(out).toHaveLength(2);
+  });
+
+  it('never drops EDEKA rows or other chains', () => {
+    const offers = [ed('Milka Tafel', 149), ec('Milka Tafel', 149), makeOffer({ chain: 'lidl', name: 'Milka Tafel', price_cents: 149 })];
+    expect(names(dropEdekaCenterDuplicates(offers))).toEqual(['edeka:Milka Tafel', 'lidl:Milka Tafel']);
+  });
+
+  it('compares against the CHEAPEST EDEKA row when the name repeats', () => {
+    // E center at 2,49 beats EDEKA's 2,79 but not its 1,99 → it is not a better deal.
+    const out = dropEdekaCenterDuplicates([ed('Kaffee', 279), ed('Kaffee', 199), ec('Kaffee', 249)]);
+    expect(names(out).filter((n) => n.startsWith('edeka_center'))).toEqual([]);
+  });
+});
+
+describe('filterDeals — E center duplicates in the stack', () => {
+  const ed = (name: string, price: number) =>
+    makeOffer({ chain: 'edeka', name, price_cents: price });
+  const ec = (name: string, price: number) =>
+    makeOffer({ chain: 'edeka_center', name, price_cents: price });
+
+  it('hides the duplicate in the normal list', () => {
+    const offers = [ed('Milka Tafel', 149), ec('Milka Tafel', 149), ec('Nur E center', 199)];
+    const out = filterDeals(offers, OPTS);
+    expect(out.map((o) => o.name)).toEqual(['Milka Tafel', 'Nur E center']);
+    expect(out.filter((o) => o.chain === 'edeka_center').map((o) => o.name)).toEqual(['Nur E center']);
+  });
+
+  it('suppression switches OFF when EDEKA is hidden — the product must not vanish entirely', () => {
+    const offers = [ed('Milka Tafel', 149), ec('Milka Tafel', 149)];
+    const out = filterDeals(offers, { ...OPTS, hiddenStores: ['edeka'] });
+    expect(out.map((o) => o.chain)).toEqual(['edeka_center']); // E center's copy survives
+  });
+
+  it('runs BEFORE the store lens, so "Only E center" shows just its unique deals', () => {
+    // Lensing strips EDEKA from the set; if the dedupe ran after, the guard would find no
+    // EDEKA and every duplicate would reappear in exactly the view that should be cleanest.
+    const offers = [ed('Milka Tafel', 149), ec('Milka Tafel', 149), ec('Nur E center', 199)];
+    const out = filterDeals(offers, { ...OPTS, storeLens: 'edeka_center' });
+    expect(out.map((o) => o.name)).toEqual(['Nur E center']);
+  });
+
+  it('a search cannot surface a suppressed duplicate', () => {
+    const offers = [ed('Milka Tafel', 149), ec('Milka Tafel', 149)];
+    const out = filterDeals(offers, { ...OPTS, query: 'milka' });
+    expect(out.map((o) => o.chain)).toEqual(['edeka']);
   });
 });

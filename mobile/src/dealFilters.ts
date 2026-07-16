@@ -6,6 +6,7 @@
 import type { SectionListData } from 'react-native';
 
 import { headlineDiscountPct } from './appPrice';
+import { cheapestByName, ECENTER, EDEKA, normName } from './edekaVs';
 import { filterByVisibleStores } from './stores';
 import { SortMode } from './storage';
 import { Offer } from './types';
@@ -27,6 +28,33 @@ export function chainCounts(offers: Offer[]): Record<string, number> {
     acc[o.chain] = (acc[o.chain] ?? 0) + 1;
     return acc;
   }, {});
+}
+
+/**
+ * Drop E center offers that merely repeat EDEKA. E center is EDEKA's hypermarket format and a
+ * separate chain, so the two flyers overlap heavily: measured on a Berlin PLZ, 103 of E center's
+ * 272 products are also at EDEKA and **98% of those are priced identically** — pure noise in the
+ * list. Only what E center actually adds should survive.
+ *
+ * An E center offer is dropped only when a same-named EDEKA offer exists AND the E center price is
+ * **not lower** — a cheaper price isn't a duplicate, it's the better deal (Axe Duschgel: EDEKA 2,79
+ * → E center 2,29). That exception is what makes this safe to apply silently: a dropped offer is
+ * never cheaper than the EDEKA row that survives, so this can never remove a best price.
+ *
+ * No-ops when EDEKA isn't in the set (hidden via the store list, or absent for this PLZ) — the same
+ * only-when-present guard the lens/special-days/bio steps use, so a product can never vanish from
+ * both chains at once. Matching reuses edekaVs' `normName`/`cheapestByName`, so the list and the
+ * "EDEKA vs E center" page always agree on what "the same product" means.
+ */
+export function dropEdekaCenterDuplicates(offers: Offer[]): Offer[] {
+  const edekaByName = cheapestByName(offers.filter((o) => o.chain === EDEKA));
+  if (edekaByName.size === 0) return offers; // no EDEKA to compare against → nothing to suppress
+  return offers.filter((o) => {
+    if (o.chain !== ECENTER) return true; // never touch EDEKA's own rows, or any other chain
+    const twin = edekaByName.get(normName(o.name));
+    if (!twin) return true; // only at E center — the deals worth showing
+    return o.price_cents < twin.price_cents; // keep ONLY when E center genuinely undercuts EDEKA
+  });
 }
 
 // Compare two values, sending nulls to the end regardless of direction.
@@ -61,20 +89,27 @@ export type DealFilterOptions = {
 
 /**
  * The deals-list filter stack, in its long-standing order: non-food → hidden stores →
- * store lens → special-days → bio → search/category. The store, special-days and bio lenses only apply when
+ * E-center duplicates → store lens → special-days → bio → search/category. The store,
+ * special-days and bio lenses only apply when
  * the loaded set actually contains such offers (same guard the screen always had), so a
  * stale toggle can't filter the list to empty.
  */
 export function filterDeals(offers: Offer[], opts: DealFilterOptions): Offer[] {
   const foodBase = opts.showNonFood ? offers : offers.filter((o) => o.category !== 'household');
   const storeBase = filterByVisibleStores(foodBase, opts.hiddenStores);
+  // Position is load-bearing, on both sides:
+  //  * AFTER the store filter — if EDEKA is hidden, suppression must switch off, or the shared
+  //    products would disappear from the list entirely instead of just showing E center's copy;
+  //  * BEFORE the lens — lensing to "Only E center" strips EDEKA from the set, which would
+  //    disable the guard and bring every duplicate back in the one view that most needs them gone.
+  const dedupedBase = dropEdekaCenterDuplicates(storeBase);
   // Same only-when-present guard as special-days/bio below: a lens whose chain has no
   // offers left after the store filter (hidden mid-session, PLZ switched) is a no-op
   // rather than emptying the list.
   const lensBase =
-    opts.storeLens && storeBase.some((o) => o.chain === opts.storeLens)
-      ? storeBase.filter((o) => o.chain === opts.storeLens)
-      : storeBase;
+    opts.storeLens && dedupedBase.some((o) => o.chain === opts.storeLens)
+      ? dedupedBase.filter((o) => o.chain === opts.storeLens)
+      : dedupedBase;
   const hasDayLimited = offers.some((o) => o.day_limited);
   const base =
     opts.specialDays && hasDayLimited ? lensBase.filter((o) => o.day_limited) : lensBase;
