@@ -23,6 +23,7 @@ import { FlyerModal } from '../components/FlyerModal';
 import { GroupHeader } from '../components/GroupHeader';
 import { Icon } from '../components/Icon';
 import { IconButton } from '../components/IconButton';
+import { LikesModal } from '../components/LikesModal';
 import { SwipeableOfferCard } from '../components/SwipeableOfferCard';
 import { OptionsModal } from '../components/OptionsModal';
 import { PlzModal } from '../components/PlzModal';
@@ -44,6 +45,7 @@ import { dealsCacheStale, dealsStale, refreshDeltaMessage } from '../format';
 import { resolveSortMode, sortLabel } from '../sort';
 import { filterByVisibleStores, hasHiddenPresent, toggleHiddenStore, visibleStoreChains } from '../stores';
 import { resolveBasketItem } from '../basketResolve';
+import { onSaleCount, resolveLike } from '../likes';
 import { DEFAULT_RECIPE_PREFS } from '../recipes';
 import {
   clearAllData,
@@ -53,6 +55,7 @@ import {
   getStoredAlwaysHave,
   getStoredBasket,
   getStoredHiddenStores,
+  getStoredLikes,
   getStoredMyStores,
   getStoredPlz,
   getStoredRecipePrefs,
@@ -64,6 +67,7 @@ import {
   setStoredAlwaysHave,
   setStoredBasket,
   setStoredHiddenStores,
+  setStoredLikes,
   setStoredMyStores,
   setStoredPlz,
   setStoredRecipePrefs,
@@ -73,7 +77,7 @@ import {
   SortMode,
 } from '../storage';
 import { colors, radius, space } from '../theme';
-import { BasketItem, CategoryCount, MyStore, Offer, RecipePrefs } from '../types';
+import { BasketItem, CategoryCount, LikedItem, MyStore, Offer, RecipePrefs } from '../types';
 
 // Override via mobile/.env (EXPO_PUBLIC_DEFAULT_PLZ) so a personal postal code isn't
 // committed; falls back to a neutral central-Berlin default for the public bundle.
@@ -111,6 +115,8 @@ export default function DealsScreen() {
   const [bioOnly, setBioOnly] = useState(false); // session lens: only organic ("Bio") offers
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [basketModal, setBasketModal] = useState(false);
+  const [likes, setLikes] = useState<LikedItem[]>([]); // persisted: right-swiped products
+  const [likesModal, setLikesModal] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [optionsModal, setOptionsModal] = useState(false);
@@ -183,6 +189,7 @@ export default function DealsScreen() {
       setSortByCategory(await getStoredSortByCategory());
       setHiddenStores(await getStoredHiddenStores());
       setBasket(await getStoredBasket());
+      setLikes(await getStoredLikes());
       setRecipePrefs(await getStoredRecipePrefs());
       setAlwaysHave(await getStoredAlwaysHave());
       setReady(true);
@@ -356,14 +363,54 @@ export default function DealsScreen() {
     [onChangeBasket, showToast],
   );
 
+  // Swipe-right on a deal → Like the product (persisted; the Likes page re-checks it
+  // weekly). Same ref pattern as the basket: the callback must stay STABLE (rows are
+  // memoized; an unstable prop re-renders every row mid-gesture — the freeze trigger).
+  // De-duped by normalized-name key, so liking the same product at another chain (or
+  // re-swiping) just re-confirms.
+  const likesRef = useRef(likes);
+  useEffect(() => {
+    likesRef.current = likes;
+  }, [likes]);
+  // Both writers update the ref SYNCHRONOUSLY as well as the state: the effect above
+  // only re-syncs it after a render, so two likes landing in the same frame (two rows
+  // flung at once) would both read the same stale ref and the second would clobber the
+  // first. Writing the ref here makes back-to-back calls compose.
+  const commitLikes = useCallback((next: LikedItem[]) => {
+    likesRef.current = next;
+    setLikes(next);
+    setStoredLikes(next);
+  }, []);
+  const onLikeOffer = useCallback(
+    (offer: Offer) => {
+      const item = resolveLike(offer);
+      if (likesRef.current.some((l) => l.key === item.key)) {
+        showToast(`${item.name} is already in your likes`);
+        return;
+      }
+      commitLikes([...likesRef.current, item]);
+      showToast(`Liked ${item.name}`);
+    },
+    [commitLikes, showToast],
+  );
+  const onRemoveLike = useCallback(
+    (key: string) => commitLikes(likesRef.current.filter((l) => l.key !== key)),
+    [commitLikes],
+  );
+
   // Stable per-row callbacks: rows are memoized, so nothing about an unrelated
   // re-render (toast in/out, filter tweaks) touches a row while a gesture is live.
   const openOffer = useCallback((o: Offer) => setActive(o), []);
   const renderOffer = useCallback(
     ({ item }: { item: Offer }) => (
-      <SwipeableOfferCard offer={item} onPressOffer={openOffer} onAdd={onAddToBasket} />
+      <SwipeableOfferCard
+        offer={item}
+        onPressOffer={openOffer}
+        onAdd={onAddToBasket}
+        onLike={onLikeOffer}
+      />
     ),
-    [openOffer, onAddToBasket],
+    [openOffer, onAddToBasket, onLikeOffer],
   );
 
   const onChangeRecipePrefs = useCallback((next: RecipePrefs) => {
@@ -387,6 +434,7 @@ export default function DealsScreen() {
     await clearAllData();
     setMyStores([]);
     setBasket([]);
+    setLikes([]);
     setShowNonFood(false);
     setSortMode('discount');
     setSortByCategory({});
@@ -468,6 +516,10 @@ export default function DealsScreen() {
     () => filterByVisibleStores(offers, hiddenStores),
     [offers, hiddenStores],
   );
+
+  // The heart badge = liked products on sale RIGHT NOW (exact name match), not the size
+  // of the likes list — it's the "worth opening the page" signal, and hides at 0.
+  const likedOnSale = useMemo(() => onSaleCount(likes, modalOffers), [likes, modalOffers]);
 
   const dayLimitedCount = useMemo(() => offers.filter((o) => o.day_limited).length, [offers]);
   const bioCount = useMemo(() => offers.filter((o) => o.is_bio).length, [offers]);
@@ -595,6 +647,12 @@ export default function DealsScreen() {
               accessibilityLabel="Basket"
               badge={basket.length}
               onPress={() => setBasketModal(true)}
+            />
+            <IconButton
+              name="heart-outline"
+              accessibilityLabel="Likes"
+              badge={likedOnSale}
+              onPress={() => setLikesModal(true)}
             />
             <IconButton
               name="storefront-outline"
@@ -750,6 +808,19 @@ export default function DealsScreen() {
         offers={offers}
         onOpenOffer={setActive}
         onClose={() => setEdekaVsModal(false)}
+      />
+      {/* Every modal that opens a deal detail must be rendered BEFORE FlyerModal: on
+          react-native-web all modals mount their portal into document.body in JSX order
+          and share one z-index, so DOM order — not visibility — decides what paints on
+          top. A modal listed after FlyerModal would open the detail invisibly *behind*
+          its own backdrop (Compare/EdekaVs work precisely because they sit above). */}
+      <LikesModal
+        visible={likesModal}
+        likes={likes}
+        offers={modalOffers}
+        onRemove={onRemoveLike}
+        onOpenOffer={setActive}
+        onClose={() => setLikesModal(false)}
       />
       <FlyerModal offer={active} onClose={() => setActive(null)} />
       <PlzModal

@@ -525,7 +525,28 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   (a `<Modal>` that wraps its content in its OWN `<GestureHandlerRootView>`, per the RNGH docs) —
   never use RN `Modal` directly; a new modal MUST use `AppModal`. JS-only → OTA. If a freeze
   still recurs: consider ReanimatedSwipeable / @sentry/react-native (both native deps → new build).
-- **Compare Stores page** (`components/CompareModal.tsx` + pure `compare.ts`, header
+- **Swipe-RIGHT = "Like" a product** (2026-07-16, `likes.ts` + `LikesModal` + the heart header
+  icon): a like persists the product's **identity** (`LikedItem`: `key = normName(name)` + brand +
+  group + a liked-at price/chain memo — **never `offer.id`**, ids churn weekly; storage key
+  `likedItems`, cleared by "Reset all app data" only) and the Likes page re-matches it against the
+  loaded offers each session. **Match tiers** (pure `matchLiked`, exclusive): (1) exact `normName`
+  equality (reuses `edekaVs.ts`'s exported `normName` — case/punctuation-insensitive, umlauts
+  significant, cross-chain), cheapest first; (2) the **brand's** other products when the flyer
+  renamed/rotated it ("McCain Golden Longs" → "Golden Long" — the user's founding example), brand
+  matched by normName equality OR token containment (brand words ⊆ name words; tokens NOT
+  substrings, so `ja!`→"ja" can't fire mid-word), ranked by shared-name-token count then price,
+  capped at 8; (3) product **group** for brandless items (18% of offers; "Rispentomaten"→ other
+  Tomaten). The **heart badge = likes with an exact match on sale now** (`onSaleCount`), not the
+  list size — hides at 0. The card shows **no** liked marker (deliberate; the tag row stays capped
+  at 3). Gesture wiring: legacy `Swipeable`'s `onSwipeableOpen` direction names the **panel side**
+  — 'left' panel = right-swipe = Like, 'right' panel = left-swipe = basket — routed through the
+  exported `handleSwipeableOpen` seam (SwipeableOfferCard.tsx), which is unit-testable since the
+  native pan can't run under jest; it follows the freeze contract (close first, rAF-defer, and
+  DealsScreen's `onLikeOffer` reads likes via `likesRef` so the memoized rows keep stable props).
+  Likes match against `modalOffers` (hidden stores excluded — the Basket/Recipes convention) and
+  deliberately do NOT copy BasketModal's drop-household filter (equality matching has no keyword
+  traps; liking a household item is legitimate). `tint.like` (pink) is the marker color — NOT
+  `colors.badge` red (that means discount/error).
   `git-compare` button): per product sub-group (`offer.group`), each selected store's cheapest
   price side by side, cheapest highlighted, rows sorted by spread; needs ≥2 stores sharing a
   sub-group; tap a price → FlyerModal (rendered beneath it). Store multi-select defaults to all
