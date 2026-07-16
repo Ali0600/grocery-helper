@@ -837,3 +837,48 @@ with `document.elementFromPoint(x, y)` proved it in one call.
 (`elementFromPoint`), not "is it in the tree" or "did it render". And when a platform decides
 stacking by declaration order, encode that as a test: the ordering constraint is invisible in the
 code that depends on it, so it will regress the moment someone appends a modal to the list.
+
+## A React Native `<Modal>` presents from the nearest view controller, so sibling modals collide on iOS
+
+RN's Modal calls `[[self reactViewController] presentViewController:…]` — the **first** view
+controller up the responder chain, *not* `RCTPresentedViewController()` (which would walk to the
+top-most presented one). Two `<Modal>`s declared as **siblings** in the same screen therefore
+resolve to the **same** root VC, and UIKit refuses to present the second on a VC that is already
+presenting: `Attempt to present <RCTFabricModalHostViewController> on <EXRootViewController> which
+is already presenting <…>`. The cure is to **nest** the second modal inside the first one's
+children — its component view then mounts into the *first* modal's VC view
+(`mountChildComponentView`), so it presents from a VC that is presenting nothing.
+
+**Why it came up:** tapping a liked product on the Likes page did nothing on the TestFlight build.
+`setActive(offer)` ran, `visible` genuinely became `true` — UIKit just declined to put it on
+screen. The same shape had been sitting in Compare and EDEKA-vs-E-center for weeks; all three were
+"verified" only on web, which has no view-controller stack and so **cannot** exhibit the bug.
+
+Two things made it far worse than a missing sheet. First, RN sets `_isPresented = YES` **before**
+the present call and never rolls it back when it fails, and the retry guard is `!_isPresented` — so
+a refused present is a **permanent latch**, not a transient miss. Second, the flag only clears when
+`visible` goes false, which here meant tapping the detail's Close — a button that never appeared.
+So one tap from a sheet killed *every* deal tap app-wide, including from the deals list, until
+relaunch. That is what "it worked the first time, then stopped" actually was: not a regression
+between releases, but per-session state.
+
+**Takeaway:** a state-setter succeeding (`visible === true`) says nothing about whether the platform
+honoured it — check the platform's own console, not just your JS. And treat any success flag that is
+set *before* the operation it describes as a latch: if the operation can fail, the flag is now a lie
+that suppresses every retry.
+
+## Web QA cannot verify iOS when the two platforms differ structurally
+
+react-native-web has no view-controller presentation stack at all: every modal just mounts a portal
+into `document.body`. So the bug above is not merely *hard* to see on web — it is **impossible**, by
+construction. The inverse is also true: web decides paint order by DOM/JSX order, which iOS ignores
+entirely. The same two-modal layout has two unrelated failure modes, one per platform, and neither
+platform can catch the other's.
+
+**Why it came up:** three separate deal-detail entry points were documented as working on the
+strength of browser QA. A simulator run found the refusal log line in minutes.
+
+**Takeaway:** before trusting a QA surface, ask what it *structurally cannot observe*. When a
+feature's behaviour is decided by a platform mechanism the test surface doesn't implement, that
+surface is not a weaker check — it is **no check**. Drive the real platform once, and keep the cheap
+surface for what it can actually see.

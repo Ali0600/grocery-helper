@@ -543,13 +543,42 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   clears it). The card closes first and defers `onAdd`/haptics via `requestAnimationFrame`;
   rows are memoized and DealsScreen's `onAddToBasket` reads the basket via a ref so its
   identity is stable — don't reintroduce `[basket]` deps or state writes in gesture handlers.
-  **Modal freeze (2026-07-05 fix):** the *other* freeze source was RN `Modal` — its content
-  renders in a separate native root OUTSIDE App.tsx's `GestureHandlerRootView`, so interacting
-  with then dismissing a modal (repro: Compare → EDEKA vs E center → scroll → close) left
-  gesture-handler's root eating every touch. Fix: **every modal uses `components/AppModal.tsx`**
-  (a `<Modal>` that wraps its content in its OWN `<GestureHandlerRootView>`, per the RNGH docs) —
-  never use RN `Modal` directly; a new modal MUST use `AppModal`. JS-only → OTA. If a freeze
-  still recurs: consider ReanimatedSwipeable / @sentry/react-native (both native deps → new build).
+  **Modal freeze (2026-07-05):** RN `Modal` renders its content in a separate native root
+  OUTSIDE App.tsx's `GestureHandlerRootView`, so **every modal uses `components/AppModal.tsx`**
+  (a `<Modal>` wrapping its content in its OWN `<GestureHandlerRootView>`, per the RNGH docs) —
+  never use RN `Modal` directly; a new modal MUST use `AppModal`. **But the freeze rationale
+  recorded here was WRONG for iOS, and was corrected on 2026-07-17 by reading the installed
+  source**: `GestureHandlerRootView` ships only `.android.tsx` + `.web.tsx` variants, so on iOS
+  it falls through to the generic one — a **plain `View`** — and `RNGestureHandlerRootViewCls()`
+  returns `nil` (`apple/RNGestureHandlerRootViewComponentView.mm`: *"RNGestureHandlerRootView is
+  Android-only"*). **On iOS `AppModal`'s wrapper creates nothing native**, so it cannot have
+  fixed an iOS freeze by that mechanism. Keep `AppModal` (load-bearing on Android + the
+  dev-time context assert) but **don't reach for this as the explanation** for a future iOS
+  freeze — the real cause of the original TestFlight freeze is still unidentified.
+- **NEVER render a `<Modal>` as a SIBLING of a modal it can be opened from — nest it inside**
+  (2026-07-17, measured on a simulator). RN presents a Modal from **`[self reactViewController]`**
+  (`RCTModalHostViewComponentView.mm:154`) — the *first* view controller up the responder chain,
+  **not** `RCTPresentedViewController()` — so two sibling modals resolve to the **same root VC**
+  and iOS refuses the second. Measured, deterministically: `Attempt to present
+  <RCTFabricModalHostViewController> on <EXRootViewController> which is already presenting
+  <RCTFabricModalHostViewController>`. Worse, RN sets **`_isPresented = YES` *before* the present
+  and never rolls it back on failure** (`:173`), and the `!_isPresented` guard (`:167`) means it
+  can **never retry** — so the detail stays dead until `visible` goes false again. In this app
+  `active` only clears via the detail's own (unreachable) Close, so **one tap from a sheet killed
+  every later deal tap, from anywhere, for the whole session** — the "it worked the first time,
+  now nothing opens" report. This hit **Likes, Compare AND EdekaVs** (all three did
+  `onOpenOffer={setActive}` with `FlyerModal` as a sibling) and was invisible to web QA, which
+  has no VC presentation stack. Fix: `DealsScreen` builds **one** `FlyerModal` element and passes
+  it as a `detail` prop into whichever sheet is open (`{likesModal ? detail : null}`), rendering
+  it INSIDE that sheet's `AppModal`; children mount into the sheet's VC view
+  (`mountChildComponentView`), so it presents from the sheet's VC — which is presenting nothing —
+  and stacks correctly. Sheets are mutually exclusive (their triggers sit under any open sheet);
+  `{!sheetOpen ? detail : null}` covers the deals-list path, and each sheet's `onClose` clears
+  `active` so the element can't change host mid-flight. A **"replace" handoff is the same trap**:
+  Compare → EdekaVs swapped both in one commit, presenting while the root VC was still dismissing
+  → now chained on Compare's `onDismiss` (**iOS-only**; web has no VC stack and never fires it, so
+  web switches immediately). Pinned by `DealsScreen.test.tsx` ("renders the deal detail INSIDE the
+  Likes sheet") — sabotage-proved: rendering it as a sibling fails the test.
 - **Swipe-RIGHT = "Like" a product** (2026-07-16, `likes.ts` + `LikesModal` + the heart header
   icon): a like persists the product's **identity** (`LikedItem`: `key = normName(name)` + brand +
   group + a liked-at price/chain memo — **never `offer.id`**, ids churn weekly; storage key

@@ -24,6 +24,8 @@ type Props = {
   onRemove: (key: string) => void;
   onOpenOffer: (offer: Offer) => void;
   onClose: () => void;
+  /** The deal detail, rendered INSIDE this sheet's modal (see the render below). */
+  detail?: React.ReactNode;
 };
 
 function Pill({ chain }: { chain: string }) {
@@ -52,61 +54,71 @@ function LikeRow({
 }) {
   const best = exact[0];
   const ppu = best ? fmtPricePerUnit(best.price_per_unit) : null;
+
+  // The name + "liked at" line, shown either way. When the product IS on sale the WHOLE row
+  // opens the deal — the name is the obvious thing to tap, and it used to be dead (only the
+  // ~45pt price block responded).
+  const head = (
+    <>
+      <View style={styles.nameLine}>
+        <Icon name="heart" size={12} color={tint.like.fg} />
+        <Text style={styles.itemName} numberOfLines={1}>
+          {item.name}
+        </Text>
+      </View>
+      <Text style={styles.meta}>
+        {chainLabel(item.chain)} · liked at {euro(item.likedPriceCents)}
+      </Text>
+    </>
+  );
+
   return (
     <View style={styles.row}>
-      <View style={styles.rowMain}>
-        <View style={styles.nameLine}>
-          <Icon name="heart" size={12} color={tint.like.fg} />
-          <Text style={styles.itemName} numberOfLines={1}>
-            {item.name}
+      {best ? (
+        <Pressable
+          onPress={() => onOpenOffer(best)}
+          accessibilityRole="button"
+          accessibilityLabel={`Open deal for ${item.name}`}
+          style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}
+        >
+          {head}
+          <View style={styles.matchLine}>
+            <Pill chain={best.chain} />
+            <Text style={styles.price}>{euro(best.price_cents)}</Text>
+            {ppu ? <Text style={styles.ppu}>· {ppu}</Text> : null}
+          </View>
+          <Text style={styles.matchName} numberOfLines={1}>
+            {best.name}
+            {exact.length > 1 ? ` · ${exact.length} deals ›` : ' ›'}
           </Text>
-        </View>
-        <Text style={styles.meta}>
-          {chainLabel(item.chain)} · liked at {euro(item.likedPriceCents)}
-        </Text>
-        {best ? (
-          <Pressable
-            onPress={() => onOpenOffer(best)}
-            accessibilityRole="button"
-            accessibilityLabel={`Open deal for ${item.name}`}
-            style={({ pressed }) => pressed && styles.pressed}
-          >
-            <View style={styles.matchLine}>
-              <Pill chain={best.chain} />
-              <Text style={styles.price}>{euro(best.price_cents)}</Text>
-              {ppu ? <Text style={styles.ppu}>· {ppu}</Text> : null}
+        </Pressable>
+      ) : (
+        // Nothing to open, so the row stays unpressable; the related list has its own rows.
+        <View style={styles.rowMain}>
+          {head}
+          <Text style={styles.noDeal}>Not on sale this week</Text>
+          {related.length ? (
+            <View style={styles.related}>
+              <Text style={styles.relatedTitle}>{relatedLabel}</Text>
+              {related.map((o) => (
+                <Pressable
+                  key={o.id}
+                  onPress={() => onOpenOffer(o)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open deal ${o.name}`}
+                  style={({ pressed }) => [styles.relatedRow, pressed && styles.pressed]}
+                >
+                  <Pill chain={o.chain} />
+                  <Text style={styles.relatedName} numberOfLines={1}>
+                    {o.name}
+                  </Text>
+                  <Text style={styles.relatedPrice}>{euro(o.price_cents)}</Text>
+                </Pressable>
+              ))}
             </View>
-            <Text style={styles.matchName} numberOfLines={1}>
-              {best.name}
-              {exact.length > 1 ? ` · ${exact.length} deals ›` : ' ›'}
-            </Text>
-          </Pressable>
-        ) : (
-          <>
-            <Text style={styles.noDeal}>Not on sale this week</Text>
-            {related.length ? (
-              <View style={styles.related}>
-                <Text style={styles.relatedTitle}>{relatedLabel}</Text>
-                {related.map((o) => (
-                  <Pressable
-                    key={o.id}
-                    onPress={() => onOpenOffer(o)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open deal ${o.name}`}
-                    style={({ pressed }) => [styles.relatedRow, pressed && styles.pressed]}
-                  >
-                    <Pill chain={o.chain} />
-                    <Text style={styles.relatedName} numberOfLines={1}>
-                      {o.name}
-                    </Text>
-                    <Text style={styles.relatedPrice}>{euro(o.price_cents)}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-          </>
-        )}
-      </View>
+          ) : null}
+        </View>
+      )}
       <Pressable
         onPress={onRemove}
         hitSlop={8}
@@ -120,7 +132,15 @@ function LikeRow({
   );
 }
 
-export function LikesModal({ visible, likes, offers, onRemove, onOpenOffer, onClose }: Props) {
+export function LikesModal({
+  visible,
+  likes,
+  offers,
+  onRemove,
+  onOpenOffer,
+  onClose,
+  detail,
+}: Props) {
   // Re-match every like against the current offers; on-sale-now first, then newest like.
   const rows = useMemo(
     () =>
@@ -135,12 +155,25 @@ export function LikesModal({ visible, likes, offers, onRemove, onOpenOffer, onCl
   );
 
   return (
-    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <AppModal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      testID="likes-modal"
+    >
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Likes</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            {/* Labelled: the deal detail nests inside this sheet and has its own "Close", so
+                the bare text is ambiguous to a screen reader (and to a test). */}
+            <Pressable
+              onPress={onClose}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Close likes"
+            >
               <Text style={styles.close}>Close</Text>
             </Pressable>
           </View>
@@ -166,6 +199,16 @@ export function LikesModal({ visible, likes, offers, onRemove, onOpenOffer, onCl
           </ScrollView>
         </View>
       </View>
+      {/* The deal detail MUST render inside this sheet's <Modal>, never as a sibling of it in
+          DealsScreen. RN presents a Modal from `[self reactViewController]` — the first VC up
+          the responder chain — so two SIBLING modals share the root VC, and iOS refuses the
+          second ("Attempt to present ... which is already presenting ..."): the detail never
+          appeared, and RN's `_isPresented = YES` latch (set before the failed present, never
+          rolled back) then killed every later deal tap for the whole session. Nested, the
+          detail's component view is mounted into THIS sheet's VC view
+          (RCTModalHostViewComponentView.mm `mountChildComponentView`), so it presents from
+          this sheet's VC — which is presenting nothing — and correctly stacks on top. */}
+      {detail}
     </AppModal>
   );
 }
