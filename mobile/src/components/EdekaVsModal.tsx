@@ -19,16 +19,25 @@ export function EdekaVsModal({
   offers,
   onOpenOffer,
   onClose,
+  detail,
 }: {
   visible: boolean;
   offers: Offer[];
   onOpenOffer: (o: Offer) => void;
   onClose: () => void;
+  /** The deal detail — rendered inside this sheet's modal; see LikesModal for why. */
+  detail?: React.ReactNode;
 }) {
   const { priceDiffs, ecenterOnly, hasBoth } = useMemo(() => buildEdekaVs(offers), [offers]);
 
   return (
-    <AppModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <AppModal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      testID="edekavs-modal"
+    >
       <View style={styles.root}>
         <View style={styles.sheet}>
           <View style={styles.header}>
@@ -132,6 +141,8 @@ export function EdekaVsModal({
           </ScrollView>
         </View>
       </View>
+      {/* Inside this sheet's modal, never a sibling of it — see LikesModal for the full why. */}
+      {detail}
     </AppModal>
   );
 }

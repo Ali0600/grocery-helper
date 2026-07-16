@@ -205,13 +205,17 @@ describe('DealsScreen — the Likes heart badge', () => {
     expect(within(screen.getByLabelText('Likes')).queryByText(/\d/)).toBeNull();
   });
 
-  it('mounts the Likes sheet BEFORE the deal detail so the detail paints above it', async () => {
-    // react-native-web mounts every modal's portal into document.body in JSX ORDER and
-    // gives them one z-index, so DOM order — not visibility — decides what paints on top.
-    // With LikesModal after FlyerModal, tapping a liked deal opened the detail *behind*
-    // the Likes backdrop: invisible and unclickable (confirmed live on web via
-    // elementFromPoint). getAllBy* returns matches in tree order, so with both sheets
-    // open the Likes row must come first.
+  it('renders the deal detail INSIDE the Likes sheet, never as a sibling of it', async () => {
+    // The iOS bug this pins (measured on a simulator, 2026-07-17): RN presents a Modal from
+    // `[self reactViewController]` — the first view controller up the responder chain — so two
+    // SIBLING modals resolve to the same root VC and iOS refuses the second:
+    //   "Attempt to present <RCTFabricModalHostViewController> on <EXRootViewController>
+    //    which is already presenting <RCTFabricModalHostViewController>".
+    // The detail never appeared, and RN's `_isPresented = YES` latch (set before the failed
+    // present, never rolled back) then killed EVERY later deal tap for the whole session.
+    // Nested, the detail mounts into the sheet's own VC view and presents from it.
+    // This constraint is invisible at the point that depends on it — moving the element one
+    // level up in DealsScreen silently reintroduces the bug — so assert containment.
     await seedCache();
     await seedLike();
     await render(<DealsScreen />);
@@ -220,11 +224,50 @@ describe('DealsScreen — the Likes heart badge', () => {
     fireEvent.press(screen.getByLabelText('Likes'));
     fireEvent.press(await screen.findByLabelText('Open deal for Cached Bergkäse'));
 
-    // Likes row | FlyerModal footer — both sheets open once the detail state lands.
-    await waitFor(() => expect(screen.getAllByText(/liked at|View payload/)).toHaveLength(2));
+    // "View payload" is unique to the deal detail; it must live INSIDE the Likes modal.
+    const likesModal = await screen.findByTestId('likes-modal');
+    await waitFor(() => expect(within(likesModal).getByText('View payload')).toBeTruthy());
+
+    // ...and the Likes row still comes first in tree order, which is what makes the detail
+    // paint on top on react-native-web (portals mount into document.body in JSX order under
+    // one z-index, so DOM order — not visibility — decides). Both platforms, one layout.
     const marks = screen.getAllByText(/liked at|View payload/);
     expect(JSON.stringify(marks[0].props.children)).toContain('liked at');
     expect(JSON.stringify(marks[1].props.children)).toContain('View payload');
+  });
+
+  it('opens the deal when the liked product NAME is tapped, not just the price block', async () => {
+    // The name is the obvious thing to tap and was dead: only the ~45pt price block had a
+    // press handler, so "I tap it and nothing happens" had two independent causes.
+    await seedCache();
+    await seedLike();
+    await render(<DealsScreen />);
+    await screen.findByText('Cached Bergkäse');
+    fireEvent.press(screen.getByLabelText('Likes'));
+
+    // The row's pressable wraps the whole main column, name included.
+    const row = await screen.findByLabelText('Open deal for Cached Bergkäse');
+    expect(within(row).getByText('Cached Bergkäse')).toBeTruthy();
+
+    fireEvent.press(row);
+    expect(await screen.findByText('View payload')).toBeTruthy();
+  });
+
+  it('drops the detail when the Likes sheet closes, so it cannot change host mid-flight', async () => {
+    // If `active` outlived the sheet, the single detail element would move from inside the
+    // sheet to the screen root — a remount that races a dismissal against a present.
+    await seedCache();
+    await seedLike();
+    await render(<DealsScreen />);
+    await screen.findByText('Cached Bergkäse');
+
+    fireEvent.press(screen.getByLabelText('Likes'));
+    fireEvent.press(await screen.findByLabelText('Open deal for Cached Bergkäse'));
+    await screen.findByText('View payload');
+
+    // Both sheets carry a "Close" — the detail nests inside Likes — so target the labelled one.
+    fireEvent.press(screen.getByLabelText('Close likes'));
+    await waitFor(() => expect(screen.queryByText('View payload')).toBeNull());
   });
 });
 

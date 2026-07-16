@@ -122,6 +122,9 @@ export default function DealsScreen() {
   const [recipesModal, setRecipesModal] = useState(false);
   const [compareModal, setCompareModal] = useState(false);
   const [edekaVsModal, setEdekaVsModal] = useState(false);
+  // Set when Compare has asked to hand off to the EDEKA-vs-E-center page but its own
+  // dismissal hasn't landed yet (native only — see the CompareModal wiring below).
+  const [pendingEdekaVs, setPendingEdekaVs] = useState(false);
   const [filterSheet, setFilterSheet] = useState(false);
   const [recipePrefs, setRecipePrefs] = useState<RecipePrefs>(DEFAULT_RECIPE_PREFS);
   const [alwaysHave, setAlwaysHave] = useState<BasketItem[]>([]);
@@ -562,6 +565,40 @@ export default function DealsScreen() {
     [visibleOffers, effectiveSort],
   );
 
+  // The deal detail is ONE element with ONE set of wiring (so the like/basket dedupe rules
+  // have no second copy), but WHERE it renders matters on iOS: a Modal presents from the
+  // first view controller up its responder chain, so it must be nested inside whichever
+  // sheet opened it rather than sitting beside it. See LikesModal for the full explanation.
+  const detail = (
+    <FlyerModal
+      offer={active}
+      onClose={() => setActive(null)}
+      onLike={onLikeOffer}
+      onAddToBasket={onAddToBasket}
+      liked={!!active && isLiked(active, likes)}
+      inBasket={!!active && basket.some((b) => b.key === resolveBasketItem(active).key)}
+    />
+  );
+  // At most one of these is ever open: they're opened from header buttons that sit on the
+  // deals screen, underneath any open sheet.
+  const sheetOpen = likesModal || compareModal || edekaVsModal;
+
+  // Closing a sheet also drops the detail: otherwise it would change host (sheet → root),
+  // remounting into a dismiss/present race. Unreachable via the UI (the detail's backdrop
+  // covers the sheet), but the guard costs one line.
+  const closeLikes = useCallback(() => {
+    setLikesModal(false);
+    setActive(null);
+  }, []);
+  const closeCompare = useCallback(() => {
+    setCompareModal(false);
+    setActive(null);
+  }, []);
+  const closeEdekaVs = useCallback(() => {
+    setEdekaVsModal(false);
+    setActive(null);
+  }, []);
+
   // Inside a selected category (and not searching), cluster offers by product so
   // competing prices sit together; the flat list stays for "All" and search.
   const grouped = !!selected && !q;
@@ -786,9 +823,21 @@ export default function DealsScreen() {
         chains={presentChains}
         categories={cats}
         onOpenOffer={setActive}
-        onClose={() => setCompareModal(false)}
+        onClose={closeCompare}
+        detail={compareModal ? detail : null}
+        // Compare REPLACES itself with the EDEKA-vs-E-center page. Doing both in one commit
+        // presents EdekaVs while the root VC is still animating Compare away, which iOS
+        // refuses — so on native we wait for the dismissal to actually land (onDismiss).
+        // Web has no view-controller stack and never fires onDismiss, so it switches now.
         onOpenEdekaVs={() => {
           setCompareModal(false);
+          setActive(null);
+          if (Platform.OS === 'web') setEdekaVsModal(true);
+          else setPendingEdekaVs(true);
+        }}
+        onDismiss={() => {
+          if (!pendingEdekaVs) return;
+          setPendingEdekaVs(false);
           setEdekaVsModal(true);
         }}
       />
@@ -796,29 +845,20 @@ export default function DealsScreen() {
         visible={edekaVsModal}
         offers={offers}
         onOpenOffer={setActive}
-        onClose={() => setEdekaVsModal(false)}
+        onClose={closeEdekaVs}
+        detail={edekaVsModal ? detail : null}
       />
-      {/* Every modal that opens a deal detail must be rendered BEFORE FlyerModal: on
-          react-native-web all modals mount their portal into document.body in JSX order
-          and share one z-index, so DOM order — not visibility — decides what paints on
-          top. A modal listed after FlyerModal would open the detail invisibly *behind*
-          its own backdrop (Compare/EdekaVs work precisely because they sit above). */}
       <LikesModal
         visible={likesModal}
         likes={likes}
         offers={modalOffers}
         onRemove={onRemoveLike}
         onOpenOffer={setActive}
-        onClose={() => setLikesModal(false)}
+        onClose={closeLikes}
+        detail={likesModal ? detail : null}
       />
-      <FlyerModal
-        offer={active}
-        onClose={() => setActive(null)}
-        onLike={onLikeOffer}
-        onAddToBasket={onAddToBasket}
-        liked={!!active && isLiked(active, likes)}
-        inBasket={!!active && basket.some((b) => b.key === resolveBasketItem(active).key)}
-      />
+      {/* No sheet open → the deals-list path hosts the detail itself. */}
+      {!sheetOpen ? detail : null}
       <PlzModal
         visible={plzModal}
         initialPlz={plz}

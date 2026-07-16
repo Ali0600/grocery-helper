@@ -21,6 +21,8 @@ export function CompareModal({
   onOpenOffer,
   onClose,
   onOpenEdekaVs,
+  onDismiss,
+  detail,
 }: {
   visible: boolean;
   offers: Offer[];
@@ -29,6 +31,12 @@ export function CompareModal({
   onOpenOffer: (o: Offer) => void;
   onClose: () => void;
   onOpenEdekaVs?: () => void; // open the dedicated EDEKA-vs-E-center diff page
+  /** iOS-only, fires once this sheet's view controller has actually gone. The EDEKA-vs-E-center
+   * handoff REPLACES this sheet, and iOS refuses to present while the presenter is still
+   * dismissing — so that swap has to wait for this. */
+  onDismiss?: () => void;
+  /** The deal detail — rendered inside this sheet's modal; see LikesModal for why. */
+  detail?: React.ReactNode;
 }) {
   const [selectedChains, setSelectedChains] = useState<string[]>(chains);
   const [category, setCategory] = useState<string | null>(null);
@@ -64,7 +72,14 @@ export function CompareModal({
     });
 
   return (
-    <AppModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <AppModal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      onDismiss={onDismiss}
+      testID="compare-modal"
+    >
       <View style={styles.root}>
         <View style={styles.sheet}>
           <View style={styles.header}>
@@ -182,6 +197,8 @@ export function CompareModal({
           </ScrollView>
         </View>
       </View>
+      {/* Inside this sheet's modal, never a sibling of it — see LikesModal for the full why. */}
+      {detail}
     </AppModal>
   );
 }
