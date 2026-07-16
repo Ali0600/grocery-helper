@@ -375,9 +375,23 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   It's **computed in the serializer** (no DB column/migration); the app sorts the
   loaded set client-side, nulls sink to the bottom. Sort is chosen in the **FilterSheet**
   (`SORT_OPTIONS`/`sortLabel` in `sort.ts`) with **3 modes** — *Lowest price* (`price_cents` asc), *Biggest discount*
-  (`discount_pct` desc, default), *Cheapest €/kg* (`unit_price_cents` asc) — all via one
+  (`discount_pct` desc), *Cheapest €/kg* (`unit_price_cents` asc) — all via one
   `compareOffers(a,b,mode)` comparator reused by the flat list, the within-group order, and
   the "More" bucket (so "discount" ranks by % even inside a category, not by price).
+- **The sort is PER CATEGORY, not global** (2026-07-16, `sort.ts` `defaultSortForCategory`/
+  `resolveSortMode`, both pure + tested): `effectiveSort = sortByCategory[selected] ?? default(selected)`,
+  and in **All** the persisted global `sortMode` (default *Biggest discount*). The default inside a
+  category is **€/kg for every food category**; only **household** keeps discount. That's measured, not
+  taste: on a Berlin PLZ €/kg out-covers `discount_pct` in *every* category except household — overall
+  **72% vs 34%**, fruits **77% vs 47%**, pantry 93% vs 18% (REWE/ALDI mostly publish no strike price, so
+  most offers have no `discount_pct` to rank by and sink). household is the lone non-food category (the
+  classifier's non-food path lands there) and the one place discount wins (36% vs 25%). The rule is a
+  **denylist** (`DISCOUNT_DEFAULT_CATEGORIES = {household}`) so `other`/`vegan` and any *future* food
+  category get the sensible default with no code change — retune by adding a slug. Changing the sort
+  **inside** a category records it for that category only (persisted `sortByCategory`, `storage.ts`);
+  changing it in All sets the global. Like `hiddenStores` it's a persisted *preference*, so the sheet's
+  **Reset does not clear it** (only "Reset all app data" does). Why per-category at all: one global sort
+  can't fit both — picking €/kg for Fruits used to leave household (25% €/kg-covered) sorted by it.
 - **The raw Grundpreis is normalized at serve time** (`unit_price.py`
   `normalize_price_per_unit(ppu, price_cents)`, called by the serializer **before** the
   derive fallback). `Offer.price_per_unit` mirrors the feed verbatim and the feed is

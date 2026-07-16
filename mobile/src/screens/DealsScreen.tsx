@@ -41,7 +41,7 @@ import {
   presentChains as derivePresentChains,
 } from '../dealFilters';
 import { dealsCacheStale, dealsStale, refreshDeltaMessage } from '../format';
-import { sortLabel } from '../sort';
+import { resolveSortMode, sortLabel } from '../sort';
 import { filterByVisibleStores, hasHiddenPresent, toggleHiddenStore, visibleStoreChains } from '../stores';
 import { resolveBasketItem } from '../basketResolve';
 import { DEFAULT_RECIPE_PREFS } from '../recipes';
@@ -57,6 +57,7 @@ import {
   getStoredPlz,
   getStoredRecipePrefs,
   getStoredShowNonFood,
+  getStoredSortByCategory,
   getStoredSortMode,
   setDealsCache,
   setPayloadCache,
@@ -67,6 +68,7 @@ import {
   setStoredPlz,
   setStoredRecipePrefs,
   setStoredShowNonFood,
+  setStoredSortByCategory,
   setStoredSortMode,
   SortMode,
 } from '../storage';
@@ -95,7 +97,11 @@ export default function DealsScreen() {
   const [showNonFood, setShowNonFood] = useState(false);
   const [storesModal, setStoresModal] = useState(false);
   const [myStores, setMyStores] = useState<MyStore[]>([]);
-  const [sortMode, setSortMode] = useState<SortMode>('discount');
+  const [sortMode, setSortMode] = useState<SortMode>('discount'); // persisted: the sort used in "All"
+  // Persisted: the user's explicit sort per category (slug -> mode). Only overrides live here —
+  // a category with no entry uses `defaultSortForCategory` (€/kg for food, discount for
+  // household), so a category you've never touched always starts on the sensible default.
+  const [sortByCategory, setSortByCategory] = useState<Record<string, SortMode>>({});
   const [hiddenStores, setHiddenStores] = useState<string[]>([]); // persisted: chains hidden from the deals list
   const [specialDays, setSpecialDays] = useState(false); // session lens: only day-limited specials
   // Session lens: isolate ONE store's deals for a quick look (the Filters "Only show"
@@ -174,6 +180,7 @@ export default function DealsScreen() {
       setShowNonFood(await getStoredShowNonFood());
       setMyStores(await getStoredMyStores());
       setSortMode(await getStoredSortMode());
+      setSortByCategory(await getStoredSortByCategory());
       setHiddenStores(await getStoredHiddenStores());
       setBasket(await getStoredBasket());
       setRecipePrefs(await getStoredRecipePrefs());
@@ -382,6 +389,7 @@ export default function DealsScreen() {
     setBasket([]);
     setShowNonFood(false);
     setSortMode('discount');
+    setSortByCategory({});
     setSelected(null);
     setQuery('');
     setHiddenStores([]);
@@ -406,10 +414,24 @@ export default function DealsScreen() {
     return `Wiped the server DB (removed ${res.deleted}) and re-scraped ${res.scraped} offers.`;
   }, [plz, revalidate]);
 
-  const onChangeSort = useCallback((mode: SortMode) => {
-    setSortMode(mode);
-    setStoredSortMode(mode);
-  }, []);
+  // Changing the sort inside a category records it for THAT category only (so picking €/kg
+  // for Fruits can't leave household — where only ~25% of offers have a €/kg — sorted by it).
+  // In "All" it sets the global mode, as before.
+  const onChangeSort = useCallback(
+    (mode: SortMode) => {
+      if (selected) {
+        setSortByCategory((prev) => {
+          const next = { ...prev, [selected]: mode };
+          setStoredSortByCategory(next);
+          return next;
+        });
+        return;
+      }
+      setSortMode(mode);
+      setStoredSortMode(mode);
+    },
+    [selected],
+  );
 
   const onToggleNonFood = useCallback(() => {
     setShowNonFood((prev) => {
@@ -477,19 +499,27 @@ export default function DealsScreen() {
     [offers, showNonFood, hiddenStores, activeLens, specialDays, bioOnly, query, selected],
   );
 
+  // The sort actually in effect: your explicit pick for this category wins, else the
+  // category's default (€/kg inside a food category — it's the axis you shop on AND it
+  // out-covers discount everywhere but household), else the global mode in "All".
+  const effectiveSort = useMemo(
+    () => resolveSortMode(selected, sortMode, sortByCategory),
+    [selected, sortMode, sortByCategory],
+  );
+
   // Re-sort the filtered view by the active mode (lowest price / biggest discount /
   // cheapest €/kg); offers missing the metric (no discount, no €/kg) sink to the bottom.
   const sorted = useMemo(
-    () => [...visibleOffers].sort((a, b) => compareOffers(a, b, sortMode)),
-    [visibleOffers, sortMode],
+    () => [...visibleOffers].sort((a, b) => compareOffers(a, b, effectiveSort)),
+    [visibleOffers, effectiveSort],
   );
 
   // Inside a selected category (and not searching), cluster offers by product so
   // competing prices sit together; the flat list stays for "All" and search.
   const grouped = !!selected && !q;
   const sections = useMemo(
-    () => (grouped ? buildSections(sorted, sortMode) : []),
-    [grouped, sorted, sortMode],
+    () => (grouped ? buildSections(sorted, effectiveSort) : []),
+    [grouped, sorted, effectiveSort],
   );
 
   // Household offer count for the Non-food control (deduped, from /api/categories).
@@ -601,7 +631,7 @@ export default function DealsScreen() {
         />
 
         <FilterBar
-          sortLabel={sortLabel(sortMode)}
+          sortLabel={sortLabel(effectiveSort)}
           chips={filterChips}
           onOpen={() => setFilterSheet(true)}
         />
@@ -769,7 +799,7 @@ export default function DealsScreen() {
         visible={filterSheet}
         onClose={() => setFilterSheet(false)}
         onReset={resetFilters}
-        sortMode={sortMode}
+        sortMode={effectiveSort}
         onChangeSort={onChangeSort}
         chains={visibleStoreChains(presentChains, hiddenStores)}
         chainCounts={chainCounts}
