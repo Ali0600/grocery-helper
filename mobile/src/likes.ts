@@ -18,10 +18,20 @@ import { LikedItem, Offer } from './types';
 /** How many fallback suggestions a Likes row shows before it stops being "quick". */
 const RELATED_CAP = 8;
 
+/** The stable identity of a liked product. One definition, used both to persist a like and
+ * to ask "is this already liked?" — don't call `resolveLike` just to read a key, it stamps
+ * `Date.now()`. */
+export const likeKey = (offer: Offer): string => normName(offer.name);
+
+/** Is this offer's product already in the likes list? (Keys off the product identity, not
+ * `offer.id` — ids churn weekly, so the answer stays right across flyer weeks.) */
+export const isLiked = (offer: Offer, likes: LikedItem[]): boolean =>
+  likes.some((l) => l.key === likeKey(offer));
+
 /** Snapshot an offer's product identity as a persistable like. */
 export function resolveLike(offer: Offer): LikedItem {
   return {
-    key: normName(offer.name),
+    key: likeKey(offer),
     name: offer.name,
     brand: offer.brand,
     group: offer.group,

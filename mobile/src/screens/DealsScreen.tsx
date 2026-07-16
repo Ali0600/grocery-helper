@@ -45,7 +45,7 @@ import { dealsCacheStale, dealsStale, refreshDeltaMessage } from '../format';
 import { resolveSortMode, sortLabel } from '../sort';
 import { filterByVisibleStores, hasHiddenPresent, toggleHiddenStore, visibleStoreChains } from '../stores';
 import { resolveBasketItem } from '../basketResolve';
-import { onSaleCount, resolveLike } from '../likes';
+import { isLiked, onSaleCount, resolveLike } from '../likes';
 import { DEFAULT_RECIPE_PREFS } from '../recipes';
 import {
   clearAllData,
@@ -85,7 +85,6 @@ const DEFAULT_PLZ = process.env.EXPO_PUBLIC_DEFAULT_PLZ ?? '10115';
 
 export default function DealsScreen() {
   const [plz, setPlz] = useState(DEFAULT_PLZ);
-  const [storeName, setStoreName] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [plzModal, setPlzModal] = useState(false);
 
@@ -233,7 +232,6 @@ export default function DealsScreen() {
         const prevCount = offersCountRef.current;
         setOffers(o);
         setCats(c);
-        setStoreName(name);
         const now = Date.now();
         setUpdatedAt(now);
         setError(null);
@@ -285,7 +283,6 @@ export default function DealsScreen() {
       if (hit && cached) {
         setOffers(cached.offers);
         setCats(cached.cats);
-        setStoreName(cached.storeName);
         setUpdatedAt(cached.cachedAt);
         setError(null);
         setLoading(false);
@@ -319,9 +316,10 @@ export default function DealsScreen() {
     setRefreshing(false);
   }, [revalidate]);
 
-  const onApplied = useCallback(async (newPlz: string, name: string | null) => {
+  // PlzModal also passes the resolved store name; the header no longer shows it (pin only),
+  // and the deals cache gets its own copy in `revalidate`, so it's ignored here.
+  const onApplied = useCallback(async (newPlz: string) => {
     await setStoredPlz(newPlz);
-    setStoreName(name);
     setSelected(null);
     setQuery('');
     setSpecialDays(false);
@@ -494,8 +492,6 @@ export default function DealsScreen() {
   // on every keystroke); the pure logic lives in dealFilters.ts where it's unit-tested.
   const presentChains = useMemo(() => derivePresentChains(offers), [offers]);
   const chainCounts = useMemo(() => tallyChainCounts(offers), [offers]);
-  // Active chains, for the header subline (e.g. "Lidl · REWE · Edeka").
-  const chainsSub = presentChains.map(chainLabel).join(' · ');
   // Toggle a store's visibility (persisted); guarded so the last visible store can't be hidden.
   const onToggleStore = (chain: string) => {
     setHiddenStores((prev) => {
@@ -616,25 +612,18 @@ export default function DealsScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
+          {/* Pin only. Six icon actions + a text block don't fit a phone: the 6th icon
+              squeezed "PLZ 10713" to "P…" at 375/390pt (the control collapsed 122px → 76px).
+              The code isn't lost — the pin opens PlzModal, and it stays ANNOUNCED to screen
+              readers via the label below, so removing it visually isn't an a11y regression. */}
           <Pressable
             style={styles.location}
             onPress={() => setPlzModal(true)}
-            hitSlop={6}
+            hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel="Change postal code"
+            accessibilityLabel={`Change postal code, currently ${plz}`}
           >
-            <Icon name="location-outline" size={18} color={colors.accent} />
-            <View style={styles.locationText}>
-              <View style={styles.locationLine}>
-                <Text style={styles.locName} numberOfLines={1}>
-                  PLZ {plz}
-                </Text>
-                <Icon name="chevron-down" size={14} color={colors.muted} />
-              </View>
-              <Text style={styles.locSub} numberOfLines={1}>
-                {chainsSub || storeName || 'Tap to set location'}
-              </Text>
-            </View>
+            <Icon name="location-outline" size={22} color={colors.accent} />
           </Pressable>
           <View style={styles.headerActions}>
             <IconButton
@@ -822,7 +811,14 @@ export default function DealsScreen() {
         onOpenOffer={setActive}
         onClose={() => setLikesModal(false)}
       />
-      <FlyerModal offer={active} onClose={() => setActive(null)} />
+      <FlyerModal
+        offer={active}
+        onClose={() => setActive(null)}
+        onLike={onLikeOffer}
+        onAddToBasket={onAddToBasket}
+        liked={!!active && isLiked(active, likes)}
+        inBasket={!!active && basket.some((b) => b.key === resolveBasketItem(active).key)}
+      />
       <PlzModal
         visible={plzModal}
         initialPlz={plz}
@@ -904,11 +900,8 @@ const styles = StyleSheet.create({
     paddingTop: space.md,
     paddingBottom: space.sm,
   },
-  location: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 1 },
-  locationText: { flexShrink: 1 },
-  locationLine: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locName: { color: colors.text, fontSize: 17, fontWeight: '700', flexShrink: 1 },
-  locSub: { color: colors.muted, fontSize: 12, marginTop: 1 },
+  // Pin-only: a 38px target matching the icon row, so the header is one even row.
+  location: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 0 },
   listFill: { flex: 1 },
   list: { paddingVertical: 6, paddingBottom: 24 },

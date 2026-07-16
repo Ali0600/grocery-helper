@@ -228,6 +228,20 @@ describe('DealsScreen — the Likes heart badge', () => {
   });
 });
 
+describe('DealsScreen — the header is pin-only', () => {
+  it('drops the PLZ text but keeps it ANNOUNCED, so removing it visually is not an a11y regression', async () => {
+    // Six icon actions + a text block don't fit a phone: the 6th icon squeezed "PLZ 10713"
+    // to "P…" at 375/390pt. The pin stays; the code moves into the label.
+    await seedCache();
+    await render(<DealsScreen />);
+    await screen.findByText('Cached Bergkäse');
+
+    expect(screen.queryByText('PLZ 10715')).toBeNull();
+    expect(screen.queryByText(/^PLZ /)).toBeNull(); // no visible postal-code text at all
+    expect(screen.getByLabelText('Change postal code, currently 10115')).toBeTruthy();
+  });
+});
+
 describe('DealsScreen — per-category sort', () => {
   // One global sort couldn't fit both: €/kg is the axis you shop Fruits on (and out-covers
   // "Biggest discount" there, 77% vs 47% measured), while household is only 25% €/kg-covered.
