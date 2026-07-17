@@ -285,6 +285,78 @@ describe('DealsScreen — the header is pin-only', () => {
   });
 });
 
+describe('DealsScreen — the "My Categories" home', () => {
+  // Cache with two fruit deals + a couple of categories, so a Mine shelf and the editor have data.
+  const fruitCache = () =>
+    seedCache({
+      offers: [
+        makeOffer({ name: 'Bananen', category: 'fruits', category_label: 'Fruits', price_cents: 149 }),
+        makeOffer({ name: 'Äpfel', category: 'fruits', category_label: 'Fruits', price_cents: 199 }),
+      ],
+      cats: [
+        { category: 'fruits', label: 'Fruits', count: 2 },
+        { category: 'cheese', label: 'Cheese', count: 3 },
+      ],
+    });
+  const seedMine = (slugs: string[]) =>
+    AsyncStorage.setItem('myCategories', JSON.stringify(slugs));
+
+  it('lands on the Mine home when categories are chosen, showing category shelves', async () => {
+    await fruitCache();
+    await seedMine(['fruits']);
+    await render(<DealsScreen />);
+
+    // "Per category" (the FilterBar summary) + a "See all" shelf header prove the Mine view is
+    // showing — not All (which would read "Biggest discount" with no shelf headers).
+    expect(await screen.findByText('Per category')).toBeTruthy();
+    expect(screen.getByLabelText('See all 2 in Fruits')).toBeTruthy();
+    expect(screen.getByText('Mine')).toBeTruthy();
+  });
+
+  it('lands on All when no categories are chosen — and shows no Mine chip', async () => {
+    await fruitCache(); // offers + cats present, but myCategories is unset
+    await render(<DealsScreen />);
+
+    expect(await screen.findByText('Biggest discount')).toBeTruthy(); // the All default sort
+    expect(screen.queryByText('Mine')).toBeNull();
+    expect(screen.queryByText('Per category')).toBeNull();
+  });
+
+  it('"See all" drills into the category’s full view, and the Mine chip returns', async () => {
+    await fruitCache();
+    await seedMine(['fruits']);
+    await render(<DealsScreen />);
+    await screen.findByText('Per category');
+
+    await fireEvent.press(screen.getByLabelText('See all 2 in Fruits'));
+    // The single-category view sorts by the Fruits default (€/kg), and the per-category summary is gone.
+    expect(await screen.findByText('Cheapest €/kg')).toBeTruthy();
+    expect(screen.queryByText('Per category')).toBeNull();
+
+    await fireEvent.press(screen.getByText('Mine'));
+    expect(await screen.findByText('Per category')).toBeTruthy();
+  });
+
+  it('the pencil editor toggles a category and persists it', async () => {
+    await fruitCache();
+    await seedMine(['fruits']);
+    await render(<DealsScreen />);
+    await screen.findByText('Per category');
+
+    await fireEvent.press(screen.getByLabelText('Edit my categories'));
+    const modal = await screen.findByTestId('categories-modal');
+    // Fruits is already chosen ("Remove Fruits"); Cheese isn't ("Add Cheese") — add it.
+    await fireEvent.press(within(modal).getByLabelText('Add Cheese'));
+
+    await waitFor(() => {
+      const writes = (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
+        ([k]) => k === 'myCategories',
+      );
+      expect(JSON.parse(writes[writes.length - 1][1])).toEqual(['fruits', 'cheese']);
+    });
+  });
+});
+
 describe('DealsScreen — per-category sort', () => {
   // One global sort couldn't fit both: €/kg is the axis you shop Fruits on (and out-covers
   // "Biggest discount" there, 77% vs 47% measured), while household is only 25% €/kg-covered.

@@ -42,6 +42,9 @@ export function FilterSheet(props: {
   onReset: () => void;
   sortMode: SortMode;
   onChangeSort: (m: SortMode) => void;
+  // Hidden on the "My Categories" home: there's no single sort there — each shelf uses its
+  // category's own default — so a single Sort selector would be misleading.
+  hideSort?: boolean;
   // Store MEMBERSHIP lives in the Stores modal (Add/Added). This is different: a
   // transient single-select "Only show" lens for quickly peeking at one store's deals —
   // one tap isolates, one tap (All / the bar chip's ✕) restores. Session-only.
@@ -86,14 +89,16 @@ export function FilterSheet(props: {
         </View>
 
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
-          <Section
-            title="Sort by"
-            options={SORT_OPTIONS.map((o) => ({
-              label: o.label,
-              active: props.sortMode === o.value,
-              onPress: () => props.onChangeSort(o.value),
-            }))}
-          />
+          {!props.hideSort && (
+            <Section
+              title="Sort by"
+              options={SORT_OPTIONS.map((o) => ({
+                label: o.label,
+                active: props.sortMode === o.value,
+                onPress: () => props.onChangeSort(o.value),
+              }))}
+            />
+          )}
 
           {props.chains.length >= 2 && (
             <Section

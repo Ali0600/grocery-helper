@@ -12,6 +12,7 @@ const MYSTORES_KEY = 'myStores';
 const SORT_KEY = 'sortMode'; // the global sort (used in "All")
 const SORT_BY_CATEGORY_KEY = 'sortByCategory'; // slug -> the user's explicit sort for it
 const HIDDEN_STORES_KEY = 'hiddenStores';
+const MYCATS_KEY = 'myCategories'; // ordered category slugs for the personalized "My Categories" home
 const BASKET_KEY = 'basket';
 const LIKES_KEY = 'likedItems';
 const HIDDEN_KEY = 'hiddenItems'; // deals dismissed from the deal detail (one flyer week)
@@ -76,6 +77,35 @@ export async function setStoredHiddenStores(chains: string[]): Promise<void> {
     await AsyncStorage.setItem(HIDDEN_STORES_KEY, JSON.stringify(chains));
   } catch (e) {
     console.warn('storage: setStoredHiddenStores failed', e);
+    // best-effort
+  }
+}
+
+// The categories chosen for the personalized "My Categories" home, in the user's order. Empty =
+// no custom view yet, so the app falls back to "All" (a fresh install is never a blank screen).
+// A hidden-set-style persisted PREFERENCE, like `hiddenStores`: cleared by "Reset all app data"
+// only, not the Filters-sheet Reset. A slug that no longer has offers is simply skipped when the
+// home is built, so a stale/renamed category is inert (never crashes, never shows an empty shelf).
+export async function getStoredMyCategories(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(MYCATS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // Keep only non-empty strings — a corrupt entry must not reach the section builder as a
+    // category slug (it would just never match, but drop it so the stored list stays clean).
+    return parsed.filter((s): s is string => typeof s === 'string' && s.length > 0);
+  } catch (e) {
+    console.warn('storage: getStoredMyCategories failed', e);
+    return [];
+  }
+}
+
+export async function setStoredMyCategories(slugs: string[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(MYCATS_KEY, JSON.stringify(slugs));
+  } catch (e) {
+    console.warn('storage: setStoredMyCategories failed', e);
     // best-effort
   }
 }
@@ -320,6 +350,7 @@ export async function clearAllData(): Promise<void> {
     await AsyncStorage.multiRemove([
       NONFOOD_KEY,
       HIDDEN_STORES_KEY,
+      MYCATS_KEY,
       MYSTORES_KEY,
       SORT_KEY,
       SORT_BY_CATEGORY_KEY,

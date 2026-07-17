@@ -16,7 +16,9 @@ import {
 import { api } from '../api';
 import { chainLabel } from '../chains';
 import { BasketModal } from '../components/BasketModal';
+import { CategoriesModal } from '../components/CategoriesModal';
 import { CategoryChips } from '../components/CategoryChips';
+import { CategorySectionHeader } from '../components/CategorySectionHeader';
 import { CompareModal } from '../components/CompareModal';
 import { EdekaVsModal } from '../components/EdekaVsModal';
 import { FlyerModal } from '../components/FlyerModal';
@@ -34,11 +36,13 @@ import { SearchBar } from '../components/SearchBar';
 import { StoresModal } from '../components/StoresModal';
 import { UpdateStatus } from '../components/UpdateStatus';
 import {
+  buildMineSections,
   buildSections,
   chainCounts as tallyChainCounts,
   compareOffers,
   DealSection,
   filterDeals,
+  MineSection,
   presentChains as derivePresentChains,
 } from '../dealFilters';
 import { dealsCacheStale, dealsStale, refreshDeltaMessage } from '../format';
@@ -58,6 +62,7 @@ import {
   getStoredHidden,
   getStoredHiddenStores,
   getStoredLikes,
+  getStoredMyCategories,
   getStoredMyStores,
   getStoredPlz,
   getStoredRecipePrefs,
@@ -71,6 +76,7 @@ import {
   setStoredHidden,
   setStoredHiddenStores,
   setStoredLikes,
+  setStoredMyCategories,
   setStoredMyStores,
   setStoredPlz,
   setStoredRecipePrefs,
@@ -93,6 +99,12 @@ export default function DealsScreen() {
 
   const [cats, setCats] = useState<CategoryCount[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  // The personalized "My Categories" home. `myCategories` (persisted, ordered) is the chosen set;
+  // `mine` is whether that view is active — layered on top of `selected` (All / one category) rather
+  // than replacing it, so every existing category/search path is untouched.
+  const [myCategories, setMyCategories] = useState<string[]>([]);
+  const [mine, setMine] = useState(false);
+  const [categoriesModal, setCategoriesModal] = useState(false);
   const [query, setQuery] = useState('');
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -197,6 +209,11 @@ export default function DealsScreen() {
       setSortMode(await getStoredSortMode());
       setSortByCategory(await getStoredSortByCategory());
       setHiddenStores(await getStoredHiddenStores());
+      // Land on the personalized home when the user has picked categories, else on All (a fresh
+      // install has none → never a blank Mine screen). `mine` is otherwise a session view toggle.
+      const mc = await getStoredMyCategories();
+      setMyCategories(mc);
+      setMine(mc.length > 0);
       setBasket(await getStoredBasket());
       setLikes(await getStoredLikes());
       setHidden(await getStoredHidden());
@@ -477,6 +494,8 @@ export default function DealsScreen() {
     setShowNonFood(false);
     setSortMode('discount');
     setSortByCategory({});
+    setMyCategories([]);
+    setMine(false);
     setSelected(null);
     setQuery('');
     setHiddenStores([]);
@@ -545,6 +564,40 @@ export default function DealsScreen() {
     setHiddenStores([]);
     setStoredHiddenStores([]);
   };
+
+  // --- "My Categories" home ---
+  // Selecting All or a category chip leaves the Mine view (existing single-select behaviour).
+  const onSelectCategory = useCallback((slug: string | null) => {
+    setMine(false);
+    setSelected(slug);
+  }, []);
+  // The ★ Mine chip: show the home if categories are picked, else open the editor to pick some.
+  const onSelectMine = useCallback(() => {
+    if (myCategories.length === 0) {
+      setCategoriesModal(true);
+      return;
+    }
+    setMine(true);
+    setSelected(null);
+    setQuery('');
+  }, [myCategories.length]);
+  // Add/remove a category (persisted, mirrors onToggleStore). Removing the last one flips OUT of the
+  // Mine view so it can't sit on an empty home; adding the first leaves the current view as-is (the
+  // ★ chip appears and the next app open lands on Mine).
+  const onToggleMyCategory = useCallback((slug: string) => {
+    setMyCategories((prev) => {
+      const next = prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug];
+      setStoredMyCategories(next);
+      if (next.length === 0) setMine(false);
+      return next;
+    });
+  }, []);
+  // "See all" on a shelf → drill into that category's full (product-grouped) view. The ★ Mine
+  // chip is the way back, so no navigation stack is needed.
+  const onSeeAll = useCallback((slug: string) => {
+    setMine(false);
+    setSelected(slug);
+  }, []);
 
   // Active hide keys (expired hides are already dropped by hiddenKeySet).
   const hiddenKeys = useMemo(() => hiddenKeySet(hidden), [hidden]);
@@ -678,6 +731,40 @@ export default function DealsScreen() {
     [grouped, sorted, effectiveSort],
   );
 
+  // The personalized "My Categories" home (preview shelves). Its base is the FULL filtered set
+  // (all categories, no search), so every shelf inherits the same hidden/stores/dedupe/lens/
+  // days/bio/non-food filtering as the list and can't drift from it. Only built when active.
+  const hasMine = myCategories.length > 0;
+  const showMine = mine && !q; // search overrides Mine (global), exactly as it overrides grouping
+  const mineBase = useMemo(
+    () =>
+      showMine
+        ? filterDeals(offers, {
+            showNonFood,
+            hiddenKeys,
+            showHidden: activeShowHidden,
+            hiddenStores,
+            storeLens: activeLens,
+            specialDays,
+            bioOnly,
+            query: '',
+            selected: null,
+          })
+        : [],
+    [showMine, offers, showNonFood, hiddenKeys, activeShowHidden, hiddenStores, activeLens, specialDays, bioOnly],
+  );
+  const categoryLabels = useMemo(
+    () => Object.fromEntries(cats.map((c) => [c.category, c.label])),
+    [cats],
+  );
+  const mineSections = useMemo(
+    () =>
+      buildMineSections(mineBase, myCategories, categoryLabels, (slug) =>
+        resolveSortMode(slug, sortMode, sortByCategory),
+      ),
+    [mineBase, myCategories, categoryLabels, sortMode, sortByCategory],
+  );
+
   // Household offer count for the Non-food control (deduped, from /api/categories).
   const nonFoodCount = cats.find((c) => c.category === 'household')?.count ?? null;
   // Active (non-default) filters → removable chips on the bar; their count badges "Filters".
@@ -788,12 +875,17 @@ export default function DealsScreen() {
         <CategoryChips
           categories={cats}
           selected={selected}
-          onSelect={setSelected}
+          onSelect={onSelectCategory}
           showNonFood={showNonFood}
+          mine={mine}
+          hasMine={hasMine}
+          onSelectMine={onSelectMine}
+          onEditCategories={() => setCategoriesModal(true)}
         />
 
         <FilterBar
-          sortLabel={sortLabel(effectiveSort)}
+          // Mine has no single sort — each shelf uses its category's own default (€/kg for food).
+          sortLabel={mine ? 'Per category' : sortLabel(effectiveSort)}
           chips={filterChips}
           onOpen={() => setFilterSheet(true)}
         />
@@ -821,6 +913,44 @@ export default function DealsScreen() {
               <Text style={styles.retryBtnText}>Try again</Text>
             </Pressable>
           </View>
+        ) : showMine ? (
+          <SectionList
+            style={styles.listFill}
+            sections={mineSections}
+            keyExtractor={(o) => String(o.id)}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            stickySectionHeadersEnabled={false}
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={7}
+            renderItem={renderOffer}
+            renderSectionHeader={({ section }: { section: MineSection }) => (
+              <CategorySectionHeader
+                label={section.label}
+                total={section.total}
+                onSeeAll={() => onSeeAll(section.slug)}
+              />
+            )}
+            contentContainerStyle={styles.list}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.muted} />
+            }
+            ListEmptyComponent={
+              <View style={styles.center}>
+                <Text style={styles.muted}>None of your categories have deals this week.</Text>
+                <Pressable
+                  style={({ pressed }) => [styles.retryBtn, pressed && styles.retryBtnPressed]}
+                  onPress={() => {
+                    setMine(false);
+                    setSelected(null);
+                  }}
+                >
+                  <Text style={styles.retryBtnText}>Browse all deals</Text>
+                </Pressable>
+              </View>
+            }
+          />
         ) : grouped ? (
           <SectionList
             style={styles.listFill}
@@ -943,6 +1073,14 @@ export default function DealsScreen() {
         onClose={() => setPlzModal(false)}
         onApplied={onApplied}
       />
+      <CategoriesModal
+        visible={categoriesModal}
+        onClose={() => setCategoriesModal(false)}
+        // Food categories only — household is non-food and gated by the Non-food toggle everywhere.
+        categories={cats.filter((c) => c.category !== 'household')}
+        myCategories={myCategories}
+        onToggle={onToggleMyCategory}
+      />
       <StoresModal
         visible={storesModal}
         plz={plz}
@@ -986,6 +1124,7 @@ export default function DealsScreen() {
         onReset={resetFilters}
         sortMode={effectiveSort}
         onChangeSort={onChangeSort}
+        hideSort={mine}
         chains={visibleStoreChains(presentChains, hiddenStores)}
         chainCounts={chainCounts}
         storeLens={activeLens}

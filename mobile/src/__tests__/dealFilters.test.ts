@@ -1,4 +1,5 @@
 import {
+  buildMineSections,
   buildSections,
   chainCounts,
   compareOffers,
@@ -7,6 +8,7 @@ import {
   filterDeals,
   presentChains,
 } from '../dealFilters';
+import { SortMode } from '../storage';
 import { hideKey } from '../hidden';
 import { Offer } from '../types';
 import { makeOffer } from './fixtures';
@@ -329,5 +331,53 @@ describe('filterDeals — hidden deals', () => {
 
     expect(filterDeals(both, OPTS)).toEqual([edeka]); // baseline: the E center dup is hidden
     expect(filterDeals(both, { ...OPTS, hiddenKeys: hide(edeka) })).toEqual([ecenter]);
+  });
+});
+
+describe('buildMineSections — the "My Categories" home', () => {
+  const labels: Record<string, string> = { fruits: 'Fruits', cheese: 'Cheese', pork: 'Pork' };
+  // Sort every category by lowest price here, so the preview order is deterministic and readable.
+  const byPrice: (slug: string) => SortMode = () => 'price';
+
+  const fruit = (name: string, price: number) =>
+    makeOffer({ name, category: 'fruits', category_label: 'Fruits', price_cents: price });
+  const cheese = (name: string, price: number) =>
+    makeOffer({ name, category: 'cheese', category_label: 'Cheese', price_cents: price });
+
+  it('builds one shelf per chosen category, in myCategories order', () => {
+    const base = [cheese('Gouda', 199), fruit('Äpfel', 149)];
+    const out = buildMineSections(base, ['fruits', 'cheese'], labels, byPrice);
+    expect(out.map((s) => s.slug)).toEqual(['fruits', 'cheese']); // user's order, not offer order
+    expect(out.map((s) => s.label)).toEqual(['Fruits', 'Cheese']);
+  });
+
+  it('previews the top N by the category’s sort and reports the FULL total', () => {
+    const base = [fruit('c', 300), fruit('a', 100), fruit('b', 200), fruit('d', 400)];
+    const out = buildMineSections(base, ['fruits'], labels, byPrice, 2);
+    expect(out[0].total).toBe(4); // "See all 4"
+    expect(out[0].data.map((o) => o.name)).toEqual(['a', 'b']); // cheapest two, in price order
+  });
+
+  it('skips a chosen category that has no offers this week (no empty shelf)', () => {
+    const out = buildMineSections([fruit('Äpfel', 149)], ['fruits', 'pork'], labels, byPrice);
+    expect(out.map((s) => s.slug)).toEqual(['fruits']); // pork is absent, so it’s dropped
+  });
+
+  it('returns nothing when the base is empty or no categories are chosen', () => {
+    expect(buildMineSections([], ['fruits'], labels, byPrice)).toEqual([]);
+    expect(buildMineSections([fruit('Äpfel', 149)], [], labels, byPrice)).toEqual([]);
+  });
+
+  it('honours the per-category sort function (each shelf can order differently)', () => {
+    const disc = (name: string, pct: number) =>
+      makeOffer({ name, category: 'fruits', category_label: 'Fruits', discount_pct: pct, price_cents: 500 });
+    const base = [disc('small', 10), disc('big', 40)];
+    const out = buildMineSections(base, ['fruits'], labels, () => 'discount', 2);
+    expect(out[0].data.map((o) => o.name)).toEqual(['big', 'small']); // biggest discount first
+  });
+
+  it('falls back to the offer label when the served labels map is missing the slug', () => {
+    const out = buildMineSections([fruit('Äpfel', 149)], ['fruits'], {}, byPrice);
+    expect(out[0].label).toBe('Fruits'); // from offer.category_label, not a blank header
   });
 });
