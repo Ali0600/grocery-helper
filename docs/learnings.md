@@ -955,3 +955,24 @@ physically reach, and how many rows can it even score?" A ceiling the metric can
 green light wired to nothing. Always prove a new gate *fails* on a known-bad input in its real
 surface — and when it won't fail, suspect the denominator before the threshold. (Pairs with the
 existing "a gate can report green while evaluating less than it claims".)
+
+## An upstream "non-X" bucket isn't authoritative when it's also a dumping ground
+
+Our classifier trusted the source's category path: anything not under the food root became
+"household". That's right for *specific* non-food leaves (Toilettenpapier, Induktionskochplatte) but
+wrong for *generic* ones — the feed dumps real produce and fish under pet-brand, loyalty-program, and
+bare-brand nodes (`Tierbedarf > Marken für Tiere`, `Saison und Events > Payback`, `Marken > REWE
+Beste Wahl`), so nectarines and Deutsche See fish were being sold as "household". The tempting fix —
+reclassify those whole roots as food — was measured and rejected: each also holds genuine non-food
+(clothing, SIM cards, grills, plants) that would then fall to "other". The right fix rescued by
+*product signal* (a curated set of specific food nouns, vetoed against plants/clothing/pet food),
+moving only what's provably food and leaving the real non-food alone.
+
+**Why it came up:** the same product name was served under two categories depending on which node the
+feed happened to file it under — the tell that a path node was being trusted more than it deserved.
+
+**Takeaway:** before trusting a hierarchical label as authoritative, ask whether that node is a
+*specific* classification or a *generic bucket* (a brand, a promo, a loyalty tier) that the upstream
+uses as a catch-all. Correct a catch-all by the item's own signal, not by relabelling the bucket —
+relabelling trades one misclassification for another. And gate the correction inside the failure
+branch (here: only when the path is non-food) so the happy path it's rescuing can never regress.
