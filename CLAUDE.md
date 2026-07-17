@@ -310,7 +310,24 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   brands like Rügenwalder) move into `vegan`, *out of* their natural category (a vegan cheese is
   filed under vegan, per the user's choice). Running first also rescues plant-based food the
   source mis-files under a non-food path (REWE → household). `vegetarisch` ≠ vegan. ~42/PLZ. No
-  serve-time field / mobile change (a plain category, unlike the Bio *filter*). **QA a category against its product images**: re-classify from the DB
+  serve-time field / mobile change (a plain category, unlike the Bio *filter*).
+  **High-confidence food RESCUE from a non-food path** (2026-07-17, `_food_rescue`, gated inside the
+  layer-1 non-food check — `_path_nonfood(path) → _food_rescue(name, brand) or "household"`): the
+  source dumps real food under **generic** non-food leaves that carry no category — pet-brand nodes
+  (`Tierbedarf > Marken für Tiere`), promo/loyalty nodes (`Saison und Events > Payback`), or a bare
+  brand (`Marken > REWE Beste Wahl`) — so REWE's regional produce, Deutsche See fish, poultry salads
+  etc. became household. `_FOOD_RESCUE` is a curated set of **specific** food nouns (rispentomate,
+  nektarine, maishähnchen, roggenmischbrot, deutsche see…) — deliberately NOT the generic produce
+  keywords (`salat`/`tomate` would catch a Salatschleuder / Tomatenpflanze). Guarded by `_RESCUE_VETO`
+  (plant/garden/clothing/wood/pet words — Traubenhyazinthe, Mango *Kleid*, Kirschholz, "…Knabbermix"
+  cat treats). **The gate on the non-food path is what makes it safe**: it fires ONLY when the path is
+  non-food, so a *food*-path Erdbeer-Joghurt is never dragged into fruits. 63 offers rescued
+  household→food, **0 regressions** (every move was household→a food category), self-disagreement
+  1.2%→1.0% (it resolved the Aprikosen/Nektarinen split — some copies were household, some fruits).
+  Wholesale root reclassification was **rejected**: `Marken`/`Saison` each also hold genuine non-food
+  (Tchibo clothing, SIM cards, grills, gift cards, plants) that would regress to `other`. New produce
+  under a pet/promo node needs a `_FOOD_RESCUE` entry (image-verify first — "Aprikosen" under a garden
+  brand was real fruit, but an apricot *tree* would not be). **QA a category against its product images**: re-classify from the DB
   (don't re-scrape — `python -m app.scripts.recategorize` syncs stored rows to the current
   classifier), then build a Pillow contact-sheet of that category's `image_url`s and eyeball
   it (that's how 4 mis-filed "fruits" — a peach aperitif, banana chips, lemonade, a yogurt —
