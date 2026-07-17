@@ -917,3 +917,41 @@ for a year because every test re-seeded the key it cared about.
 the failure mode isn't an error, it's a lost update reported somewhere else entirely. And when a test
 fails in a way the code can't explain, instrument the *handler* before doubting the feature: knowing
 "it fired but nothing re-rendered" converts a mystery into a one-line fix.
+
+## The product name is marketing copy; the supplier's caption is the designation
+
+Two strings describe a flyer product: the **name** (a marketing headline, free to mislead — "Bauer
+Diplomat Paprika" is a *cheese*, "Truthahnbrust mit Paprikarand" is *poultry*) and the **caption**
+(the small print stating the legal/product designation — "55% Fett i. Tr.", "der leckere
+Geflügel-Aufschnitt"). We stored the caption all along and classified only on the name, so a flavour
+word in the name routinely stole the product. Reading the caption as a signal — *after* the proven
+name form-words but *before* the source's category path, which is frequently mis-filed — moved 107
+products with zero regressions.
+
+**Why it came up:** an image audit of every category showed misclassifications a name alone could
+never fix, but whose caption named the product outright.
+
+**Takeaway:** when a record carries both a display label and a structured/descriptive field, classify
+on the field, not the label — the label is written to sell, the field to describe. And a signal you
+"already store but never read" is the cheapest feature there is: audit what's in the payload before
+adding a model.
+
+## A rate is only honest against the right denominator — the wrong population hides a dead gate
+
+A CI gate flagged products whose name was served under two categories (a classifier contradicting
+itself is wrong by construction — free to compute, no ground truth needed). Measured against the
+*served total* the rate was ~2%, and a "2× the norm" ceiling of 4% would not have tripped until a
+**quarter** of comparable products disagreed: a gate that reads authoritative while evaluating almost
+nothing. The served set is deduplicated, so only ~16% of offers even share a name with another —
+every unique name is un-judgeable by this check. Scoping the denominator to *comparable* products
+(names served ≥2×) put the real rate at ~12%, and a scrambled-category fixture finally tripped the
+gate that the served-total form let sail through.
+
+**Why it came up:** the first denominator felt obviously right (it's "the data"), and the gate passed
+its own known-bad fixture — the tell that it was measuring the wrong thing.
+
+**Takeaway:** before trusting a percentage gate, ask "what's the largest value this metric can
+physically reach, and how many rows can it even score?" A ceiling the metric can't approach is a
+green light wired to nothing. Always prove a new gate *fails* on a known-bad input in its real
+surface — and when it won't fail, suspect the denominator before the threshold. (Pairs with the
+existing "a gate can report green while evaluating less than it claims".)
