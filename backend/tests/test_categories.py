@@ -435,3 +435,189 @@ def test_classify_without_a_caption_is_unchanged():
     # `unit` is optional — old callers and coupon rows with no caption keep working.
     assert classify("Bananen", None, None) == "fruits"
     assert classify("Bananen", None, None, None) == "fruits"
+
+
+# --- Substring guards, multi-category brands, mis-filed drink paths -------------------------
+# From the same image audit, adjudicated against every stored offer: 74 rows moved, 0 regressions.
+# German compounds mean a keyword SHOULD usually fire mid-word ("Bratwurst" is pork), so a guard is
+# only justified where the match is a coincidence. Each is pinned to the real product that proved
+# it — and to the sibling that must survive the guard.
+
+
+@pytest.mark.parametrize(
+    "name, brand, expected, why",
+    [
+        # A "-dicksaft"/"Goldsaft" is a syrup, not a juice. The "saft " form word only pins its
+        # trailing side, so "Agavendicksaft " matched it.
+        ("EDEKA Bio Agavendicksaft", "EDEKA Bio", "pantry", "syrup, not juice"),
+        ("Grafschafter Goldsaft", "Grafschafter", "pantry", "sugar-beet syrup"),
+        ("GUT&GÜNSTIG Apfelsaft", "GUT&GÜNSTIG", "soft_drinks", "a real juice still wins"),
+        ("Rauch Happy Day Saft", "Rauch", "soft_drinks", "a real juice still wins"),
+        # "spezi" fires inside Spezialsalz / Spezialmehl / Käsespezialitäten.
+        ("GUT&GÜNSTIG Spülmaschinen-Spezialsalz", "GUT&GÜNSTIG", "household", "dishwasher salt"),
+        ("Italiamo Spezialmehl", "ITALIAMO", "pantry", "special flour"),
+        ("Krombacher Spezi", "Krombacher", "soft_drinks", "the real Spezi still wins"),
+        ("Milbona Hartkäse Spezialitäten", "Milbona", "cheese", "Spezialitäten is not Spezi"),
+        # "limo" fires inside Limonaie (an Italian lemon biscuit).
+        ("Granini Die Limo", "Granini", "soft_drinks", "the standalone word still wins"),
+        ("Vita Cola oder Limo", None, "soft_drinks", "the standalone word still wins"),
+        ("Sinalco Limonade", "Sinalco", "soft_drinks", "caught a layer earlier"),
+        # "milka" fires inside Milkana (a cheese); "trolli" inside Trollinger (a wine).
+        ("Milkana Schmelzkäse", "Milkana", "cheese", "not Milka"),
+        ("Milka Alpenmilch", "Milka", "sweets", "the real Milka still wins"),
+        ("Trollinger mit Lemberger QbA, Rotwein, feinherb", None, "alcoholic", "not Trolli"),
+        ("Trolli Saure Glühwürmchen", "Trolli", "sweets", "the real Trolli still wins"),
+        # "gefrier" reads freeze-DRIED fruit as tiefkühl; it is shelf-stable.
+        ("Seeberger Gefriergetrocknete Himbeeren", "Seeberger", "snacks", "freeze-dried"),
+        ("KoRo Gefriergetrocknete Erdbeerscheiben", "KoRo", "snacks", "freeze-dried"),
+        ("Iglo Rahm-Spinat", "IGLO", "frozen", "actually frozen"),
+        # Green beans had no rule at all; the pulse and the coffee must not follow them in.
+        ("Buschbohnen", None, "vegetables", "green beans"),
+        ("Freshona Brechbohnen", "Freshona", "vegetables", "green beans"),
+        ("GUT & GÜNSTIG Kidneybohnen", "GUT & GÜNSTIG", "pantry", "a pulse, cf. kichererbsen"),
+        ("Sommer Bio-Cracker mit Ackerbohnen", "Sommer", "snacks", "a cracker, not a bean"),
+        # Ciabatta was a taxonomy node with no keyword, so a path-less row fell to "other".
+        ("Ciabatta", None, "bakery", "keyword layer had no entry"),
+        # The keyword was plural-only, so the singular fell to "other".
+        ("EDEKA Regional Chrysantheme „Swifty“", "EDEKA Regional", "household", "a flower"),
+    ],
+)
+def test_substring_guards(name, brand, expected, why):
+    assert classify(name, brand, None) == expected, why
+
+
+def test_angus_stays_unguarded_on_purpose():
+    """A leading-space guard would fix "Lavendel angustifolia" but break the real beef, which
+    HYPHENATES ("Black-Angus-"). The plant is already caught by its non-food path, so the guard
+    costs a row and saves none — pinned so nobody "fixes" it and drops the Chipolata."""
+    assert classify("MEINE METZGEREI Black-Angus-Chipolata", "MEINE METZGEREI", None) == "beef"
+    assert classify("Lavendel angustifolia", None, ["Heimwerken und Garten", "Marken"]) == "household"
+
+
+def test_rondo_is_off_the_brand_map():
+    """A brand entry beats every keyword, so a brand spanning categories mis-files every product
+    whose path is a brand leaf. "rondo" is Bahlsen biscuits AND Röstfein coffee — and all three
+    live rows are coffee, which the map was filing as sweets."""
+    assert "rondo" not in BRAND_CATEGORY
+
+
+def test_coffee_is_no_longer_ice_cream_or_sweets():
+    assert classify("Röstfein Rondo Original Ganze Bohnen", "Röstfein", None) == "soft_drinks"
+    assert classify("Rondo Original", "Rondo", None, "gemahlen, versch. Sorten 500g Packung") == "soft_drinks"
+    assert classify("Mövenpick Ganze Bohnen", "MÖVENPICK", None) == "soft_drinks"
+    # A chilled RTD coffee that the source files under its own "Eis" node is a drink, not an ice
+    # cream — layer 2 has to beat both that path and the "mövenpick" -> ice_cream brand entry.
+    eis_path = ["Lebensmittel und Getränke", "Produkte", "Dessert", "Eis"]
+    assert classify("Mövenpick Iced Coffee", "Mövenpick", eis_path, "koffeinhaltig, 220-ml-Becher") == "soft_drinks"
+
+
+def test_multi_category_brands_that_deliberately_stay_on_the_brand_map():
+    """The counter-examples to the rule above. Dropping either costs a row and saves none, so the
+    fix goes a layer EARLIER instead (form words beat the brand map). Pinned so that "cleanup"
+    can't land silently. mövenpick = ice cream AND coffee; kerrygold = butter AND cheese."""
+    assert BRAND_CATEGORY["mövenpick"] == "ice_cream"
+    # Its ice creams carry no other signal at all — that is why the entry has to stay.
+    assert classify("Mövenpick Edle Komposition", "Mövenpick", None) == "ice_cream"
+
+    # kerrygold -> butter files "Kerrygold extra XXL" correctly (its name/caption never say butter,
+    # so the brand entry is the ONLY signal). Its cheeses are saved a layer EARLIER — by a Käse
+    # PATH NODE (layer 3) or a "reibekäse" CAPTION (layer 2b), both before the brand map — NOT by
+    # "Käse" in the name, which sits at layer 6, after the brand. So this only holds while the feed
+    # keeps giving Kerrygold cheeses a Käse path or caption; both are pinned below.
+    assert BRAND_CATEGORY["kerrygold"] == "butter"
+    assert classify("Kerrygold extra XXL", "Kerrygold", None, "Versch. Sorten Gekühlt. 250 g") == "butter"
+    kaese_path = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Milchprodukte", "Käse", "Hartkäse"]
+    assert classify("Kerrygold Irische Käsescheiben", "Kerrygold", kaese_path) == "cheese"  # via path
+    brand_leaf = ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "Kerrygold"]
+    assert classify("Kerrygold Käsespezialitäten", "Kerrygold", brand_leaf,
+                    "irischer Schnitt- oder Reibekäse") == "cheese"  # via caption when the path is a brand leaf
+
+
+@pytest.mark.parametrize(
+    "name, expected, why",
+    [
+        # "X oder/auch alkoholfrei" is a multi-variant BEER offer, not an alcohol-free product.
+        ("Benediktiner Hell, Festbier oder alkoholfrei", "alcoholic", "a beer offer"),
+        ("Warsteiner Pils, auch alkoholfrei", "alcoholic", "a beer offer"),
+        # ...while a product that IS alcohol-free still moves to soft_drinks (the documented rule).
+        ("Maybach Alkoholfrei Weiß", "soft_drinks", "alcohol-free wine"),
+        ("Deutsches Weintor Riesling, alkoholfrei", "soft_drinks", "alcohol-free wine"),
+        # A Weinschorle is wine + water, and must beat the "schorle" form word.
+        ("Weinschorle weiß", "alcoholic", "wine spritzer"),
+        ("Gerolsteiner Schorle", "soft_drinks", "a real Schorle still wins"),
+    ],
+)
+def test_alkoholfrei_and_schorle_forms(name, expected, why):
+    assert classify(name, None, None) == expected, why
+
+
+def test_a_bare_alkoholfrei_caption_signal_is_rejected():
+    """Tempting and wrong: ~30 real beers carry "auch/teilw. alkoholfrei" in the CAPTION as a
+    variant note. Reading it as a designation would empty the beer aisle into soft_drinks."""
+    beer_path = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Bier", "Biermarken", "Becks"]
+    assert classify("Beck's Pilsener", "Beck's", beer_path,
+                    "versch. Sorten, auch alkoholfrei 24x0,33l Flasche") == "alcoholic"
+
+
+@pytest.mark.parametrize(
+    "name, path_tail, expected, why",
+    [
+        # The source indexes some paths by BRAND under a drink node, so anything that brand touches
+        # lands in alcoholic. 117 offers sit under these nodes; these are the wrong ones.
+        ("Radeberger Premium-Lachsschinken", ["Bier", "Biermarken", "Radeberger"], "pork", "a ham"),
+        ("GOLDEN SEAFOOD Lachsfilet-portionen", ["Bier", "Biermarken", "Golden"], "fish", "salmon"),
+        ("Golden Seafood Ofenbackfisch XXL", ["Bier", "Biermarken", "Golden"], "fish", "battered fish"),
+        # ...and a real beer under the same node is untouched.
+        ("Radeberger Pilsner", ["Bier", "Biermarken", "Radeberger"], "alcoholic", "a real beer"),
+        ("Paulaner Weißbier", ["Bier", "Biermarken", "Paulaner"], "alcoholic", "a real beer"),
+        # Paulaner Spezi is a cola-orange soft drink filed under the Paulaner BEER node.
+        ("Paulaner Spezi", ["Bier", "Biermarken", "Paulaner"], "soft_drinks", "cola-orange"),
+    ],
+)
+def test_brand_indexed_drink_paths(name, path_tail, expected, why):
+    path = ["Lebensmittel und Getränke", "Produkte", "Getränke", *path_tail]
+    assert classify(name, None, path) == expected, why
+
+
+def test_fassbrause_caption_beats_a_beer_brand_path():
+    path = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Bier", "Biermarken", "Veltins"]
+    assert classify("Veltins Cola-Orange", "Veltins", path,
+                    "Fassbrause; alkoholfrei; z. T. koffeinhaltig 0,5-L-Dose") == "soft_drinks"
+
+
+@pytest.mark.parametrize(
+    "name, path_tail, expected, why",
+    [
+        # Found by the self-disagreement detector: the same product NAME served in two categories
+        # is >=1 wrong row by construction, and needs no ground truth to find.
+        # A Fleischkäse is a meat loaf; "käse" claimed it whenever the source gave it no meat path.
+        ("Fleischkäse im Brötchen", None, "pork", "a meat loaf, not cheese"),
+        # Beef mince the source files under Fleischzubereitungen (-> pork).
+        ("Rinder-Hackfleisch", ["Fleisch", "Fleischzubereitungen"], "beef", "beef mince"),
+        ("Hackfleisch gemischt", ["Fleisch", "Fleischzubereitungen"], "pork", "genuinely mixed"),
+        # A croissant is bakery whatever it is filled with ("schinken" outranks "brot"/"gebäck").
+        ("Schinken-Käse-Croissant", None, "bakery", "a croissant"),
+        # "Lachs" is a loin cut as well as a salmon, and the fish rule runs first.
+        ("Berschneider Lachsschinken Pariser Art", None, "pork", "cured pork loin"),
+        ("Deutsche See Lachsfilet", None, "fish", "a real salmon"),
+    ],
+)
+def test_self_disagreements_closed(name, path_tail, expected, why):
+    path = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", *path_tail] if path_tail else None
+    assert classify(name, None, path) == expected, why
+
+
+def test_limonaie_is_pinned_to_bakery():
+    """ALDI's Cucina "Limonaie"/"Colombine" are "Feines Gebäck nach italienischer Art" — but that
+    phrase is only on the flyer artwork; the payload carries neither it nor a usable path
+    (`Marken > Marken Aldi Süd`), so the product name is the only handle. Pinned like knusperjung."""
+    aldi_path = ["Lebensmittel und Getränke", "Marken", "Marken Aldi Süd"]
+    assert classify("Limonaie", None, aldi_path, "Nach italienischer Art; 200-g-Packung") == "bakery"
+    assert classify("Colombine", None, aldi_path, "Nach italienischer Art; 200-g-Packung") == "bakery"
+
+
+def test_an_artificial_plant_is_not_pantry():
+    """The source files it under "Würzmittel > getrocknete Kräuter", which maps to pantry."""
+    path = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Würzmittel",
+            "getrocknete Kräuter", "Zitronenmelisse"]
+    assert classify("HOME CREATION Künstliche Topfpflanze Lavendel", "HOME CREATION", path) == "household"

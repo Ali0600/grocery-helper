@@ -141,6 +141,9 @@ _RULES: list[tuple[str, list[str]]] = [
                  "corned turkey", "knusperdino", "wachtel"]),  # Knusperdinos = Hähnchenbrust nuggets
     # "gulasch"/"steak" are intentionally NOT here — they appear in Schweinegulasch
     # / Schweinesteak (pork); beef relies on "rind" and beef-specific cuts.
+    # "angus" stays UNPADDED on purpose. It does fire inside "Lavendel angustifolia", but a
+    # leading-space guard breaks the real "Black-Angus-Chipolata" (hyphen, not space) and the plant
+    # is already caught by its non-food path. Verified: guarding it costs a beef row and saves none.
     ("beef", ["rind", "rinder", "tafelspitz", "angus", "t-bone", "rumpsteak", "rib eye", "hüftsteak",
               "burger patties", "smash burger", "kalb", "bavette", "chuck-eye", "chuck eye"]),
     ("pork", ["schwein", "schnitzel", "hackfleisch", "hack ", " mett", "bratwurst", "wurst", "würstchen",
@@ -164,16 +167,27 @@ _RULES: list[tuple[str, list[str]]] = [
     # Bakery before vegetables so a veg-named *bread* (Knoblauchbrot, Zwiebelkuchen) is
     # bakery, not vegetables — the product word ("brot") should beat the flavour ("knoblauch").
     ("bakery", ["brot", "brötchen", "broetchen", "baguette", "croissant", "toast", "kuchen", "gebäck", "brezel",
+                "ciabatta",  # a taxonomy node already, but the keyword layer had no entry
                 "crusti", "donut", "törtchen", "nata", "magdalena", "muffin", "torte", "linzeraugen", "nusshappen",
                 "buns", "laugen", "lauge", "plunder", "pita", "wrap", "blätterteig",
                 "pane ", "tigerkruste", "grillkruste", "holzfäller", "knusperjung",  # Weizenbrötchen
+                # ALDI's Cucina "Limonaie"/"Colombine" are "Feines Gebäck nach italienischer Art"
+                # (200-g-Packung) — the word Gebäck is only on the flyer artwork, never in the
+                # payload, so the product name is the only handle. Pinned like "knusperjung".
+                "limonaie", "colombine",
                 "focaccia"]),
     ("vegetables", ["tomate", "gurke", "salat", "kartoffel", "zwiebel", "paprika", "möhre", "moehre", "karotte",
                     "brokkoli", "blumenkohl", "spinat", "zucchini", "champignon", "pilz", "knoblauch", "lauch",
-                    "sellerie", "kürbis", "rucola", "spargel", "kohlrabi", "coleslaw", "kresse"]),
+                    "sellerie", "kürbis", "rucola", "spargel", "kohlrabi", "coleslaw", "kresse",
+                    # Green beans, spelled out rather than a bare "bohnen": that would also claim
+                    # Kidneybohnen (a pantry pulse, cf. "kichererbsen"), coffee "Ganze Bohnen", and
+                    # "Bio-Cracker mit Ackerbohnen" — vegetables runs before snacks/pantry.
+                    "buschbohnen", "brechbohnen", "prinzessbohnen", "stangenbohnen", "grüne bohnen"]),
+    # Trailing spaces are load-bearing: "milka" fires inside Milkana (a cheese) and "fritt" inside
+    # Heißluftfritteuse (an appliance) — today only a non-food path hides the latter.
     ("sweets", ["schokolade", "schoko", "praline", "keks", "bonbon", "gummibär", "riegel", "waffel", "nutella",
-                "milka", "haribo", "ritter sport", "toffifee", "duplo", "snickers", "twix", "ferrero", "hanuta",
-                "loacker", "celebrations", "nudossi", "kinder cards", "fritt", "sondey", "tenerezze",
+                "milka ", "haribo", "ritter sport", "toffifee", "duplo", "snickers", "twix", "ferrero", "hanuta",
+                "loacker", "celebrations", "nudossi", "kinder cards", "fritt ", "sondey", "tenerezze",
                 "fruchtgummi", "big choc", "smarties", "amicelli", "daim", "m&m", "maxi king",
                 # "cheesecake" is a dessert either way (a Becher one is still sweet); the
                 # ice_cream rule + the brand layer both run first, so Ben & Jerry's is safe.
@@ -187,12 +201,19 @@ _RULES: list[tuple[str, list[str]]] = [
     ("alcoholic", [" bier", "lagerbier", " pils", "wein", "vodka", "champagner", "pilsener", "sangria",
                    "doppelkorn", "goldkrone", "weinbrand", "licor", "san miguel", "holsten", "moët", "moet",
                    "absolut", "korol", "cimarosa", "sauvignon", "primitivo"]),
-    ("soft_drinks", ["wasser", "cola", "limo", "saft", "kaffee", " tee", "energy", "schorle", "spezi",
+    # Padding is load-bearing here too: bare "limo" claims Limonaie (an Italian lemon BISCUIT),
+    # "spezi" claims Spezialsalz/Spezialmehl, and "latte" claims an Induktionskochplatte.
+    # "Limonade" itself is caught a layer earlier, so "limo " only needs the standalone word.
+    ("soft_drinks", ["wasser", "cola", "limo ", "saft", "kaffee", " tee", "energy", "schorle", " spezi ",
                      "fanta", "sprite", "nektar", "pepsi", "solevita", "espresso", "caffè", "caffe",
-                     "lavazza", "dallmayr", "latte", "aloe vera", "smoothie", "bella crema"]),
+                     "lavazza", "dallmayr", " latte", "aloe vera", "smoothie", "bella crema",
+                     # Coffee. "rondo " is space-guarded so it can't fire mid-word; a Bahlsen Rondo
+                     # biscuit would be caught by the "bahlsen" brand entry a layer earlier.
+                     # ("ganze bohnen" is a layer-2 form word — see _FORM_OVERRIDES.)
+                     "röstkaffee", "rondo "]),
     ("pantry", ["nudel", "noodles", "pasta", "teigwaren", "porridge", "reis", "mehl", "zucker", " öl", "olivenöl", "essig", "konserve",
                 "sauce", "soße", "gewürz", "müsli", "haferflocken", "honig", "marmelade", "ketchup", "senf",
-                "oliven", "kichererbsen", "aioli", "artischocken", "paella", "lupinen", "antipasti", "tapas",
+                "oliven", "kichererbsen", "kidneybohnen", "kidney-bohnen", "aioli", "artischocken", "paella", "lupinen", "antipasti", "tapas",
                 "penne", "fusilli", "spaghetti", "tagliatelle", "tortellini", "ravioli", "baked beans",
                 "hummus", "tofu", "tempeh", "falafel", "mayonnaise", "maultaschen", "tahina", "tahin",
                 "rapskernöl", "kernöl", "rapsöl", "sonnenblumenöl", "pinienkerne", "allioli",
@@ -201,26 +222,42 @@ _RULES: list[tuple[str, list[str]]] = [
                 # otherwise reach pantry — it sits second-to-last, so it can't be outranked.
                 "fleischalternativ", "like meat", "likemeat", "nesquik",
                 "suppe ", "eintopf", "eintöpf", "lasagne-blätter", "lasagneblätter", "gigli "]),
-    ("household", ["spülmittel", "spuelmittel", "waschmittel", "toilettenpapier", "küchenrolle", "reiniger",
+    ("household", ["spülmittel", "spuelmittel", "spülmaschinen", "waschmittel", "toilettenpapier", "küchenrolle", "reiniger",
                    "windel", "müllbeutel", "weichspüler", "oleander", "pflanze", "blume", "kleid", "jacke", "schuhe",
                    "garten", "werkzeug", "kissen", "bettdecke", "matratze", "wäschest", "haushaltshelfer",
                    "küchenhelfer", "rätselbuch", "autozubehör", "grillhelfer", "grillzubehör", "schreibwaren",
                    "geschenkpapier", "reinigung", "e-bike", "e-scooter", "ventilator", "staubsauger", "klimagerät",
                    "luftkühler", "bügeleisen", "bügelstation", "fritteuse", "shampoo", "duschgel", "zahnbürste",
                    "rasierer", "haartrockner", "batterien", "kosmetik", "sonnenschutz", "pavillon", "fahrradträger",
-                   "fahrradanhänger", "wanduhr", "kühltasche", "chrysanthemen", "lavendel", "palme", "kreuzfahrt", "hotel",
+                   # "chrysanthem" (not the plural) also catches the singular "Chrysantheme".
+                   "fahrradanhänger", "wanduhr", "kühltasche", "chrysanthem", "lavendel", "palme", "kreuzfahrt", "hotel",
                    "holzkohle", "grillkohle", "brikett", "grillmatte", "haushaltstuch", "müllbeutel", "papierbeutel",
                    "hortensie", "floristen", "blumenstrauß", "keramikgrill", "hundespielzeug", "plüschtier",
                    "spielzeug", "prospekthülle", "auto laden"]),
 ]
 
 # Unambiguous brand -> category. Multi-category house brands (Milbona, Metzgerfrisch,
-# Sol & Mar, Zott) are left to the path / keyword layers.
+# Sol & Mar, Zott) are left to the path / keyword layers — a brand entry beats every keyword, so a
+# brand that spans categories mis-files every product whose path is a brand leaf. Removed for that
+# reason: "rondo" (Bahlsen biscuits AND Röstfein coffee — all 3 live rows are coffee; the roaster
+# brand "röstfein" + a space-guarded "rondo " keyword cover them).
+#
+# Two members of that class deliberately STAY, because removing them costs more than it saves —
+# each is pinned by a test so the trade-off doesn't get silently "fixed" later:
+#   * "mövenpick" (ice cream AND coffee) — its coffees are rescued a layer EARLIER instead (the
+#     "ganze bohnen"/"iced coffee" form words, which beat the brand map), while a bare "Mövenpick
+#     Edle Komposition" carries no other signal and falls to "other" without the brand entry.
+#   * "kerrygold" (butter AND cheese) — all live rows classify correctly (its cheeses carry "Käse"
+#     in the name or a Käse path node), and removing it would drop "Kerrygold extra XXL", whose
+#     name and caption never say "butter", into "other". Revisit if a Kerrygold cheese lands in
+#     butter.
+# Trailing spaces on short keys ("milka ", "trolli ") stop them firing inside Milkana (a cheese)
+# and Trollinger (a wine); cf. "lorenz " vs Lorenzo.
 BRAND_CATEGORY: dict[str, str] = {
-    "allini": "alcoholic", "mister choc": "sweets", "ritter sport": "sweets", "milka": "sweets",
+    "allini": "alcoholic", "mister choc": "sweets", "ritter sport": "sweets", "milka ": "sweets",
     "iglo": "frozen", "gelatelli": "ice_cream", "langnese": "ice_cream", "bon gelati": "ice_cream",
     "schöller": "ice_cream", "ben & jerry's": "ice_cream", "ben & jerry": "ice_cream",
-    "gustavo gusto": "frozen", "ferrero": "sweets", "loacker": "sweets", "rondo": "sweets",
+    "gustavo gusto": "frozen", "ferrero": "sweets", "loacker": "sweets",
     "dulano": "pork", "meica": "pork", "brunch": "cheese", "kerrygold": "butter",
     "valensina": "soft_drinks", "lipton": "soft_drinks", "volvic": "soft_drinks",
     "schogetten": "sweets", "berggold": "sweets", "häagen-dazs": "ice_cream",
@@ -235,7 +272,8 @@ BRAND_CATEGORY: dict[str, str] = {
     "citterio": "pork", "steinhaus": "pork", "houdek": "pork",
     "bauern gut": "pork", "bauerngut": "pork", "wiesenhof": "poultry",
     "frosta": "frozen", "mccain": "frozen", "mövenpick": "ice_cream", "moevenpick": "ice_cream",
-    "hochland": "cheese", "trolli": "sweets", "nescafé": "soft_drinks", "nescafe": "soft_drinks",
+    "hochland": "cheese", "trolli ": "sweets", "nescafé": "soft_drinks", "nescafe": "soft_drinks",
+    "röstfein": "soft_drinks", "reinert": "pork",
     "chio": "snacks", "sonnen bassermann": "pantry", "edeka zuhause": "household",
     # more single-category food brands (from the live "other" survey across all 3 chains).
     # Multi-category house brands (Milbona, Gut&Günstig, Metzgerfrisch, Butchers, ja!,
@@ -280,20 +318,60 @@ BRAND_CATEGORY: dict[str, str] = {
 # or an unambiguous brand, never a mere flavour — so a frozen "…Schoko" brand isn't dragged
 # here. Space-guarded where a fruit word is a superstring ("nektar " vs "Nektarine").
 _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
+    # --- entries that must PRECEDE the generic drink forms below (first hit wins) ---
+    # A "-dicksaft"/"Goldsaft" is a SYRUP, not a juice: the "saft " guard only pins the trailing
+    # side, so "Agavendicksaft " / "Grafschafter Goldsaft " match it and land in soft_drinks.
+    # Their captions say what they are ("ideal zum Süßen", "Herzhaft-süßer Brotaufstrich").
+    ("pantry", ["dicksaft", "goldsaft", "rübensaft"]),
+    # "X oder/auch alkoholfrei" is a MULTI-VARIANT beer offer (Benediktiner Hell, Festbier oder
+    # alkoholfrei), not an alcohol-free product — the bare "alkoholfrei" below would file the whole
+    # beer as a soft drink. Only the standalone designation counts.
+    ("alcoholic", ["oder alkoholfrei", "auch alkoholfrei"]),
+    # A Weinschorle is wine + water: alcoholic. Must precede the "schorle" form word.
+    ("alcoholic", ["weinschorle"]),
     ("soft_drinks", ["limonade", "schorle", "nektar ", "smoothie", "saft ", "fruchtsaft", "vilsa",
+                     # Spezi (cola-orange) is a soft drink the source files under "Bier > Biermarken
+                     # > Paulaner", so only layer 2 can rescue it. Padded BOTH sides: an unpadded
+                     # "spezi" fires inside Spezialsalz / Spezialmehl / Käsespezialitäten.
+                     " spezi ",
+                     # Coffee that a multi-category brand would otherwise claim: Mövenpick is ice
+                     # cream AND coffee, so "Mövenpick Ganze Bohnen" was ice_cream and its chilled
+                     # RTD "Iced Coffee" ("220-ml-Becher", "koffeinhaltig") was too — the source
+                     # files the latter under its own "Eis" node. Rescuing them HERE (layer 2 beats
+                     # both the path and the brand map) keeps "mövenpick" -> ice_cream usable for
+                     # the actual ice creams, which have no other signal.
+                     "iced coffee", "eiskaffee", "ganze bohnen",
                      "alkoholfrei"]),  # alkoholfrei beer/wine -> soft, beating a "Bier"/"Wein" path
     # Spirits / premixed drinks the source mis-files under a soft or brand-beverage node:
     # Jägermeister (Dessert>Eis), Havana Club Dosen (Softdrinks>Cola), a Nordhäuser Williams
     # pear brandy (Marken Getränke), a hard seltzer (Softdrinks>Energydrink).
     ("alcoholic", ["jägermeister", "havana club", "nordhäuser", "hard seltzer"]),
     # Pet care / cat food the source files under a food node (dog Dental-Sticks in Knabberzeug>
-    # Sticks; "Hello my cat" under the Gut&Günstig house brand) — must beat the path.
-    ("household", ["dental", "hello my cat"]),
+    # Sticks; "Hello my cat" under the Gut&Günstig house brand) — must beat the path. Also an
+    # artificial pot plant the source files under "Würzmittel > getrocknete Kräuter" (-> pantry).
+    ("household", ["dental", "hello my cat", "topfpflanze"]),
     # Breaded chicken drumsticks the source dumps into Knabberzeug>Sticks (a snacks node); no
     # ice-cream "Drumstick" is in the feed, so this is unambiguous poultry.
     ("poultry", ["drumstick"]),
     ("dairy", ["joghurt", "jogurt", "froop", "skyr", "müllermilch", "fruchtzwerge", "fruchtquark"]),
-    ("snacks", ["chips", "trüfrü", "trufru"]),  # freeze-dried fruit snack filed under Obst
+    # Freeze-dried fruit is a shelf-stable SNACK, not frozen food — "gefrier" alone reads
+    # "Gefriergetrocknete Himbeeren" as tiefkühl.
+    ("snacks", ["chips", "trüfrü", "trufru", "gefriergetrocknet"]),
+    # "Lachs" is a German LOIN cut as well as a salmon: a Lachsschinken is cured PORK, but the
+    # fish rule ("lachs") runs first and the source files one under "Bier > Biermarken > Radeberger".
+    ("pork", ["lachsschinken"]),
+    # A Fleischkäse (Leberkäse) is a meat loaf — the "käse" cheese rule steals it whenever the
+    # source gives it no Wurstwaren path.
+    ("pork", ["fleischkäse"]),
+    # Beef mince the source files under "Fleisch > Fleischzubereitungen" (-> pork). Only the
+    # explicit compound: "Hackfleisch gemischt aus Rind und Schwein" is legitimately pork.
+    ("beef", ["rinderhack", "rinder-hack"]),
+    # Fish the source dumps under a BEER brand node ("Bier > Biermarken > Golden" -> alcoholic).
+    # Both words are unambiguous fish, unlike the bare "lachs" above.
+    ("fish", ["lachsfilet", "backfisch"]),
+    # A croissant is bakery whatever it's filled with — "schinken" (pork) outranks "brot"/"gebäck"
+    # in the keyword rules, so a Schinken-Käse-Croissant lands in pork.
+    ("bakery", ["croissant"]),
     # Root veg the source sometimes mis-files under "Dessert > Eis" (a carrot is not ice cream).
     # After beverages/dairy so Möhrensaft/Möhrenjoghurt still win their form.
     ("vegetables", ["möhre", "möhren"]),
@@ -323,6 +401,11 @@ _CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
     ("cheese", ["fett i. tr", "fett i.tr", "schnittkäse", "weichkäse", "hartkäse", "brühkäse",
                 "reibekäse", "frischkäsezubereitung", "schmelzkäsezubereitung", "käse-frischpack"]),
     ("bakery", ["blätterteig", "hefeteig", "hefefeingebäck", "mürbeteig"]),
+    # A Fassbrause is by definition an alcohol-free soft drink; the source files Veltins' one
+    # under "Bier > Biermarken > Veltins". NOTE: a bare "alkoholfrei" caption signal was tried and
+    # REJECTED — ~30 real beers carry "auch/teilw. alkoholfrei" in the caption (a variant note,
+    # not the product), so it would empty the beer aisle into soft_drinks.
+    ("soft_drinks", ["fassbrause"]),
     # "Lachs" is a German LOIN cut as well as salmon: Lachsschinken / Graved Lachsfleisch /
     # Schweinelachsschinken are cured PORK, and only the caption says so.
     ("pork", ["vom schwein", "schweinebauch", "schweinerücken", "schweinefleisch", "schweinelachs"]),
@@ -335,7 +418,9 @@ _CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
 # misleading prefix ("Pflaumentomaten" is a tomato, "Apfelessig" is vinegar) — but a brand
 # still wins (Häagen-Dazs "…Chocolate" is frozen, not sweets). Short tokens are space-padded.
 _OVERRIDES: list[tuple[str, list[str]]] = [
-    ("alcoholic", ["sekt", "frizzante", "secco", "prosecco", "hugo", "aperol", "bellini", "likör",
+    # " sekt" is padded on the leading side: bare "sekt" fires inside "Insektenabwehr" /
+    # "Insektenstichheiler" — today only their non-food path hides it.
+    ("alcoholic", [" sekt", "frizzante", "secco", "prosecco", "hugo", "aperol", "bellini", "likör",
                    "aperitif", "glühwein", "wodka", "whisky", "pilsener", " gin ", " rum "]),
     ("soft_drinks", ["eistee", "ice tea"]),  # iced tea is a soft drink, not alcohol/ice cream
     ("sweets", ["mister choc", "choco"]),
