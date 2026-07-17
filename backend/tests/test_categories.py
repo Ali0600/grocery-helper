@@ -143,7 +143,6 @@ def test_classify_rewe_flyer(name, brand, path, expected):
         ("Steinhaus Original Krustenbraten", "Steinhaus", "pork"),
         ("Citterio Italienische Mortadella", "Citterio", "pork"),
         ("Hein Original Pastrami New York", "Hein", "pork"),      # keyword "pastrami"
-        ("Lammkeule in Scheiben", None, "pork"),                  # keyword " lamm"
         ("Houdek Kabanos", "Houdek", "pork"),
         ("Bauern Gut Spareribs", "Bauern Gut", "pork"),
         ("Schäfer's Delikatess Plunder", "Schäfer's", "bakery"),  # brand
@@ -152,7 +151,7 @@ def test_classify_rewe_flyer(name, brand, path, expected):
         ("Alnatura Bio Penne, Fusilli oder Spaghetti", "Alnatura", "pantry"),
         ("EDEKA Bio My Veggie Falafel", "EDEKA Bio", "pantry"),
         ("Mövenpick Edle Komposition", "Mövenpick", "ice_cream"),  # ice cream brand
-        ("Frosta Fertiggerichte", "Frosta", "frozen"),
+        ("Frosta Pollack Filets", "Frosta", "frozen"),  # a plain frozen item (Fertiggerichte moved to ready_meals)
         ("McCain Pickers", "McCain", "frozen"),
         ("Hochland Sandwich Scheiben", "Hochland", "cheese"),
         ("Trolli Fruchtgummi", "Trolli", "sweets"),
@@ -208,7 +207,7 @@ def test_classify_expanded_paths(path, expected):
         ("Grapefruit rosa", None, "fruits"),
         ("Kohlrabi", None, "vegetables"),
         ("Burrata di Bufala", None, "cheese"),
-        ("Bürger Maultaschen", "Bürger", "pantry"),
+        ("Bürger Schupfnudeln", "Bürger", "pantry"),  # Maultaschen moved to ready_meals; plain noodles stay pantry
         ("EDEKA Bio Smoothie", "EDEKA Bio", "soft_drinks"),
         ("Costa Pacific Prawns", "Costa", "fish"),
         ("Kalbs-Hals", None, "beef"),
@@ -621,3 +620,122 @@ def test_an_artificial_plant_is_not_pantry():
     path = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Würzmittel",
             "getrocknete Kräuter", "Zitronenmelisse"]
     assert classify("HOME CREATION Künstliche Topfpflanze Lavendel", "HOME CREATION", path) == "household"
+
+
+# --- New categories: Lamb & Other Meat, Eggs, Ready Meals, margarine -> Butter (PR3) ----------
+# The audit's PR3. Full-DB diff: 72 moved, 0 regressions.
+
+
+def test_new_categories_exist_with_labels():
+    for slug in ("other_meat", "eggs", "ready_meals"):
+        assert slug in CATEGORIES and CATEGORIES[slug]
+
+
+FLEISCH = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Fleisch"]
+
+
+@pytest.mark.parametrize(
+    "name, path, expected, why",
+    [
+        # Lamb: " lamm"/"lamm-" moved out of pork into other_meat.
+        ("Neuseeländisches Lammkarree", FLEISCH, "other_meat", "lamb"),
+        ("Lammkeule in Scheiben", FLEISCH, "other_meat", "lamb"),
+        ("Lamm-Spieß »Despacito«", None, "other_meat", "hyphenated lamb"),
+        ("Lammhüfte", None, "other_meat", "lamb, no leading space needed"),
+        # Lammlachs is a lamb LOIN — was wrongly fish via "lachs"; other_meat runs before fish.
+        ("Lammlachs mariniert", [*FLEISCH, "Lamm", "Lammlachse"], "other_meat", "lamb loin, not salmon"),
+        # Rabbit moved out of pork.
+        ("OLIVIA Ganzes Kaninchen", FLEISCH, "other_meat", "rabbit"),
+        ("Meine Metzgerei Kaninchen", None, "other_meat", "rabbit"),
+        # Game words (none live this week, but pinned for when they appear).
+        ("Hirschgulasch", None, "other_meat", "venison"),
+        ("Rehkeule", None, "other_meat", "venison"),
+        # Guards: the meats that must NOT follow lamb out of their category.
+        ("Elsässer Flammkuchen", None, "bakery", "Fla(mm)kuchen is not lamb"),
+        ("Berschneider Graved Lachsfleisch", None, "pork", "a Schweinelachs stays pork (caption)"),
+        ("Deutsche See Lachsfilet", None, "fish", "a real salmon stays fish"),
+        ("Wildlachs Filet", None, "fish", "Wildlachs is fish — bare 'wild' is not a game signal"),
+    ],
+)
+def test_other_meat(name, path, expected, why):
+    unit = "vom Schweinerücken, gebeizt" if "Lachsfleisch" in name else None
+    assert classify(name, None, path, unit) == expected, why
+
+
+@pytest.mark.parametrize(
+    "name, expected, why",
+    [
+        ("Hähnlein Bio Eier", "eggs", "real eggs"),
+        ("EDEKA Bio Freilandeier", "eggs", "free-range eggs"),
+        ("Landei Frische Eier 10 Stück", "eggs", "the ' eier ' / 'eier 10' form"),
+        # Guards — the "Eier…" compounds that are a different product entirely.
+        ("Eckes Edler Eierlikör", "alcoholic", "egg liqueur, not eggs"),
+        ("Bauern Gut Eiersalat mit Schnittlauch", "pork", "a deli salad"),
+        ("Komet Eierkuchenmehl", "bakery", "pancake flour"),
+    ],
+)
+def test_eggs(name, expected, why):
+    assert classify(name, None, None) == expected, why
+
+
+def test_eierkocher_appliance_is_household_not_eggs():
+    path = ["Möbel und Wohnen", "Produkte", "Küche"]
+    assert classify("SILVERCREST Eierkocher", "SILVERCREST", path) == "household"
+
+
+@pytest.mark.parametrize(
+    "name, brand, path_tail, expected, why",
+    [
+        # A layer-2 override: it beats the mis-filed path AND a competing brand.
+        ("iglo Fertiggerichte", "iglo", ["Nudeln"], "ready_meals", "brand would say frozen"),
+        ("Frosta Fertiggerichte", "Frosta", None, "ready_meals", "brand would say frozen"),
+        ("YouCook Fertiggerichte", "YouCook", None, "ready_meals", "was 'other'"),
+        ("YOUCOOK Indian Style Mango Chicken", "YOUCOOK", None, "ready_meals", "'chicken' would say poultry"),
+        ("Sushi4You Sushi", None, ["Feinkost"], "ready_meals", "path would say pantry"),
+        ("Meica Curry King", "Meica", ["Würzmittel"], "ready_meals", "brand+path would say pork/pantry"),
+        ("BÜRGER Maultaschen", None, ["Nudeln"], "ready_meals", "path would say pantry"),
+        ("Dönertasche Kebab", None, None, "ready_meals", "'kebab' would say pork"),
+        # Guards: things that are NOT ready meals.
+        ("Gustavo Gusto Pizza Margherita", "Gustavo Gusto", None, "frozen", "chilled/frozen pizza stays frozen"),
+        ("GRILLMEISTER Nürnberger Rostbratwurst", None, None, "pork", "a raw sausage is not a ready meal"),
+    ],
+)
+def test_ready_meals(name, brand, path_tail, expected, why):
+    path = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", *path_tail] if path_tail else None
+    assert classify(name, brand, path) == expected, why
+
+
+@pytest.mark.parametrize(
+    "name, expected, why",
+    [
+        ("Rama Original XL", "butter", "margarine"),
+        ("Rama mit Butter XXL", "butter", "margarine"),
+        ("Lätta Original", "butter", "margarine"),
+        ("Deli Reform Das Original", "butter", "margarine"),
+        ("Arla Kærgården", "butter", "spreadable butter blend"),
+    ],
+)
+def test_margarine_is_butter(name, expected, why):
+    assert classify(name, None, None) == expected, why
+
+
+def test_rama_prefix_does_not_swallow_ramazzotti():
+    """'rama ' (trailing space) must not fire inside 'Ramazzotti'. With its real alcoholic path it
+    stays alcoholic; even path-less it must never become butter."""
+    alc = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Alkoholische Getränke", "Likör"]
+    assert classify("Ramazzotti Amaro", None, alc) == "alcoholic"
+    assert classify("Ramazzotti Amaro", None, None) != "butter"
+
+
+def test_rama_cremefine_stays_out_of_butter():
+    """A cooking cream, not a spread. Its Drogerie (non-food) path catches it at layer 1, before the
+    'rama ' butter override at layer 2 — so the override can't sweep it in."""
+    path = ["Drogerie und Haushalt", "Produkte", "Drogerie", "Körperpflege", "Creme"]
+    assert classify("RAMA Cremefine", "RAMA", path) == "household"
+
+
+def test_valess_is_cheese_not_meat():
+    """Vegetarian (not vegan) filed by main ingredient: Valess is milk-protein. The source files it
+    under 'Fleisch > Schnitzel', so a layer-2 override is required to beat the path."""
+    path = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Fleisch", "Fleischzubereitungen", "Schnitzel"]
+    assert classify("Valess Crispy Sticks", "Valess", path) == "cheese"

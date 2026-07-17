@@ -309,9 +309,17 @@ offer with a path-aware, deterministic pipeline:
    a non-food level-1 node → "Household & Non-food"; otherwise the most specific
    product node (`…> Käse > Weichkäse` → cheese). This handles the bulk of the
    diverse flyer catalog.
-2. **Brand map → override tokens → German-keyword rules** — for coupons and
-   brand-only flyer food (a flavour word like "Mango"/"Pfirsich" can't beat the
-   real category; substring traps like "li**mett**e" are space-guarded).
+2. **Flyer caption → brand map → override tokens → German-keyword rules** — the
+   product name is marketing copy that lies (a flavour word steals the item), so
+   the supplier's own caption is read as a second signal, then unambiguous brands,
+   then keyword rules. Substring traps ("li**mett**e", Milk**ana**, In**sekt**enabwehr)
+   are space-guarded, and a keyword that only fires by coincidence is pinned to the
+   product that proved it.
+
+The taxonomy spans **20+ categories** (including Lamb & Other Meat, Eggs, Ready
+Meals, and a cross-cutting Vegan section). A CI **self-disagreement gate** flags any
+product name served under two categories — free to compute and needing no ground
+truth, since a classifier contradicting itself is wrong by construction.
 
 Reviewing all offers cut **"Other" from ~190 to ~2 of 482**. Categories are
 computed at scrape time and stored (with the path), so after tuning, the backfill
@@ -369,6 +377,14 @@ Engineering practices demonstrated while building and operating this project:
   legal designation — data already captured and never used. Feeding it into the
   classifier reclassified 107 records with zero regressions, verified by a full-dataset
   old-versus-new diff and confirmed against the live API.
+- **A ground-truth-free correctness gate in CI** — Added an automated check that flags any
+  product name served under two different categories: a classifier contradicting itself is
+  wrong by construction, so the signal needs no labelled dataset. Getting the denominator
+  right was the crux — the served set is deduplicated, so measuring against the total made
+  the rate look tiny and the gate near-inert; scoping it to comparable products (names that
+  appear more than once) and proving it both ways (passes on live data, fails on a
+  category-scrambled fixture, skips when there is nothing to compare) turned it into a real
+  smoke alarm for taxonomy drift.
 - **Root-causing a platform-specific defect on the real platform** — Diagnosed a bug
   that browser testing could not observe by construction, by reproducing it on a device
   simulator against the platform's own console: the framework refuses a UI presentation
