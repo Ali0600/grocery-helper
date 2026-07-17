@@ -424,8 +424,12 @@ export default function DealsScreen() {
       // hide would silently flip the list into "only hidden" mode.
       if (next.length === 0) setShowHidden(false);
       const nowHidden = next.some((h) => h.key === hideKey(offer));
-      // The toast renders UNDER the deal detail, so the button's own label flip is the real
-      // feedback; this is for the (rare) case of hiding with the sheet already closing.
+      // Hiding is a dismissal: you're done with this deal, so close the detail behind it.
+      // Un-hiding isn't — it restores the deal, and you may want to read it — so that one
+      // leaves the detail open and just flips the button back to "Hide".
+      if (nowHidden) setActive(null);
+      // With the detail closed, this toast is finally visible and IS the confirmation (it
+      // renders under the modal, so on the un-hide path the button's flip remains the feedback).
       showToast(nowHidden ? `Hidden ${offer.name}` : `Un-hid ${offer.name}`);
     },
     [showToast],

@@ -351,17 +351,17 @@ describe('DealsScreen — Hide / Un-Hide a deal', () => {
     await fireEvent.press(screen.getByText('Done'));
   };
 
-  it('hides the deal from the list when Hide is pressed in the detail', async () => {
+  it('Hide closes the detail and drops the deal from the list, in one press', async () => {
     await seedCache();
     await render(<DealsScreen />);
     await openDetail();
 
     await fireEvent.press(screen.getByLabelText('Hide Cached Bergkäse'));
-    // The button flips in place — the toast renders under the modal, so this IS the feedback.
-    expect(await screen.findByLabelText('Un-hide Cached Bergkäse')).toBeTruthy();
 
-    await fireEvent.press(screen.getByText('Close'));
-    await waitFor(() => expect(screen.queryByText('Cached Bergkäse')).toBeNull());
+    // Hiding is a dismissal: no second tap on Close should be needed.
+    await waitFor(() => expect(screen.queryByText('View payload')).toBeNull());
+    // ...and the deal is gone from the list behind it.
+    expect(screen.queryByText('Cached Bergkäse')).toBeNull();
   });
 
   it('persists the hide keyed on chain+name, never the churning offer id', async () => {
