@@ -22,9 +22,13 @@ jest.mock('@expo/vector-icons', () => {
   return { Ionicons };
 });
 
-beforeEach(() => {
+// AWAIT the clear: it returns a promise, and leaving it dangling let a previous test's
+// storage survive into the next one. Every test that re-seeds its own key masked this (the
+// seed just overwrote the leftover); `hiddenItems` doesn't get re-seeded, so a hide from one
+// test silently emptied the deals list in the next.
+beforeEach(async () => {
   const mod = require('@react-native-async-storage/async-storage');
-  (mod.default ?? mod).clear();
+  await (mod.default ?? mod).clear();
 });
 
 // Silence the Animated/act noise RN emits under test; real failures still surface.

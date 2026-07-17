@@ -21,7 +21,15 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
   const discount = headlineDiscountPct(offer);
   const strike = headlineStrikeCents(offer);
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+    <Pressable
+      onPress={onPress}
+      // The card is the app's primary control and announced nothing: a screen reader read out
+      // the loose price/tag texts with no hint the row opens anything. Only a button when it
+      // actually is one.
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress ? `Open deal for ${offer.name}` : undefined}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+    >
       <View style={styles.thumbWrap}>
         {offer.image_url ? (
           <Image source={{ uri: offer.image_url }} style={styles.thumb} resizeMode="contain" />

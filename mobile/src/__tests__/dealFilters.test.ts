@@ -7,11 +7,14 @@ import {
   filterDeals,
   presentChains,
 } from '../dealFilters';
+import { hideKey } from '../hidden';
 import { Offer } from '../types';
 import { makeOffer } from './fixtures';
 
 const OPTS: DealFilterOptions = {
   showNonFood: false,
+  hiddenKeys: new Set<string>(),
+  showHidden: false,
   hiddenStores: [],
   storeLens: null,
   specialDays: false,
@@ -283,5 +286,48 @@ describe('filterDeals — E center duplicates in the stack', () => {
     const offers = [ed('Milka Tafel', 149), ec('Milka Tafel', 149)];
     const out = filterDeals(offers, { ...OPTS, query: 'milka' });
     expect(out.map((o) => o.chain)).toEqual(['edeka']);
+  });
+});
+
+describe('filterDeals — hidden deals', () => {
+  const edekaSchnaps = makeOffer({ id: 1, name: 'Schnaps', chain: 'edeka', price_cents: 99 });
+  const lidlSchnaps = makeOffer({ id: 2, name: 'Schnaps', chain: 'lidl', price_cents: 149 });
+  const butter = makeOffer({ id: 3, name: 'Butter', chain: 'lidl', category: 'butter' });
+  const offers = [edekaSchnaps, lidlSchnaps, butter];
+  const hide = (o: Offer) => new Set([hideKey(o)]);
+
+  it('drops a hidden deal from the list, leaving the other chain’s copy', () => {
+    const out = filterDeals(offers, { ...OPTS, hiddenKeys: hide(edekaSchnaps) });
+    expect(out).toEqual([lidlSchnaps, butter]);
+  });
+
+  it('the lens shows ONLY hidden deals — the sole route back to a hidden deal’s detail', () => {
+    const out = filterDeals(offers, {
+      ...OPTS,
+      hiddenKeys: hide(edekaSchnaps),
+      showHidden: true,
+    });
+    expect(out).toEqual([edekaSchnaps]);
+  });
+
+  it('composes with search and category', () => {
+    expect(
+      filterDeals(offers, { ...OPTS, hiddenKeys: hide(lidlSchnaps), query: 'schnaps' }),
+    ).toEqual([edekaSchnaps]);
+    expect(
+      filterDeals(offers, { ...OPTS, hiddenKeys: hide(butter), selected: 'butter' }),
+    ).toEqual([]);
+  });
+
+  it('runs BEFORE the E-center dedupe: hiding EDEKA’s copy surfaces E center’s twin', () => {
+    // The dedupe only suppresses an E center offer while an EDEKA twin is present. Hiding the
+    // EDEKA copy must therefore let E center's re-appear, rather than losing the product from
+    // both chains at once. This is exactly why the hide step precedes the dedupe.
+    const edeka = makeOffer({ id: 10, name: 'Axe Duschgel', chain: 'edeka', price_cents: 279 });
+    const ecenter = makeOffer({ id: 11, name: 'Axe Duschgel', chain: 'edeka_center', price_cents: 279 });
+    const both = [edeka, ecenter];
+
+    expect(filterDeals(both, OPTS)).toEqual([edeka]); // baseline: the E center dup is hidden
+    expect(filterDeals(both, { ...OPTS, hiddenKeys: hide(edeka) })).toEqual([ecenter]);
   });
 });

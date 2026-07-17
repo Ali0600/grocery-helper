@@ -28,7 +28,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   function`, since every modal is an `AppModal`); (3) `jest-setup.js` sets
   **`IS_REACT_ACT_ENVIRONMENT`**, which jest-expo doesn't — React 19 then refuses `act()`.
   **RNTL v14's `render` is `async`** (it was sync in v13): `await render(...)`, or `screen` is
-  unbound and *every* assertion fails with "render function has not been called".
+  unbound and *every* assertion fails with "render function has not been called". **`fireEvent`
+  is async too** (`fireEvent.press` returns `Promise<void>`) — **await it**. An unawaited press
+  opens overlapping `act()` scopes ("You seem to have overlapping act() calls") and the state
+  update is silently DROPPED: the handler fires, no re-render follows, and the test fails far
+  away with "unable to find …". A single press usually survives because the next `await findBy*`
+  flushes it — flows with several presses in a row do not. Also: **jest-setup's AsyncStorage
+  `clear()` must be awaited**; a dangling clear let one test's storage leak into the next (every
+  test that re-seeds its own key masked it, until `hiddenItems` — which isn't re-seeded — silently
+  emptied the next test's deals list).
   `jest-setup.js` also wires the official **AsyncStorage in-memory mock** (cleared per test — seed
   via plain `AsyncStorage.setItem`) and stubs **@expo/vector-icons** (renders `icon:<name>` as
   text; the real module needs expo-asset, which Metro resolves but jest can't). CI runs
@@ -579,6 +587,25 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   → now chained on Compare's `onDismiss` (**iOS-only**; web has no VC stack and never fires it, so
   web switches immediately). Pinned by `DealsScreen.test.tsx` ("renders the deal detail INSIDE the
   Likes sheet") — sabotage-proved: rendering it as a sibling fails the test.
+- **"Hide" a deal — the deal detail's Hide/Un-Hide button** (2026-07-17, `hidden.ts` + a `Hidden
+  deals` section in the FilterSheet): dismisses a deal you're not interested in. Scope was the
+  user's call: **this chain's copy, this flyer week** — hiding Edeka's Schnaps leaves Lidl's alone,
+  and it returns when the flyers refresh. **NOT keyed on `offer.id`, deliberately**: `/api/reset`
+  does `delete(Offer)` + re-scrape and Render's SQLite is ephemeral, so rowids are reused — an
+  id-keyed hide would un-hide itself *and* silently hide a different product after any cold start.
+  Identity is `` `${chain}:${normName(name)}` `` (reuses `edekaVs`' normName) and the week expiry
+  reuses **`format.ts` `dealsStale(hiddenAt)`** — one weekly rule, not a second one. `activeHidden`
+  is the single expiry gate every read goes through; expired entries are pruned on write.
+  **Hidden applies EVERYWHERE** (deals list, Basket, Recipes, Compare, EdekaVs — they take
+  `notHidden`, not the raw set) with **one deliberate exception: the Likes page**, which keeps the
+  unfiltered set — Likes is a watchlist you curated, so a hidden+liked product would render "Not on
+  sale this week", a lie. In `filterDeals` the hide step runs **first, before the E-center dedupe**:
+  hiding EDEKA's copy then surfaces E center's twin instead of losing the product from both (pinned
+  by a test). Un-hiding is only reachable via the FilterSheet's **"Show hidden (N)"** lens (session-
+  only, `showHidden`, guarded `&& hiddenKeys.size > 0`, and disarmed when the last hide goes so a
+  later hide can't silently flip the list into only-hidden mode). The sheet's **Reset clears the
+  lens, not the hidden set** (a persisted choice, like `hiddenStores`/`sortByCategory`); only
+  "Reset all app data" clears `hiddenItems`.
 - **Swipe-RIGHT = "Like" a product** (2026-07-16, `likes.ts` + `LikesModal` + the heart header
   icon): a like persists the product's **identity** (`LikedItem`: `key = normName(name)` + brand +
   group + a liked-at price/chain memo — **never `offer.id`**, ids churn weekly; storage key

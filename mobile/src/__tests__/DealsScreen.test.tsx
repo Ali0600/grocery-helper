@@ -324,3 +324,109 @@ describe('DealsScreen — per-category sort', () => {
     await waitFor(() => expect(screen.getByText('Lowest price')).toBeTruthy());
   });
 });
+
+describe('DealsScreen — Hide / Un-Hide a deal', () => {
+  // NOTE: every fireEvent is awaited. RNTL v14's fireEvent.press returns a Promise (like
+  // render); leaving one dangling opens overlapping act() scopes and the state update is
+  // silently DROPPED — the press appears to fire and nothing happens.
+  async function seedHidden() {
+    // A hide is stored by identity, so a test can seed one exactly as the app writes it.
+    await AsyncStorage.setItem(
+      'hiddenItems',
+      JSON.stringify([
+        { key: 'lidl:cached bergkäse', name: 'Cached Bergkäse', chain: 'lidl', hiddenAt: NOW },
+      ]),
+    );
+  }
+
+  const openDetail = async () => {
+    await screen.findByText('Cached Bergkäse');
+    await fireEvent.press(screen.getAllByLabelText('Open deal for Cached Bergkäse')[0]);
+    await screen.findByText('View payload');
+  };
+
+  const revealHidden = async () => {
+    await fireEvent.press(screen.getByText('Filters'));
+    await fireEvent.press(await screen.findByText('Show hidden (1)'));
+    await fireEvent.press(screen.getByText('Done'));
+  };
+
+  it('hides the deal from the list when Hide is pressed in the detail', async () => {
+    await seedCache();
+    await render(<DealsScreen />);
+    await openDetail();
+
+    await fireEvent.press(screen.getByLabelText('Hide Cached Bergkäse'));
+    // The button flips in place — the toast renders under the modal, so this IS the feedback.
+    expect(await screen.findByLabelText('Un-hide Cached Bergkäse')).toBeTruthy();
+
+    await fireEvent.press(screen.getByText('Close'));
+    await waitFor(() => expect(screen.queryByText('Cached Bergkäse')).toBeNull());
+  });
+
+  it('persists the hide keyed on chain+name, never the churning offer id', async () => {
+    await seedCache();
+    await render(<DealsScreen />);
+    await openDetail();
+    await fireEvent.press(screen.getByLabelText('Hide Cached Bergkäse'));
+
+    await waitFor(() => {
+      const writes = (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
+        ([k]) => k === 'hiddenItems',
+      );
+      expect(writes.length).toBeGreaterThan(0);
+      const stored = JSON.parse(writes[writes.length - 1][1]);
+      // /api/reset deletes every row and Render's DB is ephemeral, so SQLite reuses rowids:
+      // an id-keyed hide would follow a different product next week.
+      expect(stored[0].key).toBe('lidl:cached bergkäse');
+    });
+  });
+
+  it('keeps a hidden deal out of the list', async () => {
+    await seedCache();
+    await seedHidden();
+    await render(<DealsScreen />);
+    await screen.findByText('Filters'); // the screen is up...
+    expect(screen.queryByText('Cached Bergkäse')).toBeNull(); // ...but the deal is gone
+  });
+
+  it('Filters → "Show hidden" is the route back: it reveals the deal so it can be un-hidden', async () => {
+    await seedCache();
+    await seedHidden();
+    await render(<DealsScreen />);
+    await screen.findByText('Filters');
+    await revealHidden();
+
+    await openDetail();
+    expect(screen.getByLabelText('Un-hide Cached Bergkäse')).toBeTruthy();
+
+    // Un-hide → it belongs in the normal list again.
+    await fireEvent.press(screen.getByLabelText('Un-hide Cached Bergkäse'));
+    expect(await screen.findByLabelText('Hide Cached Bergkäse')).toBeTruthy();
+  });
+
+  it('offers no Hidden section until something is actually hidden', async () => {
+    await seedCache();
+    await render(<DealsScreen />);
+    await screen.findByText('Cached Bergkäse');
+    await fireEvent.press(screen.getByText('Filters'));
+    await screen.findByText('Sort by');
+    expect(screen.queryByText(/Show hidden/)).toBeNull();
+  });
+
+  it('Reset clears the lens but NOT the hidden set — hiding is a persisted choice', async () => {
+    await seedCache();
+    await seedHidden();
+    await render(<DealsScreen />);
+    await screen.findByText('Filters');
+    await revealHidden();
+    expect(await screen.findByText('Cached Bergkäse')).toBeTruthy(); // lens on
+
+    await fireEvent.press(screen.getByText('Filters'));
+    await fireEvent.press(screen.getByText('Reset'));
+
+    // Lens off → hidden again; the hide itself survived (only "Reset all app data" clears it).
+    await waitFor(() => expect(screen.queryByText('Cached Bergkäse')).toBeNull());
+    expect(screen.getByText('Show hidden (1)')).toBeTruthy();
+  });
+});

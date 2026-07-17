@@ -7,6 +7,7 @@ import type { SectionListData } from 'react-native';
 
 import { headlineDiscountPct } from './appPrice';
 import { cheapestByName, ECENTER, EDEKA, normName } from './edekaVs';
+import { filterHidden, onlyHidden } from './hidden';
 import { filterByVisibleStores } from './stores';
 import { SortMode } from './storage';
 import { Offer } from './types';
@@ -76,6 +77,12 @@ export function compareOffers(a: Offer, b: Offer, mode: SortMode): number {
 
 export type DealFilterOptions = {
   showNonFood: boolean;
+  /** Keys of deals the user dismissed from the deal detail (see hidden.ts). Active-only —
+   * the caller passes `hiddenKeySet(...)`, which already drops expired hides. */
+  hiddenKeys: Set<string>;
+  /** Session-only lens: show ONLY hidden deals, so a hidden one can be reopened and un-hidden.
+   * The Filters sheet is the only route back to a hidden deal's detail. */
+  showHidden: boolean;
   hiddenStores: string[];
   /** Transient "Only this store" lens (session-only, never persisted) — isolates one
    * chain's deals for a quick look. Distinct from `hiddenStores`, which is the user's
@@ -96,7 +103,14 @@ export type DealFilterOptions = {
  */
 export function filterDeals(offers: Offer[], opts: DealFilterOptions): Offer[] {
   const foodBase = opts.showNonFood ? offers : offers.filter((o) => o.category !== 'household');
-  const storeBase = filterByVisibleStores(foodBase, opts.hiddenStores);
+  // Hiding is the user's strongest "never show me this", so it runs first — and BEFORE the
+  // E-center dedupe below, deliberately: hiding EDEKA's copy of a shared product should let E
+  // center's twin surface, which falls out of this order for free. The lens inverts it, and is
+  // the only way back to a hidden deal's detail (and so to its Un-Hide button).
+  const hiddenBase = opts.showHidden
+    ? onlyHidden(foodBase, opts.hiddenKeys)
+    : filterHidden(foodBase, opts.hiddenKeys);
+  const storeBase = filterByVisibleStores(hiddenBase, opts.hiddenStores);
   // Position is load-bearing, on both sides:
   //  * AFTER the store filter — if EDEKA is hidden, suppression must switch off, or the shared
   //    products would disappear from the list entirely instead of just showing E center's copy;
