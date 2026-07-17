@@ -233,7 +233,34 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   biggest cluster** (~20): the source files it under `Wurstwaren > Wurst > Brühwurst` /
   `Fleisch > Fleischzubereitungen` → pork, and a path beats a keyword, so `geflügel`/`hähnchen`/
   `putenbrust`/`truthahn` are now L2 form words (proven: the *same* product is poultry via a brand-leaf
-  path and pork via a Wurstwaren path). **`classify` order
+  path and pork via a Wurstwaren path).
+  **Substring guards + multi-category brands (2026-07-17, PR2 of the audit, 78 offers moved, 0
+  regressions, `other` 6.9%→6.8%)**: German compounds mean a keyword *should* usually fire mid-word
+  (`Bratwurst`→pork), so only *coincidental* matches get a space guard, each pinned to the product
+  that proved it AND the sibling that must survive: `"milka "` (vs Milkana, a cheese), `"trolli "`
+  (vs Trollinger, a wine), `"limo "` (vs Limonaie, an ALDI lemon *biscuit*), `" spezi "` (vs
+  Spezialsalz/-mehl/Käsespezialitäten), `" sekt"` (vs In**sekt**enabwehr), `" angus"` — **left
+  UNPADDED on purpose** because the real beef hyphenates (`Black-Angus-`) and the plant it clashes
+  with (`Lavendel angustifolia`) is already caught by its non-food path, so a guard would cost a row
+  and save none. New L2 form words rescue mis-filed *paths*: `dicksaft`/`goldsaft`→pantry (a syrup,
+  not a juice — `saft ` only guards the trailing side), `ganze bohnen`/`iced coffee`→soft (coffee a
+  multi-category brand was filing as ice cream), `weinschorle`/`oder alkoholfrei`/`auch alkoholfrei`
+  →alcoholic (a multi-variant *beer* offer is not an alcohol-free product), `lachsschinken`/
+  `fleischkäse`→pork, `croissant`→bakery, `topfpflanze`→household (an artificial plant the source
+  files under `Würzmittel`). **Multi-category brands** removed from `BRAND_CATEGORY` (a brand entry
+  beats every keyword, so it mis-files every brand-leaf-path product): `rondo` (Bahlsen biscuits AND
+  Röstfein coffee → all live rows coffee). **Deliberately KEPT despite spanning categories** (each
+  pinned by a test so the "cleanup" can't land silently): `mövenpick` (ice cream AND coffee — its
+  coffees are rescued a layer *earlier* by the `ganze bohnen`/`iced coffee` form words, while a bare
+  "Edle Komposition" has no other signal and would fall to `other`) and `kerrygold` (butter AND
+  cheese — its cheeses are saved by a Käse *path* (L3) or `reibekäse` *caption* (L2b), both before
+  the brand map; **not** by "Käse" in the name, which is L6, after the brand). New brand-indexed
+  drink-path fix: the source indexes some paths as `Bier > Biermarken > <brand>`, dumping a ham
+  (`Radeberger Premium-Lachsschinken`) or fish (`Golden Seafood …`) into alcoholic — 117 offers sit
+  under those nodes, the L2 form words rescue the ~6 wrong ones. **REJECTED and pinned**: a bare
+  `alkoholfrei` *caption* signal (~30 real beers carry "auch/teilw. alkoholfrei" as a variant note →
+  would empty the beer aisle into soft_drinks). Also a **free CI gate**: `verify_deals.py` now flags
+  self-disagreeing products (same name, two categories) — see the CI/CD note. **`classify` order
   (7 layers)**: non-food path→household, **`_FORM_OVERRIDES`** (limonade/saft/joghurt/
   chips + the poultry words above — definitive *form* words that beat even a *mis-filed* food path, e.g. the source
   tags "Bananenchips" under Obst; also guards mis-files of `jägermeister`→alcoholic and
@@ -778,8 +805,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   (a missing chain pages even when the skip was a designed degradation — fail-closed must
   announce itself; the issue auto-closes on recovery), offers ≥800, €/kg-sortable ≥50%, "other"
   ≤15% (~2× the measured 7.4% norm — calibrating this gate corrected an earlier stale ~1%
-  belief). A gate failure flows into the existing alert-issue machinery unchanged. Thresholds
-  live at the top of the script; recalibrate against measured norms, don't guess), `eas-update.yml` (OTA via `eas update --branch production`, **gated
+  belief), and **self-disagreement ≤20% of comparable products** (the same product NAME served in
+  two categories = ≥1 wrong row by construction; free to compute, no ground truth needed). The
+  **denominator is load-bearing**: the served set is deduped, so only ~16% of offers share a name
+  with any other — expressed against the served total the rate is ~2% and a "2× norm" ceiling
+  wouldn't trip until a *quarter* of comparable products disagreed (a gate that reads authoritative
+  while evaluating almost nothing). It's measured against **names served ≥2×** (11.9% live), skips
+  (doesn't pass) below 20 comparable products, and names the offenders on failure. A gate failure
+  flows into the existing alert-issue machinery unchanged. Thresholds live at the top of the script;
+  recalibrate against measured norms, don't guess), `eas-update.yml` (OTA via `eas update --branch production`, **gated
   on a green CI run**: triggers via `workflow_run` *after* the `CI` workflow succeeds on `main`,
   not on raw push — so a broken bundle can't ship; `workflow_run` can't path-filter, so the job
   pins checkout to the passing commit's SHA and re-applies the `mobile/**` filter via `git diff
