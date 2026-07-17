@@ -45,6 +45,7 @@ import { dealsCacheStale, dealsStale, refreshDeltaMessage } from '../format';
 import { resolveSortMode, sortLabel } from '../sort';
 import { filterByVisibleStores, hasHiddenPresent, toggleHiddenStore, visibleStoreChains } from '../stores';
 import { resolveBasketItem } from '../basketResolve';
+import { filterHidden, HiddenItem, hiddenKeySet, hideKey, toggleHidden } from '../hidden';
 import { isLiked, onSaleCount, resolveLike } from '../likes';
 import { DEFAULT_RECIPE_PREFS } from '../recipes';
 import {
@@ -54,6 +55,7 @@ import {
   getPayloadCache,
   getStoredAlwaysHave,
   getStoredBasket,
+  getStoredHidden,
   getStoredHiddenStores,
   getStoredLikes,
   getStoredMyStores,
@@ -66,6 +68,7 @@ import {
   setPayloadCache,
   setStoredAlwaysHave,
   setStoredBasket,
+  setStoredHidden,
   setStoredHiddenStores,
   setStoredLikes,
   setStoredMyStores,
@@ -116,6 +119,10 @@ export default function DealsScreen() {
   const [basketModal, setBasketModal] = useState(false);
   const [likes, setLikes] = useState<LikedItem[]>([]); // persisted: right-swiped products
   const [likesModal, setLikesModal] = useState(false);
+  const [hidden, setHidden] = useState<HiddenItem[]>([]); // persisted: deals dismissed for the week
+  // Session-only, like storeLens: a peek at your hidden deals must never leave the app stuck
+  // showing only them after a reload.
+  const [showHidden, setShowHidden] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [optionsModal, setOptionsModal] = useState(false);
@@ -192,6 +199,7 @@ export default function DealsScreen() {
       setHiddenStores(await getStoredHiddenStores());
       setBasket(await getStoredBasket());
       setLikes(await getStoredLikes());
+      setHidden(await getStoredHidden());
       setRecipePrefs(await getStoredRecipePrefs());
       setAlwaysHave(await getStoredAlwaysHave());
       setReady(true);
@@ -399,6 +407,30 @@ export default function DealsScreen() {
     [commitLikes],
   );
 
+  // Same ref-mirror discipline as likes: the handler must keep a stable identity or the
+  // memoized rows re-render (the swipe-freeze contract), and reading state via the ref keeps
+  // it out of the dep list.
+  const hiddenRef = useRef(hidden);
+  useEffect(() => {
+    hiddenRef.current = hidden;
+  }, [hidden]);
+  const onToggleHidden = useCallback(
+    (offer: Offer) => {
+      const next = toggleHidden(hiddenRef.current, offer);
+      hiddenRef.current = next;
+      setHidden(next);
+      setStoredHidden(next);
+      // Un-hiding the last one disarms the lens for good: leaving it armed means the NEXT
+      // hide would silently flip the list into "only hidden" mode.
+      if (next.length === 0) setShowHidden(false);
+      const nowHidden = next.some((h) => h.key === hideKey(offer));
+      // The toast renders UNDER the deal detail, so the button's own label flip is the real
+      // feedback; this is for the (rare) case of hiding with the sheet already closing.
+      showToast(nowHidden ? `Hidden ${offer.name}` : `Un-hid ${offer.name}`);
+    },
+    [showToast],
+  );
+
   // Stable per-row callbacks: rows are memoized, so nothing about an unrelated
   // re-render (toast in/out, filter tweaks) touches a row while a gesture is live.
   const openOffer = useCallback((o: Offer) => setActive(o), []);
@@ -436,6 +468,8 @@ export default function DealsScreen() {
     setMyStores([]);
     setBasket([]);
     setLikes([]);
+    setHidden([]);
+    setShowHidden(false);
     setShowNonFood(false);
     setSortMode('discount');
     setSortByCategory({});
@@ -508,17 +542,32 @@ export default function DealsScreen() {
     setStoredHiddenStores([]);
   };
 
+  // Active hide keys (expired hides are already dropped by hiddenKeySet).
+  const hiddenKeys = useMemo(() => hiddenKeySet(hidden), [hidden]);
+
+  // "Hidden" means hidden EVERYWHERE you shop from — Compare, EdekaVs, Basket and Recipes all
+  // work off this, not the raw set. The one exception is the Likes page (see `modalOffers`).
+  const notHidden = useMemo(() => filterHidden(offers, hiddenKeys), [offers, hiddenKeys]);
+
   // Hidden stores apply EVERYWHERE the user shops from: the deals list (via filterDeals
   // below) and the Basket + Recipes matchers — hiding EDEKA means the basket must not
   // route you there as "cheapest". Compare keeps its own store picker (full set).
   const modalOffers = useMemo(
+    () => filterByVisibleStores(notHidden, hiddenStores),
+    [notHidden, hiddenStores],
+  );
+
+  // Likes deliberately IGNORES hidden deals: it's a watchlist you curated by hand, so a hidden
+  // liked product would render "Not on sale this week" — which would be false. An explicit
+  // watchlist beats a browsing declutter; hiding still applies to everything else.
+  const likesOffers = useMemo(
     () => filterByVisibleStores(offers, hiddenStores),
     [offers, hiddenStores],
   );
 
   // The heart badge = liked products on sale RIGHT NOW (exact name match), not the size
   // of the likes list — it's the "worth opening the page" signal, and hides at 0.
-  const likedOnSale = useMemo(() => onSaleCount(likes, modalOffers), [likes, modalOffers]);
+  const likedOnSale = useMemo(() => onSaleCount(likes, likesOffers), [likes, likesOffers]);
 
   const dayLimitedCount = useMemo(() => offers.filter((o) => o.day_limited).length, [offers]);
   const bioCount = useMemo(() => offers.filter((o) => o.is_bio).length, [offers]);
@@ -536,10 +585,15 @@ export default function DealsScreen() {
     storeLens && visibleStoreChains(presentChains, hiddenStores).includes(storeLens)
       ? storeLens
       : null;
+  // The lens can only count while something is actually hidden — same only-when-present guard
+  // as the store lens, so a lens left on when the last hide expires is a no-op, not an empty list.
+  const activeShowHidden = showHidden && hiddenKeys.size > 0;
   const visibleOffers = useMemo(
     () =>
       filterDeals(offers, {
         showNonFood,
+        hiddenKeys,
+        showHidden: activeShowHidden,
         hiddenStores,
         storeLens: activeLens,
         specialDays,
@@ -547,7 +601,18 @@ export default function DealsScreen() {
         query,
         selected,
       }),
-    [offers, showNonFood, hiddenStores, activeLens, specialDays, bioOnly, query, selected],
+    [
+      offers,
+      showNonFood,
+      hiddenKeys,
+      activeShowHidden,
+      hiddenStores,
+      activeLens,
+      specialDays,
+      bioOnly,
+      query,
+      selected,
+    ],
   );
 
   // The sort actually in effect: your explicit pick for this category wins, else the
@@ -575,8 +640,10 @@ export default function DealsScreen() {
       onClose={() => setActive(null)}
       onLike={onLikeOffer}
       onAddToBasket={onAddToBasket}
+      onToggleHidden={onToggleHidden}
       liked={!!active && isLiked(active, likes)}
       inBasket={!!active && basket.some((b) => b.key === resolveBasketItem(active).key)}
+      hidden={!!active && hiddenKeys.has(hideKey(active))}
     />
   );
   // At most one of these is ever open: they're opened from header buttons that sit on the
@@ -611,6 +678,11 @@ export default function DealsScreen() {
   const nonFoodCount = cats.find((c) => c.category === 'household')?.count ?? null;
   // Active (non-default) filters → removable chips on the bar; their count badges "Filters".
   const filterChips = [
+    // The hidden lens is a big mode change (the list shows ONLY hidden deals), so it gets the
+    // most prominent chip and a one-tap way out.
+    activeShowHidden
+      ? { key: 'hiddenLens', label: 'Showing hidden', onRemove: () => setShowHidden(false) }
+      : null,
     activeLens
       ? {
           key: 'lens',
@@ -637,6 +709,8 @@ export default function DealsScreen() {
   // The store chip's ✕ (showAllStores) is still the direct way back.
   const resetFilters = () => {
     setStoreLens(null); // the lens IS a transient filter, unlike the store list
+    setShowHidden(false); // ditto — but the hidden SET survives (a persisted choice,
+    // like hiddenStores/sortByCategory); only "Reset all app data" clears it.
     setSpecialDays(false);
     setBioOnly(false);
     if (showNonFood) onToggleNonFood();
@@ -819,7 +893,7 @@ export default function DealsScreen() {
 
       <CompareModal
         visible={compareModal}
-        offers={offers}
+        offers={notHidden}
         chains={presentChains}
         categories={cats}
         onOpenOffer={setActive}
@@ -843,7 +917,7 @@ export default function DealsScreen() {
       />
       <EdekaVsModal
         visible={edekaVsModal}
-        offers={offers}
+        offers={notHidden}
         onOpenOffer={setActive}
         onClose={closeEdekaVs}
         detail={edekaVsModal ? detail : null}
@@ -851,7 +925,7 @@ export default function DealsScreen() {
       <LikesModal
         visible={likesModal}
         likes={likes}
-        offers={modalOffers}
+        offers={likesOffers}
         onRemove={onRemoveLike}
         onOpenOffer={setActive}
         onClose={closeLikes}
@@ -923,6 +997,9 @@ export default function DealsScreen() {
         showNonFood={showNonFood}
         nonFoodCount={nonFoodCount}
         onToggleNonFood={onToggleNonFood}
+        hiddenCount={hiddenKeys.size}
+        showHidden={activeShowHidden}
+        onChangeShowHidden={setShowHidden}
       />
     </SafeAreaView>
   );

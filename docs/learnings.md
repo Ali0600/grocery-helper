@@ -882,3 +882,38 @@ strength of browser QA. A simulator run found the refusal log line in minutes.
 feature's behaviour is decided by a platform mechanism the test surface doesn't implement, that
 surface is not a weaker check — it is **no check**. Drive the real platform once, and keep the cheap
 surface for what it can actually see.
+
+## An auto-increment id is not an identity — don't persist a reference to one you don't control
+
+The obvious handle for "remember this exact row" is its id. But an id is only an identity if the
+row's lifetime is stable. Here `/api/reset` runs `delete(Offer)` and re-scrapes, and Render's SQLite
+is **ephemeral** — every cold start rebuilds the table from scratch. SQLite reuses rowids after a
+full delete, so id 5 next week is a *different product*. A client that stored "offer 5 is hidden"
+would both un-hide what the user hid **and** silently hide something they never touched.
+
+**Why it came up:** "hide this deal for this week" sounds exactly like an id-keyed feature. It isn't.
+The fix keeps the same user-facing behaviour with a stable key (`chain` + normalised name) plus an
+explicit expiry (`dealsStale(hiddenAt)` — the same weekly rule the deals cache already uses).
+
+**Takeaway:** persist *identity* (something intrinsic to the thing) plus an explicit lifetime; never
+a surrogate key produced by a system that can renumber. Ask "what renumbers this, and when?" before
+storing an id — and if the answer involves a rebuild, the id is a coincidence, not a name.
+
+## In React Native Testing Library v14, `fireEvent` is async — an unawaited press is silently lost
+
+`fireEvent.press` returns `Promise<void>` in RNTL v14 (as does `render`). Leaving one unawaited opens
+overlapping `act()` scopes; React warns "You seem to have overlapping act() calls", and — the part
+that costs hours — **the state update is dropped**. The handler genuinely runs (a `console.log`
+inside it prints) but no re-render follows, so the failure surfaces much later as "unable to find
+element X", pointing nowhere near the cause.
+
+**Why it came up:** a test drove Filters → lens → Done → tap a card. The tap fired and nothing
+rendered. Single-press tests hide this, because the following `await findBy*` flushes the pending
+act; only a sequence of presses exposes it. A sibling bug had the same shape: jest-setup called
+AsyncStorage's `clear()` without awaiting, so one test's storage leaked into the next — invisible
+for a year because every test re-seeded the key it cared about.
+
+**Takeaway:** when a test library's API returns a promise, await it even where it "seems to work" —
+the failure mode isn't an error, it's a lost update reported somewhere else entirely. And when a test
+fails in a way the code can't explain, instrument the *handler* before doubting the feature: knowing
+"it fired but nothing re-rendered" converts a mystery into a one-line fix.

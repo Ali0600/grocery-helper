@@ -30,16 +30,23 @@ export function FlyerModal({
   onClose,
   onLike,
   onAddToBasket,
+  onToggleHidden,
   liked = false,
   inBasket = false,
+  hidden = false,
 }: {
   offer: Offer | null;
   onClose: () => void;
   /** The button counterparts of the card's swipe gestures — see the actions block below. */
   onLike?: (offer: Offer) => void;
   onAddToBasket?: (offer: Offer) => void;
+  /** Dismiss this deal from the list (and from Basket/Recipes/Compare) for this flyer week.
+   * A TOGGLE, unlike Like/Basket above: this is the only place to un-hide, reached via the
+   * Filters sheet's "Show hidden" lens. */
+  onToggleHidden?: (offer: Offer) => void;
   liked?: boolean;
   inBasket?: boolean;
+  hidden?: boolean;
 }) {
   const flyer = offer ? FLYER_LINKS[offer.chain] : null;
 
@@ -92,7 +99,35 @@ export function FlyerModal({
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>{flyer ? `${flyer.label} flyer` : 'Flyer'}</Text>
+            <View style={styles.headerLeft}>
+              <Text style={styles.headerTitle} numberOfLines={1}>
+                {flyer ? `${flyer.label} flyer` : 'Flyer'}
+              </Text>
+              {/* Hide sits next to the title, per the request. `flexShrink` on the title above
+                  keeps a long chain name from pushing this into Close at 375pt. */}
+              {offer && onToggleHidden ? (
+                <Pressable
+                  onPress={() => onToggleHidden(offer)}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.hideBtn,
+                    hidden && styles.hideBtnOn,
+                    pressed && styles.flyerBtnPressed,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={hidden ? `Un-hide ${offer.name}` : `Hide ${offer.name}`}
+                >
+                  <Icon
+                    name={hidden ? 'eye-outline' : 'eye-off-outline'}
+                    size={13}
+                    color={hidden ? colors.accent : colors.muted}
+                  />
+                  <Text style={[styles.hideBtnText, hidden && { color: colors.accent }]}>
+                    {hidden ? 'Un-Hide' : 'Hide'}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
             <Pressable onPress={onClose} hitSlop={10}>
               <Text style={styles.close}>Close</Text>
             </Pressable>
@@ -256,7 +291,21 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1, minWidth: 0 },
+  headerTitle: { color: colors.text, fontSize: 17, fontWeight: '700', flexShrink: 1 },
+  hideBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card2,
+  },
+  hideBtnOn: { borderColor: colors.accent },
+  hideBtnText: { color: colors.muted, fontSize: 12, fontWeight: '700' },
   close: { color: colors.accent, fontSize: 15, fontWeight: '600' },
   content: { padding: 16, alignItems: 'center' },
   image: {

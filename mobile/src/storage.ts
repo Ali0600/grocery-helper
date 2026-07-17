@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { CatalogItem, GROCERY_CATALOG } from './catalog';
 import { DEALS_CACHE_VERSION } from './format';
+import { activeHidden, HiddenItem } from './hidden';
 import { DEFAULT_RECIPE_PREFS } from './recipes';
 import { BasketItem, CategoryCount, LikedItem, MyStore, Offer, PayloadMap, RecipePrefs } from './types';
 
@@ -13,6 +14,7 @@ const SORT_BY_CATEGORY_KEY = 'sortByCategory'; // slug -> the user's explicit so
 const HIDDEN_STORES_KEY = 'hiddenStores';
 const BASKET_KEY = 'basket';
 const LIKES_KEY = 'likedItems';
+const HIDDEN_KEY = 'hiddenItems'; // deals dismissed from the deal detail (one flyer week)
 const DEALS_CACHE_KEY = 'dealsCache';
 const PAYLOAD_CACHE_KEY = 'payloadCache';
 const RECIPE_PREFS_KEY = 'recipePrefs';
@@ -192,6 +194,40 @@ export async function getStoredLikes(): Promise<LikedItem[]> {
   }
 }
 
+/** Hidden deals. Expired entries (from a previous flyer week) are dropped at read AND at write,
+ * so a stale hide can never resurface and the list can't grow without bound. */
+export async function getStoredHidden(): Promise<HiddenItem[]> {
+  try {
+    const raw = await AsyncStorage.getItem(HIDDEN_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const shaped = parsed.filter(
+      (h): h is HiddenItem =>
+        !!h &&
+        typeof h === 'object' &&
+        typeof h.key === 'string' &&
+        h.key.length > 0 &&
+        typeof h.name === 'string' &&
+        typeof h.chain === 'string' &&
+        typeof h.hiddenAt === 'number',
+    );
+    return activeHidden(shaped);
+  } catch (e) {
+    console.warn('storage: getStoredHidden failed', e);
+    return [];
+  }
+}
+
+export async function setStoredHidden(items: HiddenItem[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(HIDDEN_KEY, JSON.stringify(activeHidden(items)));
+  } catch (e) {
+    console.warn('storage: setStoredHidden failed', e);
+    // best-effort
+  }
+}
+
 export async function setStoredLikes(items: LikedItem[]): Promise<void> {
   try {
     await AsyncStorage.setItem(LIKES_KEY, JSON.stringify(items));
@@ -289,6 +325,7 @@ export async function clearAllData(): Promise<void> {
       SORT_BY_CATEGORY_KEY,
       BASKET_KEY,
       LIKES_KEY,
+      HIDDEN_KEY,
       DEALS_CACHE_KEY,
       PAYLOAD_CACHE_KEY,
       RECIPE_PREFS_KEY,

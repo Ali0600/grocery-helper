@@ -60,6 +60,12 @@ export function FilterSheet(props: {
   showNonFood: boolean;
   nonFoodCount: number | null;
   onToggleNonFood: () => void;
+  // Deals dismissed from the deal detail. This section is the ONLY way back to a hidden deal:
+  // the lens reveals them so one can be reopened and un-hidden. Like every other section it
+  // renders only when it has data — i.e. once something is actually hidden.
+  hiddenCount: number;
+  showHidden: boolean;
+  onChangeShowHidden: (v: boolean) => void;
 }) {
   const { visible, onClose, onReset } = props;
   return (
@@ -147,6 +153,26 @@ export function FilterSheet(props: {
               },
             ]}
           />
+
+          {/* Only route back to a hidden deal, so it must appear whenever anything is hidden.
+              Labels stay clear of the Non-food section's "Hidden"/"Shown" pills above. */}
+          {props.hiddenCount > 0 && (
+            <Section
+              title="Hidden deals"
+              options={[
+                {
+                  label: 'Hide',
+                  active: !props.showHidden,
+                  onPress: () => props.showHidden && props.onChangeShowHidden(false),
+                },
+                {
+                  label: `Show hidden (${props.hiddenCount})`,
+                  active: props.showHidden,
+                  onPress: () => !props.showHidden && props.onChangeShowHidden(true),
+                },
+              ]}
+            />
+          )}
         </ScrollView>
 
         <Pressable style={styles.done} onPress={onClose}>
