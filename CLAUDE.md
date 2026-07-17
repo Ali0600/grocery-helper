@@ -214,9 +214,28 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   umlaut plural → now `würst`). Space-guarded keys are load-bearing: `"tuc "`/`"joie "` (brands
   are matched as **substrings**, so a 3–4 letter key fires mid-word — cf. `"lorenz "`/`"wasa "`)
   and `"suppe "` (pantry is second-to-last, so a bare `suppe` would swallow Suppengrün). To re-survey, fetch a
-  publisher's brochure pages and tally `products[].categoryPaths`. **`classify` order
-  (6 layers)**: non-food path→household, **`_FORM_OVERRIDES`** (limonade/saft/joghurt/
-  chips — definitive *form* words that beat even a *mis-filed* food path, e.g. the source
+  publisher's brochure pages and tally `products[].categoryPaths`.
+  **The flyer CAPTION is a classification signal — `classify(name, brand, path, unit)`**
+  (2026-07-17, `_CAPTION_SIGNALS`, layer **2b**): the product NAME is a marketing string that lies
+  — a flavour word in it steals the product ("Bauer Diplomat Paprika" is a **cheese**, "Müller &
+  Müller Truthahnbrust mit Paprika**rand**" is **poultry**, "GUT&GÜNSTIG Apfeldreieck" is a
+  **pastry**) — while `Offer.unit` holds the source's caption, which states the product's own
+  designation ("55% Fett i. Tr.", "der leckere Geflügel-Aufschnitt", "Blätterteig mit einer
+  Füllung aus Apfelstückchen"). It was stored all along and unread. Runs **after** the name
+  form-words (proven/specific) but **BEFORE the path**, because the path is frequently mis-filed (a
+  cheese under `Gemüse > Kohl`, a pastry under `Obst > Weintrauben > Rosinen`). Signals must be
+  **designations, not ingredients**, and each was diffed over all stored offers before being kept —
+  **deliberately rejected and pinned as tests**: bare `frischkäse` (moves a Coppenrath *cheesecake*),
+  bare `schmelzkäse` (a snack box that merely *contains* some), `plunderteig`, `gebäck`,
+  `rindfleisch` (hits mixed Bratwurst, which is legitimately pork). `unit` is optional, so old
+  callers are unaffected; `run.py` passes `raw.unit`, `recategorize` passes `offer.unit`. Full-DB
+  diff: **107 offers moved, 0 regressions**; live `other` 7.4%→6.5%. **Poultry sausage was the
+  biggest cluster** (~20): the source files it under `Wurstwaren > Wurst > Brühwurst` /
+  `Fleisch > Fleischzubereitungen` → pork, and a path beats a keyword, so `geflügel`/`hähnchen`/
+  `putenbrust`/`truthahn` are now L2 form words (proven: the *same* product is poultry via a brand-leaf
+  path and pork via a Wurstwaren path). **`classify` order
+  (7 layers)**: non-food path→household, **`_FORM_OVERRIDES`** (limonade/saft/joghurt/
+  chips + the poultry words above — definitive *form* words that beat even a *mis-filed* food path, e.g. the source
   tags "Bananenchips" under Obst; also guards mis-files of `jägermeister`→alcoholic and
   `möhre`→vegetables that the source dumps under `Dessert>Eis`. **The 2026-07-15 cleanup added
   more L2 guards** for items the source buries under a food node so only L2 can beat the path:
@@ -601,7 +620,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   unfiltered set — Likes is a watchlist you curated, so a hidden+liked product would render "Not on
   sale this week", a lie. In `filterDeals` the hide step runs **first, before the E-center dedupe**:
   hiding EDEKA's copy then surfaces E center's twin instead of losing the product from both (pinned
-  by a test). Un-hiding is only reachable via the FilterSheet's **"Show hidden (N)"** lens (session-
+  by a test). **Pressing Hide CLOSES the deal detail** (2026-07-17): hiding is a dismissal, so one press finishes it — `onToggleHidden` clears `active` when the result is hidden. Un-Hide deliberately does NOT close (it *restores* the deal; you may want to read it) and just flips the button back. Side effect: the `Hidden X` toast renders *under* the detail and was never seen — with the sheet closed it's finally the confirmation.
+  Un-hiding is only reachable via the FilterSheet's **"Show hidden (N)"** lens (session-
   only, `showHidden`, guarded `&& hiddenKeys.size > 0`, and disarmed when the last hide goes so a
   later hide can't silently flip the list into only-hidden mode). The sheet's **Reset clears the
   lens, not the hidden set** (a persisted choice, like `hiddenStores`/`sortByCategory`); only

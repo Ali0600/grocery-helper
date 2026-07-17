@@ -57,6 +57,11 @@ build the cheapest basket across one or two stores.
   are tracked by identity, not by id: if the flyer renames "McCain Golden Longs" to
   "Golden Long" next week, the exact match falls back to the brand's other offers
   (and to the product sub-group for brandless produce), ranked by name similarity.
+- **Hide a deal you're not interested in** — the deal detail's Hide button dismisses it
+  from the list (and from the Basket, Recipes and Compare pages) for that flyer week,
+  at that chain: hiding Edeka's Schnaps leaves Lidl's alone, and it returns when the
+  flyers refresh. Hides are stored by product identity rather than by offer id, which
+  churns on every re-scrape. Filters → "Show hidden" reveals them again to un-hide.
 - **Persisted store visibility** — hide chains you never shop at; the preference
   survives restarts and applies everywhere prices are suggested (deals list, basket
   optimizer, recipe pricing), with a guard so the last visible store can't be hidden.
@@ -356,6 +361,21 @@ zero-risk docs can still be pushed directly.
 
 Engineering practices demonstrated while building and operating this project:
 
+- **Data-quality auditing at scale** — Audited a 2,700-product taxonomy by rendering
+  every item's photograph into per-category contact sheets and judging each against its
+  source caption, rather than trusting the product name. This surfaced a systematic
+  defect the names concealed: a marketing string routinely misidentifies a product
+  ("Bauer Diplomat Paprika" is a cheese), while the supplier's own caption states the
+  legal designation — data already captured and never used. Feeding it into the
+  classifier reclassified 107 records with zero regressions, verified by a full-dataset
+  old-versus-new diff and confirmed against the live API.
+- **Root-causing a platform-specific defect on the real platform** — Diagnosed a bug
+  that browser testing could not observe by construction, by reproducing it on a device
+  simulator against the platform's own console: the framework refuses a UI presentation
+  when two views share a parent, then records success anyway, so a single failure
+  disabled the feature for the remainder of the session. Located the mechanism in the
+  vendored framework source, corrected two pieces of documentation the evidence
+  disproved, and pinned the constraint with a regression test.
 - **Correctness engineering against an unreliable upstream** — Established that a
   third-party feed served *nationally scoped* data while presenting it as local, which
   would have shown users deals from retailers ~300 km away. Proved it by differential
