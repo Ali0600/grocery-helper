@@ -2,7 +2,7 @@
 
 Categories are computed at scrape time and persisted, so a change to the
 classifier rules/brand map doesn't affect existing rows until they're re-scraped.
-This backfill re-runs `classify(name, brand)` over the whole table so rule
+This backfill re-runs `classify(name, brand, path, unit)` over the whole table so rule
 changes take effect immediately.
 
 Usage:
@@ -25,7 +25,7 @@ def recategorize(session: Session) -> int:
     changed = 0
     for offer in session.scalars(select(Offer)).all():
         path = json.loads(offer.category_path) if offer.category_path else None
-        new_category = classify(offer.name, offer.brand, path)
+        new_category = classify(offer.name, offer.brand, path, offer.unit)
         if new_category != offer.category:
             offer.category = new_category
             changed += 1
