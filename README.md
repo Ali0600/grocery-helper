@@ -47,6 +47,12 @@ build the cheapest basket across one or two stores.
   sub-group (Avocado, Butter, Milch…) lines up each store's cheapest price side by
   side with the winner highlighted — powered by a cross-source product-grouping
   taxonomy shared with the basket matcher.
+- **"My Categories" home** — pick the categories you actually shop and land on a
+  personalized home of just those, each a preview shelf (its best deals + "See all"
+  that opens the full category). The default "All" view is kept; a fresh install lands
+  on All until you pick some. Each shelf sorts by its category's own best axis (€/kg
+  for food), and the whole home reuses the same filtering pipeline as the list, so it
+  never drifts from what the list would show.
 - **Swipe-to-basket gesture** — swipe any deal left to add its product *category*
   to the shopping basket (a melon offer adds "Melon", which then tracks the cheapest
   melon all week) — native gesture handling with haptic feedback, and a resolver
@@ -385,6 +391,14 @@ Engineering practices demonstrated while building and operating this project:
   appear more than once) and proving it both ways (passes on live data, fails on a
   category-scrambled fixture, skips when there is nothing to compare) turned it into a real
   smoke alarm for taxonomy drift.
+- **Shipping a personalized home without a parallel data path** — Added a "pick your
+  categories" landing view by composing the existing filter pipeline rather than forking it:
+  the personalized sections are derived from the same pure function that builds the list, so
+  the two can never disagree on price, filtering, or sort. Modelled the preference on the
+  project's established persisted-preference pattern (empty set falls back to the default view,
+  so a first-run screen is never blank), kept the entry points inside a width-constrained header
+  by reusing the existing chip row, and covered the new behavior with unit tests for the pure
+  builder plus component tests that prove the default-landing rule and the drill-in both ways.
 - **Root-causing a platform-specific defect on the real platform** — Diagnosed a bug
   that browser testing could not observe by construction, by reproducing it on a device
   simulator against the platform's own console: the framework refuses a UI presentation

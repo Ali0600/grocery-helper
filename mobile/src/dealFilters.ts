@@ -139,6 +139,57 @@ export function filterDeals(offers: Offer[], opts: DealFilterOptions): Offer[] {
   return opts.selected ? bioBase.filter((o) => o.category === opts.selected) : bioBase;
 }
 
+// One category "shelf" on the personalized "My Categories" home: a header + a short preview of
+// that category's best deals, with `total` so the header can say "See all 42". `data` is the
+// preview slice; `total` is the full count (data.length may be < total when truncated).
+export type MineSection = {
+  slug: string;
+  label: string;
+  total: number;
+  data: Offer[];
+};
+
+/**
+ * Build the "My Categories" home from an already-filtered base. `base` MUST be the `filterDeals`
+ * output with `selected: null` and `query: ''` — so the home inherits every list filter (hidden
+ * deals, hidden stores, the E-center dedupe, the store lens, special-days, bio, non-food) and can
+ * never drift from what the list would show.
+ *
+ * One shelf per slug in `myCategories`, IN THAT ORDER (the user's priority). Each shelf is the
+ * category's offers sorted by that category's own sort (`sortFor(slug)` — €/kg for food) and sliced
+ * to `previewCount`. A category with no offers this week is SKIPPED (no empty header). `total`
+ * reflects the full count so the header's "See all N" is honest.
+ */
+export function buildMineSections(
+  base: Offer[],
+  myCategories: string[],
+  labels: Record<string, string>,
+  sortFor: (slug: string) => SortMode,
+  previewCount = 5,
+): MineSection[] {
+  const byCat = new Map<string, Offer[]>();
+  for (const o of base) {
+    const arr = byCat.get(o.category);
+    if (arr) arr.push(o);
+    else byCat.set(o.category, [o]);
+  }
+  const sections: MineSection[] = [];
+  for (const slug of myCategories) {
+    const items = byCat.get(slug);
+    if (!items || items.length === 0) continue; // skip a category with no deals this week
+    const sorted = [...items].sort((a, b) => compareOffers(a, b, sortFor(slug)));
+    sections.push({
+      slug,
+      // Prefer the served label; fall back to the offer's own label, then the slug — a shelf must
+      // never render a blank title just because /api/categories hasn't loaded yet.
+      label: labels[slug] ?? sorted[0].category_label ?? slug,
+      total: sorted.length,
+      data: sorted.slice(0, previewCount),
+    });
+  }
+  return sections;
+}
+
 // Per-section metadata for the grouped (category) view. `label === null` renders no
 // header; `muted` is the small "More" header above the trailing single-offer bucket.
 export type SectionMeta = {

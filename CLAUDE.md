@@ -596,6 +596,26 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   were **retired** (absorbed by the sheet). **The pure pipeline lives in `dealFilters.ts`**
   (presentChains/chainCounts/compareOffers/filterDeals/buildSections, unit-tested) and the screen
   memoizes it — don't re-inline derived filtering into the render body.
+- **"My Categories" home — a personalized landing view** (2026-07-17, `dealFilters.ts`
+  `buildMineSections` + `components/{CategoriesModal,CategorySectionHeader}.tsx`): pick the categories
+  you shop and land on a home of just those, each a **preview shelf** (header + top ~5 deals + a
+  `See all ›` that drills into the full category). The current **All** view is kept. The `★ Mine`
+  chip + a **pencil** edit chip live in the existing `CategoryChips` row — deliberately **no header
+  change** (it's full at 375pt). Persisted as an ordered `myCategories: string[]` (`storage.ts`,
+  mirrors `hiddenStores`/`sortByCategory`): **empty = fall back to All** (a fresh install is never a
+  blank Mine screen), a stale/renamed slug is inert (skipped when it has no offers), cleared by
+  **"Reset all app data" only** (not the Filters-sheet Reset). **Default landing** = Mine when
+  `myCategories` is non-empty, else All (`setMine(mc.length > 0)` on hydrate); `mine` is otherwise a
+  session view toggle layered on top of the unchanged `selected` (All / one category). **Four render
+  branches, in order**: search `q` → flat search list (global, bypasses Mine); `mine` → the shelves
+  `SectionList`; `selected` → the existing product-grouped `SectionList`; else → the flat All
+  `FlatList`. `buildMineSections(base, myCategories, labels, sortFor)` takes the `filterDeals` output
+  with `selected:null, query:''` as its `base`, so every shelf inherits the SAME hidden/stores/
+  E-center-dedupe/lens/special-days/bio/non-food filtering as the list and **can't drift**; each shelf
+  sorts by that category's own default (`resolveSortMode` → €/kg for food) and `total` drives
+  "See all N". In Mine the FilterBar sort summary reads **"Per category"** and the sheet's Sort
+  section is hidden (`FilterSheet` `hideSort`) — there's no single sort to attach a pick to. `household`
+  is excluded from the editor (non-food, gated by the Non-food toggle everywhere). Mobile-only/OTA.
 - **E center's duplicates of EDEKA are hidden from the deals list** (2026-07-16,
   `dealFilters.ts` `dropEdekaCenterDuplicates`, always on, no toggle): E center is EDEKA's
   hypermarket format, so the flyers overlap hard — measured on a Berlin PLZ, **103 of E center's

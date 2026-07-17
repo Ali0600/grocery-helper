@@ -1,12 +1,44 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  clearAllData,
   getStoredLikes,
+  getStoredMyCategories,
   getStoredSortByCategory,
   setStoredLikes,
+  setStoredMyCategories,
   setStoredSortByCategory,
 } from '../storage';
 import { LikedItem } from '../types';
+
+describe('myCategories persistence', () => {
+  it('returns [] when nothing is stored (so the home falls back to All)', async () => {
+    expect(await getStoredMyCategories()).toEqual([]);
+  });
+
+  it('round-trips the chosen categories in order', async () => {
+    await setStoredMyCategories(['fruits', 'cheese', 'pork']);
+    expect(await getStoredMyCategories()).toEqual(['fruits', 'cheese', 'pork']);
+  });
+
+  it('drops non-string / empty entries and a non-array payload', async () => {
+    await AsyncStorage.setItem('myCategories', JSON.stringify(['fruits', 42, '', null, 'cheese']));
+    expect(await getStoredMyCategories()).toEqual(['fruits', 'cheese']);
+    await AsyncStorage.setItem('myCategories', JSON.stringify({ fruits: true }));
+    expect(await getStoredMyCategories()).toEqual([]);
+  });
+
+  it('returns [] for unparseable JSON instead of throwing', async () => {
+    await AsyncStorage.setItem('myCategories', 'not json');
+    expect(await getStoredMyCategories()).toEqual([]);
+  });
+
+  it('is cleared by "Reset all app data"', async () => {
+    await setStoredMyCategories(['fruits']);
+    await clearAllData();
+    expect(await getStoredMyCategories()).toEqual([]);
+  });
+});
 
 describe('sortByCategory persistence', () => {
   it('returns {} when nothing is stored (so every category uses its default)', async () => {
