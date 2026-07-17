@@ -282,8 +282,27 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   coffee/tea) + `alcoholic` (beer/wine/sekt/spirits)** across all 5 maps (`_PATH_MAP`, `_RULES`,
   `BRAND_CATEGORY`, `_FORM_OVERRIDES`, `_OVERRIDES`); `alkoholfrei` is a `_FORM_OVERRIDES`→soft
   guard so alcohol-free beer/wine isn't filed alcoholic. ~214 soft / ~252 alcoholic for a Berlin
-  PLZ. **Chip order = `CATEGORIES` dict insertion order** (`GET /api/categories` iterates it), so
-  `vegan` was moved to the back of the food chips (per the user). Both are a re-classification →
+  PLZ. **Three categories added 2026-07-17 (PR3 of the audit, 72 offers moved, 0 regressions,
+  `other` 6.8%→6.4%)**: **`other_meat`** ("Lamb & Other Meat" — lamb/rabbit/game; `" lamm"`+
+  `kaninchen` MOVED out of `pork`, and it runs before `fish` so **`Lammlachs`** — a lamb loin the
+  source files under `Fleisch > Lamm` — stops being caught by the `lachs` fish rule); **`eggs`** (a
+  deliberately **thin** chip — only ~2 branded egg offers a week — space-padded `" eier "` so the
+  `Eier…` compounds stay put: Eierlikör→alcoholic, Eiersalat→pork, Eierkuchen→bakery, Eierkocher→
+  household); **`ready_meals`** ("Ready Meals" — Fertiggerichte/sushi/Maultaschen/döner). ready_meals
+  is a **layer-2 `_FORM_OVERRIDES` entry**, not a keyword: the source scatters prepared meals under a
+  mis-filed path (`Sushi4You`→Feinkost, `Curry King`→Würzmittel, `iglo Fertiggerichte`→Nudeln) AND
+  brands that would win (`frosta`→frozen, a `YOUCOOK … Chicken`→poultry), so only L2 consolidates
+  ALL Fertiggerichte into one aisle. **`gekühlt` is NOT a ready-meal signal** — it means "chilled"
+  and sits on ~100 fridge staples (butter/cheese/cold cuts); chilled pizza deliberately stays in
+  `frozen`. Also **margarine → `butter`** (Rama/Lätta/Deli Reform/Kærgården, an L2 override beating a
+  `Margarine` path node that maps nowhere; `"rama "` is trailing-space-guarded vs Ramazzotti, and
+  RAMA Cremefine is caught at L1 by its Drogerie path) and **Valess → `cheese`** (vegetarian-not-vegan
+  filed by main ingredient, an L2 override beating its `Fleisch > Schnitzel` path). **Chip order =
+  `CATEGORIES` dict insertion order** (`GET /api/categories` iterates it), so `vegan` was moved to the
+  back of the food chips (per the user); the new chips sit with their neighbours (`other_meat` by the
+  meats, `eggs` by dairy, `ready_meals` by frozen). New food categories get the €/kg per-category sort
+  default for free (`sort.ts` `DISCOUNT_DEFAULT_CATEGORIES` is a **denylist** = `{household}`), so no
+  mobile change is needed — new chips are fully data-driven. Both are a re-classification →
   need a recategorize / re-scrape to backfill (Render's deploy boot-scrape does it).
   **`vegan` is a cross-cutting category that wins FIRST** (`app/vegan.py` `is_vegan`, a layer-0
   check in `classify` before the household path): explicitly-vegan products (word `vegan`/

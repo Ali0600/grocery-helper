@@ -36,12 +36,15 @@ CATEGORIES: dict[str, str] = {
     "beef": "Beef",
     "poultry": "Chicken & Poultry",
     "pork": "Pork & Sausage",
+    "other_meat": "Lamb & Other Meat",  # lamb / rabbit / game — the meats that aren't beef/pork/poultry
     "fish": "Fish & Seafood",
     "butter": "Butter",
     "cheese": "Cheese",
     "dairy": "Milk & Dairy",
+    "eggs": "Eggs",  # a thin chip (few branded egg offers) but its own aisle
     "bakery": "Bakery",
     "frozen": "Frozen",
+    "ready_meals": "Ready Meals",  # prepared/heat-and-eat: Fertiggerichte, sushi, Maultaschen, döner
     "ice_cream": "Ice Cream",
     "sweets": "Sweets & Chocolate",
     "snacks": "Snacks",
@@ -126,6 +129,13 @@ _PATH_MAP: dict[str, str] = {
 
 # (slug, [German keywords]); first matching rule wins.
 _RULES: list[tuple[str, list[str]]] = [
+    # Lamb / rabbit / game — the meats that aren't beef/pork/poultry. BEFORE fish (so "Lammlachs",
+    # a lamb LOIN the source files under "Fleisch > Lamm", isn't caught by the "lachs" fish rule)
+    # and BEFORE pork (which used to own " lamm"/"kaninchen"). " lamm"/"reh " keep a leading/padded
+    # space so they can't fire inside Fla(mm)kuchen / ve(rzehr); bare "wild" is avoided (Wildlachs
+    # is fish).
+    ("other_meat", [" lamm", "lamm-", "kaninchen", "hase ", "hirsch", "reh ", "rehkeule", "rehrücken",
+                    "rehragout", "wildbret", "wildgulasch", "wildragout"]),
     # Ice cream before frozen (and before sweets, so "Snickers Ice Cream" isn't sweets).
     # " eis " is the standalone word only — space-padded so it can't fire inside Fleisch /
     # Reis / Eisberg / Eistee / Eiweiß (verified against the live catalog: 0 leaks).
@@ -148,19 +158,29 @@ _RULES: list[tuple[str, list[str]]] = [
               "burger patties", "smash burger", "kalb", "bavette", "chuck-eye", "chuck eye"]),
     ("pork", ["schwein", "schnitzel", "hackfleisch", "hack ", " mett", "bratwurst", "wurst", "würstchen",
               "speck", "schinken", "salami", "kasseler", "leberkäse", "chorizo", "jamón", "jamon", "serrano",
-              "fuet", "lyoner", "frikadelle", "kaminwurzerl", "bacon", "kebab", "cevapcici", "corned", "kaninchen", "rügenwalder",
-              "pastrami", "mortadella", "kabanos", "krustenbraten", "sparerib", "rippchen", " lamm",
+              "fuet", "lyoner", "frikadelle", "kaminwurzerl", "bacon", "kebab", "cevapcici", "corned", "rügenwalder",
+              # " lamm" and "kaninchen" moved to `other_meat` (runs earlier); "kebab" stays because
+              # a Dönertasche is claimed by ready_meals first, and a plain kebab sausage is pork.
+              "pastrami", "mortadella", "kabanos", "krustenbraten", "sparerib", "rippchen",
               # "würst" catches the umlaut plurals the bare "wurst" misses (Bockwürste,
               # Bratwürste); "haxe" is the pork knuckle — Kalbs-/Putenhaxe are safe because
               # the beef/poultry rules run first.
               "spare rib", "nackensteak", "würst", "haxe"]),
-    ("butter", ["markenbutter", "deutsche butter", "süßrahm", "suessrahm", "butter ", "margarine", "rama", "kaergarden"]),
+    # Margarine/spread brands moved to _FORM_OVERRIDES (they need to beat a "Margarine" path node);
+    # the bare "rama" here was also a latent Ramazzotti bug, hidden only by that amaro's alcoholic path.
+    ("butter", ["markenbutter", "deutsche butter", "süßrahm", "suessrahm", "butter "]),
     ("cheese", ["käse", "kaese", "gouda", "mozzarella", "feta", "camembert", "parmesan", "frischkäse",
                 "emmentaler", "edamer", "grana", "manchego", "obazda", "zottarella", "queso", "brunch",
                 "burrata", "kashkaval", "kasländer"]),
     ("dairy", ["milch", "joghurt", "jogurt", "quark", "sahne", "schmand", "buttermilch", "pudding", "skyr",
                "almighurt", "ehrmann", "kefir", "ayran", "grütze", "milchreis", "fruchtzwerge", "monte ", "paradies creme",
                "crème fraîche", "creme fraiche", "crème fraiche", "zaziki", "tzatziki", "milchschnitte", "pingui"]),
+    # Eggs. Space-padded " eier " matches the standalone word ("Bio Eier") but NOT the compounds
+    # that are a different product: Eierlikör (alcoholic), Eiersalat (a deli salad -> pork),
+    # Eierkuchenmehl (bakery), Eierkocher (an appliance). "freilandei"/"bodenhaltung" catch the
+    # descriptive egg names. A thin category (few branded egg offers) but its own aisle by request.
+    ("eggs", [" eier ", " eier,", " eier.", "freilandei", "bodenhaltung", "frühstücksei",
+              "bio-eier", "eier 10", "eier 6"]),
     ("fruits", ["apfel", "äpfel", "banane", "erdbeer", "traube", "orange", "zitrone", "limette", "birne", "kiwi", "beere",
                 "mango", "ananas", "melone", "pfirsich", "nektarine", "clementine", "mandarine", "avocado",
                 "aprikose", "physalis", "pflaume", "kirsche", "grapefruit"]),
@@ -375,6 +395,29 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # Root veg the source sometimes mis-files under "Dessert > Eis" (a carrot is not ice cream).
     # After beverages/dairy so Möhrensaft/Möhrenjoghurt still win their form.
     ("vegetables", ["möhre", "möhren"]),
+    # Prepared / heat-and-eat meals. A layer-2 override because the source scatters them under a
+    # mis-filed path the keyword layer can't beat ("Sushi4You"->Feinkost, "Curry King"->Würzmittel,
+    # "iglo Fertiggerichte"->Nudeln) AND under brands that would otherwise win ("frosta"->frozen,
+    # "meica"->pork, a "YOUCOOK … Chicken"->poultry). Anchored on the designation "fertiggericht" +
+    # unambiguous ready products; this consolidates ALL Fertiggerichte into one aisle regardless of
+    # shelf. NOTE: "gekühlt" is NOT a signal — it means "chilled" and sits on ~100 fridge staples
+    # (butter, cheese, cold cuts). "dönertasche" (not bare "döner", vs a Döner spice); chilled
+    # pizza is deliberately left in `frozen` (splitting pizza by shelf is more confusing than help).
+    ("ready_meals", ["fertiggericht", "youcook", "you cook", "sushi", "curry king", "dönertasche",
+                     "maultaschen"]),
+    # Margarine / plant spreads -> butter (the user groups them with butter). The source files
+    # them under a "Pflanzlicher Brotaufstrich > Margarine" node that maps to nowhere, so they fell
+    # to pantry/other; the designation "margarine" and the unambiguous spread brands pin them.
+    # "rama " keeps a trailing space: it must not touch "Ramazzotti" (an amaro — no space after
+    # "rama") — and "RAMA Cremefine" (a cooking cream) is already caught at layer 1 by its Drogerie
+    # path, before this layer, so it stays out of butter.
+    ("butter", ["margarine", "rama ", "lätta", "latta", "deli reform", "kærgården", "kaergården",
+                "kaergarden", "sanella", "becel"]),
+    # Vegetarian (NOT vegan) products filed by their MAIN INGREDIENT, per the user: Valess is a
+    # milk-protein product -> cheese, but the source files it under "Fleisch > Schnitzel" (its
+    # meat-substitute shape), so only a layer-2 override can move it. `vegetarisch != vegan`
+    # (documented) — a vegan brand would already have been caught at layer 0.
+    ("cheese", ["valess"]),
     # Poultry sausage/cold cuts. THE biggest mis-file cluster (~20 products): the source files
     # them under "Wurstwaren > Wurst > Brühwurst"/"Fleisch > Fleischzubereitungen", which map to
     # pork, and a path beats a keyword — so "Gutfried Hähnchen-Fleischwurst" and "Langewiesche
