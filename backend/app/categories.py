@@ -297,6 +297,36 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # Root veg the source sometimes mis-files under "Dessert > Eis" (a carrot is not ice cream).
     # After beverages/dairy so Möhrensaft/Möhrenjoghurt still win their form.
     ("vegetables", ["möhre", "möhren"]),
+    # Poultry sausage/cold cuts. THE biggest mis-file cluster (~20 products): the source files
+    # them under "Wurstwaren > Wurst > Brühwurst"/"Fleisch > Fleischzubereitungen", which map to
+    # pork, and a path beats a keyword — so "Gutfried Hähnchen-Fleischwurst" and "Langewiesche
+    # Putenbrust" landed in pork. Proven by the same product classifying BOTH ways depending on
+    # whether its path was a Wurstwaren node or a brand leaf. Only layer 2 can beat the path.
+    ("poultry", ["geflügel", "hähnchen", "hähnchenbrust", "putenbrust", "puten-", "truthahn"]),
+]
+
+# What the flyer CAPTION says the product is. Read from `Offer.unit`, which holds the source's
+# descriptive line ("55% Fett i. Tr. 150g Packung", "der leckere Geflügel-Aufschnitt", "Blätterteig
+# mit einer Füllung aus Apfelstückchen"). The name is a marketing string and lies constantly — a
+# flavour word in it steals the product ("Bauer Diplomat Paprika" is a CHEESE, "Müller & Müller
+# Truthahnbrust mit Paprikarand" is POULTRY) — while the caption states the legal/product
+# designation. Checked AFTER the name form-words above (those are proven and specific) but BEFORE
+# the source path, so it can beat a mis-filed path.
+#
+# These must be DESIGNATIONS, not ingredients — every entry was checked against all stored offers
+# and only kept if it moved nothing correct. Deliberately rejected: bare "frischkäse" (moves a
+# Coppenrath *cheesecake*), bare "schmelzkäse" (moves a cracker+sausage snack box that merely
+# contains some), "plunderteig" (a poultry-filled pastry roll is arguably not bakery), and
+# "gebäck"/"rindfleisch" (hit sweets and mixed Bratwurst respectively).
+_CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
+    # "45% Fett i. Tr." is a legal fat-in-dry-matter declaration; only cheese carries it.
+    ("cheese", ["fett i. tr", "fett i.tr", "schnittkäse", "weichkäse", "hartkäse", "brühkäse",
+                "reibekäse", "frischkäsezubereitung", "schmelzkäsezubereitung", "käse-frischpack"]),
+    ("bakery", ["blätterteig", "hefeteig", "hefefeingebäck", "mürbeteig"]),
+    # "Lachs" is a German LOIN cut as well as salmon: Lachsschinken / Graved Lachsfleisch /
+    # Schweinelachsschinken are cured PORK, and only the caption says so.
+    ("pork", ["vom schwein", "schweinebauch", "schweinerücken", "schweinefleisch", "schweinelachs"]),
+    ("ice_cream", ["stieleis", "eiscreme"]),
 ]
 
 # Flavour / drink-type tokens (and specific compounds that must beat a generic fruit
@@ -332,8 +362,18 @@ def _path_node(category_path: List[str]) -> Optional[str]:
     return None
 
 
-def classify(name: str, brand: str | None = None, category_path: Optional[List[str]] = None) -> str:
-    """Map a product (name + optional brand + optional source path) to a slug."""
+def classify(
+    name: str,
+    brand: str | None = None,
+    category_path: Optional[List[str]] = None,
+    unit: str | None = None,
+) -> str:
+    """Map a product (name + optional brand + source path + flyer caption) to a slug.
+
+    `unit` is the source's descriptive line (see `_CAPTION_SIGNALS`). It's optional so old
+    callers keep working, but pass it when you have it: the name is a marketing string that
+    lies, and the caption states what the product actually is.
+    """
     path = category_path or []
     # 0. Explicitly-vegan products are their own category (the user's choice: vegan is a
     #    section, so a vegan cheese moves out of Cheese). First, so it also rescues vegan
@@ -348,6 +388,14 @@ def classify(name: str, brand: str | None = None, category_path: Optional[List[s
     for slug, tokens in _FORM_OVERRIDES:
         if any(token in text for token in tokens):
             return slug
+    # 2b. What the CAPTION says it is. Beats the path below, because the path is frequently
+    #     mis-filed (a cheese under "Gemüse > Kohl", a pastry under "Obst > Rosinen") while the
+    #     caption carries the product's own designation.
+    if unit:
+        caption = f" {unit.lower()} "
+        for slug, tokens in _CAPTION_SIGNALS:
+            if any(token in caption for token in tokens):
+                return slug
     # 3. The food taxonomy node (an *intermediate* node; the leaf is often a brand).
     node = _path_node(path)
     if node:

@@ -372,3 +372,66 @@ def test_multi_category_aldi_house_brands_stay_off_the_brand_map():
     one slug would mis-file the rest — same rule as Gut&Günstig / Deluxe / Dr.Oetker."""
     for brand in ("milsani", "trader joe", "meine metzgerei", "gourmet finest cuisine"):
         assert brand not in BRAND_CATEGORY
+
+
+# --- The flyer caption (Offer.unit) as a classification signal -------------------------------
+# Found by auditing every category against its product IMAGES (2698 products): the name is a
+# marketing string that lies — a flavour word in it steals the product — while the caption states
+# the product's own designation. It was stored all along and never read.
+
+
+def test_caption_beats_a_flavour_word_in_the_name():
+    # "Bauer Diplomat Paprika" is a CHEESE. Its path is a brand leaf (no signal), so the bare
+    # "paprika" keyword used to drag it into vegetables.
+    assert classify("Bauer Diplomat Paprika", "Bauer", ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "Bauer"]) == "vegetables"
+    assert (
+        classify("Bauer Diplomat Paprika", "Bauer", ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "Bauer"],
+                 "55% Fett i. Tr. 150g Packung")
+        == "cheese"
+    )
+
+
+def test_caption_beats_a_MIS_FILED_source_path():
+    # The source filed a turkey cold-cut under a vegetable-ish brand node and the name carries
+    # "Paprikarand" — only the caption says "Geflügel-Aufschnitt".
+    unit = "der leckere Geflügel-Aufschnitt mit einer feinen Paprikanote, 100 g"
+    assert classify("Müller & Müller Truthahnbrust mit Paprikarand", "Müller & Müller",
+                    ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "Müller"], unit) == "poultry"
+
+
+def test_caption_resolves_the_Lachs_loin_trap():
+    # "Lachs" is a German LOIN cut as well as salmon: this is cured PORK, not fish.
+    assert classify("Berschneider Graved Lachsfleisch", None, None,
+                    "vom Schweinerücken, in Scheiben geschnitten, gebeizt") == "pork"
+    # ...and a real salmon is still fish.
+    assert classify("Lachsfilet", None, None, "Norwegen, 125 g") == "fish"
+
+
+def test_caption_moves_pastry_out_of_fruits():
+    assert classify("GUT&GÜNSTIG Apfeldreieck", "GUT&GÜNSTIG", None,
+                    "Blätterteig mit einer Füllung aus Apfelstückchen") == "bakery"
+
+
+def test_poultry_sausage_beats_the_Wurstwaren_path():
+    # THE biggest cluster (~20 products): "Wurstwaren > Wurst > Brühwurst" maps to pork and a path
+    # beats a keyword, so poultry sausage landed in pork. Layer 2 is the only thing that can win.
+    path = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Wurstwaren", "Wurst", "Brühwurst"]
+    assert classify("Gutfried Hähnchen-Fleischwurst", "Gutfried", path) == "poultry"
+    assert classify("Langewiesche Putenbrust", "Langewiesche", path) == "poultry"
+    # A real pork sausage under the same path is untouched.
+    assert classify("Bratwurst vom Schwein", None, path) == "pork"
+
+
+def test_caption_signals_are_designations_not_ingredients():
+    # Deliberately rejected during the audit: a cheesecake whose caption merely mentions
+    # Frischkäse, and a snack box that merely CONTAINS Schmelzkäse, must NOT become cheese.
+    assert classify("Coppenrath & Wiese Lust auf Torte", "Coppenrath & Wiese", None,
+                    "versch. Sorten, mit Frischkäse") != "cheese"
+    assert classify("Gutfried Junior Lieblings-Snack-Box", "Gutfried", None,
+                    "mit Cracker, Geflügel-Fleischwurst und Schmelzkäse") != "cheese"
+
+
+def test_classify_without_a_caption_is_unchanged():
+    # `unit` is optional — old callers and coupon rows with no caption keep working.
+    assert classify("Bananen", None, None) == "fruits"
+    assert classify("Bananen", None, None, None) == "fruits"

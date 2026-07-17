@@ -86,7 +86,8 @@ def _upsert(session: Session, store: Store, offers: List[ScrapedOffer], source: 
         offer.name = raw.name
         offer.brand = raw.brand
         offer.category_path = json.dumps(raw.category_path) if raw.category_path else None
-        offer.category = categories.classify(raw.name, raw.brand, raw.category_path)
+        # raw.unit is the flyer caption — it states what the product IS where the name lies.
+        offer.category = categories.classify(raw.name, raw.brand, raw.category_path, raw.unit)
         offer.price_cents = raw.price_cents
         offer.regular_price_cents = raw.regular_price_cents
         offer.discount_pct = _discount_pct(raw.price_cents, raw.regular_price_cents)
