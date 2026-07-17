@@ -622,6 +622,63 @@ def test_an_artificial_plant_is_not_pantry():
     assert classify("HOME CREATION Künstliche Topfpflanze Lavendel", "HOME CREATION", path) == "household"
 
 
+# --- Rescue real food the source dumps under a NON-food path (produce under pet/garden/promo) -----
+# Found by measuring every offer with a non-food path that still carried a food signal: REWE files
+# its regional produce and Deutsche See fish under generic pet-brand / promo / bare-brand nodes, so
+# layer 1 turned them into "household". 63 offers moved, all household -> a food category, 0 others.
+
+PET = ["Tierbedarf und Tierfutter", "Produkte", "Marken für Tiere"]
+PROMO = ["Saison und Events", "Produkte", "Aktionen", "Payback"]
+BRAND = ["Marken", "Marken Lebensmittel", "REWE Beste Wahl"]
+
+
+@pytest.mark.parametrize(
+    "name, brand, path, expected, why",
+    [
+        ("Nektarinen", None, PET, "fruits", "fruit under a pet-brand node"),
+        ("Plattpfirsiche", None, PET, "fruits", "fruit under a pet-brand node"),
+        ("REWE Regional Mini Roma Rispentomaten", None, PET, "vegetables", "veg under a pet node"),
+        ("Große Kulturchampignons braun", None, PET, "vegetables", "mushrooms under a pet node"),
+        ("Deutsche See Pangasiusfilet", "Deutsche See", PET, "fish", "a fish brand under a pet node"),
+        ("Aprikosen", None, ["Heimwerken und Garten", "Marken", "Garden Feelings"], "fruits",
+         "real apricots the source filed under ALDI's garden brand (image-verified)"),
+        ("Bauern Gut Geflügelsalat", None, PROMO, "poultry", "poultry salad under a Payback node"),
+        ("REWE Feine Welt Maishähnchen", None, BRAND, "poultry", "corn-fed chicken under a bare brand"),
+        ("REWE Bio Roggenmischbrot", None, BRAND, "bakery", "bread under a bare brand"),
+        ("Kania Tomatenketchup", None, PROMO, "pantry", "ketchup under a promo node"),
+        ("REWE Beste Wahl Jumbo Erdnüsse", None, BRAND, "snacks", "peanuts under a bare brand"),
+    ],
+)
+def test_food_rescued_from_a_nonfood_path(name, brand, path, expected, why):
+    assert classify(name, brand, path) == expected, why
+
+
+@pytest.mark.parametrize(
+    "name, brand, why",
+    [
+        # A produce/meat word on a genuine non-food product must NOT be rescued — the veto holds it.
+        ("REWE Traubenhyazinthen im Topf", None, "a flower, not grapes"),
+        ("Gardenline Tomatenpflanze", "Gardenline", "a tomato plant, not a tomato"),
+        ("Good Boy Bunter Hähnchen Knabbermix", None, "cat treats, not poultry"),
+        ("Esmara Mango Kleid", "Esmara", "a fashion-brand dress, not a mango"),
+        ("Livarno Beistelltisch Kirschholz", "Livarno", "cherry-wood furniture, not cherries"),
+    ],
+)
+def test_nonfood_with_a_coincidental_food_word_stays_household(name, brand, why):
+    garden = ["Heimwerken und Garten", "Produkte", "Garten"]
+    assert classify(name, brand, garden) == "household", why
+
+
+def test_rescue_only_fires_on_a_nonfood_path_not_a_food_one():
+    """The gate that makes the rescue safe: a FOOD-path product carrying a rescue noun must keep its
+    real category, not be dragged into produce. An Erdbeer-Joghurt is dairy, not fruits."""
+    food = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Milchprodukte", "Joghurt"]
+    assert classify("Landliebe Erdbeere Joghurt", "Landliebe", food) == "dairy"
+    # ...and a genuine household item with no food noun is untouched.
+    assert classify("PARKSIDE Akku-Bohrschrauber", "PARKSIDE",
+                    ["Heimwerken und Garten", "Produkte", "Werkzeug"]) == "household"
+
+
 # --- New categories: Lamb & Other Meat, Eggs, Ready Meals, margarine -> Butter (PR3) ----------
 # The audit's PR3. Full-DB diff: 72 moved, 0 regressions.
 

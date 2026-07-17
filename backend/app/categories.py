@@ -6,7 +6,10 @@
    vegan-only brand like Vemondo) is its own category, beating every other signal
    (cross-cutting by choice — a vegan cheese is filed under "vegan", not "cheese").
 1. **Non-food source path** — if the Bonial `categoryPaths` isn't under the food
-   root, it's non-food → "household".
+   root, it's non-food → "household" — UNLESS a *high-confidence* food noun rescues
+   it first (`_food_rescue`): the source dumps real produce/fish under generic pet /
+   garden / promo nodes (Nektarinen under `Tierbedarf > Marken für Tiere`), so a
+   specific food noun with no plant/clothing/pet veto beats the mis-filed path.
 2. **Definitive form words** — limonade / saft / joghurt / chips beat even a
    *mis-filed* food path (the source files "Bananenchips" under Obst). Form words
    only — never a mere flavour — and space-guarded vs fruit superstrings
@@ -476,6 +479,52 @@ _OVERRIDES: list[tuple[str, list[str]]] = [
 ]
 
 
+# Real food the source scatters under a NON-food path. The offending leaves are generic buckets that
+# carry no real category — pet-brand nodes (`Tierbedarf > Marken für Tiere`), promo/loyalty nodes
+# (`Saison und Events > Payback`), or a bare brand (`Marken > REWE Beste Wahl`) — so REWE's regional
+# produce, Deutsche See fish, etc. land in "household". These are HIGH-CONFIDENCE food nouns: specific
+# enough that a plant / appliance / garment / pet food can't carry them (the generic produce keywords
+# like "salat"/"tomate" are deliberately NOT reused — they'd catch a Salatschleuder or a Tomaten-
+# pflanze). A rescue only fires when the path is non-food AND no `_RESCUE_VETO` word is present, so a
+# food-path item (an Erdbeer-Joghurt) is never pulled into fruits.
+_FOOD_RESCUE: dict[str, list[str]] = {
+    "fruits": ["nektarine", "plattpfirsich", "aprikose", "brombeere", "himbeere", "erdbeere",
+               "pflaume", "wassermelone", "honigmelone", "kirsche", "heidelbeere", "blaubeere",
+               "stachelbeere", "johannisbeere", " mango", "papaya", "weintraube"],
+    "vegetables": ["rispentomate", "romatomate", "cherrytomate", "kulturchampignon", "champignon",
+                   "zucchini", "rucola", "feldsalat", "wildkräuter salat"],
+    "fish": ["deutsche see", "lachsfilet", "pangasius", "räucher-garnele"],
+    "poultry": ["maishähnchen", "geflügelsalat", "geflügel-fleischsalat", "hähnchen-grillplatte"],
+    "snacks": ["jumbo erdnüsse", "erdnusskerne"],
+    "bakery": ["roggenmischbrot", "vollkornbrot", "mehrkornbrot"],
+    "pantry": ["guacamole", "tomatenketchup"],
+    "beef": ["ochsen-bäckchen", "ochsenbäckchen"],
+}
+
+# If any of these appear in the name, the food noun is a coincidence and the non-food path stands:
+# a garden plant, a garment, cookware/DIY material, or pet food — the things that legitimately live
+# under the non-food roots and happen to share a word with a produce/meat noun ("Mango" the fashion
+# brand, "Kirschholz" furniture, "Tomatenpflanze", "Good Boy … Knabbermix" cat treats).
+_RESCUE_VETO: list[str] = [
+    "pflanze", "hyazinth", "röschen", "strauch", "saatgut", " samen", "topfrose", "kunstblume",
+    "schleierkraut", " beet", "kübel", "blumen", "baumschule",
+    " hose", "shirt", "jacke", "socken", "kleid", "pulli", "pullover", "jeans", "leggings",
+    " holz", "möbel", " lack",
+    "knabbermix", "katzen", "hunde", "für tiere", " napf", "tierfutter", "vogelfutter",
+]
+
+
+def _food_rescue(name: str, brand: str | None) -> Optional[str]:
+    """A high-confidence food noun under a non-food path -> its real category, else None."""
+    text = f" {name.lower()} {(brand or '').lower()} "
+    if any(v in text for v in _RESCUE_VETO):
+        return None
+    for slug, tokens in _FOOD_RESCUE.items():
+        if any(token in text for token in tokens):
+            return slug
+    return None
+
+
 def _path_nonfood(category_path: List[str]) -> bool:
     """True if the source taxonomy files this outside the food root (-> household)."""
     return bool(category_path) and category_path[0].strip().lower() != FOOD_ROOT
@@ -508,9 +557,11 @@ def classify(
     #    *food* the source mis-files under a non-food path (REWE plant-based → "household").
     if is_vegan(name, brand):
         return "vegan"
-    # 1. A non-food source path is authoritative ("Sektkühler" is household, not a drink).
+    # 1. A non-food source path is authoritative ("Sektkühler" is household, not a drink) — UNLESS a
+    #    high-confidence food noun rescues it (the source dumps produce/fish under pet/garden/promo
+    #    nodes). Gated on the non-food path so a food-path item (Erdbeer-Joghurt -> dairy) is untouched.
     if _path_nonfood(path):
-        return "household"
+        return _food_rescue(name, brand) or "household"
     text = f" {name.lower()} {(brand or '').lower()} "
     # 2. Definitive form words beat a *mis-filed food* path (Bananenchips under Obst, etc).
     for slug, tokens in _FORM_OVERRIDES:
