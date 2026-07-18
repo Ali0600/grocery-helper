@@ -1009,3 +1009,48 @@ the sheet. Anchoring on a real control (a labelled button) and walking up to the
 gave the truth — sheet at `top: 147`, button hittable. So the takeaway cuts both ways: **a failing
 check is a claim too.** Before believing a negative, confirm the instrument can produce a positive —
 here, that the node you measured is the one that actually has the size.
+
+## A generator that verifies against its own input cannot see a bad input
+
+The offline recipe-authoring step reads a JSON dump of the week's deals, writes ~15 recipes, and then
+checks its own work by confirming every ingredient matches something in that dump. Sound — except the
+dump had no validity filter, and the database accumulates flyer weeks (a scrape upserts, it never
+wipes). For PLZ 10115 that meant 1580 expired offers sitting beside 1763 live ones, so recipes were
+being built around Radieschen, Kichererbsen and Pesto that had stopped being on sale a week earlier.
+The self-check passed every time: it was reading the same stale list. The app filters
+`valid_to >= berlin_today()` when it serves offers, so those ingredients could never match on a
+device — the recipes were correct against the producer's view and broken against the consumer's.
+
+It only surfaced because a keyword probe was run against the *offer table the app actually loads*
+rather than against the dump, and several ingredients came back with zero matches.
+
+**Why it came up:** measuring per-chain coverage before authoring, which required matching keywords
+against real offers rather than against the candidate file.
+
+**Takeaway:** when a producer and its checker share an input, the check can only catch *transformation*
+errors, never *input* errors — and input errors are the ones that ship silently. Validate against the
+view the consumer sees (the same query, the same filters), not the view the producer was handed. A
+corollary for any derived dataset: if the real consumer applies a filter, the extract must apply it
+too, or the extract is quietly a superset of reality.
+
+## A harmless-looking match becomes harmful once something aggregates it
+
+Recipe ingredients marked `staple: true` ("you have oil and salt anyway") are matched against offers
+just like everything else, by German substring. That means `salz` matches salted peanuts, `pfeffer`
+matches Pfeffer-Salami, `butter` matches a Schweinefleisch-Spieß "Butterfly" and `zucker` matches a
+Zero-sugar cola. Individually each is a shrug — a slightly silly row on a card for an item you were
+never going to buy. But those matches were 33% of the on-sale count, and the on-sale count is what
+*ranks* the recipes; a new per-recipe "1 store · Lidl" badge was about to be derived from the same
+matches, which would have named a store on 6 of 15 recipes purely because a staple matched there.
+
+The fix was two-layered on purpose: tighten the keywords (the data), *and* exclude staples from the
+badge (the structure), so a sloppy keyword introduced by next week's regeneration still can't make the
+badge lie.
+
+**Why it came up:** building the store badge meant reading which chains a recipe resolves to, and the
+list had stores in it that no real ingredient came from.
+
+**Takeaway:** a low-stakes signal stops being low-stakes the moment something counts, ranks or
+summarises it. Before deriving a headline number from a collection of matches, look at what is in the
+collection — and when the derived value is a *claim to the user*, guard it structurally rather than
+trusting every input to stay clean.
