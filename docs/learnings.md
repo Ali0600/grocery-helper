@@ -1000,3 +1000,12 @@ right at once.
 viewport before believing either outcome, and sample more than once so an in-flight animation isn't
 mistaken for a final position. When a component can appear in more than one host, make closing the
 host tear the child down, and never derive a panel's data from whether that panel is currently open.
+
+**The mirror image bit a week later, in the same feature area.** Wiring the Recipes ingredient rows
+to the deal detail, the first hit-test reported the sheet parked off-screen at `top: 812` — the exact
+signature above. One step from "fixing" working code, re-measuring showed the *selector* was wrong: it
+had matched a zero-height wrapper `div` whose `innerText` happened to contain the search string, not
+the sheet. Anchoring on a real control (a labelled button) and walking up to the first sized ancestor
+gave the truth — sheet at `top: 147`, button hittable. So the takeaway cuts both ways: **a failing
+check is a claim too.** Before believing a negative, confirm the instrument can produce a positive —
+here, that the node you measured is the one that actually has the size.
