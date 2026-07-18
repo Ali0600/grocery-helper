@@ -30,6 +30,7 @@ from sqlalchemy import select
 from ..db import SessionLocal
 from ..dedup import dedup_offers
 from ..models import Offer
+from ..validity import berlin_today
 
 # Categories worth cooking from (skip household / beverages / sweets / snacks).
 COOK_CATEGORIES = [
@@ -45,9 +46,16 @@ def main() -> None:
     parser.add_argument("--per", type=int, default=PER_CATEGORY)
     args = parser.parse_args()
 
+    # Expired offers must not reach the authoring step. The DB accumulates flyer weeks (a scrape
+    # upserts rather than wiping), so without this the dump mixes last week's deals with this
+    # week's — and dedup can even keep the stale copy. `/api/offers` filters the same way, so an
+    # unfiltered dump means authoring against products the app will never match. Measured
+    # 2026-07-18: 1580 of 3343 offers for PLZ 10115 had expired a week earlier.
+    stmt = select(Offer).where((Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today()))
+
     by_chain: dict[str, dict[str, list[dict]]] = defaultdict(lambda: defaultdict(list))
     with SessionLocal() as session:  # keep open: `o.store` is a lazy relationship
-        for o in dedup_offers(session.scalars(select(Offer)).all()):
+        for o in dedup_offers(session.scalars(stmt).all()):
             if args.plz and o.store.plz != args.plz:
                 continue
             if o.category not in COOK_CATEGORIES:
