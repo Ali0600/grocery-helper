@@ -16,6 +16,7 @@ import {
 import { api } from '../api';
 import { chainLabel } from '../chains';
 import { BasketModal } from '../components/BasketModal';
+import { BrowserMode, CategoriesBrowserModal } from '../components/CategoriesBrowserModal';
 import { CategoriesModal } from '../components/CategoriesModal';
 import { CategoryChips } from '../components/CategoryChips';
 import { CategorySectionHeader } from '../components/CategorySectionHeader';
@@ -36,6 +37,7 @@ import { SearchBar } from '../components/SearchBar';
 import { StoresModal } from '../components/StoresModal';
 import { UpdateStatus } from '../components/UpdateStatus';
 import {
+  buildCategoryCards,
   buildMineSections,
   buildSections,
   chainCounts as tallyChainCounts,
@@ -105,6 +107,10 @@ export default function DealsScreen() {
   const [myCategories, setMyCategories] = useState<string[]>([]);
   const [mine, setMine] = useState(false);
   const [categoriesModal, setCategoriesModal] = useState(false);
+  // The category BROWSER (the header button): all categories as cards. Distinct from the shelves
+  // home above — that's the deals-list landing, this is a dedicated browse-and-drill-in surface.
+  const [categoriesBrowser, setCategoriesBrowser] = useState(false);
+  const [browserMode, setBrowserMode] = useState<BrowserMode>('all');
   const [query, setQuery] = useState('');
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,6 +150,8 @@ export default function DealsScreen() {
   // Set when Compare has asked to hand off to the EDEKA-vs-E-center page but its own
   // dismissal hasn't landed yet (native only — see the CompareModal wiring below).
   const [pendingEdekaVs, setPendingEdekaVs] = useState(false);
+  // Same shape, one step earlier in the chain: the category browser hands off to Compare.
+  const [pendingCompare, setPendingCompare] = useState(false);
   const [filterSheet, setFilterSheet] = useState(false);
   const [recipePrefs, setRecipePrefs] = useState<RecipePrefs>(DEFAULT_RECIPE_PREFS);
   const [alwaysHave, setAlwaysHave] = useState<BasketItem[]>([]);
@@ -214,6 +222,8 @@ export default function DealsScreen() {
       const mc = await getStoredMyCategories();
       setMyCategories(mc);
       setMine(mc.length > 0);
+      // The browser opens on your categories when you have some, else on the full list.
+      setBrowserMode(mc.length > 0 ? 'mine' : 'all');
       setBasket(await getStoredBasket());
       setLikes(await getStoredLikes());
       setHidden(await getStoredHidden());
@@ -599,6 +609,40 @@ export default function DealsScreen() {
     setSelected(slug);
   }, []);
 
+  // --- The category browser (header button) ---
+  // Leaving the browser must ALSO drop its nested editor. Otherwise `categoriesModal` stays true
+  // and the editor re-mounts at the root (the `{!categoriesBrowser ? editor : null}` branch),
+  // where it sits on top of whatever opened next — measured: it covered Compare after the handoff.
+  // Same guard the Likes/Compare/EdekaVs closers apply to the deal detail.
+  const leaveBrowser = useCallback(() => {
+    setCategoriesBrowser(false);
+    setCategoriesModal(false);
+  }, []);
+  // Tapping a card closes the browser and opens that category in the list behind it.
+  const onOpenCategoryFromBrowser = useCallback(
+    (slug: string) => {
+      leaveBrowser();
+      setMine(false);
+      setSelected(slug);
+    },
+    [leaveBrowser],
+  );
+  // "Compare stores" REPLACES the browser (it isn't a stack), so it must be sequenced exactly like
+  // the Compare→EdekaVs handoff: presenting while the presenter is still dismissing is what iOS
+  // refuses (and the refusal latches for the session). Web has no VC stack and never fires
+  // onDismiss, so it switches immediately.
+  const onOpenCompareFromBrowser = useCallback(() => {
+    leaveBrowser();
+    if (Platform.OS === 'web') setCompareModal(true);
+    else setPendingCompare(true);
+  }, [leaveBrowser]);
+  // Closing by any other route must drop a pending handoff, or a later dismissal would open
+  // Compare out of nowhere.
+  const closeBrowser = useCallback(() => {
+    leaveBrowser();
+    setPendingCompare(false);
+  }, [leaveBrowser]);
+
   // Active hide keys (expired hides are already dropped by hiddenKeySet).
   const hiddenKeys = useMemo(() => hiddenKeySet(hidden), [hidden]);
 
@@ -703,6 +747,21 @@ export default function DealsScreen() {
       hidden={!!active && hiddenKeys.has(hideKey(active))}
     />
   );
+  // The Mine editor is ONE element with one set of wiring, but it can be opened from two places:
+  // the chip-row pencil (nothing else open) and the browser's settings button. When the browser is
+  // open it must render INSIDE it — a sibling modal shares the root view controller and iOS refuses
+  // the second present, latching the failure for the session (see FlyerModal's `detail`).
+  const editor = (
+    <CategoriesModal
+      visible={categoriesModal}
+      onClose={() => setCategoriesModal(false)}
+      // Food categories only — household is non-food and gated by the Non-food toggle everywhere.
+      categories={cats.filter((c) => c.category !== 'household')}
+      myCategories={myCategories}
+      onToggle={onToggleMyCategory}
+    />
+  );
+
   // At most one of these is ever open: they're opened from header buttons that sit on the
   // deals screen, underneath any open sheet.
   const sheetOpen = likesModal || compareModal || edekaVsModal;
@@ -736,22 +795,34 @@ export default function DealsScreen() {
   // days/bio/non-food filtering as the list and can't drift from it. Only built when active.
   const hasMine = myCategories.length > 0;
   const showMine = mine && !q; // search overrides Mine (global), exactly as it overrides grouping
+  // Shared by BOTH category surfaces (the shelves home and the browser cards), so neither can drift
+  // from the list. Deliberately NOT gated on "is a category surface open": emptying it the moment
+  // the browser closes made the sheet flash "no categories have deals" for the whole slide-out
+  // animation. It's memoized on the same inputs the list already filters by, so this is one extra
+  // pass per filter change, not per render.
   const mineBase = useMemo(
     () =>
-      showMine
-        ? filterDeals(offers, {
-            showNonFood,
-            hiddenKeys,
-            showHidden: activeShowHidden,
-            hiddenStores,
-            storeLens: activeLens,
-            specialDays,
-            bioOnly,
-            query: '',
-            selected: null,
-          })
-        : [],
-    [showMine, offers, showNonFood, hiddenKeys, activeShowHidden, hiddenStores, activeLens, specialDays, bioOnly],
+      filterDeals(offers, {
+        showNonFood,
+        hiddenKeys,
+        showHidden: activeShowHidden,
+        hiddenStores,
+        storeLens: activeLens,
+        specialDays,
+        bioOnly,
+        query: '',
+        selected: null,
+      }),
+    [
+      offers,
+      showNonFood,
+      hiddenKeys,
+      activeShowHidden,
+      hiddenStores,
+      activeLens,
+      specialDays,
+      bioOnly,
+    ],
   );
   const categoryLabels = useMemo(
     () => Object.fromEntries(cats.map((c) => [c.category, c.label])),
@@ -763,6 +834,18 @@ export default function DealsScreen() {
         resolveSortMode(slug, sortMode, sortByCategory),
       ),
     [mineBase, myCategories, categoryLabels, sortMode, sortByCategory],
+  );
+
+  // The browser's cards: your categories (in your order) or every served category (chip order).
+  const browserCards = useMemo(
+    () =>
+      buildCategoryCards(
+        mineBase,
+        browserMode === 'mine' ? myCategories : cats.map((c) => c.category),
+        categoryLabels,
+        (slug) => resolveSortMode(slug, sortMode, sortByCategory),
+      ),
+    [mineBase, browserMode, myCategories, cats, categoryLabels, sortMode, sortByCategory],
   );
 
   // Household offer count for the Non-food control (deduped, from /api/categories).
@@ -850,10 +933,12 @@ export default function DealsScreen() {
               accessibilityLabel="Stores"
               onPress={() => setStoresModal(true)}
             />
+            {/* Replaced the git-compare action: a 7th icon overflows 375pt (38px buttons + 8px
+                gaps + the pin = ~396px), so "Compare stores" moved into the browser below. */}
             <IconButton
-              name="git-compare-outline"
-              accessibilityLabel="Compare stores"
-              onPress={() => setCompareModal(true)}
+              name="grid-outline"
+              accessibilityLabel="My Categories"
+              onPress={() => setCategoriesBrowser(true)}
             />
             <IconButton
               name="settings-outline"
@@ -1073,14 +1158,28 @@ export default function DealsScreen() {
         onClose={() => setPlzModal(false)}
         onApplied={onApplied}
       />
-      <CategoriesModal
-        visible={categoriesModal}
-        onClose={() => setCategoriesModal(false)}
-        // Food categories only — household is non-food and gated by the Non-food toggle everywhere.
-        categories={cats.filter((c) => c.category !== 'household')}
-        myCategories={myCategories}
-        onToggle={onToggleMyCategory}
+      <CategoriesBrowserModal
+        visible={categoriesBrowser}
+        mode={browserMode}
+        onChangeMode={setBrowserMode}
+        cards={browserCards}
+        hasMine={hasMine}
+        onOpenCategory={onOpenCategoryFromBrowser}
+        onOpenEditor={() => setCategoriesModal(true)}
+        onOpenCompare={onOpenCompareFromBrowser}
+        onClose={closeBrowser}
+        // The browser REPLACES itself with Compare; opening Compare in the same commit would
+        // present while this sheet is still dismissing, which iOS refuses (native only — web
+        // never fires onDismiss and switched immediately above).
+        onDismiss={() => {
+          if (!pendingCompare) return;
+          setPendingCompare(false);
+          setCompareModal(true);
+        }}
+        editor={categoriesBrowser ? editor : null}
       />
+      {/* Browser closed → the chip-row pencil path hosts the editor itself. */}
+      {!categoriesBrowser ? editor : null}
       <StoresModal
         visible={storesModal}
         plz={plz}

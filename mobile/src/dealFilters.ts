@@ -190,6 +190,65 @@ export function buildMineSections(
   return sections;
 }
 
+// One category card in the "My Categories" browser: the category, its full deal count, and a short
+// list of its headline deals (the most-discounted first).
+export type CategoryCard = {
+  slug: string;
+  label: string;
+  total: number;
+  top: Offer[];
+};
+
+/**
+ * Build the category-browser cards from an already-filtered base (same contract as
+ * `buildMineSections`: the `filterDeals` output with `selected: null` and `query: ''`, so the cards
+ * inherit every list filter and can't drift from what the list would show).
+ *
+ * One card per slug in `order` that has offers; categories with none are skipped (no empty cards).
+ * `top` is the category's **most-discounted** offers — and when fewer than `topCount` carry a
+ * discount at all, the remainder is FILLED with the category's best remaining offers by its own
+ * default sort (€/kg for food). Measured on a live set: 2 of 23 categories can't fill three from
+ * discounts alone (Butter has 1, Eggs 0), and a half-empty card reads as broken — so the fill is the
+ * difference between an honest card and a gap. Filled rows simply have no discount to badge.
+ */
+export function buildCategoryCards(
+  base: Offer[],
+  order: string[],
+  labels: Record<string, string>,
+  sortFor: (slug: string) => SortMode,
+  topCount = 3,
+): CategoryCard[] {
+  const byCat = new Map<string, Offer[]>();
+  for (const o of base) {
+    const arr = byCat.get(o.category);
+    if (arr) arr.push(o);
+    else byCat.set(o.category, [o]);
+  }
+  const cards: CategoryCard[] = [];
+  for (const slug of order) {
+    const items = byCat.get(slug);
+    if (!items || items.length === 0) continue;
+    // Discounted first (compareOffers already sinks null discounts), then top up from the
+    // category's own best-by-default-sort so the card always shows `topCount` rows when it can.
+    const discounted = items
+      .filter((o) => headlineDiscountPct(o) != null)
+      .sort((a, b) => compareOffers(a, b, 'discount'))
+      .slice(0, topCount);
+    const chosen = new Set(discounted.map((o) => o.id));
+    const filler = items
+      .filter((o) => !chosen.has(o.id))
+      .sort((a, b) => compareOffers(a, b, sortFor(slug)))
+      .slice(0, Math.max(0, topCount - discounted.length));
+    cards.push({
+      slug,
+      label: labels[slug] ?? items[0].category_label ?? slug,
+      total: items.length,
+      top: [...discounted, ...filler],
+    });
+  }
+  return cards;
+}
+
 // Per-section metadata for the grouped (category) view. `label === null` renders no
 // header; `muted` is the small "More" header above the trailing single-offer bucket.
 export type SectionMeta = {

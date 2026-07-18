@@ -47,6 +47,11 @@ build the cheapest basket across one or two stores.
   sub-group (Avocado, Butter, Milch…) lines up each store's cheapest price side by
   side with the winner highlighted — powered by a cross-source product-grouping
   taxonomy shared with the basket matcher.
+- **Category browser** — a header button opens every category as a card showing its
+  three most-discounted deals; tap one to jump straight into that category. Toggle
+  between your categories and all of them, and edit your picks from a settings button
+  in the same view. Categories that have fewer than three discounted items top the card
+  up with their best value-per-kilo deals rather than showing gaps.
 - **"My Categories" home** — pick the categories you actually shop and land on a
   personalized home of just those, each a preview shelf (its best deals + "See all"
   that opens the full category). The default "All" view is kept; a fresh install lands

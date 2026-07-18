@@ -1,4 +1,5 @@
 import {
+  buildCategoryCards,
   buildMineSections,
   buildSections,
   chainCounts,
@@ -379,5 +380,57 @@ describe('buildMineSections — the "My Categories" home', () => {
   it('falls back to the offer label when the served labels map is missing the slug', () => {
     const out = buildMineSections([fruit('Äpfel', 149)], ['fruits'], {}, byPrice);
     expect(out[0].label).toBe('Fruits'); // from offer.category_label, not a blank header
+  });
+});
+
+describe('buildCategoryCards — the "My Categories" browser', () => {
+  const labels: Record<string, string> = { fruits: 'Fruits', butter: 'Butter', cheese: 'Cheese' };
+  const byUnit: (slug: string) => SortMode = () => 'unit';
+
+  const disc = (name: string, pct: number, price = 500) =>
+    makeOffer({ name, category: 'fruits', category_label: 'Fruits', discount_pct: pct, price_cents: price });
+  const plain = (name: string, unitCents: number) =>
+    makeOffer({ name, category: 'fruits', category_label: 'Fruits', unit_price_cents: unitCents });
+
+  it('shows the three biggest discounts, biggest first', () => {
+    const base = [disc('mid', 30), disc('small', 10), disc('big', 50), disc('tiny', 5)];
+    const [card] = buildCategoryCards(base, ['fruits'], labels, byUnit);
+    expect(card.top.map((o) => o.name)).toEqual(['big', 'mid', 'small']);
+    expect(card.total).toBe(4); // the full count, not the preview length
+  });
+
+  it('FILLS from the category’s default sort when fewer than three are discounted', () => {
+    // The measured Butter case: 1 discounted of 10. A card must not render two empty rows.
+    const base = [disc('the only deal', 20), plain('cheap per kg', 100), plain('dear per kg', 900)];
+    const [card] = buildCategoryCards(base, ['fruits'], labels, byUnit);
+    expect(card.top).toHaveLength(3);
+    expect(card.top[0].name).toBe('the only deal'); // the discount still leads
+    expect(card.top[1].name).toBe('cheap per kg'); // then best €/kg, not the dearer one
+    expect(card.top[2].name).toBe('dear per kg');
+  });
+
+  it('never exceeds topCount, and never repeats an offer between discounted and filler', () => {
+    const base = [disc('a', 40), disc('b', 30), plain('c', 100), plain('d', 200)];
+    const [card] = buildCategoryCards(base, ['fruits'], labels, byUnit);
+    expect(card.top).toHaveLength(3);
+    expect(new Set(card.top.map((o) => o.id)).size).toBe(3); // no duplicates
+  });
+
+  it('handles a category with fewer offers than topCount', () => {
+    const [card] = buildCategoryCards([plain('lonely', 100)], ['fruits'], labels, byUnit);
+    expect(card.top.map((o) => o.name)).toEqual(['lonely']);
+    expect(card.total).toBe(1);
+  });
+
+  it('follows the given order and skips categories with no offers (the Eggs case)', () => {
+    const cheese = makeOffer({ name: 'Gouda', category: 'cheese', category_label: 'Cheese' });
+    const cards = buildCategoryCards([cheese, disc('apfel', 10)], ['cheese', 'butter', 'fruits'], labels, byUnit);
+    expect(cards.map((c) => c.slug)).toEqual(['cheese', 'fruits']); // butter has none → no card
+    expect(cards.map((c) => c.label)).toEqual(['Cheese', 'Fruits']);
+  });
+
+  it('returns nothing for an empty base or an empty order', () => {
+    expect(buildCategoryCards([], ['fruits'], labels, byUnit)).toEqual([]);
+    expect(buildCategoryCards([disc('a', 10)], [], labels, byUnit)).toEqual([]);
   });
 });
