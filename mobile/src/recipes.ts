@@ -9,11 +9,16 @@ import { BasketItem, Offer, Recipe, RecipeIngredient, RecipePrefs } from './type
 export const DIET_OPTIONS = ['vegetarian', 'vegan', 'gluten-free', 'no-pork'] as const;
 export const CUISINE_OPTIONS = ['italian', 'german', 'pescatarian'] as const;
 
+/** How many stores the "Shop at" scope may span — one shop, or a two-store run. Picking a third
+ * replaces the oldest, so the tap is never a dead no-op. */
+export const MAX_RECIPE_STORES = 2;
+
 export const DEFAULT_RECIPE_PREFS: RecipePrefs = {
   servings: 2,
   count: 6,
   diet: null,
   cuisine: null,
+  stores: [], // any store — never scope by default, or a fresh install looks empty
   onlyOnSale: false,
   cheapestKg: false,
 };
@@ -73,6 +78,36 @@ export function resolveRecipe(recipe: Recipe, offers: Offer[], alwaysHave: Baske
   };
 }
 
+/**
+ * The chains a resolved recipe's on-sale ingredients actually come from — i.e. how many shops it
+ * takes. Computed from the live match, never from an authored tag: a stored "this is a Lidl
+ * recipe" would be a claim about the week it was written and would quietly go stale.
+ */
+export function recipeChains(rr: ResolvedRecipe): string[] {
+  const seen: string[] = [];
+  for (const ri of rr.ingredients) {
+    // Staples are excluded on purpose: you don't make a trip for salt you already own, so a
+    // staple that happens to be on sale must not add a store. It also keeps the badge honest
+    // when a staple's keywords over-match — "salz" hits salted peanuts, "butter" hits a
+    // Schweinefleisch-Spieß *Butter*fly — which measured 6 of 15 recipes before this guard.
+    if (ri.ing.staple) continue;
+    const chain = ri.offer?.chain; // only on-sale ingredients carry an offer
+    if (chain && !seen.includes(chain)) seen.push(chain);
+  }
+  return seen;
+}
+
+/**
+ * The stores the user asked to shop at, minus any with no offers in this set. A chain they hid in
+ * the Stores modal — or one that simply isn't in this PLZ — must be a no-op, not an empty screen;
+ * same only-when-present guard the deals pipeline applies to its store lens.
+ */
+export function activeRecipeStores(stores: string[] | undefined, offers: Offer[]): string[] {
+  if (!stores?.length) return [];
+  const present = new Set(offers.map((o) => o.chain));
+  return stores.filter((c) => present.has(c));
+}
+
 function matchesDiet(tags: string[], diet: string | null): boolean {
   if (!diet) return true;
   if (diet === 'vegetarian') return tags.includes('vegetarian') || tags.includes('vegan');
@@ -87,10 +122,17 @@ export function filterRecipes(
   offers: Offer[],
   alwaysHave: BasketItem[],
 ): ResolvedRecipe[] {
+  // "Shop at": resolve against one store's (or two stores') offers only, so an ingredient on sale
+  // elsewhere reads as "buy" — what you'd actually do. Staples still fall to "have", so they never
+  // constrain where a recipe is shoppable, and the existing `onlyOnSale` toggle becomes "only what
+  // I can fully shop here" for free.
+  const active = activeRecipeStores(prefs.stores, offers);
+  const pool = active.length ? offers.filter((o) => active.includes(o.chain)) : offers;
+
   let out = recipes
     .filter((r) => matchesDiet(r.tags, prefs.diet))
     .filter((r) => !prefs.cuisine || r.tags.includes(prefs.cuisine))
-    .map((r) => resolveRecipe(r, offers, alwaysHave));
+    .map((r) => resolveRecipe(r, pool, alwaysHave));
 
   if (prefs.onlyOnSale) out = out.filter((r) => r.buyCount === 0);
 

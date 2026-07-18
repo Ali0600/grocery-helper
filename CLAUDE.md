@@ -855,7 +855,22 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   At runtime the app is fully offline: `mobile/src/recipes.ts` `resolveRecipe`/`filterRecipes`
   **reuse the Basket matcher** (`basket.ts` `bestMatch`) to tag each ingredient on-sale (matched
   an offer → live chain pill + price) / have (`staple:true` or in the user's always-have list)
-  / buy, and filter by diet/cuisine/servings/only-on-sale/cheapest-€/kg. **An on-sale ingredient row
+  / buy, and filter by diet/cuisine/**shop-at**/servings/only-on-sale/cheapest-€/kg.
+  **"Shop at" — one store, or a mix of two** (2026-07-18, `RecipePrefs.stores`, persisted in the
+  existing `recipePrefs`): a chip row (`Any store` + one per **present** chain, drawn from `offers`
+  which is already `hiddenStores`-filtered) scoping the whole screen. `filterRecipes` narrows the
+  offer pool **before** `resolveRecipe`, so an ingredient on sale elsewhere reads as `buy` — what
+  you'd actually do — while a staple still falls to `have` (it never constrains where a recipe is
+  shoppable), which makes the existing "Only on-sale" toggle mean "only what I can fully shop here"
+  for free. **Capped at 2** (`MAX_RECIPE_STORES`); a third pick **replaces the oldest** rather than
+  being ignored, so the chip is never a dead tap. Stale picks self-clear via `activeRecipeStores`
+  (the only-when-present guard `filterDeals` uses for its store lens): a chain with no offers loaded
+  is a **no-op, not an empty screen**. Each card badges `recipeChains(rr)` — "1 store · Lidl" /
+  "2 stores · Lidl REWE" — computed from the **live** match, never an authored tag, and it
+  **skips staples** (you don't make a trip for salt you own; without that guard 6 of 15 recipes
+  named a store only a staple had matched — `salz` hits salted peanuts, `butter` hits a
+  Schweinefleisch-Spieß *Butter*fly). The badge shows in **Any** mode too — "how many shops is
+  this?" is worth knowing before you pick one. **An on-sale ingredient row
   opens that deal's `FlyerModal`** (2026-07-17): the row was inert while every other surface showing a
   matched offer opened the detail. Only on-sale rows are pressable — `resolveRecipe` sets
   `offer: role === 'on_sale' ? offer : null`, so "have"/"buy" rows have no deal to open — and the
@@ -883,6 +898,19 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   **local, not CI**, because the keyless design uses your logged-in Claude Code (`claude -p`), not
   a managed `ANTHROPIC_API_KEY`. The deterministic prereqs: `app/scripts/scrape.py`
   (wraps `run_scrapers`) refreshes `grocery.db`; `app/scripts/recipe_seed.py` dumps candidates.
+  **Recipes are authored PER CHAIN** (2026-07-18): `recipe_seed.py` emits
+  `{plz, by_chain: {chain: {category: [...]}}}` and deliberately has **no** flat
+  "cheapest anywhere" view — authoring from one picks the globally cheapest item per category and
+  scatters the ingredients across four shops *by construction*, which is why the pre-change bundle
+  measured **7/10 fully shoppable across all five chains but only 3/10 at the best single chain**
+  (E center: 1). The brief (`scripts/recipe-prompt.md`, the single source of truth the automation
+  feeds `claude -p`) is ~15 recipes: **2 per chain** whose every non-staple ingredient matches a
+  name in *that chain's own* list, plus **5 two-store** pairs. Verify **per chain**, not globally;
+  acceptance is **every chain ≥2 recipes fully shoppable alone** (currently 3–5 each).
+  A recipe carries **no store field** — see the "Shop at" note above for why. The dump also filters
+  `valid_to >= berlin_today()`: the DB accumulates flyer weeks (a scrape upserts, it doesn't wipe),
+  and an unfiltered dump fed the authoring step **1580 expired offers alongside 1763 live ones**,
+  which its own verification couldn't see because it read the same stale list.
   Full workflow + launchd install + gotchas (git-push-under-launchd, PATH/fnm) in `docs/recipes.md`.
 - **CI/CD is GitHub Actions** (`.github/workflows/`): `ci.yml` (backend
   `ruff`+`pytest --cov`+`alembic upgrade head`/`alembic check`, mobile

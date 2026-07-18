@@ -156,6 +156,7 @@ export type RecipePrefs = {
   count: number; // how many recipes to show
   diet: string | null; // "vegetarian" | "vegan" | "gluten-free" | "no-pork" | null
   cuisine: string | null; // "italian" | "asian" | "german" | ... | null
+  stores: string[]; // chains to shop at; EMPTY = any store. Capped at MAX_RECIPE_STORES.
   onlyOnSale: boolean; // hide recipes that need a non-staple, non-on-sale ingredient
   cheapestKg: boolean; // rank recipes by their on-sale ingredients' €/kg
 };
