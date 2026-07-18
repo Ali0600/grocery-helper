@@ -6,6 +6,7 @@ invisible contract: change it here and nothing fails until a weekly `claude -p` 
 authors from a JSON it can't read. So the shape is pinned, not just the grouping.
 """
 import json
+from datetime import date, timedelta
 
 import pytest
 from sqlalchemy import create_engine
@@ -100,6 +101,32 @@ def test_non_cookable_categories_are_dropped(seeded, capsys):
     out = _run(capsys, "--plz", "10115")
     names = [o["name"] for cats in out["by_chain"].values() for lst in cats.values() for o in lst]
     assert "Spülmittel" not in names
+
+
+def test_expired_offers_never_reach_the_authoring_step(seeded, capsys):
+    """The DB accumulates flyer weeks (a scrape upserts, it doesn't wipe), so an unfiltered dump
+    feeds the authoring step deals that expired days ago — and it would "verify" its recipes
+    against that same stale list. The dates are ±30 days so no timezone skew can blur the edge."""
+    session = seeded
+    lidl = session.query(Store).filter_by(chain="lidl").one()
+    session.add_all(
+        [
+            # cheapest, so it would head the list if it leaked through
+            Offer(store_id=lidl.id, external_id="old", source="flyer", name="Abgelaufener Kohl",
+                  category="vegetables", price_cents=1, valid_to=date.today() - timedelta(days=30)),
+            Offer(store_id=lidl.id, external_id="undated", source="flyer", name="Undatierter Kohl",
+                  category="vegetables", price_cents=2, valid_to=None),
+            Offer(store_id=lidl.id, external_id="new", source="flyer", name="Frischer Kohl",
+                  category="vegetables", price_cents=3, valid_to=date.today() + timedelta(days=30)),
+        ]
+    )
+    session.commit()
+
+    out = _run(capsys, "--plz", "10115")
+    names = [o["name"] for o in out["by_chain"]["lidl"]["vegetables"]]
+    assert "Abgelaufener Kohl" not in names
+    assert "Undatierter Kohl" in names  # no end date = still on sale, same as /api/offers
+    assert "Frischer Kohl" in names
 
 
 def test_per_caps_each_chain_category_and_keeps_the_cheapest(seeded, capsys):
