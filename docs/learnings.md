@@ -976,3 +976,27 @@ feed happened to file it under — the tell that a path node was being trusted m
 uses as a catch-all. Correct a catch-all by the item's own signal, not by relabelling the bucket —
 relabelling trades one misclassification for another. And gate the correction inside the failure
 branch (here: only when the path is non-food) so the happy path it's rescuing can never regress.
+
+## A nested modal must not use a slide animation on react-native-web
+
+Opening the category editor from inside the category browser rendered it — the text was in the DOM,
+the test could find it — but it was never visible. Measuring the geometry explained it: the modal's
+fixed container sat at `top: 812` (exactly the viewport height) and stayed there, stable across
+seconds. It wasn't mid-animation; a nested `animationType="slide"` never resolves its transform on
+react-native-web, so the sheet parks at its start position, fully off-screen. Switching it to `fade`
+put it at `top: 210` and hit-testing confirmed it was genuinely on top. The codebase already encoded
+this rule without stating it: every modal that gets nested (`FlyerModal`, `LikesModal`) uses `fade`,
+while only top-level sheets use `slide`.
+
+Two sibling bugs surfaced in the same session, both invisible without measurement: closing the parent
+left the child mounted so it re-appeared at the root and covered the *next* screen; and gating the
+shared data on "is a panel open" emptied it the instant the panel began closing, flashing an
+"empty" state for the whole dismiss animation.
+
+**Why it came up:** the feature nests two modals inside a third, so every one of these had to be
+right at once.
+
+**Takeaway:** "it rendered" is not "it is visible" — read the element's rectangle against the
+viewport before believing either outcome, and sample more than once so an in-flight animation isn't
+mistaken for a final position. When a component can appear in more than one host, make closing the
+host tear the child down, and never derive a panel's data from whether that panel is currently open.

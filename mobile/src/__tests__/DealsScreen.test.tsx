@@ -357,6 +357,136 @@ describe('DealsScreen — the "My Categories" home', () => {
   });
 });
 
+describe('DealsScreen — the "My Categories" browser', () => {
+  // A cache with a discounted fruit, an undiscounted one, and a cheese — enough to exercise the
+  // card's "3 most discounted, filled from the default sort" rule.
+  const browserCache = () =>
+    seedCache({
+      offers: [
+        makeOffer({
+          name: 'Cantaloupe-Melone',
+          category: 'fruits',
+          category_label: 'Fruits',
+          price_cents: 149,
+          regular_price_cents: 219,
+          discount_pct: 32,
+        }),
+        makeOffer({
+          name: 'Honigmelone',
+          category: 'fruits',
+          category_label: 'Fruits',
+          price_cents: 119,
+          unit_price_cents: 119,
+        }),
+        makeOffer({ name: 'Gouda jung', category: 'cheese', category_label: 'Cheese', price_cents: 149 }),
+      ],
+      cats: [
+        { category: 'fruits', label: 'Fruits', count: 2 },
+        { category: 'cheese', label: 'Cheese', count: 1 },
+      ],
+    });
+
+  const openBrowser = async () => {
+    await screen.findByText('Filters');
+    await fireEvent.press(screen.getByLabelText('My Categories'));
+    return screen.findByTestId('categories-browser');
+  };
+
+  it('replaces the Compare header icon (a 7th action overflows 375pt)', async () => {
+    await browserCache();
+    await render(<DealsScreen />);
+    await screen.findByText('Filters');
+
+    expect(screen.getByLabelText('My Categories')).toBeTruthy();
+    // Compare moved into the browser — it must no longer occupy a header slot.
+    expect(screen.queryByLabelText('Compare stores')).toBeNull();
+  });
+
+  it('lists every category as a card with its deal count and headline deals', async () => {
+    await browserCache();
+    await render(<DealsScreen />);
+    const browser = await openBrowser();
+
+    expect(within(browser).getByLabelText('Open Fruits, 2 deals')).toBeTruthy();
+    expect(within(browser).getByLabelText('Open Cheese, 1 deal')).toBeTruthy();
+    // The discounted fruit leads; the undiscounted one still fills a row (the Butter case).
+    expect(within(browser).getByText('Cantaloupe-Melone')).toBeTruthy();
+    expect(within(browser).getByText('Honigmelone')).toBeTruthy();
+  });
+
+  it('tapping a card opens that category in the deals list', async () => {
+    await browserCache();
+    await render(<DealsScreen />);
+    const browser = await openBrowser();
+
+    await fireEvent.press(within(browser).getByLabelText('Open Fruits, 2 deals'));
+
+    // The browser closes and the list is now the single-category view (its €/kg default sort).
+    await waitFor(() => expect(screen.queryByTestId('categories-browser')).toBeNull());
+    expect(await screen.findByText('Cheapest €/kg')).toBeTruthy();
+  });
+
+  it('renders the Mine editor INSIDE the browser, never as a sibling of it', async () => {
+    // The PR #81 constraint, one level deeper: RN presents a Modal from the first view controller
+    // up the responder chain, so a sibling editor would be refused by iOS — and that refusal
+    // latches for the whole session. Moving the element up a level silently reintroduces it, so
+    // assert containment rather than mere presence.
+    await browserCache();
+    await render(<DealsScreen />);
+    const browser = await openBrowser();
+
+    await fireEvent.press(within(browser).getByLabelText('Edit my categories'));
+
+    const stillBrowser = await screen.findByTestId('categories-browser');
+    await waitFor(() =>
+      expect(within(stillBrowser).getByTestId('categories-modal')).toBeTruthy(),
+    );
+  });
+
+  it('leaving the browser drops its nested editor, so it cannot resurface over what opens next', async () => {
+    // Measured on web: with the editor open, tapping a card (or Compare) closed the browser but
+    // left `categoriesModal` true — so the editor re-mounted at the ROOT branch and sat on top of
+    // the next screen. Same class as the Likes closers dropping the deal detail.
+    await browserCache();
+    await render(<DealsScreen />);
+    const browser = await openBrowser();
+    await fireEvent.press(within(browser).getByLabelText('Edit my categories'));
+    await screen.findByTestId('categories-modal');
+
+    await fireEvent.press(within(browser).getByLabelText('Open Fruits, 2 deals'));
+
+    await waitFor(() => expect(screen.queryByTestId('categories-browser')).toBeNull());
+    expect(screen.queryByTestId('categories-modal')).toBeNull(); // must not survive at root
+  });
+
+  it('gives the browser and the editor distinct close labels', async () => {
+    // Both announced "Close my categories" — ambiguous for a screen reader when one is inside
+    // the other, and it made the two indistinguishable to any label-based query.
+    await browserCache();
+    await render(<DealsScreen />);
+    const browser = await openBrowser();
+    await fireEvent.press(within(browser).getByLabelText('Edit my categories'));
+    await screen.findByTestId('categories-modal');
+
+    expect(screen.getByLabelText('Close my categories')).toBeTruthy(); // the browser
+    expect(screen.getByLabelText('Close category picker')).toBeTruthy(); // the editor
+  });
+
+  it('the Mine/All toggle switches which categories are listed', async () => {
+    await browserCache();
+    await AsyncStorage.setItem('myCategories', JSON.stringify(['cheese']));
+    await render(<DealsScreen />);
+    const browser = await openBrowser();
+
+    // Opens on Mine (categories are chosen), so only Cheese has a card.
+    expect(within(browser).getByLabelText('Open Cheese, 1 deal')).toBeTruthy();
+    expect(within(browser).queryByLabelText('Open Fruits, 2 deals')).toBeNull();
+
+    await fireEvent.press(within(browser).getByText('All'));
+    expect(await within(browser).findByLabelText('Open Fruits, 2 deals')).toBeTruthy();
+  });
+});
+
 describe('DealsScreen — per-category sort', () => {
   // One global sort couldn't fit both: €/kg is the axis you shop Fruits on (and out-covers
   // "Biggest discount" there, 77% vs 47% measured), while household is only 25% €/kg-covered.

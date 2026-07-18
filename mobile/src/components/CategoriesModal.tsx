@@ -21,14 +21,21 @@ export function CategoriesModal(props: {
   const chosen = new Set(myCategories);
   const count = categories.filter((c) => chosen.has(c.category)).length;
 
+  // animationType is "fade", NOT "slide": this modal is NESTED inside the categories browser when
+  // opened from its settings button, and on react-native-web a nested slide-in never resolves its
+  // transform — the sheet parks fully off-screen (measured: top = viewport height + sheet height)
+  // and is simply never visible. Every other nestable modal (FlyerModal, LikesModal) uses fade for
+  // the same reason; slide is only safe on a top-level sheet.
   return (
-    <AppModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheet} testID="categories-modal">
         <View style={styles.grabber} />
         <View style={styles.headerRow}>
           <Text style={styles.title}>My categories</Text>
-          <Pressable onPress={onClose} hitSlop={6} accessibilityLabel="Close my categories">
+          {/* Distinct from the browser's "Close my categories": this editor can be open INSIDE it,
+              and two controls announcing the same thing is ambiguous for a screen reader. */}
+          <Pressable onPress={onClose} hitSlop={6} accessibilityLabel="Close category picker">
             <Icon name="close" size={22} color={colors.muted} />
           </Pressable>
         </View>

@@ -616,6 +616,29 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   "See all N". In Mine the FilterBar sort summary reads **"Per category"** and the sheet's Sort
   section is hidden (`FilterSheet` `hideSort`) — there's no single sort to attach a pick to. `household`
   is excluded from the editor (non-food, gated by the Non-food toggle everywhere). Mobile-only/OTA.
+- **"My Categories" BROWSER — the header button** (2026-07-17, `components/CategoriesBrowserModal.tsx`
+  + `dealFilters.ts` `buildCategoryCards`): a second, dedicated surface next to the shelves home —
+  every category as a wide card (name centred, "N deals", its **3 most-discounted** deals), tap a card
+  to open that category. A **Mine / All** toggle (opens on Mine when `myCategories` is non-empty) and a
+  **settings** button that opens the same `CategoriesModal` editor. `buildCategoryCards` shares the
+  `filterDeals(selected:null, query:'')` base with `buildMineSections`, so cards, shelves and list can
+  never disagree. **The fill rule matters**: only ~2 of 23 categories can fill "3 discounted" (measured:
+  Butter 1, Eggs 0), so when fewer than 3 carry a discount the rest is topped up with the category's
+  best by its own default sort (€/kg) — filled rows just render no badge. **`Compare stores` moved OUT
+  of the header into this view**: a 7th header action computes to ~396px and overflows 375pt (38px
+  buttons + 8px gaps + pin + padding = ~350px at six), so the git-compare icon became `grid-outline`
+  "My Categories"; Compare is a text-labelled button in the browser (it's category-oriented anyway).
+  **Three modal traps this surface hit, all now guarded** (add nothing here without re-reading them):
+  (1) the editor is passed in as an `editor` prop and rendered INSIDE the browser's `AppModal` — a
+  sibling would be refused by iOS and latch (PR #81); (2) **a nestable modal must use
+  `animationType="fade"`, never `"slide"`** — measured on react-native-web, a nested slide-in never
+  resolves its transform and the sheet parks fully off-screen (top = viewport + sheet height), which is
+  why `CategoriesModal` is now fade like `FlyerModal`/`LikesModal`; (3) leaving the browser must also
+  close the editor (`leaveBrowser`), or it re-mounts at the root branch and covers whatever opened next
+  — measured sitting on top of Compare. Compare→browser is a **replace**, sequenced on `onDismiss`
+  (iOS) exactly like Compare→EdekaVs. Also: `mineBase` is deliberately **not** gated on "a category
+  surface is open" — emptying it on close made the sheet flash "no categories have deals" for the whole
+  dismiss animation.
 - **E center's duplicates of EDEKA are hidden from the deals list** (2026-07-16,
   `dealFilters.ts` `dropEdekaCenterDuplicates`, always on, no toggle): E center is EDEKA's
   hypermarket format, so the flyers overlap hard — measured on a Berlin PLZ, **103 of E center's
