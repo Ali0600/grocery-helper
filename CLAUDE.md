@@ -866,6 +866,14 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   element can't change host mid-flight. `RecipesModal` must stay `animationType="fade"` — it now hosts
   a nested modal, and a nested slide never resolves its transform on react-native-web (PR #89). Its
   Close is labelled **"Close recipes"** because the nested detail carries its own "Close".
+  **The Basket's per-item picker got the same treatment via a CHEVRON, not the row** (2026-07-17):
+  there, tapping a card already means "use this offer in my plan", so reuse would collide — each
+  picker row is now `[OfferCard (flex 1, picks)] [› chevron (opens the flyer)]`, two non-overlapping
+  targets (measured: card ends x=318, chevron 32×44 at x=330). Same nesting rules as Recipes: a
+  `detail` prop inside `BasketModal`'s `AppModal`, `basketModal` in `sheetOpen`, `closeBasket` clears
+  `active`, stays `fade`, Close labelled **"Close basket"**. It also fixed a real a11y bug —
+  `OfferCard` hardcoded `"Open deal for …"`, which is a **lie in the picker** (pressing it picks), so
+  the card now takes an optional `accessibilityLabel` and the picker passes `"Use X in your plan"`.
   Always-have is seeded
   from `catalog.ts` staples (`storage.ts` `defaultAlwaysHave` / `STAPLE_KEYS`), editable +
   persisted (`alwaysHave` key; `recipePrefs` for filters). **Regenerate weekly** when flyers

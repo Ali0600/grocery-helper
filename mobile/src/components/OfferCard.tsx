@@ -11,7 +11,18 @@ import { Icon } from './Icon';
 // A calm deal row: image (+ discount badge), name, a muted meta line (category ·
 // brand · unit), and at most three small tags (chain, Bio, day-limited). The lower-
 // signal markers — source, loyalty bonus, app price — live in the detail (FlyerModal).
-export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => void }) {
+export function OfferCard({
+  offer,
+  onPress,
+  accessibilityLabel,
+}: {
+  offer: Offer;
+  onPress?: () => void;
+  /** Override the announced action. Defaults to "Open deal for …", which is right everywhere the
+   * card opens the detail — but NOT in the Basket's picker, where pressing it picks the offer for
+   * your plan. A screen reader was being told the wrong action there. */
+  accessibilityLabel?: string;
+}) {
   const meta = [offer.category_label, formatBrand(offer.brand), cleanUnit(offer.unit)]
     .filter(Boolean)
     .join(' · ');
@@ -27,7 +38,7 @@ export function OfferCard({ offer, onPress }: { offer: Offer; onPress?: () => vo
       // the loose price/tag texts with no hint the row opens anything. Only a button when it
       // actually is one.
       accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityLabel={onPress ? `Open deal for ${offer.name}` : undefined}
+      accessibilityLabel={onPress ? (accessibilityLabel ?? `Open deal for ${offer.name}`) : undefined}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
       <View style={styles.thumbWrap}>

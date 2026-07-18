@@ -14,7 +14,7 @@ import { buildPlan, matchOffers, norm, Plan, PlanLine } from '../basket';
 import { CatalogItem, GROCERY_CATALOG, POPULAR_KEYS } from '../catalog';
 import { chainColors, chainLabel } from '../chains';
 import { euro, fmtPricePerUnit } from '../format';
-import { colors, tint } from '../theme';
+import { colors, space, tint } from '../theme';
 import { BasketItem, Offer } from '../types';
 import { Icon } from './Icon';
 import { OfferCard } from './OfferCard';
@@ -25,6 +25,13 @@ type Props = {
   basket: BasketItem[];
   onChangeBasket: (next: BasketItem[]) => void;
   onClose: () => void;
+  /** Open a deal's flyer from the picker. Tapping a picker card PICKS that offer for the plan, so
+   * viewing it needs its own control — hence the chevron rather than the card itself. */
+  onOpenOffer?: (o: Offer) => void;
+  /** The deal detail, rendered INSIDE this sheet's AppModal so it presents from THIS sheet's view
+   * controller, not the shared root VC (a sibling modal is refused by iOS and the refusal latches
+   * for the session). See LikesModal for the full explanation. */
+  detail?: React.ReactNode;
 };
 
 function Pill({ chain }: { chain: string }) {
@@ -108,7 +115,15 @@ function PlanCard({ plan }: { plan: Plan }) {
   );
 }
 
-export function BasketModal({ visible, offers, basket, onChangeBasket, onClose }: Props) {
+export function BasketModal({
+  visible,
+  offers,
+  basket,
+  onChangeBasket,
+  onClose,
+  onOpenOffer,
+  detail,
+}: Props) {
   const [text, setText] = useState('');
   const [picks, setPicks] = useState<Record<string, number>>({}); // item.key -> offer.id (session)
   const [viewing, setViewing] = useState<BasketItem | null>(null); // per-item "pick a deal" sub-view
@@ -199,7 +214,16 @@ export function BasketModal({ visible, offers, basket, onChangeBasket, onClose }
     bioOnly && pickerBioCount > 0 ? pickerMatches.filter((o) => o.is_bio) : pickerMatches;
 
   return (
-    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <AppModal
+      visible={visible}
+      transparent
+      // Stays "fade": this sheet now HOSTS a nested modal, and a nested slide never resolves its
+      // transform on react-native-web — the child parks fully off-screen (PR #89).
+      animationType="fade"
+      onRequestClose={onClose}
+      // On the AppModal, not an inner View, so it contains the nested `detail` (PR #89).
+      testID="basket-modal"
+    >
       <KeyboardAvoidingView
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -207,7 +231,9 @@ export function BasketModal({ visible, offers, basket, onChangeBasket, onClose }
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Basket</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            {/* Labelled: the nested deal detail carries its own "Close", so an unlabelled one here
+                is ambiguous for a screen reader and for any label-based query. */}
+            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close basket">
               <Text style={styles.close}>Close</Text>
             </Pressable>
           </View>
@@ -243,7 +269,30 @@ export function BasketModal({ visible, offers, basket, onChangeBasket, onClose }
                   use it in your plan.
                 </Text>
                 {pickerOffers.map((o) => (
-                  <OfferCard key={o.id} offer={o} onPress={() => pickOffer(viewing, o)} />
+                  <View key={o.id} style={styles.pickRow}>
+                    <View style={styles.pickCard}>
+                      <OfferCard
+                        offer={o}
+                        onPress={() => pickOffer(viewing, o)}
+                        // The card PICKS here; it doesn't open the deal. The default label
+                        // ("Open deal for …") announced the wrong action to a screen reader.
+                        accessibilityLabel={`Use ${o.name} in your plan`}
+                      />
+                    </View>
+                    {onOpenOffer ? (
+                      // Viewing the flyer needs its own target because tap is already taken by
+                      // "pick". A separate chevron keeps both actions reachable and discoverable.
+                      <Pressable
+                        onPress={() => onOpenOffer(o)}
+                        hitSlop={10}
+                        style={({ pressed }) => [styles.pickChevron, pressed && styles.pressedDim]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Open deal for ${o.name}`}
+                      >
+                        <Icon name="chevron-forward" size={20} color={colors.muted} />
+                      </Pressable>
+                    ) : null}
+                  </View>
                 ))}
               </ScrollView>
             </>
@@ -311,11 +360,24 @@ export function BasketModal({ visible, offers, basket, onChangeBasket, onClose }
           )}
         </View>
       </KeyboardAvoidingView>
+      {detail}
     </AppModal>
   );
 }
 
 const styles = StyleSheet.create({
+  // Picker row: the card keeps its own margins and flexes; the chevron sits beside it as a
+  // second, independent tap target (tap the card = pick, tap the chevron = view the flyer).
+  pickRow: { flexDirection: 'row', alignItems: 'center' },
+  pickCard: { flex: 1 },
+  pickChevron: {
+    width: 32,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: space.md,
+  },
+  pressedDim: { opacity: 0.5 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.bg,

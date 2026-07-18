@@ -369,6 +369,82 @@ function flatText(node: unknown): string {
   return walk((node as { props?: { children?: unknown } }).props?.children);
 }
 
+describe('DealsScreen — opening a deal from the Basket picker', () => {
+  // "Milch" matches the catalog's milk item, so the basket row has deals to pick from.
+  const MILK = makeOffer({
+    name: 'Frische Vollmilch',
+    category: 'dairy',
+    category_label: 'Milk & Dairy',
+    price_cents: 119,
+  });
+
+  async function seedBasketWithMilk() {
+    await seedCache({ offers: [MILK], cats: [] });
+    await AsyncStorage.setItem(
+      'basket',
+      JSON.stringify([{ key: 'milk', label: 'Milk', keywords: ['milch'] }]),
+    );
+  }
+
+  /** Open Basket → the item's per-item deals picker. */
+  const openPicker = async () => {
+    await screen.findByText('Filters');
+    await fireEvent.press(screen.getByLabelText('Basket'));
+    const basket = await screen.findByTestId('basket-modal');
+    await fireEvent.press(await within(basket).findByText('Milk'));
+    return basket;
+  };
+
+  it('separates the two actions: the card PICKS, a chevron opens the flyer', async () => {
+    // Tap was already taken by "use this offer in my plan", so viewing the deal needs its own
+    // control — and the card must stop claiming it opens the deal.
+    await seedBasketWithMilk();
+    await render(<DealsScreen />);
+    const basket = await openPicker();
+
+    expect(await within(basket).findByLabelText('Use Frische Vollmilch in your plan')).toBeTruthy();
+    expect(within(basket).getByLabelText('Open deal for Frische Vollmilch')).toBeTruthy();
+  });
+
+  it('renders the deal detail INSIDE the Basket sheet, never as a sibling of it', async () => {
+    // The PR #81 nesting rule: a sibling modal is refused by iOS and the refusal latches for the
+    // whole session. Assert containment — moving the element up a level silently reintroduces it.
+    await seedBasketWithMilk();
+    await render(<DealsScreen />);
+    const basket = await openPicker();
+
+    await fireEvent.press(within(basket).getByLabelText('Open deal for Frische Vollmilch'));
+
+    const stillBasket = await screen.findByTestId('basket-modal');
+    await waitFor(() => expect(within(stillBasket).getByText('View payload')).toBeTruthy());
+  });
+
+  it('tapping the chevron does NOT pick the offer — the picker stays open', async () => {
+    // The two targets must not bleed into each other: viewing a flyer shouldn't silently commit
+    // that offer to the plan (picking closes the picker, so a leak is observable).
+    await seedBasketWithMilk();
+    await render(<DealsScreen />);
+    const basket = await openPicker();
+
+    await fireEvent.press(within(basket).getByLabelText('Open deal for Frische Vollmilch'));
+    await screen.findByText('View payload');
+
+    // Still in the picker (its card is present), i.e. pickOffer never ran.
+    expect(within(basket).getByLabelText('Use Frische Vollmilch in your plan')).toBeTruthy();
+  });
+
+  it('drops the detail when the Basket closes, so it cannot change host mid-flight', async () => {
+    await seedBasketWithMilk();
+    await render(<DealsScreen />);
+    const basket = await openPicker();
+    await fireEvent.press(within(basket).getByLabelText('Open deal for Frische Vollmilch'));
+    await screen.findByText('View payload');
+
+    await fireEvent.press(within(basket).getByLabelText('Close basket'));
+    await waitFor(() => expect(screen.queryByText('View payload')).toBeNull());
+  });
+});
+
 describe('DealsScreen — opening a deal from a Recipes ingredient', () => {
   // "Gouda" is an ingredient in the bundled recipes, so a seeded Gouda offer resolves to an
   // on-sale row (recipes.ts only attaches an `offer` when role === 'on_sale').

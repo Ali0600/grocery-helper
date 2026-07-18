@@ -764,7 +764,7 @@ export default function DealsScreen() {
 
   // At most one of these is ever open: they're opened from header buttons that sit on the
   // deals screen, underneath any open sheet.
-  const sheetOpen = likesModal || compareModal || edekaVsModal || recipesModal;
+  const sheetOpen = likesModal || compareModal || edekaVsModal || recipesModal || basketModal;
 
   // Closing a sheet also drops the detail: otherwise it would change host (sheet → root),
   // remounting into a dismiss/present race. Unreachable via the UI (the detail's backdrop
@@ -783,6 +783,10 @@ export default function DealsScreen() {
   }, []);
   const closeRecipes = useCallback(() => {
     setRecipesModal(false);
+    setActive(null);
+  }, []);
+  const closeBasket = useCallback(() => {
+    setBasketModal(false);
     setActive(null);
   }, []);
 
@@ -1199,7 +1203,9 @@ export default function DealsScreen() {
         offers={modalOffers}
         basket={basket}
         onChangeBasket={onChangeBasket}
-        onClose={() => setBasketModal(false)}
+        onClose={closeBasket}
+        onOpenOffer={setActive}
+        detail={basketModal ? detail : null}
       />
       <OptionsModal
         visible={optionsModal}
