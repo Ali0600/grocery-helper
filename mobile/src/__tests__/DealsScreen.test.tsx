@@ -357,6 +357,90 @@ describe('DealsScreen — the "My Categories" home', () => {
   });
 });
 
+/** All rendered text inside a node, flattened. RNTL's text queries only match a Text whose children
+ * are a single string, so a composed <Text> (label + qty) is invisible to them. */
+function flatText(node: unknown): string {
+  const walk = (c: unknown): string => {
+    if (c == null || c === false) return '';
+    if (typeof c === 'string' || typeof c === 'number') return String(c);
+    if (Array.isArray(c)) return c.map(walk).join('');
+    return walk((c as { props?: { children?: unknown } }).props?.children);
+  };
+  return walk((node as { props?: { children?: unknown } }).props?.children);
+}
+
+describe('DealsScreen — opening a deal from a Recipes ingredient', () => {
+  // "Gouda" is an ingredient in the bundled recipes, so a seeded Gouda offer resolves to an
+  // on-sale row (recipes.ts only attaches an `offer` when role === 'on_sale').
+  const GOUDA = makeOffer({
+    name: 'Gouda jung',
+    category: 'cheese',
+    category_label: 'Cheese',
+    price_cents: 149,
+  });
+
+  const openRecipes = async () => {
+    await screen.findByText('Filters');
+    await fireEvent.press(screen.getByLabelText('Recipes'));
+    return screen.findByTestId('recipes-modal');
+  };
+
+  it('opens the deal detail INSIDE the Recipes sheet, never as a sibling of it', async () => {
+    // The PR #81 trap once more: RN presents a Modal from the first view controller up the
+    // responder chain, so a sibling detail is refused by iOS and the refusal latches for the whole
+    // session. Assert containment, not mere presence — moving the element up one level in
+    // DealsScreen silently reintroduces the bug.
+    await seedCache({ offers: [GOUDA], cats: [{ category: 'cheese', label: 'Cheese', count: 1 }] });
+    await render(<DealsScreen />);
+    const recipes = await openRecipes();
+
+    await fireEvent.press(await within(recipes).findByLabelText('Open deal for Gouda jung'));
+
+    const stillRecipes = await screen.findByTestId('recipes-modal');
+    await waitFor(() => expect(within(stillRecipes).getByText('View payload')).toBeTruthy());
+  });
+
+  it('makes the WHOLE ingredient row the tap target, not just the price', async () => {
+    // The Likes row had this exact defect: only the ~45pt price block was pressable, so tapping
+    // the product name did nothing (fixed in #81). The row's pressable must wrap the label too.
+    await seedCache({ offers: [GOUDA], cats: [] });
+    await render(<DealsScreen />);
+    const recipes = await openRecipes();
+
+    const row = await within(recipes).findByLabelText('Open deal for Gouda jung');
+    // The ingredient label is a COMPOSED <Text> (name + an optional qty child), which RNTL's text
+    // matcher skips, so flatten the row's own rendered text instead (cf. the RNTL notes in
+    // CLAUDE.md: assert on children, not a string match, for composed Text).
+    expect(flatText(row)).toContain('Gouda'); // the label is INSIDE the pressable
+    expect(flatText(row)).toContain('1,49 €'); // ...and so is the price
+  });
+
+  it('leaves "have" / "buy" ingredients inert — they have no deal to open', async () => {
+    await seedCache({ offers: [GOUDA], cats: [] });
+    await render(<DealsScreen />);
+    const recipes = await openRecipes();
+    await within(recipes).findByLabelText('Open deal for Gouda jung');
+
+    // Every openable row must be the one matched offer; staples/buy rows expose no control.
+    const openable = within(recipes)
+      .queryAllByLabelText(/^Open deal for /)
+      .map((n) => n.props.accessibilityLabel);
+    expect([...new Set(openable)]).toEqual(['Open deal for Gouda jung']);
+  });
+
+  it('drops the detail when Recipes closes, so it cannot change host mid-flight', async () => {
+    await seedCache({ offers: [GOUDA], cats: [] });
+    await render(<DealsScreen />);
+    const recipes = await openRecipes();
+    await fireEvent.press(await within(recipes).findByLabelText('Open deal for Gouda jung'));
+    await screen.findByText('View payload');
+
+    // Labelled, because the nested detail carries its own "Close" too.
+    await fireEvent.press(within(recipes).getByLabelText('Close recipes'));
+    await waitFor(() => expect(screen.queryByText('View payload')).toBeNull());
+  });
+});
+
 describe('DealsScreen — the "My Categories" browser', () => {
   // A cache with a discounted fruit, an undiscounted one, and a cheese — enough to exercise the
   // card's "3 most discounted, filled from the default sort" rule.

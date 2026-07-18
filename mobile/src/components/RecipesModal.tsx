@@ -33,6 +33,12 @@ type Props = {
   alwaysHave: BasketItem[];
   onChangeAlwaysHave: (items: BasketItem[]) => void;
   onClose: () => void;
+  /** Open an on-sale ingredient's deal detail. Only rows with a matched offer can call this. */
+  onOpenOffer?: (o: Offer) => void;
+  /** The deal detail, rendered INSIDE this sheet's AppModal so it presents from THIS sheet's view
+   * controller rather than the shared root VC — a sibling modal is refused by iOS and the refusal
+   * latches for the session. See LikesModal for the full explanation. */
+  detail?: React.ReactNode;
 };
 
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, ' ');
@@ -45,6 +51,8 @@ export function RecipesModal({
   alwaysHave,
   onChangeAlwaysHave,
   onClose,
+  onOpenOffer,
+  detail,
 }: Props) {
   const [editing, setEditing] = useState(false); // always-have editor sub-view
   const [query, setQuery] = useState('');
@@ -121,28 +129,51 @@ export function RecipesModal({
           </Text>
         </View>
 
-        {rr.ingredients.map((ri, i) => (
-          <View key={i} style={styles.ingRow}>
-            <Text style={styles.ingLabel} numberOfLines={1}>
-              {ri.ing.label}
-              {ri.ing.qty ? <Text style={styles.ingQty}> · {scaleQty(ri.ing.qty, mult)}</Text> : null}
-            </Text>
-            {ri.role === 'on_sale' && ri.offer ? (
-              <View style={styles.ingRight}>
-                <View style={[styles.chainPill, { backgroundColor: chainColors(ri.offer.chain).bg }]}>
-                  <Text style={[styles.chainPillText, { color: chainColors(ri.offer.chain).fg }]}>
-                    {chainLabel(ri.offer.chain)}
-                  </Text>
+        {rr.ingredients.map((ri, i) => {
+          // Only an on-sale ingredient has a matched offer (recipes.ts sets `offer` to null for
+          // "have"/"buy"), so only those rows have a flyer to open — the rest stay inert.
+          const offer = ri.role === 'on_sale' ? ri.offer : null;
+          const body = (
+            <>
+              <Text style={styles.ingLabel} numberOfLines={1}>
+                {ri.ing.label}
+                {ri.ing.qty ? <Text style={styles.ingQty}> · {scaleQty(ri.ing.qty, mult)}</Text> : null}
+              </Text>
+              {offer ? (
+                <View style={styles.ingRight}>
+                  <View style={[styles.chainPill, { backgroundColor: chainColors(offer.chain).bg }]}>
+                    <Text style={[styles.chainPillText, { color: chainColors(offer.chain).fg }]}>
+                      {chainLabel(offer.chain)}
+                    </Text>
+                  </View>
+                  <Text style={styles.ingPrice}>{euro(offer.price_cents)}</Text>
                 </View>
-                <Text style={styles.ingPrice}>{euro(ri.offer.price_cents)}</Text>
-              </View>
-            ) : ri.role === 'have' ? (
-              <Text style={styles.tagHave}>have</Text>
-            ) : (
-              <Text style={styles.tagBuy}>buy</Text>
-            )}
-          </View>
-        ))}
+              ) : ri.role === 'have' ? (
+                <Text style={styles.tagHave}>have</Text>
+              ) : (
+                <Text style={styles.tagBuy}>buy</Text>
+              )}
+            </>
+          );
+          // The WHOLE row is the tap target, not just the price block: in the Likes sheet only the
+          // ~45pt price responded, so tapping the obvious thing — the product name — did nothing
+          // (fixed in PR #81). Don't shrink this back to the right-hand column.
+          return offer && onOpenOffer ? (
+            <Pressable
+              key={i}
+              style={({ pressed }) => [styles.ingRow, pressed && styles.pressed]}
+              onPress={() => onOpenOffer(offer)}
+              accessibilityRole="button"
+              accessibilityLabel={`Open deal for ${offer.name}`}
+            >
+              {body}
+            </Pressable>
+          ) : (
+            <View key={i} style={styles.ingRow}>
+              {body}
+            </View>
+          );
+        })}
 
         <Pressable
           onPress={() => setExpanded((e) => ({ ...e, [r.id]: !e[r.id] }))}
@@ -224,6 +255,10 @@ export function RecipesModal({
     </ScrollView>
   );
 
+  // The AppModal below keeps animationType="fade" on purpose: this sheet HOSTS a nested modal (the
+  // deal detail), and on react-native-web a nested slide-in never resolves its transform — the child
+  // parks fully off-screen. Its testID sits on the AppModal, not an inner View, so it contains that
+  // nested child (which is the containment the nesting test asserts).
   const renderMain = () => (
     <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
       <Text style={styles.sectionHint}>
@@ -260,7 +295,13 @@ export function RecipesModal({
   );
 
   return (
-    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <AppModal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      testID="recipes-modal"
+    >
       <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.sheet}>
           <View style={styles.header}>
@@ -272,13 +313,16 @@ export function RecipesModal({
               <View style={{ width: 48 }} />
             )}
             <Text style={styles.headerTitle}>{editing ? 'Always have' : 'Recipes'}</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            {/* Labelled: the nested deal detail carries its own "Close", so an unlabelled one here
+                is ambiguous both for a screen reader and for any label-based query. */}
+            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close recipes">
               <Text style={styles.close}>Close</Text>
             </Pressable>
           </View>
           {editing ? renderEditor() : renderMain()}
         </View>
       </KeyboardAvoidingView>
+      {detail}
     </AppModal>
   );
 }

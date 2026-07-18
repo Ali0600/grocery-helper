@@ -855,7 +855,18 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   At runtime the app is fully offline: `mobile/src/recipes.ts` `resolveRecipe`/`filterRecipes`
   **reuse the Basket matcher** (`basket.ts` `bestMatch`) to tag each ingredient on-sale (matched
   an offer → live chain pill + price) / have (`staple:true` or in the user's always-have list)
-  / buy, and filter by diet/cuisine/servings/only-on-sale/cheapest-€/kg. Always-have is seeded
+  / buy, and filter by diet/cuisine/servings/only-on-sale/cheapest-€/kg. **An on-sale ingredient row
+  opens that deal's `FlyerModal`** (2026-07-17): the row was inert while every other surface showing a
+  matched offer opened the detail. Only on-sale rows are pressable — `resolveRecipe` sets
+  `offer: role === 'on_sale' ? offer : null`, so "have"/"buy" rows have no deal to open — and the
+  **WHOLE row** is the tap target, not the price block (the Likes sheet shipped with exactly that dead
+  target: tapping the product name did nothing, fixed in #81). The detail is passed in as a **`detail`
+  prop rendered INSIDE `RecipesModal`'s `AppModal`** (the PR #81 nesting rule — a sibling is refused by
+  iOS and latches), `recipesModal` is part of `sheetOpen`, and `closeRecipes` clears `active` so the
+  element can't change host mid-flight. `RecipesModal` must stay `animationType="fade"` — it now hosts
+  a nested modal, and a nested slide never resolves its transform on react-native-web (PR #89). Its
+  Close is labelled **"Close recipes"** because the nested detail carries its own "Close".
+  Always-have is seeded
   from `catalog.ts` staples (`storage.ts` `defaultAlwaysHave` / `STAPLE_KEYS`), editable +
   persisted (`alwaysHave` key; `recipePrefs` for filters). **Regenerate weekly** when flyers
   refresh — **automated locally** via `scripts/regenerate-recipes.sh` (scrape → `recipe_seed`

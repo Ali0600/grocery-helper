@@ -36,6 +36,7 @@ build the cheapest basket across one or two stores.
   to devices **over-the-air** (no runtime model call, no API key/secret, no server cost); the
   app renders them fully offline and reuses the deterministic basket matcher to show each
   ingredient's real on-sale price and flag what's on-sale vs a pantry staple vs to-buy.
+  Tap any on-sale ingredient to open that deal's flyer without losing your place in the recipe.
   Customizable by diet, cuisine, servings, on-sale-only, and cheapest-€/kg. **Regenerated
   weekly by a scheduled local job** (launchd → headless Claude Code → validate → push → OTA),
   so the loop stays automatic *and* keyless (no managed API key anywhere).
