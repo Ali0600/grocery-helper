@@ -37,6 +37,11 @@ build the cheapest basket across one or two stores.
   app renders them fully offline and reuses the deterministic basket matcher to show each
   ingredient's real on-sale price and flag what's on-sale vs a pantry staple vs to-buy.
   Tap any on-sale ingredient to open that deal's flyer without losing your place in the recipe.
+  **"Shop at" scopes the whole screen to one store, or a mix of two**, so you only see meals you
+  can actually buy on one trip — each card badges how many shops it takes. Recipes are authored
+  **per chain** for exactly that reason: built from the cheapest item in each category regardless
+  of store, a recipe's ingredients end up in four different shops by construction (measured: only
+  3 of 10 were shoppable at the best single store; now every chain has 3–5).
   Customizable by diet, cuisine, servings, on-sale-only, and cheapest-€/kg. **Regenerated
   weekly by a scheduled local job** (launchd → headless Claude Code → validate → push → OTA),
   so the loop stays automatic *and* keyless (no managed API key anywhere).

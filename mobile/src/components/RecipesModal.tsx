@@ -13,11 +13,15 @@ import { AppModal } from './AppModal';
 import { GROCERY_CATALOG } from '../catalog';
 import { chainColors, chainLabel } from '../chains';
 import { RECIPES } from '../data/recipes';
+import { CHAIN_ORDER } from '../dealFilters';
 import { euro } from '../format';
 import {
+  activeRecipeStores,
   CUISINE_OPTIONS,
   DIET_OPTIONS,
   filterRecipes,
+  MAX_RECIPE_STORES,
+  recipeChains,
   ResolvedRecipe,
   scaleQty,
 } from '../recipes';
@@ -63,7 +67,27 @@ export function RecipesModal({
     [prefs, offers, alwaysHave],
   );
 
+  // Chains actually in this set (`offers` is already hidden-stores-filtered), in the app's usual
+  // order — so a chain the user removed in the Stores modal simply has no chip here.
+  const presentChains = useMemo(() => {
+    const present = new Set(offers.map((o) => o.chain));
+    return CHAIN_ORDER.filter((c) => present.has(c));
+  }, [offers]);
+  // Render the *active* selection, so a stale pick (chain hidden, PLZ switched) can't show as
+  // selected while doing nothing.
+  const activeStores = useMemo(() => activeRecipeStores(prefs.stores, offers), [prefs.stores, offers]);
+
   const set = (patch: Partial<RecipePrefs>) => onChangePrefs({ ...prefs, ...patch });
+
+  const toggleStore = (chain: string) => {
+    const cur = prefs.stores ?? [];
+    const next = cur.includes(chain)
+      ? cur.filter((c) => c !== chain)
+      : // A third pick drops the oldest rather than being ignored — a tap that does nothing reads
+        // as a broken chip.
+        [...cur, chain].slice(-MAX_RECIPE_STORES);
+    set({ stores: next });
+  };
 
   // --- prefs controls ---
   const choiceRow = (label: string, options: readonly string[], value: string | null, onPick: (v: string | null) => void) => (
@@ -76,10 +100,14 @@ export function RecipesModal({
     </View>
   );
 
-  const chip = (label: string, active: boolean, onPress: () => void, key?: string) => (
+  // `a11y` overrides the announced name where the visible label is ambiguous on its own — a store
+  // chip reading just "Lidl" is indistinguishable from the chain pill on every card below it.
+  const chip = (label: string, active: boolean, onPress: () => void, key?: string, a11y?: string) => (
     <Pressable
       key={key ?? label}
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={a11y ?? label}
       style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressed]}
     >
       <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
@@ -112,6 +140,7 @@ export function RecipesModal({
     const r = rr.recipe;
     const mult = prefs.servings / r.servings;
     const showSteps = expanded[r.id];
+    const chains = recipeChains(rr); // how many shops this actually takes, from the live match
     return (
       <View key={r.id} style={styles.card}>
         <Text style={styles.recipeTitle}>{r.title}</Text>
@@ -128,6 +157,19 @@ export function RecipesModal({
             {rr.onSaleCount} on sale{rr.buyCount > 0 ? ` · ${rr.buyCount} to buy` : ''}
           </Text>
         </View>
+
+        {/* Shown in every mode, not just when scoped: "how many shops is this?" is the thing the
+            store scope exists to answer, and it's worth knowing before you pick one. */}
+        {chains.length ? (
+          <View style={styles.storeRow}>
+            <Text style={styles.storeCount}>{chains.length === 1 ? '1 store' : `${chains.length} stores`}</Text>
+            {chains.map((c) => (
+              <View key={c} style={[styles.chainPill, { backgroundColor: chainColors(c).bg }]}>
+                <Text style={[styles.chainPillText, { color: chainColors(c).fg }]}>{chainLabel(c)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
 
         {rr.ingredients.map((ri, i) => {
           // Only an on-sale ingredient has a matched offer (recipes.ts sets `offer` to null for
@@ -267,6 +309,19 @@ export function RecipesModal({
 
       {choiceRow('Diet', DIET_OPTIONS, prefs.diet, (v) => set({ diet: v }))}
       {choiceRow('Cuisine', CUISINE_OPTIONS, prefs.cuisine, (v) => set({ cuisine: v }))}
+      {/* Scope the whole screen to one shop, or a two-store run. Hidden below two chains —
+          there'd be nothing to choose between. */}
+      {presentChains.length >= 2 ? (
+        <View style={styles.choiceRow}>
+          <Text style={styles.choiceLabel}>Shop at</Text>
+          <View style={styles.chips}>
+            {chip('Any store', activeStores.length === 0, () => set({ stores: [] }), 'any', 'Shop at any store')}
+            {presentChains.map((c) =>
+              chip(chainLabel(c), activeStores.includes(c), () => toggleStore(c), c, `Shop at ${chainLabel(c)}`),
+            )}
+          </View>
+        </View>
+      ) : null}
       <View style={styles.toggleRow}>
         {chip('Only on-sale', prefs.onlyOnSale, () => set({ onlyOnSale: !prefs.onlyOnSale }))}
         {chip('Cheapest €/kg', prefs.cheapestKg, () => set({ cheapestKg: !prefs.cheapestKg }))}
@@ -418,6 +473,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   costMeta: { color: colors.muted, fontSize: 12 },
+  storeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
+  storeCount: { color: colors.muted, fontSize: 12, fontWeight: '700' },
   ingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
