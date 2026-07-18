@@ -22,7 +22,26 @@ backend/grocery.db (current deals)            mobile/src/data/recipes.ts (bundle
   already loaded on the device (`mobile/src/recipes.ts` `resolveRecipe`/`filterRecipes`).
 - Ingredients are tagged **on sale** (matched an offer), **have** (a staple / in the user's
   always-have list, or `staple: true`), or **buy** (needs buying). Filters (dietary, cuisine,
-  only-on-sale, cheapest €/kg, servings, count) run client-side over the static set.
+  **shop at**, only-on-sale, cheapest €/kg, servings, count) run client-side over the static set.
+
+## Recipes are authored PER CHAIN — one store, or exactly two
+
+The app's **"Shop at"** filter scopes recipes to one store, or a mix of two. That filter can only
+surface recipes that were *built* that way, so `recipe_seed.py` groups candidates **by chain** and
+deliberately emits **no** flat "cheapest anywhere" list.
+
+Authoring from a global list picks the cheapest item in each category, which lands the ingredients
+in four different shops **by construction**. Measured 2026-07-18 on the 10 globally-authored
+recipes then bundled (PLZ 10115, 1778 valid offers): **7 of 10** were fully shoppable using all
+five chains, but only **3 of 10** at the best single chain (E center: 1), and the average number
+of on-sale ingredients fell 5.3 → 3.5. Per-chain lists are what fix that.
+
+**A recipe carries no store field.** The app re-matches every ingredient against the user's live
+offers each session and derives the stores from that, so an authored tag would be a claim about one
+particular week's flyer that quietly goes stale. Authoring supplies the *supply* — that
+single-store recipes exist at all; the runtime decides what actually works this week.
+
+Only **non-staple** ingredients constrain the store: a staple is assumed on hand.
 
 ## Regenerating recipes (weekly, when the flyers refresh)
 
@@ -31,18 +50,19 @@ expire each Sunday). This is a Claude Code task — no API key:
 
 1. Make sure the dev DB has the current week's deals:
    `cd backend && source .venv/bin/activate && python -m app.scripts.recipe_seed --plz 10115`
-   (or re-scrape first: `POST /api/scrape?plz=10115`). The script prints the cheapest on-sale
-   candidates per cookable category as JSON.
+   (or re-scrape first: `POST /api/scrape?plz=10115`). The script prints
+   `{plz, by_chain: {chain: {category: [candidates]}}}` — the cheapest on-sale products per
+   cookable category, per chain.
 2. Ask Claude Code to **rewrite `mobile/src/data/recipes.ts`** from that JSON + the always-have
-   staples (`STAPLE_KEYS` in `mobile/src/storage.ts`), keeping ~10 recipes with a dietary/cuisine
-   spread, German match `keywords` (+ `exclude` guards for traps like tomato→ketchup), and
-   `generatedFor`/`generatedAt` updated. Prompt outline:
-
-   > Author ~10 varied recipes (vegetarian/vegan/pescatarian/meat; italian/german/etc.) that
-   > combine the on-sale items below with common always-have staples. Output the typed
-   > `RecipesData` for `mobile/src/data/recipes.ts`. Each ingredient needs German `keywords`
-   > that match the offer names (so the app can price it), `qty`, and `staple: true` for
-   > pantry items (oil, salt, garlic…). Steps: 2–4 lines. <paste recipe_seed.py JSON>
+   staples (`STAPLE_KEYS` in `mobile/src/storage.ts`) — the full brief lives in
+   **`scripts/recipe-prompt.md`** (that file is what the automation feeds to `claude -p`, so keep
+   it as the single source of truth rather than re-describing it here). In short: ~15 recipes —
+   **2 per chain** whose every non-staple ingredient matches a name in *that chain's own* lists,
+   plus **5 two-store** recipes drawing from exactly two chains — with a dietary/cuisine spread
+   across the set, German match `keywords` (+ `exclude` guards for traps like tomato→ketchup), and
+   `generatedFor` taken from the JSON's `plz`.
+   **Verify per chain, not globally**: a keyword that only matches under some *other* chain is a
+   failure. The acceptance check is that every chain has **≥2 recipes fully shoppable on its own**.
 
 3. `cd mobile && npx tsc --noEmit && npm run lint`, then commit `mobile/src/data/recipes.ts`.
    The push triggers **`eas-update.yml`** → the new recipes reach devices over-the-air. The
