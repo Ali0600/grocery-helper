@@ -360,6 +360,21 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `Retry-After` (see the "Outbound calls are counted, paced, and backed off" note above);
   both scrapers still fall back to sample data on failure, but a throttle is now metered
   (`/api/scrape-stats` `throttles`), not silently hidden behind the sample fallback.
+  **The throttle's real shape is HTTP 200 with LESS CONTENT, not an error** (proven from Render
+  logs, 2026-07-19): the publisher page answers 200 with an **empty brochure list**, or lists a
+  brochure whose pages parse to **zero offers**. Nothing fails, so `tracked_client`'s status-retry
+  never sees it, `throttled_total` stays 0, and the chain quietly serves samples. `fetch` therefore
+  **re-asks once after `settings.scrape_thin_retry_s` (8s) before believing an empty answer** —
+  retrying **only** its own `RuntimeError` ("no active weekly brochure" / "returned no flyer
+  offers"), never an HTTP error, since 5xx/429 are already retried upstream and a 403 is a hard
+  block. Tests set the pause to 0 (`SCRAPE_THIN_RETRY_S`).
+  **What triggered the burst is worth knowing**: `/api/reset` on a sleeping free-tier container
+  makes it cold-start, run its **own boot scrape of `DEFAULT_PLZ`** (`main.py` `lifespan`, ~13
+  outbound calls) and only then serve the reset — which deletes everything that boot scrape just
+  wrote and scrapes again, hitting the same five publisher pages a second time inside a minute.
+  `scrape.yml` now curls `/health` first (it only answers once startup, boot scrape included, has
+  finished) and waits 60s, so the weekly job stops firing a doubled burst. Measured that Sunday:
+  lidl/rewe/aldi degraded on the second pass, all five fine ten minutes later.
 - **Brochure discovery is location-pinned via a cookie** (`bonial.py`
   `_location_cookie`, `_current_brochures`): meinprospekt's publisher page (`/rewe-de`
   etc.) picks which **regional** brochures to show from a `location` cookie it otherwise

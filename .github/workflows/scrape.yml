@@ -30,6 +30,31 @@ jobs:
     steps:
       # Needed for the data-quality gate script below; the reset step itself is pure curl.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      # Wake the service BEFORE the reset, and let it settle.
+      #
+      # The free tier sleeps, so POSTing /api/reset cold makes the container start, run its own
+      # boot scrape of DEFAULT_PLZ (~13 outbound calls), and only then serve our reset — which
+      # deletes everything that boot scrape just wrote and scrapes again, hitting the same five
+      # publisher pages a second time within about a minute. On 2026-07-19 that doubled burst came
+      # back thin: three chains got an empty brochure list (HTTP 200, no error) and silently fell
+      # back to sample data; the identical request ten minutes later was fine.
+      #
+      # /health only answers once startup — boot scrape included — has finished, so this both
+      # absorbs the cold start and spaces our two bursts apart.
+      # This is a warm-up, not a gate: if /health can't be reached the reset step's own retries
+      # are the place to fail, so never fail the job here.
+      - name: Wake the service and let its boot scrape settle
+        run: |
+          BASE=https://grocery-helper-sw6c.onrender.com
+          curl -fsS --max-time 300 --retry 2 --retry-all-errors --retry-delay 15 \
+               "$BASE/health" -w " (health answered in %{time_total}s)\n" \
+            || echo "::warning::health check did not answer — continuing to the reset anyway"
+          echo "pausing ${SETTLE_S}s so our scrape isn't a second burst on the same pages…"
+          sleep "${SETTLE_S}"
+        env:
+          SETTLE_S: 60
+
       - name: POST /api/reset (retry transient failures)
         env:
           # SCRAPE_PLZ is a *secret* (not a variable) so a personal postal code is masked

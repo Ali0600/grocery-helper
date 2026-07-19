@@ -24,3 +24,6 @@ settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "default"))
 # exercised in test_http.py, which monkeypatches time.sleep instead of actually waiting.
 os.environ.setdefault("SCRAPE_REQUEST_GAP_S", "0")
 os.environ.setdefault("SCRAPE_REQUEST_JITTER_S", "0")
+# Same for the thin-response retry in bonial.fetch — the retry itself is still exercised
+# (test_bonial.py asserts the second attempt happens), just without the wait.
+os.environ.setdefault("SCRAPE_THIN_RETRY_S", "0")

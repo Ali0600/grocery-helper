@@ -33,6 +33,7 @@ import json
 import logging
 import math
 import re
+import time
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 from urllib.parse import quote
@@ -40,6 +41,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from ..core.config import settings
 from ..http import tracked_client
 from .base import ScrapedOffer, ScrapeResult
 
@@ -90,23 +92,41 @@ class MeinprospektScraper:
 
     def fetch(self, plz: str, lat: float, lng: float) -> ScrapeResult:
         store_name = f"{self.store_label} {plz}"
-        try:
-            offers = self._fetch_live(lat, lng, plz)
-            if not offers:
-                raise RuntimeError(f"{self.chain}: meinprospekt returned no flyer offers")
-            return ScrapeResult(
-                chain=self.chain, store_name=store_name, plz=plz,
-                lat=lat, lng=lng, offers=offers,
-            )
-        except Exception:
-            logger.warning(
-                "%s flyer scrape failed for plz=%s; serving sample data",
-                self.chain, plz, exc_info=True,
-            )
-            return ScrapeResult(
-                chain=self.chain, store_name=store_name, plz=plz,
-                lat=lat, lng=lng, offers=self._sample(),
-            )
+        # Two attempts, but ONLY for an "empty answer" (our own RuntimeError: no brochure in the
+        # list, or a brochure that parsed to zero offers). Those come back as HTTP 200, so the
+        # transport-level retry in `tracked_client` never sees them — the aggregator soft-throttles
+        # a burst by serving less content rather than an error. Proven on 2026-07-19: three chains
+        # degraded to samples on one attempt and the identical request returned the full list ten
+        # minutes later. An HTTP error is NOT retried here: 5xx/429 are already handled upstream,
+        # and a 403 is a hard block that retrying only worsens.
+        for attempt in (1, 2):
+            try:
+                offers = self._fetch_live(lat, lng, plz)
+                if not offers:
+                    raise RuntimeError(f"{self.chain}: meinprospekt returned no flyer offers")
+                return ScrapeResult(
+                    chain=self.chain, store_name=store_name, plz=plz,
+                    lat=lat, lng=lng, offers=offers,
+                )
+            except RuntimeError as exc:
+                if attempt == 1:
+                    logger.warning(
+                        "%s flyer scrape came back empty (%s); retrying once in %.0fs",
+                        self.chain, exc, settings.scrape_thin_retry_s,
+                    )
+                    time.sleep(settings.scrape_thin_retry_s)
+                    continue
+                break
+            except Exception:
+                break
+        logger.warning(
+            "%s flyer scrape failed for plz=%s; serving sample data",
+            self.chain, plz, exc_info=True,
+        )
+        return ScrapeResult(
+            chain=self.chain, store_name=store_name, plz=plz,
+            lat=lat, lng=lng, offers=self._sample(),
+        )
 
     # -- live -----------------------------------------------------------------
 
