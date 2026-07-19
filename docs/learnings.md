@@ -1054,3 +1054,49 @@ list had stores in it that no real ingredient came from.
 summarises it. Before deriving a headline number from a collection of matches, look at what is in the
 collection — and when the derived value is a *claim to the user*, guard it structurally rather than
 trusting every input to stay clean.
+
+## A throttle can arrive as a successful response with less in it
+
+The weekly refresh degraded three of five shops to placeholder data, and the Render log showed
+every single HTTP request returning **200**. No timeout, no 5xx, no `Retry-After`. The aggregator
+soft-throttles a burst by serving a *thinner page*: two publishers returned an empty brochure list,
+a third returned a brochure that parsed to zero offers. Ten minutes later the identical requests
+returned the full set.
+
+The retry layer could not help, because it keys on status codes — it is looking for failure, and
+nothing failed. The metrics agreed: `throttled_total` stayed at 0 throughout. The only signal that
+something was wrong was the *shape of the data*, which is why the offer-count gate caught it and
+the "are all 5 shops present?" gate didn't (a placeholder fallback still produces a shop).
+
+The fix is a second ask before believing an empty answer — deliberately scoped to our own
+"came back empty" error, never to an HTTP error, since a 403 is a hard block that retrying worsens
+and 5xx/429 are already retried a layer down.
+
+**Why it came up:** a scheduled job failed a data-quality threshold, and the counts looked like a
+network problem until the logs showed everything had succeeded.
+
+**Takeaway:** when you depend on an upstream you don't control, decide what "degraded" looks like
+in *content*, not just in status. Retry-on-error cannot see a 200 that is merely emptier than it
+should be, and neither can a check that asks "did every source respond?" — ask "did every source
+respond with a plausible amount of data?" Any fallback that fires on thin content should retry
+once before degrading, because the degradation is invisible downstream.
+
+## Waking a sleeping service makes it do its startup work first — and you pay for it
+
+The job that wipes and rebuilds the deal database was firing straight at a free-tier container that
+sleeps after 15 minutes idle. That request woke it, and the app's own startup routine ran a full
+scrape of its default postal code — about 13 outbound requests — before the server would serve
+anything at all. Only then did the wipe run, deleting everything the startup scrape had just
+written, and scraping again for the real postal code. Roughly double the upstream requests, within
+a minute, against the same pages — right before the scrape that actually mattered.
+
+Fix: call `/health` first. It only answers once startup has finished, so it absorbs the cold start
+*and* separates the two bursts; then wait before the real work.
+
+**Why it came up:** the doubled burst is the most likely reason the upstream started serving thin
+responses on the second pass.
+
+**Takeaway:** a scheduled job that pokes a sleeping service inherits whatever that service does on
+boot — migrations, cache warming, a scrape. Check what startup costs before assuming your request
+is the first thing that happens, and warm the service as a separate step so its startup work and
+your work aren't competing for the same rate budget.
