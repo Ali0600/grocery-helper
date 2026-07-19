@@ -313,3 +313,92 @@ def test_select_raises_when_nothing_active_or_soon():
     far = {"validFrom": "2026-08-01T22:00:00.000+0000", "validUntil": "2026-08-07T21:00:00.000+0000"}
     with pytest.raises(RuntimeError, match="no active weekly brochure"):
         _select_brochures({"old": old, "far": far}, _SUNDAY, "rewe")
+
+
+# --- thin-response retry ------------------------------------------------------
+# The aggregators soft-throttle a burst by answering **HTTP 200 with less content** — an empty
+# brochure list, or a brochure that parses to zero offers. Nothing "fails", so the transport
+# retry in tracked_client never sees it and the chain silently degrades to sample data. Observed
+# in production 2026-07-19: lidl/rewe/aldi fell back on one attempt, the identical request
+# returned the full list ten minutes later. `fetch` therefore asks once more before believing an
+# empty answer. (conftest sets SCRAPE_THIN_RETRY_S=0 so this never actually sleeps.)
+
+
+class _CountingScraper(BonialScraper):
+    """Drives `fetch` without any network: `_fetch_live` replays a scripted result per attempt."""
+
+    def __init__(self, script):
+        super().__init__()
+        self.script = list(script)
+        self.calls = 0
+
+    def _fetch_live(self, lat, lng, plz=None):
+        self.calls += 1
+        outcome = self.script[min(self.calls - 1, len(self.script) - 1)]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    def _sample(self):
+        return ["SAMPLE"]
+
+
+def _fake_offer():
+    return object()
+
+
+def test_empty_brochure_list_is_retried_once_and_succeeds():
+    real = [_fake_offer()]
+    s = _CountingScraper([RuntimeError("no active weekly brochure for rewe"), real])
+
+    result = s.fetch("10713", 52.5, 13.4)
+
+    assert s.calls == 2, "an empty answer must be re-asked, not believed"
+    assert result.offers == real
+    assert result.offers != ["SAMPLE"]
+
+
+def test_brochure_that_parses_to_zero_offers_is_also_retried():
+    # The lidl shape: a brochure WAS found and fetched 200, but yielded no offers.
+    real = [_fake_offer()]
+    s = _CountingScraper([[], real])
+
+    result = s.fetch("10713", 52.5, 13.4)
+
+    assert s.calls == 2
+    assert result.offers == real
+
+
+def test_still_empty_on_the_retry_falls_back_to_samples():
+    s = _CountingScraper([[], []])
+
+    result = s.fetch("10713", 52.5, 13.4)
+
+    assert s.calls == 2
+    assert result.offers == ["SAMPLE"]
+
+
+def test_http_error_is_NOT_retried():
+    """A 403 is a hard block that retrying only worsens, and 5xx/429 already retried in
+    tracked_client. Only our own 'came back empty' RuntimeError earns a second attempt."""
+    import httpx
+
+    err = httpx.HTTPStatusError("403", request=httpx.Request("GET", "https://x"),
+                                response=httpx.Response(403))
+    s = _CountingScraper([err, [_fake_offer()]])
+
+    result = s.fetch("10713", 52.5, 13.4)
+
+    assert s.calls == 1, "an HTTP error must go straight to samples, not re-hit a blocked host"
+    assert result.offers == ["SAMPLE"]
+
+
+def test_retry_waits_the_configured_pause(monkeypatch):
+    slept = []
+    monkeypatch.setattr("app.scrapers.bonial.time.sleep", lambda s: slept.append(s))
+    monkeypatch.setattr("app.scrapers.bonial.settings.scrape_thin_retry_s", 8.0)
+    s = _CountingScraper([[], [_fake_offer()]])
+
+    s.fetch("10713", 52.5, 13.4)
+
+    assert slept == [8.0], "re-asking instantly would just hit the same throttled response"

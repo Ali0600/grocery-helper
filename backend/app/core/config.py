@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     # (beyond that, give up so the weekly job can't hang) with exponential backoff otherwise.
     scrape_max_retries: int = 2
     scrape_retry_cap_s: float = 30.0
+    # The aggregators also soft-throttle by answering **200 with less content** — an empty
+    # brochure list, or a brochure that parses to zero offers. That never reaches the retry
+    # above (nothing failed), so a chain silently degrades to sample data. Wait this long and
+    # ask once more before believing an empty answer; measured 2026-07-19, the identical
+    # request returned the full list minutes later. Tests set it to 0 (tests/conftest.py).
+    scrape_thin_retry_s: float = 8.0
 
 
 settings = Settings()
