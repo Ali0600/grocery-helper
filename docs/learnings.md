@@ -1100,3 +1100,24 @@ responses on the second pass.
 boot — migrations, cache warming, a scrape. Check what startup costs before assuming your request
 is the first thing that happens, and warm the service as a separate step so its startup work and
 your work aren't competing for the same rate budget.
+
+## A config value is live only after the process restarts — and "saved" doesn't mean "restarted"
+
+The backend's default postal code lives in a Render environment variable, and the app reads it once
+at startup to decide which region to scrape. Setting it in the dashboard looked like the whole job:
+the value was there, on the right service, spelled correctly. But the running container had started
+*before* the save, so it was still scraping the old default — and because deploys here are
+deliberately gated (the CI job only fires Render's hook when a merge touches backend runtime files),
+Render had no reason to restart it. Saving the variable and applying it are two separate events.
+
+The tell was checking the outcome rather than the setting: after a restart, the user's postal code
+had 1462 offers and the old default had 0 — exactly inverted from before. That inversion is proof;
+a screenshot of the dashboard is not, because it shows intent, not what any process has read.
+
+**Why it came up:** a cold start kept wiping the user's region, and the first fix attempt looked
+applied but wasn't.
+
+**Takeaway:** for any config a process reads at startup — env vars, feature flags loaded once, a
+mounted config file — "saved in the UI" and "in effect" are different states, and a service with
+auto-deploy disabled will happily sit on the old value indefinitely. Verify by restarting and
+observing the behaviour the value controls, not by re-reading the setting.
