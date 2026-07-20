@@ -159,13 +159,27 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         ("Muffin", ["muffin"]),
         ("Brot", ["brot"]),  # generic, after the specific baked goods
     ],
+    # Coffee groups by FORM, not by brand: capsules, pads, beans and a chilled iced coffee are
+    # not substitutes for each other, so "which of these is cheapest" is only a fair question
+    # within a form. Brands are matched too because the word "Kaffee" is often absent from the
+    # name ("Jacobs Gold", "Dallmayr Prodomo") — but only single-category ones. NOT "tchibo"
+    # (sells clothing) or "melitta" (also filters and machines); both are safe here in a way
+    # they are not in categories.py, since this map only runs on offers already IN coffee, but
+    # they earn nothing either — every stored row of theirs is caught by a form word first.
+    # Specific before generic: Kapseln/Pads/Instant precede the catch-all Gemahlen.
+    "coffee": [
+        ("Eiskaffee", ["iced coffee", "eiskaffee", "latte macchiato", "cold brew"]),
+        ("Kapseln", ["kapsel", "dolce gusto", "capsa", "nespresso", "tassimo"]),
+        ("Pads", ["pad", "senseo"]),
+        ("Instant", ["instant", "3in1", "löslich", "nescafé", "nescafe"]),
+        ("Ganze Bohnen", ["ganze bohne", "bohnen", "bohne"]),
+        # Everything else is ground/filter coffee — the default form.
+        ("Gemahlen", ["kaffee", "caffè", "caffe", "espresso", "lungo", " crema", "röstkaffee",
+                      "gemahlen", "filterkaffee", "jacobs", "dallmayr", "lavazza", "prodomo",
+                      # Röstfein's ground lines; safe because this map only runs inside coffee.
+                      "rondo", "aromatico"]),
+    ],
     "soft_drinks": [
-        # Coffee is brand-heavy (the word "Kaffee" is often absent), so the coffee brands —
-        # which do appear in the name ("Jacobs Gold", "Melitta") — are keywords too.
-        ("Kaffee", ["kaffee", "caffè", "caffe", "espresso", "lungo", " crema", "röstkaffee",
-                    "kaffeepad", "kaffeekapsel", "dolce gusto", "senseo", "prodomo", "bohne",
-                    "jacobs", "dallmayr", "lavazza", "melitta", "tchibo", "nescafé", "nescafe",
-                    "mövenpick", "capsa", "3in1"]),
         # before Wasser/Saft so "Volvic Tee" -> Tee. "tea" catches the English iced teas
         # (Fuze Tea / Ice Tea / Bubble Tea — every "tea" name in the feed is a tea); eistee /
         # " tee" / teekanne the German -tee spellings.

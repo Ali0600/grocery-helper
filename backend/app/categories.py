@@ -51,7 +51,12 @@ CATEGORIES: dict[str, str] = {
     "ice_cream": "Ice Cream",
     "sweets": "Sweets & Chocolate",
     "snacks": "Snacks",
-    "soft_drinks": "Soft Drinks",  # beverages split: non-alcoholic (soda/juice/water/coffee/tea)
+    # Coffee is its own aisle, not a soft drink: it was 27% of soft_drinks (117 of 441 stored
+    # offers) and a bag of beans has nothing to do with a bottle of cola. Tea stays in
+    # soft_drinks on purpose — what the feed carries is almost entirely ready-to-drink iced
+    # tea / kombucha, which really is a soft drink.
+    "coffee": "Coffee",
+    "soft_drinks": "Soft Drinks",  # beverages split: non-alcoholic (soda/juice/water/tea)
     "alcoholic": "Alcoholic",  # beverages split: beer/wine/sekt/spirits
     "pantry": "Pantry & Dry Goods",
     "vegan": "Vegan",  # moved to the back of the food chips (per the user)
@@ -72,7 +77,7 @@ _PATH_MAP: dict[str, str] = {
     "rosé": "alcoholic", "rebsorten": "alcoholic", "spirituosen": "alcoholic",
     "weinbrand": "alcoholic", "likör": "alcoholic", "bier": "alcoholic",
     "biermarken": "alcoholic", "saft": "soft_drinks", "softdrinks": "soft_drinks",
-    "limonade": "soft_drinks", "kaffee": "soft_drinks", "tee": "soft_drinks", "sekt": "alcoholic",
+    "limonade": "soft_drinks", "kaffee": "coffee", "tee": "soft_drinks", "sekt": "alcoholic",
     # meat & sausage -> pork bucket
     "wurst": "pork", "wurstwaren": "pork", "brühwurst": "pork", "rohwurst": "pork",
     "fleischwurst": "pork", "würstchen": "pork", "chorizo": "pork", "salami": "pork",
@@ -227,13 +232,24 @@ _RULES: list[tuple[str, list[str]]] = [
     # Padding is load-bearing here too: bare "limo" claims Limonaie (an Italian lemon BISCUIT),
     # "spezi" claims Spezialsalz/Spezialmehl, and "latte" claims an Induktionskochplatte.
     # "Limonade" itself is caught a layer earlier, so "limo " only needs the standalone word.
-    ("soft_drinks", ["wasser", "cola", "limo ", "saft", "kaffee", " tee", "energy", "schorle", " spezi ",
-                     "fanta", "sprite", "nektar", "pepsi", "solevita", "espresso", "caffè", "caffe",
-                     "lavazza", "dallmayr", " latte", "aloe vera", "smoothie", "bella crema",
-                     # Coffee. "rondo " is space-guarded so it can't fire mid-word; a Bahlsen Rondo
-                     # biscuit would be caught by the "bahlsen" brand entry a layer earlier.
-                     # ("ganze bohnen" is a layer-2 form word — see _FORM_OVERRIDES.)
-                     "röstkaffee", "rondo "]),
+    # Coffee runs BEFORE soft_drinks — they no longer share keywords, but keeping the narrower
+    # category first makes the precedence explicit if either list grows.
+    # Deliberately NOT brand keywords here, each measured against the stored offers:
+    #   * "tchibo" — sells clothing and homeware too (7 of 11 stored rows are household,
+    #     e.g. "Tchibo Top"); a brand keyword would drag them into coffee.
+    #   * "melitta" — also filters and machines ("Melitta Barista" is a coffee *machine*).
+    #   * "cappuccino" — zero stored rows, and it is a chocolate/ice-cream flavour word.
+    # "jacobs" IS safe: all 18 stored rows are coffee, and it rescues 2 that fell to "other".
+    # Machines are not at risk from these: a Kaffeevollautomat carries a non-food path, which
+    # layer 1 claims for household long before this layer.
+    ("coffee", ["kaffee", "espresso", "caffè", "caffe", "lavazza", "dallmayr", " latte",
+                "bella crema", "röstkaffee", "jacobs",
+                # "rondo " is space-guarded so it can't fire mid-word; a Bahlsen Rondo biscuit
+                # is caught by the "bahlsen" brand entry a layer earlier.
+                # ("ganze bohnen"/"iced coffee" are layer-2 form words — see _FORM_OVERRIDES.)
+                "rondo "]),
+    ("soft_drinks", ["wasser", "cola", "limo ", "saft", " tee", "energy", "schorle", " spezi ",
+                     "fanta", "sprite", "nektar", "pepsi", "solevita", "aloe vera", "smoothie"]),
     ("pantry", ["nudel", "noodles", "pasta", "teigwaren", "porridge", "reis", "mehl", "zucker", " öl", "olivenöl", "essig", "konserve",
                 "sauce", "soße", "gewürz", "müsli", "haferflocken", "honig", "marmelade", "ketchup", "senf",
                 "oliven", "kichererbsen", "kidneybohnen", "kidney-bohnen", "aioli", "artischocken", "paella", "lupinen", "antipasti", "tapas",
@@ -295,8 +311,8 @@ BRAND_CATEGORY: dict[str, str] = {
     "citterio": "pork", "steinhaus": "pork", "houdek": "pork",
     "bauern gut": "pork", "bauerngut": "pork", "wiesenhof": "poultry",
     "frosta": "frozen", "mccain": "frozen", "mövenpick": "ice_cream", "moevenpick": "ice_cream",
-    "hochland": "cheese", "trolli ": "sweets", "nescafé": "soft_drinks", "nescafe": "soft_drinks",
-    "röstfein": "soft_drinks", "reinert": "pork",
+    "hochland": "cheese", "trolli ": "sweets", "nescafé": "coffee", "nescafe": "coffee",
+    "röstfein": "coffee", "reinert": "pork",
     "chio": "snacks", "sonnen bassermann": "pantry", "edeka zuhause": "household",
     # more single-category food brands (from the live "other" survey across all 3 chains).
     # Multi-category house brands (Milbona, Gut&Günstig, Metzgerfrisch, Butchers, ja!,
@@ -357,14 +373,14 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
                      # > Paulaner", so only layer 2 can rescue it. Padded BOTH sides: an unpadded
                      # "spezi" fires inside Spezialsalz / Spezialmehl / Käsespezialitäten.
                      " spezi ",
-                     # Coffee that a multi-category brand would otherwise claim: Mövenpick is ice
-                     # cream AND coffee, so "Mövenpick Ganze Bohnen" was ice_cream and its chilled
-                     # RTD "Iced Coffee" ("220-ml-Becher", "koffeinhaltig") was too — the source
-                     # files the latter under its own "Eis" node. Rescuing them HERE (layer 2 beats
-                     # both the path and the brand map) keeps "mövenpick" -> ice_cream usable for
-                     # the actual ice creams, which have no other signal.
-                     "iced coffee", "eiskaffee", "ganze bohnen",
                      "alkoholfrei"]),  # alkoholfrei beer/wine -> soft, beating a "Bier"/"Wein" path
+    # Coffee that a multi-category brand would otherwise claim: Mövenpick is ice cream AND coffee,
+    # so "Mövenpick Ganze Bohnen" was ice_cream and its chilled RTD "Iced Coffee" ("220-ml-Becher",
+    # "koffeinhaltig") was too — the source files the latter under its own "Eis" node. Rescuing them
+    # HERE (layer 2 beats both the path and the brand map) keeps "mövenpick" -> ice_cream usable for
+    # the actual ice creams, which have no other signal. "iced coffee" also carries the English
+    # spelling that the German "kaffee" keyword can't reach.
+    ("coffee", ["iced coffee", "eiskaffee", "ganze bohnen"]),
     # Spirits / premixed drinks the source mis-files under a soft or brand-beverage node:
     # Jägermeister (Dessert>Eis), Havana Club Dosen (Softdrinks>Cola), a Nordhäuser Williams
     # pear brandy (Marken Getränke), a hard seltzer (Softdrinks>Energydrink).
@@ -499,6 +515,17 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     "bakery": ["roggenmischbrot", "vollkornbrot", "mehrkornbrot"],
     "pantry": ["guacamole", "tomatenketchup"],
     "beef": ["ochsen-bäckchen", "ochsenbäckchen"],
+    # Drinkable coffee filed under a non-food node (Senseo pads and a REWE Bio Caffè Crema sit
+    # there). The APPLIANCES that share these words — Kaffeevollautomat, Espressomaschine,
+    # Filterkaffeemaschine, "Melitta Barista" — are genuinely household and are held there by
+    # `_RESCUE_VETO` below; that veto is what makes rescuing on "kaffee" safe at all.
+    # A bare "kaffee" on purpose, NOT the narrower "kaffeepad"/"kaffeekapsel": the narrow form
+    # happened to give the same answer, but only because no appliance name contains those words —
+    # which made `_RESCUE_VETO` below dead code that no test could exercise. With "kaffee" the veto
+    # is load-bearing and measurable: removing it leaks 7 machines (Kaffeevollautomat x3,
+    # Filterkaffeemaschine x2, DeLonghi x2) into Coffee. "espresso" is deliberately NOT here —
+    # it would drag in a "CROFTON Espressokocher" (a moka pot).
+    "coffee": ["kaffee", "caffè crema", "ganze bohnen"],
 }
 
 # If any of these appear in the name, the food noun is a coincidence and the non-food path stands:
@@ -511,6 +538,9 @@ _RESCUE_VETO: list[str] = [
     " hose", "shirt", "jacke", "socken", "kleid", "pulli", "pullover", "jeans", "leggings",
     " holz", "möbel", " lack",
     "knabbermix", "katzen", "hunde", "für tiere", " napf", "tierfutter", "vogelfutter",
+    # Coffee APPLIANCES keep their non-food path: a Kaffeevollautomat is not coffee. Without
+    # these the "coffee" rescue above would drag every machine into the Coffee aisle.
+    "vollautomat", "maschine", "barista", "mahlwerk", "milchaufschäumer", "kocher",
 ]
 
 

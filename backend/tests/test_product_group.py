@@ -58,9 +58,6 @@ def test_beef_cuts_group_for_the_eur_per_kg_comparison():
     "name,expected",
     [
         # Real soft-drink names sampled from the live DB, one per group.
-        ("Jacobs Gold", "Kaffee"),  # brand-only name (no word "Kaffee")
-        ("Melitta", "Kaffee"),
-        ("Lavazza Caffè Crema", "Kaffee"),
         ("Lipton Ice Tea", "Tee"),
         ("FUZE TEA", "Tee"),  # English "tea" (not the German "tee")
         ("Rauch Eistee", "Tee"),
@@ -147,3 +144,35 @@ def test_unmapped_category_and_no_match_return_none():
     # Missing/empty category or name is safe.
     assert product_group("Avocado", None, None) == (None, None)
     assert product_group("", None, "fruits") == (None, None)
+
+
+# --- coffee: grouped by FORM ---------------------------------------------------
+# Capsules, pads, beans and a chilled iced coffee are not substitutes, so "which is cheapest"
+# is only a fair question within a form. Ordering matters: the specific forms must beat the
+# catch-all "Gemahlen", whose keywords ("kaffee", "espresso") appear in almost every name.
+
+
+def test_coffee_groups_by_form_not_by_brand():
+    # Brand-only names (the word "Kaffee" absent) still land, via the brand keywords in Gemahlen.
+    assert product_group("Jacobs Gold", None, "coffee")[1] == "Gemahlen"
+    assert product_group("Lavazza Caffè Crema", None, "coffee")[1] == "Gemahlen"
+    assert product_group("Jacobs Lungo Kaffeekapseln Intenso", "Jacobs", "coffee")[1] == "Kapseln"
+    assert product_group("Senseo Kaffeepads Classic", "Senseo", "coffee")[1] == "Pads"
+    assert product_group("Tchibo Feine Milde Ganze Bohne", "Tchibo", "coffee")[1] == "Ganze Bohnen"
+    assert product_group("Mövenpick Iced Coffee", "Mövenpick", "coffee")[1] == "Eiskaffee"
+    assert product_group("ja! Röstkaffee kräftig", "ja!", "coffee")[1] == "Gemahlen"
+    assert product_group("Dallmayr Prodomo", "Dallmayr", "coffee")[1] == "Gemahlen"
+
+
+def test_a_specific_coffee_form_beats_the_generic_ground_bucket():
+    """Every one of these also contains a "Gemahlen" keyword ("kaffee"/"espresso"/a brand), so
+    they only land right because the specific forms are scanned first."""
+    assert product_group("Jacobs Kaffeekapseln Espresso", "Jacobs", "coffee")[1] == "Kapseln"
+    assert product_group("Melitta Kaffeepads Espresso", "Melitta", "coffee")[1] == "Pads"
+    assert product_group("Lavazza Espresso Ganze Bohnen", "Lavazza", "coffee")[1] == "Ganze Bohnen"
+    assert product_group("Nescafé 3in1 Instant Kaffee", "Nescafé", "coffee")[1] == "Instant"
+
+
+def test_coffee_grouping_does_not_leak_into_other_categories():
+    # The map is keyed by category, so a cheese named "Bohne" can't become Ganze Bohnen.
+    assert product_group("Bohnen-Käse", None, "cheese")[1] != "Ganze Bohnen"

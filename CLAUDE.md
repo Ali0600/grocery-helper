@@ -279,10 +279,32 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   space-padded standalone word `" eis "` — safe vs Fleisch/Reis/Eisberg/Eistee/Eiweiß — plus
   ice-cream brands); `frozen` keeps savoury (pizza/Pommes/fish). ~40 ice_cream vs ~28 frozen/PLZ.
   **`beverages` was split (2026-07-05) into `soft_drinks` (all non-alcoholic — soda/juice/water/
-  coffee/tea) + `alcoholic` (beer/wine/sekt/spirits)** across all 5 maps (`_PATH_MAP`, `_RULES`,
+  tea) + `alcoholic` (beer/wine/sekt/spirits)** across all 5 maps (`_PATH_MAP`, `_RULES`,
   `BRAND_CATEGORY`, `_FORM_OVERRIDES`, `_OVERRIDES`); `alkoholfrei` is a `_FORM_OVERRIDES`→soft
   guard so alcohol-free beer/wine isn't filed alcoholic. ~214 soft / ~252 alcoholic for a Berlin
-  PLZ. **Three categories added 2026-07-17 (PR3 of the audit, 72 offers moved, 0 regressions,
+  PLZ.
+  **`coffee` was split out of `soft_drinks` (2026-07-19, user-reported)** — it was **27% of the
+  category** (117 of 441 stored offers) and a bag of beans isn't a soft drink. Moved across the
+  layers: `_PATH_MAP` `kaffee`, a `("coffee", …)` `_RULES` tuple placed **before** soft_drinks,
+  `BRAND_CATEGORY` nescafé/nescafe/röstfein, and the L2 `iced coffee`/`eiskaffee`/`ganze bohnen`
+  form words (which still beat `mövenpick`→ice_cream). **127 offers moved, 0 regressions**
+  (121 from soft_drinks, 4 from household, 2 from other). **Tea deliberately stays in
+  soft_drinks**: what the feed carries is ready-to-drink Eistee/Bubble Tea/Kombucha, which really
+  is a soft drink. **Two brands measured and REJECTED as coffee keywords** (pinned by tests):
+  **`tchibo`** — 7 of its 11 stored rows are household (Tchibo Top, Palazzohose); its clothing is
+  shielded by a non-food path, but the *pathless* "Tchibo Snack-Piekser" would follow the keyword
+  into coffee. **`melitta`** — also filters and machines ("Melitta Barista" is an appliance).
+  **`_FOOD_RESCUE["coffee"]` is a bare `"kaffee"` on purpose**, not the narrower
+  `kaffeepad`/`kaffeekapsel`: both give the same answer today, but the narrow form made
+  `_RESCUE_VETO` **dead code no test could exercise**. With `kaffee`, removing the veto leaks 7
+  machines (Kaffeevollautomat ×3, Filterkaffeemaschine ×2, DeLonghi ×2) — so the guard is real and
+  measurable. `"espresso"` is NOT a rescue token: it drags in a "CROFTON Espressokocher" (moka pot).
+  `product_group` gains a `coffee` map grouping by **FORM** (Kapseln/Pads/Ganze Bohnen/Instant/
+  Eiskaffee/Gemahlen — capsules and beans aren't substitutes, so "cheapest" is only fair within a
+  form); the old `Kaffee` group under soft_drinks is gone. Mobile is data-driven (chips come from
+  `/api/categories`, and `DISCOUNT_DEFAULT_CATEGORIES` is a denylist so coffee gets the €/kg sort
+  default free) — the only mobile edit was `catalog.ts`'s `coffee` item, whose `category` fed
+  `basketResolve`'s specificity tie-break. **Three categories added 2026-07-17 (PR3 of the audit, 72 offers moved, 0 regressions,
   `other` 6.8%→6.4%)**: **`other_meat`** ("Lamb & Other Meat" — lamb/rabbit/game; `" lamm"`+
   `kaninchen` MOVED out of `pork`, and it runs before `fish` so **`Lammlachs`** — a lamb loin the
   source files under `Fleisch > Lamm` — stops being caught by the `lachs` fish rule); **`eggs`** (a

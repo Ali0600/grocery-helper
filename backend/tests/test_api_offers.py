@@ -57,7 +57,7 @@ def _seed(session: Session) -> None:
             o(lidl, "a", "Avocado", 149, discount_pct=40.0,
               raw_payload=json.dumps({"id": "a", "brand": {"name": "Bio"}})),
             o(lidl, "b", "Banane", 99, discount_pct=10.0),
-            o(lidl, "c", "Coupon Kaffee", 499, source="coupon", category="soft_drinks"),
+            o(lidl, "c", "Coupon Kaffee", 499, source="coupon", category="coffee"),
             o(edeka, "d", "Dorade", 799, category="fish"),
             o(edeka, "e", "Expired Erdbeeren", 199, valid_to=TODAY - timedelta(days=1)),
             o(edeka, "f", "Forever Feta", 189, valid_to=None, category="cheese"),

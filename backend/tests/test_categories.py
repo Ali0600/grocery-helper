@@ -155,7 +155,7 @@ def test_classify_rewe_flyer(name, brand, path, expected):
         ("McCain Pickers", "McCain", "frozen"),
         ("Hochland Sandwich Scheiben", "Hochland", "cheese"),
         ("Trolli Fruchtgummi", "Trolli", "sweets"),
-        ("Nescafé frappé", "Nescafé", "soft_drinks"),
+        ("Nescafé frappé", "Nescafé", "coffee"),
         ("Chio Dip!", None, "snacks"),                            # brand in name
         ("EDEKA zuhause Holzkohle", "EDEKA zuhause", "household"),
         ("Gut & Günstig Grillbriketts", "Gut & Günstig", "household"),
@@ -501,13 +501,13 @@ def test_rondo_is_off_the_brand_map():
 
 
 def test_coffee_is_no_longer_ice_cream_or_sweets():
-    assert classify("Röstfein Rondo Original Ganze Bohnen", "Röstfein", None) == "soft_drinks"
-    assert classify("Rondo Original", "Rondo", None, "gemahlen, versch. Sorten 500g Packung") == "soft_drinks"
-    assert classify("Mövenpick Ganze Bohnen", "MÖVENPICK", None) == "soft_drinks"
+    assert classify("Röstfein Rondo Original Ganze Bohnen", "Röstfein", None) == "coffee"
+    assert classify("Rondo Original", "Rondo", None, "gemahlen, versch. Sorten 500g Packung") == "coffee"
+    assert classify("Mövenpick Ganze Bohnen", "MÖVENPICK", None) == "coffee"
     # A chilled RTD coffee that the source files under its own "Eis" node is a drink, not an ice
     # cream — layer 2 has to beat both that path and the "mövenpick" -> ice_cream brand entry.
     eis_path = ["Lebensmittel und Getränke", "Produkte", "Dessert", "Eis"]
-    assert classify("Mövenpick Iced Coffee", "Mövenpick", eis_path, "koffeinhaltig, 220-ml-Becher") == "soft_drinks"
+    assert classify("Mövenpick Iced Coffee", "Mövenpick", eis_path, "koffeinhaltig, 220-ml-Becher") == "coffee"
 
 
 def test_multi_category_brands_that_deliberately_stay_on_the_brand_map():
@@ -796,3 +796,80 @@ def test_valess_is_cheese_not_meat():
     under 'Fleisch > Schnitzel', so a layer-2 override is required to beat the path."""
     path = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Fleisch", "Fleischzubereitungen", "Schnitzel"]
     assert classify("Valess Crispy Sticks", "Valess", path) == "cheese"
+
+
+# --- Coffee is its own category ------------------------------------------------
+# Split out of soft_drinks (it was 27% of it: 117 of 441 stored offers). A bag of beans and a
+# bottle of cola are not the same aisle. Tea deliberately STAYS in soft_drinks — what the feed
+# carries is almost entirely ready-to-drink iced tea / kombucha, which really is a soft drink.
+
+
+def test_coffee_lands_in_coffee_from_every_layer():
+    kaffee_path = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Kaffee"]
+    assert classify("Röstkaffee gemahlen", None, kaffee_path) == "coffee"          # L3 path node
+    assert classify("ja! Lungo oder Espresso", "ja!", None) == "coffee"            # L6 keyword
+    assert classify("Lavazza Crema e Gusto", "Lavazza", None) == "coffee"          # L6 brand-as-keyword
+    assert classify("Nescafé frappé", "Nescafé", None) == "coffee"                 # L4 brand map
+    assert classify("Jacobs Krönung", "Jacobs", None) == "coffee"                  # rescued from "other"
+    assert classify("Dallmayr Prodomo", "Dallmayr", None) == "coffee"
+
+
+def test_the_split_does_not_drag_the_rest_of_soft_drinks_along():
+    softdrink_path = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Softdrinks",
+                      "Softdrinkmarken"]
+    assert classify("Pfanner IceTea", "Pfanner", softdrink_path) == "soft_drinks"
+    # Real stored paths again: "Bubble Tea" is English, so the German " tee" keyword can't reach
+    # it by name alone — its Tee path is what places it, and that path must stay soft_drinks.
+    assert classify("EDEKA Herzstücke Bubble Tea", "EDEKA",
+                    ["Lebensmittel und Getränke", "Produkte", "Getränke", "Heißgetränk", "Tee",
+                     "Bubble Tea"]) == "soft_drinks"
+    assert classify("Roy Bio-Kombucha", "Roy",
+                    ["Lebensmittel und Getränke", "Produkte", "Getränke", "Teegetränk",
+                     "Kombucha"]) == "soft_drinks"
+    assert classify("Coca-Cola", "Coca-Cola", None) == "soft_drinks"
+    assert classify("GEROLSTEINER Schorle", "Gerolsteiner",
+                    ["Lebensmittel und Getränke", "Produkte", "Getränke", "Wasser",
+                     "Wassermarken", "Gerolsteiner"]) == "soft_drinks"
+    assert classify("Hohes C Vitamin Shots", "Hohes C",
+                    ["Lebensmittel und Getränke", "Produkte", "Getränke", "Saft", "Saftsorten",
+                     "Shots"]) == "soft_drinks"
+
+
+def test_coffee_MACHINES_stay_household():
+    """The trap that makes rescuing on a bare "kaffee" safe: an appliance is not a beverage.
+    Each is a real stored offer, and each is held back ONLY by `_RESCUE_VETO` — drop that list
+    and 7 of these machines move into Coffee."""
+    # Real stored paths, not invented ones — these all live under an electronics/furniture root.
+    for name, brand, path in (
+        ("KRUPS Kaffeevollautomat Sensation", "KRUPS", ["Elektronik und Technik", "Marken", "Krups"]),
+        ("SILVERCREST Espressomaschine", "SILVERCREST",
+         ["Elektronik und Technik", "Marken", "SilverCrest"]),
+        ("SILVERCREST Thermo-Filterkaffeemaschine", "SILVERCREST",
+         ["Möbel und Wohnen", "Produkte", "Möbel", "Küche", "Geschirr", "Kannen und Karaffen"]),
+        ("Bosch Kapselmaschine", "Bosch", ["Elektronik und Technik", "Marken", "Bosch"]),
+        ("Melitta Barista", "Melitta", ["Elektronik und Technik", "Marken", "Melitta"]),
+    ):
+        assert classify(name, brand, path) == "household", name
+
+
+def test_tchibo_is_not_a_coffee_brand_keyword():
+    """Tchibo sells clothing and homeware (7 of its 11 stored rows are household), so it may not
+    become a coffee keyword. Its clothing is already safe via the non-food path at layer 1 — the
+    row that would actually break is the pathless one, which a brand keyword WOULD claim."""
+    tchibo_path = ["Marken", "T", "Tchibo"]
+    assert classify("Tchibo Bedruckte Palazzohose", "Tchibo", tchibo_path) == "household"
+    # No path, so nothing shields it: add "tchibo" to the coffee keywords and this becomes coffee.
+    assert classify("Tchibo Snack-Piekser", "Tchibo", None) != "coffee"
+
+
+def test_real_coffee_under_a_nonfood_path_is_rescued():
+    """Senseo pads and a REWE Bio Caffè Crema sat in household because the source filed them
+    under a non-food node — the food-rescue reclaims them without touching the machines above."""
+    assert classify("Senseo Kaffeepads Classic oder Crema Pads", "Senseo",
+                    ["Elektronik und Technik", "Marken", "Senseo"]) == "coffee"
+    assert classify("REWE Bio Caffè Crema", "REWE Bio",
+                    ["Marken", "R", "REWE", "REWE Bio"]) == "coffee"
+
+
+def test_coffee_is_a_registered_category():
+    assert CATEGORIES["coffee"] == "Coffee"
