@@ -74,6 +74,11 @@ build the cheapest basket across one or two stores.
   are tracked by identity, not by id: if the flyer renames "McCain Golden Longs" to
   "Golden Long" next week, the exact match falls back to the brand's other offers
   (and to the product sub-group for brandless produce), ranked by name similarity.
+- **At-a-glance basket / like markers on each deal** — a small cart or heart in the
+  card's tag row shows when a product is already in your basket or already liked, so you
+  don't have to open the flyer to check. The markers update live as you add or like
+  (a memoization-safe wiring that keeps the swipe gestures smooth) and read out as part
+  of the card for screen readers.
 - **Hide a deal you're not interested in** — the deal detail's Hide button dismisses it
   from the list (and from the Basket, Recipes and Compare pages) for that flyer week,
   at that chain: hiding Edeka's Schnaps leaves Lidl's alone, and it returns when the

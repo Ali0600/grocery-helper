@@ -52,7 +52,7 @@ import { resolveSortMode, sortLabel } from '../sort';
 import { filterByVisibleStores, hasHiddenPresent, toggleHiddenStore, visibleStoreChains } from '../stores';
 import { resolveBasketItem } from '../basketResolve';
 import { filterHidden, HiddenItem, hiddenKeySet, hideKey, toggleHidden } from '../hidden';
-import { isLiked, onSaleCount, resolveLike } from '../likes';
+import { isLiked, likeKey, onSaleCount, resolveLike } from '../likes';
 import { DEFAULT_RECIPE_PREFS } from '../recipes';
 import {
   clearAllData,
@@ -465,6 +465,11 @@ export default function DealsScreen() {
   // Stable per-row callbacks: rows are memoized, so nothing about an unrelated
   // re-render (toast in/out, filter tweaks) touches a row while a gesture is live.
   const openOffer = useCallback((o: Offer) => setActive(o), []);
+  // Membership keys for the on-card status markers, derived from STATE (not the basketRef/likesRef
+  // mirrors — a ref read can't trigger a re-render). Same identity checks the flyer detail uses
+  // (`isLiked` / `resolveBasketItem(...).key`), so the card and the detail always agree.
+  const likedKeys = useMemo(() => new Set(likes.map((l) => l.key)), [likes]);
+  const basketKeys = useMemo(() => new Set(basket.map((b) => b.key)), [basket]);
   const renderOffer = useCallback(
     ({ item }: { item: Offer }) => (
       <SwipeableOfferCard
@@ -472,10 +477,16 @@ export default function DealsScreen() {
         onPressOffer={openOffer}
         onAdd={onAddToBasket}
         onLike={onLikeOffer}
+        liked={likedKeys.has(likeKey(item))}
+        inBasket={basketKeys.has(resolveBasketItem(item).key)}
       />
     ),
-    [openOffer, onAddToBasket, onLikeOffer],
+    [openOffer, onAddToBasket, onLikeOffer, likedKeys, basketKeys],
   );
+  // VirtualizedList cells are PureComponent-like: `data` is referentially unchanged when you
+  // like/add, so without an `extraData` change the cells never re-invoke `renderOffer` and a fresh
+  // marker never appears. This is the load-bearing wiring — passed to every list below.
+  const listExtra = useMemo(() => ({ likedKeys, basketKeys }), [likedKeys, basketKeys]);
 
   const onChangeRecipePrefs = useCallback((next: RecipePrefs) => {
     setRecipePrefs(next);
@@ -1018,6 +1029,7 @@ export default function DealsScreen() {
             maxToRenderPerBatch={10}
             windowSize={7}
             renderItem={renderOffer}
+            extraData={listExtra}
             renderSectionHeader={({ section }: { section: MineSection }) => (
               <CategorySectionHeader
                 label={section.label}
@@ -1056,6 +1068,7 @@ export default function DealsScreen() {
             maxToRenderPerBatch={10}
             windowSize={7}
             renderItem={renderOffer}
+            extraData={listExtra}
             renderSectionHeader={({ section }: { section: DealSection }) =>
               section.label ? (
                 <GroupHeader
@@ -1091,6 +1104,7 @@ export default function DealsScreen() {
             maxToRenderPerBatch={10}
             windowSize={7}
             renderItem={renderOffer}
+            extraData={listExtra}
             contentContainerStyle={styles.list}
             refreshControl={
               <RefreshControl

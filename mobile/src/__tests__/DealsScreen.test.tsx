@@ -792,3 +792,70 @@ describe('DealsScreen — Hide / Un-Hide a deal', () => {
     expect(screen.getByText('Show hidden (1)')).toBeTruthy();
   });
 });
+
+describe('DealsScreen — basket / like markers on the card', () => {
+  const LIKE = makeOffer({ name: 'Cached Bergkäse', price_cents: 299 });
+  const MILK = makeOffer({ name: 'Frische Vollmilch', category: 'dairy', price_cents: 119 });
+
+  async function seedCacheWith(offer: typeof LIKE) {
+    await AsyncStorage.setItem('plz', '10115');
+    await AsyncStorage.setItem(
+      'dealsCache',
+      JSON.stringify({
+        plz: '10115',
+        offers: [offer],
+        cats: [],
+        storeName: 'Lidl Testkiez',
+        cachedAt: NOW,
+        version: DEALS_CACHE_VERSION,
+      }),
+    );
+  }
+
+  it('folds a liked marker into the card when the product is already liked', async () => {
+    await seedCacheWith(LIKE);
+    await AsyncStorage.setItem(
+      'likedItems',
+      JSON.stringify([
+        { key: 'cached bergkäse', name: 'Cached Bergkäse', chain: 'lidl', likedPriceCents: 299, likedAt: 1 },
+      ]),
+    );
+    await render(<DealsScreen />);
+    // The status rides on the card's own spoken label — proves the whole chain reached OfferCard:
+    // likedKeys -> renderOffer -> SwipeableOfferCard -> OfferCard.
+    expect(await screen.findByLabelText('Open deal for Cached Bergkäse, liked')).toBeTruthy();
+  });
+
+  it('folds a basket marker into the card when the product is already in the basket', async () => {
+    await seedCacheWith(MILK);
+    // 'milk' is the key resolveBasketItem() derives for "Frische Vollmilch" (catalog reverse-match),
+    // so the exact-key check matches — the same identity the flyer detail uses.
+    await AsyncStorage.setItem('basket', JSON.stringify([{ key: 'milk', label: 'Milk', keywords: ['milch'] }]));
+    await render(<DealsScreen />);
+    expect(await screen.findByLabelText('Open deal for Frische Vollmilch, in your basket')).toBeTruthy();
+  });
+
+  it('shows no marker when the product is neither liked nor basketed', async () => {
+    await seedCacheWith(LIKE);
+    await render(<DealsScreen />);
+    expect(await screen.findByLabelText('Open deal for Cached Bergkäse')).toBeTruthy();
+    expect(screen.queryByLabelText('Open deal for Cached Bergkäse, liked')).toBeNull();
+  });
+
+  it('updates a card marker LIVE — liking from the deal detail lights the card behind it', async () => {
+    // Liking from the detail must light the card behind it (no remount). This proves the
+    // interaction path state -> renderOffer -> card. NOTE: it does NOT guard the `extraData` prop
+    // on the lists — jest re-renders eagerly and doesn't virtualize cells, so removing extraData
+    // still passes here (verified). extraData is the documented NATIVE mechanism; its live-update
+    // necessity is confirmed by web/native QA, not this test.
+    await seedCacheWith(LIKE);
+    await render(<DealsScreen />);
+
+    await fireEvent.press(await screen.findByLabelText('Open deal for Cached Bergkäse'));
+    await fireEvent.press(await screen.findByLabelText('Like Cached Bergkäse'));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Open deal for Cached Bergkäse, liked')).toBeTruthy(),
+    );
+  });
+});

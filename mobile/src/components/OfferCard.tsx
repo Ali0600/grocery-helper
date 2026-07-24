@@ -15,6 +15,8 @@ export function OfferCard({
   offer,
   onPress,
   accessibilityLabel,
+  liked,
+  inBasket,
 }: {
   offer: Offer;
   onPress?: () => void;
@@ -22,6 +24,12 @@ export function OfferCard({
    * card opens the detail — but NOT in the Basket's picker, where pressing it picks the offer for
    * your plan. A screen reader was being told the wrong action there. */
   accessibilityLabel?: string;
+  /** Show a heart / cart marker in the tag row when the product is already liked / in the basket,
+   * so you don't have to open the flyer to check. The status is also folded into the spoken label
+   * (the markers themselves aren't separately focusable inside the row button). Passed only from
+   * the deals list — the Basket picker leaves both undefined. */
+  liked?: boolean;
+  inBasket?: boolean;
 }) {
   const meta = [offer.category_label, formatBrand(offer.brand), cleanUnit(offer.unit)]
     .filter(Boolean)
@@ -31,6 +39,12 @@ export function OfferCard({
   const appDeal = hasAppDeal(offer);
   const discount = headlineDiscountPct(offer);
   const strike = headlineStrikeCents(offer);
+  // Fold basket/like status into the spoken label: the Pressable is the accessible element, so the
+  // markers' own labels aren't separately focusable at runtime — a screen-reader user only hears
+  // the row's label, so the status has to live there too.
+  const spokenLabel = onPress
+    ? `${accessibilityLabel ?? `Open deal for ${offer.name}`}${inBasket ? ', in your basket' : ''}${liked ? ', liked' : ''}`
+    : undefined;
   return (
     <Pressable
       onPress={onPress}
@@ -38,7 +52,7 @@ export function OfferCard({
       // the loose price/tag texts with no hint the row opens anything. Only a button when it
       // actually is one.
       accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityLabel={onPress ? (accessibilityLabel ?? `Open deal for ${offer.name}`) : undefined}
+      accessibilityLabel={spokenLabel}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
       <View style={styles.thumbWrap}>
@@ -77,6 +91,21 @@ export function OfferCard({
             <View style={[styles.iconPill, { backgroundColor: tint.day.bg }]}>
               <Icon name="calendar-outline" size={11} color={tint.day.fg} />
               <Text style={[styles.iconPillText, { color: tint.day.fg }]}>{offer.valid_days}</Text>
+            </View>
+          ) : null}
+          {/* Status markers, icon-only: shown only when already liked / in the basket. They carry a
+              label for RNTL/query purposes; the runtime announcement rides on the card label above. */}
+          {liked ? (
+            <View style={[styles.marker, { backgroundColor: tint.like.bg }]} accessibilityLabel="Liked">
+              <Icon name="heart" size={11} color={tint.like.fg} />
+            </View>
+          ) : null}
+          {inBasket ? (
+            <View
+              style={[styles.marker, { backgroundColor: tint.basket.bg }]}
+              accessibilityLabel="In your basket"
+            >
+              <Icon name="cart" size={11} color={tint.basket.fg} />
             </View>
           ) : null}
         </View>
@@ -137,6 +166,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   iconPillText: { fontSize: 10, fontWeight: '700' },
+  // Icon-only status marker (heart/cart) — a square-ish pill, no text, so it stays compact next to
+  // the labelled attribute pills.
+  marker: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6 },
   priceCol: { alignItems: 'flex-end', minWidth: 72 },
   price: { color: colors.text, fontSize: 17, fontWeight: '700' },
   was: { color: colors.muted, fontSize: 12, textDecorationLine: 'line-through', marginTop: 2 },
