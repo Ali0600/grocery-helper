@@ -1121,3 +1121,28 @@ applied but wasn't.
 mounted config file — "saved in the UI" and "in effect" are different states, and a service with
 auto-deploy disabled will happily sit on the old value indefinitely. Verify by restarting and
 observing the behaviour the value controls, not by re-reading the setting.
+
+## jest can't prove a `FlatList`/`VirtualizedList` needs `extraData` — it re-renders eagerly
+
+Adding live "in basket" / "liked" markers to memoized deal-list rows needs `extraData` on the list:
+RN's `VirtualizedList` cells are `PureComponent`-like, and when you like/add an item the list's
+`data` array is referentially unchanged, so without an `extraData` change the cells never re-run the
+row renderer and a fresh marker never appears. That's the documented native mechanism. But when I
+sabotaged it — removed `extraData` and re-ran the jest suite — every test still passed. jest (via
+jsdom / react-native's test renderer) doesn't virtualize: it renders all cells eagerly and
+re-renders freely on any parent update, so the very condition `extraData` exists to satisfy never
+arises. A green jest run said nothing about whether the marker updates live on a device.
+
+The proof had to come from a surface that actually virtualizes: react-native-web in the browser,
+where liking a deal from its detail lit the card behind it without a reload, hit-tested as real, and
+removing the like cleared it — none of which jest could distinguish from the broken version.
+
+**Why it came up:** I planned to "sabotage-prove the extraData wiring" with a jest test, and only by
+actually running the sabotage discovered the test couldn't tell the difference.
+
+**Takeaway:** a test only guards a behaviour in an environment where that behaviour's *precondition*
+can occur. Virtualization, layout, animation, z-order, and native-module effects are invisible to the
+jsdom/test-renderer layer, so a passing unit test there is not evidence they work — and a sabotage
+that still passes is telling you the test is blind, not that the code is fine. Prove those on the
+platform that implements them (web/simulator/device), and write the unit test's comment to say
+plainly what it does *not* cover, so the next person doesn't trust it for more than it's worth.
