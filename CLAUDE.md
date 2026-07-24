@@ -781,8 +781,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   substrings, so `ja!`→"ja" can't fire mid-word), ranked by shared-name-token count then price,
   capped at 8; (3) product **group** for brandless items (18% of offers; "Rispentomaten"→ other
   Tomaten). The **heart badge = likes with an exact match on sale now** (`onSaleCount`), not the
-  list size — hides at 0. The card shows **no** liked marker (deliberate; the tag row stays capped
-  at 3). Gesture wiring: legacy `Swipeable`'s `onSwipeableOpen` direction names the **panel side**
+  list size — hides at 0. Gesture wiring: legacy `Swipeable`'s `onSwipeableOpen` direction names the **panel side**
   — 'left' panel = right-swipe = Like, 'right' panel = left-swipe = basket — routed through the
   exported `handleSwipeableOpen` seam (SwipeableOfferCard.tsx), which is unit-testable since the
   native pan can't run under jest; it follows the freeze contract (close first, rAF-defer, and
@@ -791,6 +790,26 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   deliberately do NOT copy BasketModal's drop-household filter (equality matching has no keyword
   traps; liking a household item is legitimate). `tint.like` (pink) is the marker color — NOT
   `colors.badge` red (that means discount/error).
+- **On-card basket + like markers** (2026-07-20, `OfferCard` `liked`/`inBasket` props): a small
+  heart (`tint.like` pink) and cart (`tint.basket` green) in the tag row, shown **only** when the
+  product is already liked / in the basket — so a glance answers "have I got this?" without opening
+  the flyer. Icon-only (no text) to stay calm next to the chain/Bio/day pills; the status is folded
+  into the card's **spoken** label (`… , in your basket, liked`) because the Pressable is the
+  accessible element, so the markers' own labels aren't separately focusable. Semantics are the
+  **exact same checks the flyer detail uses** — `isLiked(offer, likes)` and
+  `basket.some(b => b.key === resolveBasketItem(offer).key)` — so card and detail always agree; NOT
+  the loose `offerMatchesItem` keyword matcher. Consequence (intended, matches the detail):
+  same-named offers share the like key and offers resolving to the same catalog/sub-group share the
+  basket key, so **siblings light up together**. **Freeze-safe wiring**: `DealsScreen` derives
+  `likedKeys`/`basketKeys` Sets from state, computes the two booleans in `renderOffer`, and passes
+  them as **primitive** props through the memoized `SwipeableOfferCard` — only the row whose flag
+  flips re-renders, and the flip lands after the gesture settles (the rAF-deferred write). **The
+  lists MUST pass `extraData={ {likedKeys, basketKeys} }`** — RN `VirtualizedList` cells are
+  PureComponent-like and `data` is referentially unchanged on like/add, so without it a fresh marker
+  never appears. **jest can't guard `extraData`** (it re-renders eagerly, no virtualization — a
+  removed-`extraData` sabotage still passes); the live-update path is proven by web QA on
+  react-native-web instead. Don't touch the ref-backed `onAddToBasket`/`onLikeOffer` callbacks —
+  their identity stability is the freeze contract.
   `git-compare` button): per product sub-group (`offer.group`), each selected store's cheapest
   price side by side, cheapest highlighted, rows sorted by spread; needs ≥2 stores sharing a
   sub-group; tap a price → FlyerModal (rendered beneath it). Store multi-select defaults to all

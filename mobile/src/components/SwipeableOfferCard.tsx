@@ -46,11 +46,17 @@ export const SwipeableOfferCard = memo(function SwipeableOfferCard({
   onPressOffer,
   onAdd,
   onLike,
+  liked,
+  inBasket,
 }: {
   offer: Offer;
   onPressOffer: (offer: Offer) => void;
   onAdd: (offer: Offer) => void;
   onLike: (offer: Offer) => void;
+  // Primitive props: booleans compare by value under memo(), so only the row whose flag actually
+  // flips re-renders — the freeze contract (identity-stable props) is preserved.
+  liked?: boolean;
+  inBasket?: boolean;
 }) {
   return (
     <Swipeable
@@ -75,7 +81,7 @@ export const SwipeableOfferCard = memo(function SwipeableOfferCard({
         handleSwipeableOpen(direction, swipeable, offer, { onAdd, onLike })
       }
     >
-      <OfferCard offer={offer} onPress={() => onPressOffer(offer)} />
+      <OfferCard offer={offer} onPress={() => onPressOffer(offer)} liked={liked} inBasket={inBasket} />
     </Swipeable>
   );
 });
