@@ -977,6 +977,25 @@ uses as a catch-all. Correct a catch-all by the item's own signal, not by relabe
 relabelling trades one misclassification for another. And gate the correction inside the failure
 branch (here: only when the path is non-food) so the happy path it's rescuing can never regress.
 
+## A check must not hardcode a value the system reads from config it can't see
+
+Our post-deploy gate polled `/api/offers?plz=10115` to prove prod served data. The server, though,
+boot-scrapes whatever `DEFAULT_PLZ` is set to — and that lives in the Render dashboard, off-repo,
+because a real postal code must never be committed to a public repo. The two agreed only by
+accident. The moment `DEFAULT_PLZ` was actually set, the server scraped one postal code and the
+gate asked about another: a completely healthy deploy went red with "prod serves no offers" while
+prod was serving 1472 across all five chains. Dropping the filter — "does prod serve **any** deals?"
+— asks the real invariant and can't drift.
+
+**Why it came up:** the gate had been green for weeks purely because nobody had set the env var it
+was implicitly asserting. Setting a config value correctly is what broke the check.
+
+**Takeaway:** when a check asserts something about a running system, it must not restate a value
+that system reads from configuration the check cannot observe — that's two sources of truth with no
+mechanism keeping them equal. Either read the config from the same place, or assert the invariant in
+a form that doesn't mention it. A useful smell: if the checker's literal has to be kept in sync with
+a dashboard by hand, it will eventually be wrong, and it will fail on a *healthy* system.
+
 ## A guard inside a conditional branch only protects the inputs that reach it
 
 The pet-food exclusion (`_RESCUE_VETO`) lived *inside* the non-food-path rescue, so it only ran for
