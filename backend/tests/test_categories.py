@@ -905,3 +905,36 @@ def test_pet_guard_does_not_swallow_real_meat():
     # And a human "Filet" under a real Fisch path is still fish (only the pet token diverts it).
     assert classify("Followfish Lachsfilet", "Followfish",
                     ["Lebensmittel und Getränke", "Produkte", "Fisch"]) == "fish"
+
+
+# --- Cheese the house brands leave on a bare brand-leaf path, or the source mis-files (2026-07-28
+# flyer audit). The fix is keyword/brand/rescue, never a blanket brand-map for a multi-form brand. ---
+
+@pytest.mark.parametrize(
+    "name, was",
+    [
+        ("RÜCKER Alter Schwede", "other (brand-leaf path)"),
+        ("Rücker Alter Schwede", "other"),
+        ("Milbona Maasdamer", "other"),
+        ("Milsani Maasdamer", "other"),
+        ("Grünländer Scheiben mild & nussig", "other"),
+        ("Rügener Badejunge Der Sahnige", "other"),
+        ("Milkana Tolle Rolle", "other"),
+    ],
+)
+def test_cheese_on_a_brand_leaf_path_is_cheese(name, was):
+    assert classify(name, None, None) == "cheese", f"was {was}"
+
+
+def test_milsani_reibekaese_rescued_from_a_pet_path():
+    """Grated cheese the source filed under a pet-brand node ("Marken für Tiere") — a rescue, and
+    the pet guard must not steal it (no pet token matches "reibekäse")."""
+    pet = ["Tierbedarf und Tierfutter", "Marken für Tiere"]
+    assert classify("Milsani Reibekäse XXL", "Milsani", pet) == "cheese"
+
+
+def test_cheese_batch_does_not_overreach_multiform_brands():
+    """Milkana spans cheese AND dairy, so only the specific name "Tolle Rolle" moved — its cream
+    stays dairy. Pinned so a future "just brand-map Milkana" can't land silently."""
+    assert classify("Milkana Frischeschale Sahne", "Milkana", None) == "dairy"
+    assert classify("Milkana Schmelzkäse", "Milkana", None) == "cheese"
