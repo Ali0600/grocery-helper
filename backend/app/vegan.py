@@ -21,6 +21,18 @@ _VEGAN_RE = re.compile(
 )
 
 
+def vegan_match(name: str, brand: Optional[str] = None) -> Optional[str]:
+    """The literal that marked this vegan ("Pflanzlich", "Oatly"), else None — for the trace.
+
+    Matches the RAW string (the regex is IGNORECASE), so the answer keeps the product's own
+    casing. Don't lowercase it, and don't feed this `categories._haystack`: that blob is
+    lowercased *and* space-padded, and `_VEGAN_RE`'s left-boundary lookbehind is not
+    obviously inert under padding.
+    """
+    m = _VEGAN_RE.search(f"{name} {brand or ''}")
+    return m.group(0) if m else None
+
+
 def is_vegan(name: str, brand: Optional[str] = None) -> bool:
     """True if the offer's name or brand marks it as vegan / plant-based."""
-    return bool(_VEGAN_RE.search(f"{name} {brand or ''}"))
+    return vegan_match(name, brand) is not None
