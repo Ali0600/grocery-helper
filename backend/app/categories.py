@@ -163,7 +163,8 @@ _RULES: list[tuple[str, list[str]]] = [
     # leading-space guard breaks the real "Black-Angus-Chipolata" (hyphen, not space) and the plant
     # is already caught by its non-food path. Verified: guarding it costs a beef row and saves none.
     ("beef", ["rind", "rinder", "tafelspitz", "angus", "t-bone", "rumpsteak", "rib eye", "hüftsteak",
-              "burger patties", "smash burger", "kalb", "bavette", "chuck-eye", "chuck eye"]),
+              "burger patties", "smash burger", "kalb", "bavette", "chuck-eye", "chuck eye",
+              "teres major"]),  # a beef shoulder cut ("Black Premium Teres Major")
     ("pork", ["schwein", "schnitzel", "hackfleisch", "hack ", " mett", "bratwurst", "wurst", "würstchen",
               "speck", "schinken", "salami", "kasseler", "leberkäse", "chorizo", "jamón", "jamon", "serrano",
               "fuet", "lyoner", "frikadelle", "kaminwurzerl", "bacon", "kebab", "cevapcici", "corned", "rügenwalder",
@@ -173,7 +174,12 @@ _RULES: list[tuple[str, list[str]]] = [
               # "würst" catches the umlaut plurals the bare "wurst" misses (Bockwürste,
               # Bratwürste); "haxe" is the pork knuckle — Kalbs-/Putenhaxe are safe because
               # the beef/poultry rules run first.
-              "spare rib", "nackensteak", "würst", "haxe"]),
+              "spare rib", "nackensteak", "würst", "haxe",
+              # 2026-07-28 flyer audit: sausage/cured pork the house brands leave in Other.
+              # "die thüringer" is the sausage BRAND phrase, not bare "thüringer" — the latter would
+              # wrongly grab "Mischgemüse Thüringer Art" (a vegetable). sucuk is filed pork by the
+              # sausage convention (the chip is "Pork & Sausage").
+              "tyrolini", "sucuk", "salametti", "pancetta", "spanferkel", "die thüringer"]),
     # Margarine/spread brands moved to _FORM_OVERRIDES (they need to beat a "Margarine" path node);
     # the bare "rama" here was also a latent Ramazzotti bug, hidden only by that amaro's alcoholic path.
     ("butter", ["markenbutter", "deutsche butter", "süßrahm", "suessrahm", "butter "]),
@@ -303,6 +309,10 @@ BRAND_CATEGORY: dict[str, str] = {
     "schöller": "ice_cream", "ben & jerry's": "ice_cream", "ben & jerry": "ice_cream",
     "gustavo gusto": "frozen", "ferrero": "sweets", "loacker": "sweets",
     "dulano": "pork", "meica": "pork", "brunch": "cheese", "kerrygold": "butter",
+    # Stockmeyer is single-category pork cold cuts (Salami, Sonntags-Frühstück). NOT Block House —
+    # the steakhouse brand also sells garlic BREAD ("BLOCK HOUSE Brot XXL Knoblauch" → bakery), so
+    # its two burgers stay in Other rather than risk that (pinned by test_classify_expanded_names).
+    "stockmeyer": "pork",
     "valensina": "soft_drinks", "lipton": "soft_drinks", "volvic": "soft_drinks",
     "schogetten": "sweets", "berggold": "sweets", "häagen-dazs": "ice_cream",
     # REWE flyer brands (paths are often brand-only -> no taxonomy node to use)
@@ -530,6 +540,10 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     "bakery": ["roggenmischbrot", "vollkornbrot", "mehrkornbrot"],
     "pantry": ["guacamole", "tomatenketchup"],
     "beef": ["ochsen-bäckchen", "ochsenbäckchen"],
+    # Pork the source files under a non-food "Grillfleisch"/promo node → household ("Hausmarke
+    # Schweine-Nackensteaks"). `nackensteak` is already a pork keyword, but the path wins first, so
+    # the rescue re-claims it. Specific enough that only pork carries them.
+    "pork": ["schweinenacken", "schweine-nacken"],
     # Grated cheese the source mis-files under a PET-brand node ("Milsani Reibekäse XXL" under
     # "Marken für Tiere"). Real cheese, not pet food, so it's a rescue — the pet guard's tokens
     # don't match "reibekäse", and no pet product carries the word.

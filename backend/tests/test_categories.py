@@ -938,3 +938,45 @@ def test_cheese_batch_does_not_overreach_multiform_brands():
     stays dairy. Pinned so a future "just brand-map Milkana" can't land silently."""
     assert classify("Milkana Frischeschale Sahne", "Milkana", None) == "dairy"
     assert classify("Milkana Schmelzkäse", "Milkana", None) == "cheese"
+
+
+# --- Sausage / cured & fresh meat the house brands leave in Other, plus household-pathed pork
+# (2026-07-28 flyer audit). ---
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("Handl Tyrolini", "pork"),
+        ("Kamar Sucuk", "pork"),
+        ("LANDBECK Salametti XXL", "pork"),
+        ("Davitani Pancetta", "pork"),
+        ("Spanferkel-Keule", "pork"),
+        ("Die Thüringer Duett", "pork"),
+        ("Die Thüringer Thüringer Stifte", "pork"),
+        ("Stockmeyer Sonntags-Frühstück", "pork"),
+        ("Black Premium Teres Major", "beef"),
+    ],
+)
+def test_meat_on_a_brand_leaf_path_lands_right(name, expected):
+    assert classify(name, None, None) == expected
+
+
+def test_block_house_stays_off_the_brand_map_it_also_sells_bread():
+    """Block House is a steakhouse but its flyer line includes garlic bread — so it is NOT a
+    single-category beef brand; the bread stays bakery, the burgers stay Other."""
+    assert classify("BLOCK HOUSE Brot XXL Knoblauch", "BLOCK HOUSE", None) == "bakery"
+
+
+def test_die_thueringer_is_a_brand_phrase_not_bare_thueringer():
+    """Bare 'thüringer' would grab "Mischgemüse Thüringer Art" (a vegetable); the brand phrase
+    "die thüringer" catches the sausages without touching it."""
+    veg = ["Lebensmittel und Getränke", "Produkte", "Gemüse", "Mischgemüse"]
+    assert classify("Schneemann Mischgemüse Thüringer Art", None, veg) != "pork"
+    assert classify("Die Thüringer Rostbratwurst", None, None) == "pork"
+
+
+def test_household_pathed_pork_is_rescued():
+    """Nackensteaks the source files under a non-food "Grillfleisch"/promo node were household;
+    the rescue re-claims them (the pork keyword alone loses to the path)."""
+    promo = ["Marken", "Hausmarke"]
+    assert classify("Hausmarke Schweine-Nackensteaks", "Hausmarke", promo) == "pork"
