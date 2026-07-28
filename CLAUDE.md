@@ -286,6 +286,18 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   (`kausnack`/`kaurollen`/`kauknochen`/`kaustange`), `katzenstreu`, and the single-category pet
   **brands** `coshida`/`sheba` — NOT `orlando` (which also sells human Mexican food; its pet lines
   are caught by the tokens). 15 offers moved, all → household, 0 regressions.
+  **The same 2026-07-28 audit cleaned five more clusters out of Other/Household** (PRs #103–106, each
+  a 0-regression full-DB diff; live "other" 6.9% → **4.4%**): cheese (Rücker/Grünländer→BRAND;
+  `maasdamer`/`badejunge`/`tolle rolle`/`harzer` keywords; `reibekäse` rescue); sausage/cured meat
+  (`tyrolini`/`sucuk`/`salametti`/`pancetta`/`spanferkel`/`die thüringer`→pork, `teres major`→beef —
+  **Block House stayed OFF the brand map**, it also sells garlic bread, the full-suite catch); drinks
+  (`bellacrema`→coffee; `rotbäckchen`/`gemüsesaft`/`iso light`/`activedrink`→soft); the Bier-path fish
+  rescue gained `lachsfilet`/`backfisch`/`thunfischfilet`, plus `kaugummi`→sweets and `fassbutter`→
+  butter; and the long tail (`oatly`/`simply v`/`like döner`→vegan; `bagel`/`simit`/`zwieback`/
+  `croutons`→bakery; `pfifferling`/`portobello`→vegetables; `chokis`/`hitschies`/`nippon`→sweets;
+  `little moons`/`mochi`→ice_cream; `_FOOD_RESCUE` snacks/pantry += `cashew`/`walnusskern`/
+  `reiswaffel`/`quinoa`/`agavendicksaft`). Left in Other on purpose (couldn't reach 0 regressions):
+  `mars`/`paula` (Paulaner clash), bare `mandel`, `zetti` (Mazzetti), a blanket Trader-Joe's brand map.
   **`ice_cream` is split out of `frozen`**
   (the source's `Eis`/`Speiseeis` path nodes + a keyword rule before frozen/sweets with the
   space-padded standalone word `" eis "` — safe vs Fleisch/Reis/Eisberg/Eistee/Eiweiß — plus

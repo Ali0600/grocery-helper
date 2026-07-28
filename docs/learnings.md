@@ -977,6 +977,23 @@ uses as a catch-all. Correct a catch-all by the item's own signal, not by relabe
 relabelling trades one misclassification for another. And gate the correction inside the failure
 branch (here: only when the path is non-food) so the happy path it's rescuing can never regress.
 
+## A guard inside a conditional branch only protects the inputs that reach it
+
+The pet-food exclusion (`_RESCUE_VETO`) lived *inside* the non-food-path rescue, so it only ran for
+offers that had a non-food category path. A pet product with **no** path and a meat word in its name —
+"Orlando Hundetrockennahrung **Rind** & Gemüse" — skipped the rescue entirely and the `rind` keyword
+classified it as **beef** (dog food showing up in the Chicken/Beef chips). The fix was a pet-food guard
+one layer earlier (`_FORM_OVERRIDES`, before the meat keywords) that fires **regardless of path**.
+
+**Why it came up:** the user spotted "Orlando (dog food) in Chicken". The veto was correct and even
+tested — but only for the ~2/3 of offers the source gives a category path; the pathless third bypassed
+it, so the guard read as complete while a whole class of input never touched it.
+
+**Takeaway:** when a rule must hold for *all* inputs, don't bury it inside a branch that only some
+inputs enter. Scoping a correction to a failure branch (so the happy path can't regress) is right — but
+then any input that skips that branch also skips the correction; if that class exists, the rule needs a
+second home on a path every input passes through. (The exact mirror of the food-rescue gating above.)
+
 ## A nested modal must not use a slide animation on react-native-web
 
 Opening the category editor from inside the category browser rendered it — the text was in the DOM,
