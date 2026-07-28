@@ -873,3 +873,35 @@ def test_real_coffee_under_a_nonfood_path_is_rescued():
 
 def test_coffee_is_a_registered_category():
     assert CATEGORIES["coffee"] == "Coffee"
+
+
+# --- Pet food never lands in a food chip (2026-07-28, user-reported: "Orlando in Chicken is dog
+# food"). The pet-food veto only ran INSIDE the non-food-path rescue, so a pathless pet product with
+# a meat word ("Orlando Hundetrockennahrung Rind") sailed to the meat keyword and became beef. A
+# layer-2 household override now catches pet food before the meat/coffee/snacks keywords AND before a
+# mis-filed food path (Sheba cat food sits under a "Fisch" node). ---
+
+@pytest.mark.parametrize(
+    "name, path, was",
+    [
+        ("Orlando Hundetrockennahrung Rind & Gemüse", None, "beef (the reported bug)"),
+        ("ROMEO Kauknochen aus Kaffeeholz", None, "coffee (kaffeeholz)"),
+        ("Coshida Gefüllte Knabbersnacks", None, "snacks"),
+        # A cat food the source files under a Fisch node — L2 must beat the food PATH at L3.
+        ("Sheba Katzennassfutter Filets", ["Lebensmittel und Getränke", "Produkte", "Fisch"], "fish"),
+        ("Orlando Pure Taste Hundetrockennahrung", None, "other"),
+        ("Coshida Katzennassnahrung", None, "other"),
+    ],
+)
+def test_pet_food_is_household_not_a_food_chip(name, path, was):
+    assert classify(name, None, path) == "household", f"was {was}"
+
+
+def test_pet_guard_does_not_swallow_real_meat():
+    """The guard is pet-term-specific, so genuine meat with the same word stays put — it fires on
+    'Hundetrockennahrung', never on a bare 'Rind'."""
+    assert classify("Metzgerfrisch Rinderhackfleisch", "Metzgerfrisch", None) == "beef"
+    assert classify("Wiesenhof Hähnchenbrust", "Wiesenhof", None) == "poultry"
+    # And a human "Filet" under a real Fisch path is still fish (only the pet token diverts it).
+    assert classify("Followfish Lachsfilet", "Followfish",
+                    ["Lebensmittel und Getränke", "Produkte", "Fisch"]) == "fish"
