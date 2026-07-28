@@ -15,6 +15,7 @@ from datetime import date, datetime, timezone
 from hypothesis import example, given
 from hypothesis import strategies as st
 
+from app.categories import classify, explain
 from app.dedup import _norm_name
 from app.scrapers.bonial import (
     MeinprospektScraper,
@@ -259,3 +260,21 @@ def test_offers_from_pages_never_raises_on_junk(pages_json):
         pages_json = {"contents": pages_json}
     out = MeinprospektScraper._offers_from_pages(pages_json, _BROCHURE_FROM, _BROCHURE_TO)
     assert isinstance(out, list)
+
+
+# --- categories: the trace must be as junk-total as the classifier -----------------------
+
+
+@given(
+    name=st.text(max_size=60),
+    brand=st.one_of(st.none(), st.text(max_size=30)),
+    path=st.one_of(st.none(), st.lists(st.text(max_size=25), max_size=6)),
+    unit=st.one_of(st.none(), st.text(max_size=40)),
+)
+def test_explain_never_raises_and_always_agrees_with_classify(name, brand, path, unit):
+    """`explain` evaluates layers `classify` short-circuits past, so it reaches inputs the
+    classifier never touches — a genuinely new raise surface. It must stay total, and the
+    two must never disagree about the winning slug (the whole point of one shared walk)."""
+    trace = explain(name, brand, path, unit)
+    assert trace.category == classify(name, brand, path, unit)
+    assert [step.layer for step in trace.layers] == ["0", "1", "2", "2b", "3", "4", "5", "6", "7"]

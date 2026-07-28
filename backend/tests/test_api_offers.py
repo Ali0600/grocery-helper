@@ -10,6 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app import categories
 from app.api import offers as offers_api
 from app.core.config import settings
 from app.db import get_session
@@ -136,6 +137,63 @@ def test_bulk_payloads_keyed_by_id_scoped_to_plz(client):
     banane = next(o for o in rows if o["name"] == "Banane")
     assert by_id[str(avocado["id"])] == {"id": "a", "brand": {"name": "Bio"}}
     assert by_id[str(banane["id"])] is None  # present, but captured as null
+
+
+# --------------------------------------------------------------------------- #
+# GET /api/offers/{id}/category-trace  +  /api/offers/category-traces
+# --------------------------------------------------------------------------- #
+def test_category_trace_reports_the_deciding_rule_and_the_stored_category(client):
+    rows = client.get("/api/offers?limit=100").json()
+    avocado = next(o for o in rows if o["name"] == "Avocado")
+
+    body = client.get(f"/api/offers/{avocado['id']}/category-trace").json()
+    assert body["stored_category"] == avocado["category"]
+    assert body["computed_category"] == body["trace"]["category"]
+    # Every layer is reported, in order — the skipped ones are the point, not noise.
+    assert [s["layer"] for s in body["trace"]["layers"]] == [
+        "0", "1", "2", "2b", "3", "4", "5", "6", "7"
+    ]
+    winner = next(s for s in body["trace"]["layers"] if s["status"] == "decided")
+    assert winner["slug"] == body["computed_category"]
+    assert client.get("/api/offers/999999/category-trace").status_code == 404
+
+
+def test_category_trace_flags_a_row_whose_stored_category_is_stale(client, monkeypatch):
+    """A category is persisted at scrape time, so the rules can move underneath a row.
+    `stale` has to say so — otherwise the trace explains a category the app isn't showing."""
+    rows = client.get("/api/offers?limit=100").json()
+    avocado = next(o for o in rows if o["name"] == "Avocado")
+    assert client.get(f"/api/offers/{avocado['id']}/category-trace").json()["stale"] is False
+
+    monkeypatch.setattr(categories, "_RULES", [("household", ["avocado"])])
+    body = client.get(f"/api/offers/{avocado['id']}/category-trace").json()
+    assert body["stored_category"] == "fruits" and body["computed_category"] == "household"
+    assert body["stale"] is True
+
+
+def test_category_trace_exposes_the_path_that_offerout_hides(client):
+    """`category_path` drives layers 1 and 3 but isn't in OfferOut — the trace is the only
+    way to see it, so "this offer has no path" stops being a guess."""
+    rows = client.get("/api/offers?limit=100").json()
+    avocado = next(o for o in rows if o["name"] == "Avocado")
+    assert "category_path" not in avocado  # still absent from the list payload
+    inputs = client.get(f"/api/offers/{avocado['id']}/category-trace").json()["trace"]["inputs"]
+    assert inputs["text"] == " avocado  "  # the REAL padded haystack, space guards visible
+
+
+def test_bulk_category_traces_keyed_by_id_scoped_to_plz_and_null_free(client):
+    rows = client.get("/api/offers?plz=10115&limit=100").json()
+    by_id = client.get("/api/offers/category-traces?plz=10115").json()
+    # Same dedup + validity scoping as /api/offers, so the ids line up with the list.
+    assert set(by_id.keys()) == {str(o["id"]) for o in rows}
+    avocado = next(o for o in rows if o["name"] == "Avocado")
+    entry = by_id[str(avocado["id"])]
+    assert entry["computed_category"] == avocado["category"]
+    assert [s["layer"] for s in entry["trace"]["layers"]] == [
+        "0", "1", "2", "2b", "3", "4", "5", "6", "7"
+    ]
+    # Nulls are stripped in the bulk form — with them it is several MB over a real PLZ.
+    assert all(v is not None for s in entry["trace"]["layers"] for v in s.values())
 
 
 # --------------------------------------------------------------------------- #
