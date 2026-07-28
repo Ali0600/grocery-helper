@@ -1011,3 +1011,47 @@ def test_beer_path_traps_are_rescued_to_the_real_product():
     assert classify("Kaugummistange", None, G + ["Schaumwein", "Champagner", "Dom Perignon"]) == "sweets"
     assert classify("Gläserne Molkerei Bio-Fassbutter Sauerrahm", "Gläserne Molkerei",
                     G + ["Bier", "Biermarken", "Veltins"]) == "butter"
+
+
+# --- The Other / Household long tail (2026-07-28 flyer audit, batch F). ---
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("Bagel Bengel", "bakery"),
+        ("Ibis Simit", "bakery"),
+        ("Brandt Markenzwieback", "bakery"),
+        ("Johannisbeer-Streuseltaler", "bakery"),
+        ("Leimer Croutons Kräuter", "bakery"),
+        ("Pfifferlinge", "vegetables"),
+        ("Portobello", "vegetables"),
+        ("Rotstern Chokis", "sweets"),
+        ("Hitschler Hitschies", "sweets"),
+        ("Nippon Häppchen", "sweets"),
+        ("Little Moons Mochi Ice", "ice_cream"),
+        ("EDEKA Herzstücke Ice-Bites", "ice_cream"),
+        ("Blankenburg Harzer Kräuterhexe", "cheese"),
+        ("Oatly Haferdrink Barista", "vegan"),
+        ("Simply V Hirtengenuss", "vegan"),
+        ("Like Döner", "vegan"),
+    ],
+)
+def test_longtail_moves_out_of_other(name, expected):
+    assert classify(name, None, None) == expected
+
+
+def test_household_food_is_rescued_by_specific_nouns():
+    """Snacks/pantry the source files under a non-food (pet/promo/brand) node."""
+    pet = ["Tierbedarf und Tierfutter", "Marken für Tiere"]
+    promo = ["Saison und Events", "Payback"]
+    assert classify("Sun Snacks Erdnuss-flips XXL", "Sun Snacks", pet) == "snacks"
+    assert classify("Trader Joe's Walnusskerne XXL", "Trader Joe's", pet) == "snacks"
+    assert classify("REWE Bio Agavendicksaft", "REWE Bio", promo) == "pantry"
+
+
+def test_food_rescue_stays_gated_on_a_nonfood_path():
+    """A cashew BUTTER on a real food path keeps its pantry category — the rescue only fires under
+    a non-food path, so the new `cashew` rescue token can't drag it into snacks."""
+    real_path = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Brotaufstrich",
+                 "Fruchtaufstrich", "Fruchtmus", "Mandelmus"]
+    assert classify("Maribel Bio Cashewmus", "Maribel", real_path) == "pantry"

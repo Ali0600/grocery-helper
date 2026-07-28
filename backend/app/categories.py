@@ -150,7 +150,9 @@ _RULES: list[tuple[str, list[str]]] = [
     ("ice_cream", ["eiscreme", "speiseeis", "ice cream", "stieleis", "eis am stiel", "wassereis",
                    "soft-eis", "softeis", "milcheis", "fruchteis", "sandwich-eis", "sandwich eis",
                    "eisbecher", " eis ", "sorbet", "gelato", "plombir", "cremissimo", "magnum",
-                   "cornetto", "pirulo", "nogger", "solero", "calippo", "viennetta", "nuii"]),
+                   "cornetto", "pirulo", "nogger", "solero", "calippo", "viennetta", "nuii",
+                   # 2026-07-28 audit: frozen ice treats the source leaves in Other.
+                   "little moons", "mochi", "ice-bites"]),
     ("frozen", ["tiefkühl", "tiefkuehl", "tk-", "tk ", "gefrier", "pizza", "steinofen", "pommes",
                 "wedges", "burrito", "piccolini"]),
     ("fish", ["fisch", "lachs", "thunfisch", "garnele", "forelle", "hering", "sardin", "sardelle",
@@ -190,7 +192,8 @@ _RULES: list[tuple[str, list[str]]] = [
                 # with no "käse" in the name: "Maasdamer" is always cheese; "Badejunge" is the Rügener
                 # cheese; "Tolle Rolle" is the Milkana spreadable cheese (Milkana itself is multi-form
                 # — Frischeschale is dairy — so only the specific name, not the brand).
-                "maasdamer", "badejunge", "tolle rolle"]),
+                "maasdamer", "badejunge", "tolle rolle",
+                "harzer"]),  # Harzer (sour-milk cheese), e.g. "Blankenburg Harzer Kräuterhexe"
     ("dairy", ["milch", "joghurt", "jogurt", "quark", "sahne", "schmand", "buttermilch", "pudding", "skyr",
                "almighurt", "ehrmann", "kefir", "ayran", "grütze", "milchreis", "fruchtzwerge", "monte ", "paradies creme",
                "crème fraîche", "creme fraiche", "crème fraiche", "zaziki", "tzatziki", "milchschnitte", "pingui"]),
@@ -214,6 +217,8 @@ _RULES: list[tuple[str, list[str]]] = [
                 # (200-g-Packung) — the word Gebäck is only on the flyer artwork, never in the
                 # payload, so the product name is the only handle. Pinned like "knusperjung".
                 "limonaie", "colombine",
+                # 2026-07-28 audit: breads/pastries the house brands leave in Other.
+                "bagel", "simit", "streuseltaler", "zwieback", "croutons",
                 "focaccia"]),
     ("vegetables", ["tomate", "gurke", "salat", "kartoffel", "zwiebel", "paprika", "möhre", "moehre", "karotte",
                     "brokkoli", "blumenkohl", "spinat", "zucchini", "champignon", "pilz", "knoblauch", "lauch",
@@ -221,7 +226,9 @@ _RULES: list[tuple[str, list[str]]] = [
                     # Green beans, spelled out rather than a bare "bohnen": that would also claim
                     # Kidneybohnen (a pantry pulse, cf. "kichererbsen"), coffee "Ganze Bohnen", and
                     # "Bio-Cracker mit Ackerbohnen" — vegetables runs before snacks/pantry.
-                    "buschbohnen", "brechbohnen", "prinzessbohnen", "stangenbohnen", "grüne bohnen"]),
+                    "buschbohnen", "brechbohnen", "prinzessbohnen", "stangenbohnen", "grüne bohnen",
+                    # Mushrooms the source leaves in Other (the "pilz"/"champignon" words don't reach them).
+                    "pfifferling", "portobello"]),
     # Trailing spaces are load-bearing: "milka" fires inside Milkana (a cheese) and "fritt" inside
     # Heißluftfritteuse (an appliance) — today only a non-food path hides the latter.
     ("sweets", ["schokolade", "schoko", "praline", "keks", "bonbon", "gummibär", "riegel", "waffel", "nutella",
@@ -230,7 +237,9 @@ _RULES: list[tuple[str, list[str]]] = [
                 "fruchtgummi", "big choc", "smarties", "amicelli", "daim", "m&m", "maxi king",
                 # "cheesecake" is a dessert either way (a Becher one is still sweet); the
                 # ice_cream rule + the brand layer both run first, so Ben & Jerry's is safe.
-                "kinder bueno", "bärchen", "profiterole", "cheesecake", "knister-pop"]),
+                "kinder bueno", "bärchen", "profiterole", "cheesecake", "knister-pop",
+                # 2026-07-28 audit: confectionery the house brands leave in Other.
+                "chokis", "hitschies", "nippon"]),
     # NOTE: "knusper" removed — it's a coating adjective, not a snack noun; it mis-caught cat food
     # (Knuspermenü), chicken nuggets (Knusperdinos) and bread rolls (Knusperjungs), and matched 0
     # real snacks in the live feed. Specific "knusper*" products are pinned above (poultry/bakery).
@@ -548,9 +557,9 @@ _FOOD_RESCUE: dict[str, list[str]] = {
                    "zucchini", "rucola", "feldsalat", "wildkräuter salat"],
     "fish": ["deutsche see", "lachsfilet", "pangasius", "räucher-garnele"],
     "poultry": ["maishähnchen", "geflügelsalat", "geflügel-fleischsalat", "hähnchen-grillplatte"],
-    "snacks": ["jumbo erdnüsse", "erdnusskerne"],
+    "snacks": ["jumbo erdnüsse", "erdnusskerne", "erdnuss-flip", "cashew", "walnusskern", "reiswaffel"],
     "bakery": ["roggenmischbrot", "vollkornbrot", "mehrkornbrot"],
-    "pantry": ["guacamole", "tomatenketchup"],
+    "pantry": ["guacamole", "tomatenketchup", "agavendicksaft", "quinoa"],
     "beef": ["ochsen-bäckchen", "ochsenbäckchen"],
     # Pork the source files under a non-food "Grillfleisch"/promo node → household ("Hausmarke
     # Schweine-Nackensteaks"). `nackensteak` is already a pork keyword, but the path wins first, so
