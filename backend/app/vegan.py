@@ -15,8 +15,8 @@ from typing import Optional
 
 _VEGAN_RE = re.compile(
     r"(?<![a-zäöüß])(vegan|pflanzlich)"
-    r"|(?<![a-zäöüß])(vemondo|vemodo|like meat|likemeat|next level|garden gourmet|"
-    r"beyond meat|vivera|endori|veganz|alpro|taifun|planted|heura)",
+    r"|(?<![a-zäöüß])(vemondo|vemodo|like meat|likemeat|like döner|next level|garden gourmet|"
+    r"beyond meat|vivera|endori|veganz|alpro|taifun|planted|heura|simply v|oatly)",
     re.IGNORECASE,
 )
 
