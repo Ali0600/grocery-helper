@@ -195,8 +195,14 @@ jobs:
           BASE: https://grocery-helper-sw6c.onrender.com
         run: |
           # The boot-scrape runs at startup; give it a few retries before judging.
+          # Deliberately NOT filtered by plz: the boot-scrape fills whatever DEFAULT_PLZ is
+          # set to in the Render dashboard, which this workflow can't see (it's off-repo, and
+          # a real postal code must never be committed). Pinning a plz here silently asserts
+          # a value the server may not use — which is exactly how this gate went red on a
+          # perfectly healthy deploy once DEFAULT_PLZ was set. "Serves any deals at all" is
+          # the invariant we actually care about, and it can't drift.
           for i in $(seq 1 10); do
-            count=$(curl -fsS --max-time 60 "$BASE/api/offers?plz=10115&limit=2000" \
+            count=$(curl -fsS --max-time 60 "$BASE/api/offers?limit=2000" \
               | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
             echo "poll $i: served offers = $count"
             if [ "$count" -gt 0 ] 2>/dev/null; then
