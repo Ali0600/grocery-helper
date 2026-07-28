@@ -2,11 +2,13 @@ import {
   CategoryCount,
   NearbyStore,
   Offer,
+  OfferCategoryTrace,
   OfferPayload,
   PayloadMap,
   ResetResult,
   ScrapeResult,
   Store,
+  TraceMap,
 } from './types';
 
 // Default to the deployed backend so device + OTA builds work out of the box. Override
@@ -107,6 +109,19 @@ export const api = {
   // longer timeout; it's best-effort (the detail view falls back to `offerPayload`).
   offerPayloads(plz: string) {
     return get<PayloadMap>(`/api/offers/payloads?plz=${encodeURIComponent(plz)}`, 60000);
+  },
+
+  // Why one offer is in its category: which rule decided, which layers were skipped, and
+  // what the losing layers would have said. The fallback when the prefetched cache misses.
+  offerCategoryTrace(id: number) {
+    return get<OfferCategoryTrace>(`/api/offers/${id}/category-trace`);
+  },
+
+  // Every offer's trace for a PLZ (keyed by id) — prefetched so "Why this category?" is
+  // instant + offline. ~1.3 MB (trimmed server-side), so the longer timeout; best-effort,
+  // since the detail view falls back to `offerCategoryTrace`.
+  offerCategoryTraces(plz: string) {
+    return get<TraceMap>(`/api/offers/category-traces?plz=${encodeURIComponent(plz)}`, 60000);
   },
 
   // Nearest store of each known chain around the PLZ (OSM); active=true for
