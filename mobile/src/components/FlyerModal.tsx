@@ -12,12 +12,89 @@ import {
 import { AppModal } from './AppModal';
 
 import { api } from '../api';
+import {
+  counterfactuals,
+  layerLabel,
+  reasonLabel,
+  ruleAddress,
+  verdictDetail,
+  winningLayer,
+} from '../categoryTrace';
 import { chainLabel } from '../chains';
 import { cleanUnit, euro, fmtPricePerUnit, formatBrand } from '../format';
-import { getPayloadCache } from '../storage';
+import { getPayloadCache, getTraceCache } from '../storage';
 import { colors, tint } from '../theme';
 import { Icon } from './Icon';
-import { Offer, OfferPayload } from '../types';
+import { Offer, OfferCategoryTrace, OfferPayload } from '../types';
+
+/** "Why this category?" — the winning rule, then every layer's verdict.
+ *
+ * The layer list is the point, not decoration: a layer that decided *after* the winner is
+ * what the classifier would have said without it, which is how you tell "this rule is
+ * wrong" from "this rule is correctly beating a mis-filed source path".
+ */
+function CategoryTraceView({ data }: { data: OfferCategoryTrace }) {
+  const winner = winningLayer(data.trace);
+  const alternatives = counterfactuals(data.trace);
+  const path = data.trace.inputs.category_path;
+  return (
+    <View>
+      <Text style={styles.traceVerdict}>
+        {data.computed_label}
+        {winner ? ` — ${layerLabel(winner.layer)} ${verdictDetail(winner)}` : ''}
+      </Text>
+
+      {data.stale && (
+        <Text style={styles.traceStale}>
+          {`Shown as ${data.stored_label}, but the current rules say ${data.computed_label} — this row predates a rules change (re-scrape to fix).`}
+        </Text>
+      )}
+
+      {alternatives.length > 0 && (
+        <Text style={styles.traceMuted}>
+          {`Otherwise: ${alternatives
+            .map((l) => `${layerLabel(l.layer)} → ${l.slug}`)
+            .join(', ')}`}
+        </Text>
+      )}
+
+      <View style={styles.traceRule}>
+        {data.trace.layers.map((l) => {
+          const isWinner = l === winner;
+          const detail =
+            l.status === 'skipped'
+              ? `skipped — ${reasonLabel(l.reason)}`
+              : l.status === 'no_match'
+                ? 'no match'
+                : `${l.slug}${l.matched ? ` — "${l.matched}"` : ''}${
+                    l.reason && !l.matched ? ` (${reasonLabel(l.reason)})` : ''
+                  }${l.blocked_slug ? ` (blocked a ${l.blocked_slug} rescue)` : ''}`;
+          return (
+            <Text
+              key={l.layer}
+              style={[
+                styles.traceLayer,
+                isWinner && styles.traceLayerWin,
+                l.status !== 'decided' && styles.traceLayerOff,
+              ]}
+            >
+              {`${isWinner ? '▸' : ' '} ${l.layer.padEnd(2)} ${layerLabel(l.layer)}: ${detail}`}
+            </Text>
+          );
+        })}
+      </View>
+
+      {/* The source taxonomy path drives layers 1 and 3 but is absent from the deals API,
+          so this is the only place it's visible — and it's the usual culprit. */}
+      <Text style={styles.traceMuted}>
+        {path ? `Source path: ${path.join(' › ')}` : 'Source path: none'}
+      </Text>
+      {winner && ruleAddress(winner) && (
+        <Text style={styles.traceMuted}>{`Rule: categories.py ${ruleAddress(winner)}`}</Text>
+      )}
+    </View>
+  );
+}
 
 // Per-chain link to the full weekly online leaflet (Prospekt).
 const FLYER_LINKS: Record<string, { label: string; url: string }> = {
@@ -56,13 +133,50 @@ export function FlyerModal({
   const [loadingPayload, setLoadingPayload] = useState(false);
   const [payloadError, setPayloadError] = useState<string | null>(null);
 
-  // Reset the payload view whenever the modal opens a different offer (or closes).
+  // "Why this category?": same lazy, cache-first shape as the payload above.
+  const [showTrace, setShowTrace] = useState(false);
+  const [trace, setTrace] = useState<OfferCategoryTrace | undefined>(undefined);
+  const [loadingTrace, setLoadingTrace] = useState(false);
+  const [traceError, setTraceError] = useState<string | null>(null);
+
+  // Reset both debug views whenever the modal opens a different offer (or closes).
   useEffect(() => {
     setShowPayload(false);
     setPayload(undefined);
     setLoadingPayload(false);
     setPayloadError(null);
+    setShowTrace(false);
+    setTrace(undefined);
+    setLoadingTrace(false);
+    setTraceError(null);
   }, [offer?.id]);
+
+  const toggleTrace = useCallback(() => {
+    if (showTrace) {
+      setShowTrace(false);
+      return;
+    }
+    setShowTrace(true);
+    if (trace === undefined && offer) {
+      setLoadingTrace(true);
+      setTraceError(null);
+      // Cache first (instant + offline, no Render cold start), network only on a miss —
+      // identical to the payload path. `undefined` is the never-fetched sentinel.
+      (async () => {
+        try {
+          const cache = await getTraceCache();
+          const key = String(offer.id);
+          setTrace(
+            cache && key in cache.byId ? cache.byId[key] : await api.offerCategoryTrace(offer.id),
+          );
+        } catch {
+          setTraceError('Could not load the category rules.');
+        } finally {
+          setLoadingTrace(false);
+        }
+      })();
+    }
+  }, [showTrace, trace, offer]);
 
   const togglePayload = useCallback(() => {
     if (showPayload) {
@@ -235,7 +349,34 @@ export function FlyerModal({
 
               <Pressable
                 style={({ pressed }) => [styles.payloadBtn, pressed && styles.flyerBtnPressed]}
+                onPress={toggleTrace}
+                accessibilityRole="button"
+                accessibilityLabel={showTrace ? 'Hide category rules' : 'Why this category?'}
+              >
+                <Text style={styles.payloadBtnText}>
+                  {showTrace ? 'Hide category rules' : 'Why this category?'}
+                </Text>
+              </Pressable>
+
+              {showTrace && (
+                <View style={styles.payloadBox}>
+                  {loadingTrace ? (
+                    <ActivityIndicator color={colors.accent} />
+                  ) : traceError ? (
+                    <Text style={styles.muted}>{traceError}</Text>
+                  ) : trace ? (
+                    <CategoryTraceView data={trace} />
+                  ) : (
+                    <Text style={styles.muted}>No rule trace for this offer.</Text>
+                  )}
+                </View>
+              )}
+
+              <Pressable
+                style={({ pressed }) => [styles.payloadBtn, pressed && styles.flyerBtnPressed]}
                 onPress={togglePayload}
+                accessibilityRole="button"
+                accessibilityLabel={showPayload ? 'Hide payload' : 'View payload'}
               >
                 <Text style={styles.payloadBtnText}>
                   {showPayload ? 'Hide payload' : 'View payload'}
@@ -375,6 +516,29 @@ const styles = StyleSheet.create({
     minHeight: 44,
     justifyContent: 'center',
   },
+  // "Why this category?" — the verdict reads as a headline, the layer list as a log.
+  traceVerdict: { color: colors.text, fontSize: 13, fontWeight: '700', marginBottom: 6 },
+  traceStale: {
+    color: tint.day.fg,
+    fontSize: 11,
+    lineHeight: 15,
+    marginBottom: 6,
+  },
+  traceMuted: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 4 },
+  traceRule: {
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    marginTop: 8,
+    paddingTop: 8,
+  },
+  traceLayer: {
+    color: colors.text,
+    fontSize: 10,
+    lineHeight: 15,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  traceLayerWin: { color: colors.accent, fontWeight: '700' },
+  traceLayerOff: { color: colors.muted },
   payloadText: {
     color: colors.text,
     fontSize: 11,

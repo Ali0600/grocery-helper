@@ -119,6 +119,49 @@ export type OfferPayload = {
 // is null where the payload wasn't captured (like OfferPayload.payload).
 export type PayloadMap = Record<string, Record<string, unknown> | null>;
 
+// --- "Why this category?" — the classifier's per-layer trace (GET .../category-trace) ---
+// Which rule decided the category, which layers were skipped and why, and what the LOSING
+// layers would have said. Most fields are absent rather than null: the bulk form drops
+// everything derivable to keep the prefetch ~1.3 MB, so treat them all as optional and
+// render layer names from LAYER_LABELS (mobile/src/categoryTrace.ts), never from the wire.
+export type TraceLayer = {
+  layer: string; // "0" | "1" | "2" | "2b" | "3" | "4" | "5" | "6" | "7"
+  status: 'decided' | 'skipped' | 'no_match';
+  slug?: string; // what it decided — or WOULD have, when it isn't the winner
+  table?: string; // the rule table that matched, e.g. "_FORM_OVERRIDES"
+  index?: number; // position in it — slugs repeat, so this is what names the rule
+  matched?: string; // the exact token / brand key / path node
+  where?: string; // which haystack matched (only meaningful on a decided layer)
+  reason?: string; // why it was skipped, or which branch of layer 1 ran
+  blocked_slug?: string; // layer 1: the rescue a veto word killed
+};
+
+export type CategoryTrace = {
+  category: string;
+  inputs: {
+    category_path?: string[]; // the source taxonomy path — NOT exposed on Offer
+    name?: string;
+    brand?: string | null;
+    unit?: string | null;
+    text?: string; // the real space-padded haystack (per-offer endpoint only)
+    caption?: string;
+  };
+  layers: TraceLayer[];
+};
+
+export type OfferCategoryTrace = {
+  id: number;
+  stored_category: string;
+  stored_label: string;
+  computed_category: string;
+  computed_label: string;
+  stale: boolean; // stored category predates a rules change -> prod needs a re-scrape
+  trace: CategoryTrace;
+};
+
+// GET /api/offers/category-traces?plz= — every offer's trace, keyed by offer id (string).
+export type TraceMap = Record<string, OfferCategoryTrace>;
+
 // --- AI Recipes (offline-authored, bundled in the app; no runtime API) ---
 
 // One ingredient line in a recipe. `keywords`/`exclude` are German name stems matched

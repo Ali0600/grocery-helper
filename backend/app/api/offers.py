@@ -5,12 +5,14 @@ import logging
 import secrets
 import time
 from collections import Counter
+from dataclasses import asdict
 from typing import List, Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
+from .. import categories
 from ..categories import CATEGORIES
 from ..core.config import settings
 from ..db import SessionDep
@@ -138,6 +140,105 @@ def offer_payloads(session: SessionDep, plz: Optional[str] = None):
     stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today()))
     rows = dedup_offers(session.scalars(stmt).all())
     return {str(o.id): (json.loads(o.raw_payload) if o.raw_payload else None) for o in rows}
+
+
+def _stored_path(offer: Offer) -> Optional[List[str]]:
+    """The offer's source taxonomy path, decoded the same way `recategorize` does.
+
+    Defensive about the element type on purpose: `explain` evaluates layers that `classify`
+    short-circuits past, so it reaches `_path_node_hit` on rows the classifier never walked
+    — and a non-string node there would raise inside `.strip()`. Scraped rows are clean, but
+    this decodes a Text column, so it's validated here at the boundary rather than by
+    loosening `_path_node_hit` (whose behaviour must stay byte-identical).
+    """
+    if not offer.category_path:
+        return None
+    try:
+        raw = json.loads(offer.category_path)
+    except ValueError:
+        return None
+    return [n for n in raw if isinstance(n, str)] if isinstance(raw, list) else None
+
+
+def _trace_for(offer: Offer) -> dict:
+    """Recompute the classification and report it alongside the STORED one.
+
+    Categories are persisted at scrape time, so a row can predate a classifier change: the
+    app would then be showing `stored_category` while the rules now say something else.
+    `stale` names that explicitly — without it the trace would confidently explain a
+    category the offer isn't actually in, which is the failure this feature exists to catch.
+    """
+    trace = categories.explain(offer.name, offer.brand, _stored_path(offer), offer.unit)
+    return {
+        "id": offer.id,
+        "stored_category": offer.category,
+        "stored_label": categories.label(offer.category),
+        "computed_category": trace.category,
+        "computed_label": categories.label(trace.category),
+        "stale": trace.category != offer.category,
+        "trace": trace,
+    }
+
+
+def _compact(trace: categories.ClassifyTrace) -> dict:
+    """The trace stripped to what the app can't already derive — for the BULK response only.
+
+    This one is prefetched for every offer, so its size is a storage budget, not a detail:
+    measured over a real PLZ (1635 offers) the naive form is 2.30 MB, on top of the ~2.6 MB
+    payload cache. Three lossless-for-the-UI cuts take it to 1.30 MB:
+      * null fields dropped (most layers are a bare "no_match");
+      * `name` dropped — it's a fixed function of `layer`, and the app renders its own
+        human labels anyway;
+      * `where` dropped on layers that didn't decide (it only means anything for a match);
+      * of `inputs`, only `category_path` kept — the app already holds name/brand/unit on
+        the Offer, and the padded haystacks are a deep-dive detail.
+    The per-offer endpoint keeps the full shape, so nothing is permanently lost.
+    """
+    layers = []
+    for step in trace.layers:
+        entry = {k: v for k, v in asdict(step).items() if v is not None and k != "name"}
+        if step.status != "decided":
+            entry.pop("where", None)
+        layers.append(entry)
+    path = trace.inputs.category_path
+    return {
+        "category": trace.category,
+        "inputs": {"category_path": path} if path else {},
+        "layers": layers,
+    }
+
+
+@router.get("/offers/{offer_id}/category-trace")
+def offer_category_trace(session: SessionDep, offer_id: int):
+    """Why this offer is in its category: which rule decided, which layers were skipped and
+    why, and what the losing layers WOULD have said (the counterfactual is what tells you
+    where a fix belongs). Powers the app's "Why this category?" view.
+
+    Read-only and un-guarded like /payload — the rule tables are in a public repo. Also
+    exposes `category_path`, which is stored but deliberately absent from OfferOut, so the
+    most common cause of a mis-file is no longer invisible from the API."""
+    offer = session.get(Offer, offer_id)
+    if offer is None:
+        raise HTTPException(status_code=404, detail="offer not found")
+    return _trace_for(offer)
+
+
+@router.get("/offers/category-traces")
+def offer_category_traces(session: SessionDep, plz: Optional[str] = None):
+    """Every (deduped) offer's classification trace for a PLZ, keyed by offer id — the app
+    prefetches this so "Why this category?" is instant + offline. Mirrors /api/offers' dedup
+    + validity filter so the ids line up with the list, exactly like /offers/payloads."""
+    stmt = select(Offer).options(selectinload(Offer.store)).join(Store)
+    if plz:
+        stmt = stmt.where(Store.plz == plz)
+    stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today()))
+    rows = dedup_offers(session.scalars(stmt).all())
+    out = {}
+    for offer in rows:
+        entry = _trace_for(offer)
+        entry["trace"] = _compact(entry["trace"])
+        out[str(offer.id)] = entry
+    return out
 
 
 @router.get("/categories", response_model=List[CategoryCount])

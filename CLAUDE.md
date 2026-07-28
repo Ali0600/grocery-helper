@@ -193,12 +193,25 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   backfill (`python -m app.scripts.recategorize` / `POST /api/recategorize`)
   reproduces results without re-scraping. Watch for substring traps (e.g. "li**mett**e")
   and flavour words ("Mango"/"Pfirsich") stealing categories — guard them.
-  **Debugging gotcha: `OfferOut` does NOT expose `category_path`** — `/api/offers` always
-  shows it as absent/None, so never infer "this offer has no path" from the API. To see the
-  real stored path, query `offers.category_path` in the DB (or reason backwards: if
-  `recategorize` is a no-op yet a brand/keyword fix "should" apply, the offer has a *path*
-  winning at layer #3 — a mis-filed path needs a layer-#2 `_FORM_OVERRIDES` guard, not a
-  brand-map entry; e.g. "Vilsa H2 Obst …" water filed under Obst).
+  **Don't hand-trace the layers — ask `explain()`** (2026-07-28). `categories.explain(name,
+  brand, path, unit)` returns the category PLUS a per-layer verdict: which rule decided (with
+  the matched token and its `table` + `index`, since repeated slugs mean a slug names no
+  rule), which layers were **skipped and why** (`no_category_path` for 1/3, `no_unit` for 2b),
+  and — the useful part — what the **losing** layers would have said. "Heinz Tomatenketchup"
+  reports L5 winning `pantry` via `_OVERRIDES[5]` "ketchup" while L6 would have said
+  `vegetables` via "tomate": that's how you tell a wrong rule from one correctly holding the
+  line. Surfaced as **`GET /api/offers/{id}/category-trace`** (adds `stored_category` vs
+  `computed_category` + a **`stale`** flag — categories are persisted at scrape time, so a row
+  can predate a rules change) and **`GET /api/offers/category-traces?plz=`** (bulk, mirrors
+  `/api/offers`' dedup+validity so ids line up; trimmed to ~1.3 MB by dropping nulls, `name`,
+  `where`-on-misses and all `inputs` but the path — the per-offer one keeps the full shape).
+  In the app it's the **"Why this category?"** button in the deal detail, prefetched into its
+  own `traceCache` beside `payloadCache`. This also **closes the old `category_path` gotcha**:
+  `OfferOut` still doesn't expose it, but the trace does — so "this offer has no path" is no
+  longer a guess. **`classify()` and `explain()` share one table walk** (`_layers()` generator
+  + `_winner()`); `classify` stays lazy and short-circuits, `explain` pulls every layer. Never
+  rewrite `classify` as `explain(...).category` — measured ~3x on a path that runs once per
+  scraped offer, and a test counts the table scans to stop exactly that.
   **`_PATH_MAP` was expanded from a live taxonomy survey** (beverage spirit/…marken
   nodes, bread types, produce, sausage subtypes, würzmittel/salatdressing, …) + more
   single-category brands → **"Other" ~11% → ~1%** (12/1056 live). The leaf is *often a

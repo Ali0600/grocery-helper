@@ -4,7 +4,16 @@ import { CatalogItem, GROCERY_CATALOG } from './catalog';
 import { DEALS_CACHE_VERSION } from './format';
 import { activeHidden, HiddenItem } from './hidden';
 import { DEFAULT_RECIPE_PREFS } from './recipes';
-import { BasketItem, CategoryCount, LikedItem, MyStore, Offer, PayloadMap, RecipePrefs } from './types';
+import {
+  BasketItem,
+  CategoryCount,
+  LikedItem,
+  MyStore,
+  Offer,
+  PayloadMap,
+  RecipePrefs,
+  TraceMap,
+} from './types';
 
 const PLZ_KEY = 'plz';
 const NONFOOD_KEY = 'showNonFood';
@@ -18,6 +27,7 @@ const LIKES_KEY = 'likedItems';
 const HIDDEN_KEY = 'hiddenItems'; // deals dismissed from the deal detail (one flyer week)
 const DEALS_CACHE_KEY = 'dealsCache';
 const PAYLOAD_CACHE_KEY = 'payloadCache';
+const TRACE_CACHE_KEY = 'traceCache';
 const RECIPE_PREFS_KEY = 'recipePrefs';
 const ALWAYS_HAVE_KEY = 'alwaysHave';
 
@@ -306,7 +316,7 @@ export async function setDealsCache(data: CachedDeals): Promise<void> {
 // is showing stale data). The two are coupled to the same PLZ/week, so they clear together.
 export async function clearDealsCache(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([DEALS_CACHE_KEY, PAYLOAD_CACHE_KEY]);
+    await AsyncStorage.multiRemove([DEALS_CACHE_KEY, PAYLOAD_CACHE_KEY, TRACE_CACHE_KEY]);
   } catch (e) {
     console.warn('storage: clearDealsCache failed', e);
     // best-effort
@@ -343,6 +353,37 @@ export async function setPayloadCache(data: CachedPayloads): Promise<void> {
   }
 }
 
+// Classifier traces for the current PLZ's offers, prefetched alongside the payloads so the
+// deal detail's "Why this category?" is instant + offline. Same single-key/one-PLZ shape and
+// same freshness gate as CachedPayloads, but its OWN key so a quota failure on one doesn't
+// cost the other (~1.3 MB here vs ~2.6 MB there).
+export type CachedTraces = {
+  plz: string;
+  byId: TraceMap;
+  count: number;
+  cachedAt: number; // ms epoch of the fetch
+};
+
+export async function getTraceCache(): Promise<CachedTraces | null> {
+  try {
+    const raw = await AsyncStorage.getItem(TRACE_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as CachedTraces) : null;
+  } catch (e) {
+    console.warn('storage: getTraceCache failed', e);
+    return null;
+  }
+}
+
+export async function setTraceCache(data: CachedTraces): Promise<void> {
+  try {
+    await AsyncStorage.setItem(TRACE_CACHE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.warn('storage: setTraceCache failed', e);
+    // best-effort (e.g. the web localStorage quota, where this + payloads + deals is tight)
+    // — "Why this category?" just falls back to a network fetch.
+  }
+}
+
 // Wipe the persisted prefs, saved stores, basket, and cache — a full app reset. The saved
 // PLZ (location) is deliberately kept: a data reset shouldn't relocate the user to a default.
 export async function clearAllData(): Promise<void> {
@@ -359,6 +400,7 @@ export async function clearAllData(): Promise<void> {
       HIDDEN_KEY,
       DEALS_CACHE_KEY,
       PAYLOAD_CACHE_KEY,
+      TRACE_CACHE_KEY,
       RECIPE_PREFS_KEY,
       ALWAYS_HAVE_KEY,
     ]);

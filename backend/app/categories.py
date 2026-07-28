@@ -14,6 +14,9 @@
    *mis-filed* food path (the source files "Bananenchips" under Obst). Form words
    only — never a mere flavour — and space-guarded vs fruit superstrings
    ("nektar " vs "Nektarine").
+2b. **Flyer caption** (`unit`) — what the source *says the product is* ("55% Fett i. Tr.").
+   Before the path, because the path is frequently mis-filed while the caption carries
+   the product's own designation.
 3. **Food taxonomy node** — the most specific known node (an *intermediate* node;
    the leaf is often a brand, e.g. `…> Käse > Weichkäse` → cheese).
 4. **Brand map** — unambiguous brands → one category (a brand beats a flavour word:
@@ -24,12 +27,16 @@
 
 The path handles the big, diverse flyer catalog deterministically; the keyword
 layers cover coupons and brand-only flyer food. No LLM.
+
+`explain()` returns the same answer plus a per-layer trace — which rule fired, which
+layers were skipped and why, and what the losing layers *would* have said.
 """
 from __future__ import annotations
 
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import Iterable, Iterator, List, Literal, Optional
 
-from .vegan import is_vegan
+from .vegan import vegan_match
 
 # slug -> human label shown in the app
 # Insertion order drives the filter-chip order (GET /api/categories iterates this dict).
@@ -598,15 +605,149 @@ _RESCUE_VETO: list[str] = [
 ]
 
 
-def _food_rescue(name: str, brand: str | None) -> Optional[str]:
-    """A high-confidence food noun under a non-food path -> its real category, else None."""
-    text = f" {name.lower()} {(brand or '').lower()} "
-    if any(v in text for v in _RESCUE_VETO):
-        return None
-    for slug, tokens in _FOOD_RESCUE.items():
-        if any(token in text for token in tokens):
-            return slug
+# --------------------------------------------------------------------------------------
+# The classifier.
+#
+# `classify()` and `explain()` must never disagree about which rule won, so there is exactly
+# ONE walk of the tables — `_layers()`, a generator yielding one LayerTrace per layer, in
+# order — plus one selector, `_winner()`. Short-circuiting is a property of the CONSUMER,
+# not of a second code path: `classify` abandons the generator at the first decided layer
+# (so the layers after it never execute, exactly as the old inline cascade), while `explain`
+# pulls all of them to report what the *losing* layers would have said. Reordering a layer
+# means moving one `yield`, and both consumers move with it.
+# --------------------------------------------------------------------------------------
+
+# Closed vocabularies for LayerTrace.where / .reason (tests assert on these strings).
+_WHERE_RAW = "name_brand_raw"  # layer 0: the raw name+brand — not lowered, not padded
+_WHERE_TEXT = "name_text"  # the padded name+brand blob (`_haystack`)
+_WHERE_CAPTION = "caption"  # the padded flyer caption (`unit`)
+_WHERE_PATH = "path"  # the source taxonomy path
+_WHERE_BRAND = "brand_field"  # the bare, UNPADDED brand column
+
+_NO_PATH = "no_category_path"
+_PATH_IS_FOOD = "path_is_food_root"
+_NO_UNIT = "no_unit"
+_RESCUE_VETO_HIT = "rescue_veto"
+_NO_RESCUE_TOKEN = "no_rescue_token"
+_FALLBACK = "fallback"
+
+LayerStatus = Literal["decided", "skipped", "no_match"]
+
+
+@dataclass(frozen=True, slots=True)
+class LayerTrace:
+    """One layer's verdict. `status == "decided"` iff `slug` is set — see the constructors.
+
+    A layer identifies its rule by `table` + `index`, never by `slug` alone: slugs repeat
+    within the ordered tables (`_FORM_OVERRIDES` holds "alcoholic" three times), so the slug
+    does not name an editable rule while `_FORM_OVERRIDES[2]` does.
+    """
+
+    layer: str  # "0", "1", "2", "2b", "3", "4", "5", "6", "7" — the module docstring's numbering
+    name: str  # "vegan", "nonfood_path", "form_overrides", …
+    status: LayerStatus
+    slug: str | None = None  # what it decided — or WOULD have, when it isn't the winner
+    table: str | None = None  # which rule table matched
+    index: int | None = None  # position in it; None for the `_PATH_MAP` dict lookup
+    matched: str | None = None  # the exact token / brand key / path node / regex match
+    where: str | None = None  # which haystack it matched against
+    reason: str | None = None  # why it was skipped, or which branch of layer 1 ran
+    blocked_slug: str | None = None  # layer 1 only: the rescue a `_RESCUE_VETO` word killed
+
+    @classmethod
+    def decided(cls, layer: str, name: str, slug: str, **kw: object) -> LayerTrace:
+        return cls(layer, name, "decided", slug, **kw)  # type: ignore[arg-type]
+
+    @classmethod
+    def skipped(cls, layer: str, name: str, reason: str) -> LayerTrace:
+        return cls(layer, name, "skipped", reason=reason)
+
+    @classmethod
+    def missed(cls, layer: str, name: str, where: str | None = None) -> LayerTrace:
+        return cls(layer, name, "no_match", where=where)
+
+
+@dataclass(frozen=True, slots=True)
+class TraceInputs:
+    """What the classifier actually saw — including the two things the API otherwise hides.
+
+    `category_path` is stored but deliberately absent from `OfferOut`, and `text`/`caption`
+    are the REAL space-padded haystacks — which is what answers "why didn't my token match?"
+    (the space guards in keys like "rama " / " lamm" are invisible from the product name).
+    """
+
+    name: str
+    brand: str | None
+    category_path: List[str] | None
+    unit: str | None
+    text: str
+    caption: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ClassifyTrace:
+    category: str
+    inputs: TraceInputs
+    layers: tuple[LayerTrace, ...]
+
+    @property
+    def winner(self) -> LayerTrace:
+        return _winner(self.layers)
+
+
+def _haystack(name: str, brand: str | None) -> str:
+    """The space-padded name+brand blob that layers 1/2/4/5/6 match against.
+
+    The padding is load-bearing: hand-written keys emulate word boundaries with it ("rama "
+    vs Ramazzotti, " lamm" vs F-lamm-kuchen, " eis " vs Fleisch/Reis). NOTE layer 1 used to
+    build its own byte-identical copy — sharing this is a no-op today, but it means changing
+    the padding here now moves layer 1 too.
+    """
+    return f" {name.lower()} {(brand or '').lower()} "
+
+
+def _first_token_hit(
+    table: Iterable[tuple[str, List[str]]], haystack: str
+) -> Optional[tuple[int, str, str]]:
+    """First (index, slug, token) whose token is a substring — the entry `any()` stopped on."""
+    for index, (slug, tokens) in enumerate(table):
+        for token in tokens:
+            if token in haystack:
+                return index, slug, token
     return None
+
+
+def _first_brand_hit(brand_text: str, text: str) -> Optional[tuple[int, str, str, str]]:
+    """First BRAND_CATEGORY key found in the brand column, else in the name+brand blob.
+
+    The two `if`s are `brand_key in brand_text or brand_key in text` with attribution kept.
+    `brand_text` is deliberately NOT padded (unlike `text`), so space-guarded keys like
+    "lorenz " / "tuc " can only ever fire off the blob — don't "fix" that asymmetry.
+    """
+    for index, (brand_key, slug) in enumerate(BRAND_CATEGORY.items()):
+        if brand_key in brand_text:
+            return index, slug, brand_key, _WHERE_BRAND
+        if brand_key in text:
+            return index, slug, brand_key, _WHERE_TEXT
+    return None
+
+
+def _token_layer(
+    layer: str,
+    name: str,
+    table_name: str,
+    table: Iterable[tuple[str, List[str]]],
+    haystack: str,
+    where: str,
+) -> LayerTrace:
+    """The shared body of the four token-table layers (2, 2b, 5, 6)."""
+    hit = _first_token_hit(table, haystack)
+    if hit is None:
+        return LayerTrace.missed(layer, name, where)
+    index, slug, token = hit
+    return LayerTrace.decided(
+        layer, name, slug, table=table_name, index=index, matched=token, where=where
+    )
 
 
 def _path_nonfood(category_path: List[str]) -> bool:
@@ -614,13 +755,105 @@ def _path_nonfood(category_path: List[str]) -> bool:
     return bool(category_path) and category_path[0].strip().lower() != FOOD_ROOT
 
 
-def _path_node(category_path: List[str]) -> Optional[str]:
-    """Most-specific known food taxonomy node -> slug, else None (the leaf is often a brand)."""
+def _path_node_hit(category_path: List[str]) -> Optional[tuple[str, str]]:
+    """Most-specific known food taxonomy node -> (node as written, slug); the leaf is often a brand."""
     for node in reversed(category_path):
         slug = _PATH_MAP.get(node.strip().lower())
         if slug:
-            return slug
+            return node, slug
     return None
+
+
+def _layers(
+    name: str,
+    brand: str | None = None,
+    category_path: Optional[List[str]] = None,
+    unit: str | None = None,
+) -> Iterator[LayerTrace]:
+    """Yield every layer's verdict in order, evaluating each only when it is pulled."""
+    path = category_path or []
+    # 0. Explicitly-vegan products are their own category (the user's choice: vegan is a
+    #    section, so a vegan cheese moves out of Cheese). First, so it also rescues vegan
+    #    *food* the source mis-files under a non-food path (REWE plant-based → "household").
+    vegan_hit = vegan_match(name, brand)
+    yield (
+        LayerTrace.decided("0", "vegan", "vegan", matched=vegan_hit, where=_WHERE_RAW)
+        if vegan_hit
+        else LayerTrace.missed("0", "vegan", _WHERE_RAW)
+    )
+    text = _haystack(name, brand)
+    # 1. A non-food source path is authoritative ("Sektkühler" is household, not a drink) — UNLESS a
+    #    high-confidence food noun rescues it (the source dumps produce/fish under pet/garden/promo
+    #    nodes). Gated on the non-food path so a food-path item (Erdbeer-Joghurt -> dairy) is untouched.
+    if not path:
+        yield LayerTrace.skipped("1", "nonfood_path", _NO_PATH)
+    elif not _path_nonfood(path):
+        yield LayerTrace.skipped("1", "nonfood_path", _PATH_IS_FOOD)
+    else:
+        # Split the two outcomes the old `_food_rescue` collapsed into a bare None: a veto word
+        # killing a rescue and no rescue token at all both produced "household", indistinguishably.
+        veto = next((v for v in _RESCUE_VETO if v in text), None)
+        rescue = _first_token_hit(_FOOD_RESCUE.items(), text)
+        if veto is not None:  # the veto still wins, exactly as before
+            yield LayerTrace.decided(
+                "1", "nonfood_path", "household", table="_RESCUE_VETO", matched=veto,
+                where=_WHERE_TEXT, reason=_RESCUE_VETO_HIT,
+                blocked_slug=rescue[1] if rescue else None,
+            )
+        elif rescue is not None:
+            yield LayerTrace.decided(
+                "1", "nonfood_path", rescue[1], table="_FOOD_RESCUE",
+                index=rescue[0], matched=rescue[2], where=_WHERE_TEXT,
+            )
+        else:
+            yield LayerTrace.decided("1", "nonfood_path", "household", reason=_NO_RESCUE_TOKEN)
+    # 2. Definitive form words beat a *mis-filed food* path (Bananenchips under Obst, etc).
+    yield _token_layer("2", "form_overrides", "_FORM_OVERRIDES", _FORM_OVERRIDES, text, _WHERE_TEXT)
+    # 2b. What the CAPTION says it is. Beats the path below, because the path is frequently
+    #     mis-filed (a cheese under "Gemüse > Kohl", a pastry under "Obst > Rosinen") while the
+    #     caption carries the product's own designation.
+    if unit:  # NOT `is not None` — an empty caption stays skipped
+        yield _token_layer(
+            "2b", "caption_signals", "_CAPTION_SIGNALS", _CAPTION_SIGNALS,
+            f" {unit.lower()} ", _WHERE_CAPTION,
+        )
+    else:
+        yield LayerTrace.skipped("2b", "caption_signals", _NO_UNIT)
+    # 3. The food taxonomy node (an *intermediate* node; the leaf is often a brand).
+    if not path:
+        yield LayerTrace.skipped("3", "path_node", _NO_PATH)
+    else:
+        node_hit = _path_node_hit(path)
+        yield (
+            LayerTrace.decided(
+                "3", "path_node", node_hit[1], table="_PATH_MAP",
+                matched=node_hit[0], where=_WHERE_PATH,
+            )
+            if node_hit
+            else LayerTrace.missed("3", "path_node", _WHERE_PATH)
+        )
+    # 4. Unambiguous brand (a brand beats a flavour word: Häagen-Dazs Chocolate is frozen).
+    brand_hit = _first_brand_hit((brand or "").lower(), text)
+    yield (
+        LayerTrace.decided(
+            "4", "brand_map", brand_hit[1], table="BRAND_CATEGORY",
+            index=brand_hit[0], matched=brand_hit[2], where=brand_hit[3],
+        )
+        if brand_hit
+        else LayerTrace.missed("4", "brand_map")
+    )
+    # 5. Flavour/priority overrides, then 6. German-keyword rules.
+    yield _token_layer("5", "overrides", "_OVERRIDES", _OVERRIDES, text, _WHERE_TEXT)
+    yield _token_layer("6", "rules", "_RULES", _RULES, text, _WHERE_TEXT)
+    yield LayerTrace.decided("7", "fallback", "other", reason=_FALLBACK)
+
+
+def _winner(layers: Iterable[LayerTrace]) -> LayerTrace:
+    """The first layer that decided. Layer 7 always decides, so this always finds one."""
+    for step in layers:
+        if step.status == "decided":
+            return step
+    raise AssertionError("the fallback layer always decides")  # pragma: no cover
 
 
 def classify(
@@ -635,47 +868,40 @@ def classify(
     callers keep working, but pass it when you have it: the name is a marketing string that
     lies, and the caption states what the product actually is.
     """
-    path = category_path or []
-    # 0. Explicitly-vegan products are their own category (the user's choice: vegan is a
-    #    section, so a vegan cheese moves out of Cheese). First, so it also rescues vegan
-    #    *food* the source mis-files under a non-food path (REWE plant-based → "household").
-    if is_vegan(name, brand):
-        return "vegan"
-    # 1. A non-food source path is authoritative ("Sektkühler" is household, not a drink) — UNLESS a
-    #    high-confidence food noun rescues it (the source dumps produce/fish under pet/garden/promo
-    #    nodes). Gated on the non-food path so a food-path item (Erdbeer-Joghurt -> dairy) is untouched.
-    if _path_nonfood(path):
-        return _food_rescue(name, brand) or "household"
-    text = f" {name.lower()} {(brand or '').lower()} "
-    # 2. Definitive form words beat a *mis-filed food* path (Bananenchips under Obst, etc).
-    for slug, tokens in _FORM_OVERRIDES:
-        if any(token in text for token in tokens):
-            return slug
-    # 2b. What the CAPTION says it is. Beats the path below, because the path is frequently
-    #     mis-filed (a cheese under "Gemüse > Kohl", a pastry under "Obst > Rosinen") while the
-    #     caption carries the product's own designation.
-    if unit:
-        caption = f" {unit.lower()} "
-        for slug, tokens in _CAPTION_SIGNALS:
-            if any(token in caption for token in tokens):
-                return slug
-    # 3. The food taxonomy node (an *intermediate* node; the leaf is often a brand).
-    node = _path_node(path)
-    if node:
-        return node
-    # 4. Unambiguous brand (a brand beats a flavour word: Häagen-Dazs Chocolate is frozen).
-    brand_text = (brand or "").lower()
-    for brand_key, slug in BRAND_CATEGORY.items():
-        if brand_key in brand_text or brand_key in text:
-            return slug
-    # 5. Flavour/priority overrides, then 6. German-keyword rules.
-    for slug, tokens in _OVERRIDES:
-        if any(token in text for token in tokens):
-            return slug
-    for slug, keywords in _RULES:
-        if any(kw in text for kw in keywords):
-            return slug
-    return "other"
+    # LAZY on purpose: `_winner` returns at the first decided layer and abandons the
+    # generator, so the layers after it never run — the same short-circuit as before. Do NOT
+    # simplify this to `explain(...).category`: that evaluates every layer (~3x the work) on
+    # a path that runs once per scraped offer.
+    return _winner(_layers(name, brand, category_path, unit)).slug or "other"
+
+
+def explain(
+    name: str,
+    brand: str | None = None,
+    category_path: Optional[List[str]] = None,
+    unit: str | None = None,
+) -> ClassifyTrace:
+    """`classify` plus the full trace: every layer's verdict, in order.
+
+    Eager, so the layers *after* the winner are evaluated too — a later "decided" entry is
+    the counterfactual ("layer 3 would have said fish"), which is what tells you where a fix
+    belongs. Shares `_layers`/`_winner` with `classify`, so the two cannot disagree on the
+    winner. Note this reaches layers `classify` short-circuits past, so it sees inputs
+    `classify` never touches — callers must validate `category_path` is a list of str.
+    """
+    layers = tuple(_layers(name, brand, category_path, unit))
+    return ClassifyTrace(
+        category=_winner(layers).slug or "other",
+        inputs=TraceInputs(
+            name=name,
+            brand=brand,
+            category_path=list(category_path) if category_path else None,
+            unit=unit,
+            text=_haystack(name, brand),
+            caption=f" {unit.lower()} " if unit else None,
+        ),
+        layers=layers,
+    )
 
 
 def label(slug: str) -> str:
