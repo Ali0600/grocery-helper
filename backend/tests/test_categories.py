@@ -980,3 +980,34 @@ def test_household_pathed_pork_is_rescued():
     the rescue re-claims them (the pork keyword alone loses to the path)."""
     promo = ["Marken", "Hausmarke"]
     assert classify("Hausmarke Schweine-Nackensteaks", "Hausmarke", promo) == "pork"
+
+
+# --- Drinks/coffee in Other + strays the source files under a Beer/Sekt node (2026-07-28 audit). ---
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("Melitta BellaCrema", "coffee"),        # no-space spelling the "bella crema" keyword misses
+        ("Melitta BellaCrema SPECIALE", "coffee"),
+        ("RIVER Iso Light", "soft_drinks"),
+        ("MILSANI Activedrink XXL", "soft_drinks"),
+        ("Rotbäckchen", "soft_drinks"),
+        ("Von Herzen Regional Scharfe Gemüsesäfte", "soft_drinks"),
+    ],
+)
+def test_drinks_on_a_brand_leaf_path_land_right(name, expected):
+    assert classify(name, None, None) == expected
+
+
+def test_beer_path_traps_are_rescued_to_the_real_product():
+    """The source files some non-beer products under a real "Alkoholische Getränke > Bier/Champagner
+    > <brand>" node (verified stored paths); the L2 form words must beat that path. Real cases:
+    tuna & trout under a beer brand, a chewing gum under "Dom Perignon", a soured-cream butter
+    under "Veltins"."""
+    G = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Alkoholische Getränke"]
+    bier = G + ["Bier", "Biermarken", "Golden"]
+    assert classify("Golden Seafood Lachsforelle", "Golden Seafood", bier) == "fish"
+    assert classify("GOLDEN SEAFOOD Thunfischfilets XXL", "Golden Seafood", bier) == "fish"
+    assert classify("Kaugummistange", None, G + ["Schaumwein", "Champagner", "Dom Perignon"]) == "sweets"
+    assert classify("Gläserne Molkerei Bio-Fassbutter Sauerrahm", "Gläserne Molkerei",
+                    G + ["Bier", "Biermarken", "Veltins"]) == "butter"

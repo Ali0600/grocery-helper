@@ -255,12 +255,19 @@ _RULES: list[tuple[str, list[str]]] = [
     # layer 1 claims for household long before this layer.
     ("coffee", ["kaffee", "espresso", "caffè", "caffe", "lavazza", "dallmayr", " latte",
                 "bella crema", "röstkaffee", "jacobs",
+                # "bellacrema" (no space) is the "Melitta BellaCrema" spelling the spaced
+                # "bella crema" keyword misses.
+                "bellacrema",
                 # "rondo " is space-guarded so it can't fire mid-word; a Bahlsen Rondo biscuit
                 # is caught by the "bahlsen" brand entry a layer earlier.
                 # ("ganze bohnen"/"iced coffee" are layer-2 form words — see _FORM_OVERRIDES.)
                 "rondo "]),
     ("soft_drinks", ["wasser", "cola", "limo ", "saft", " tee", "energy", "schorle", " spezi ",
-                     "fanta", "sprite", "nektar", "pepsi", "solevita", "aloe vera", "smoothie"]),
+                     "fanta", "sprite", "nektar", "pepsi", "solevita", "aloe vera", "smoothie",
+                     # 2026-07-28 audit: drinks the house brands leave in Other. "iso light" is
+                     # space/word-guarded (vs Isomalt/isotonisch); "gemüsesaft"/"gemüsesäfte"
+                     # because the plural "-säfte" isn't caught by the bare "saft".
+                     "rotbäckchen", "iso light", "activedrink", "gemüsesaft", "gemüsesäfte"]),
     ("pantry", ["nudel", "noodles", "pasta", "teigwaren", "porridge", "reis", "mehl", "zucker", " öl", "olivenöl", "essig", "konserve",
                 "sauce", "soße", "gewürz", "müsli", "haferflocken", "honig", "marmelade", "ketchup", "senf",
                 "oliven", "kichererbsen", "kidneybohnen", "kidney-bohnen", "aioli", "artischocken", "paella", "lupinen", "antipasti", "tapas",
@@ -431,8 +438,13 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # explicit compound: "Hackfleisch gemischt aus Rind und Schwein" is legitimately pork.
     ("beef", ["rinderhack", "rinder-hack"]),
     # Fish the source dumps under a BEER brand node ("Bier > Biermarken > Golden" -> alcoholic).
-    # Both words are unambiguous fish, unlike the bare "lachs" above.
-    ("fish", ["lachsfilet", "backfisch"]),
+    # Both words are unambiguous fish, unlike the bare "lachs" above. `lachsforelle`/`thunfischfilet`
+    # rescue "Golden Seafood Lachsforelle" & co. off the same beer-brand nodes (2026-07-28 audit).
+    ("fish", ["lachsfilet", "backfisch", "lachsforelle", "thunfischfilet"]),
+    # More strays the source files under a Sekt/Beer node (-> alcoholic): a chewing gum under
+    # "Dom Perignon", a soured-cream butter under "Veltins". L2 so they beat that path.
+    ("sweets", ["kaugummi"]),
+    ("butter", ["fassbutter"]),
     # A croissant is bakery whatever it's filled with — "schinken" (pork) outranks "brot"/"gebäck"
     # in the keyword rules, so a Schinken-Käse-Croissant lands in pork.
     ("bakery", ["croissant"]),
