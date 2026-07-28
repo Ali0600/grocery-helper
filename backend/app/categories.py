@@ -179,7 +179,12 @@ _RULES: list[tuple[str, list[str]]] = [
     ("butter", ["markenbutter", "deutsche butter", "süßrahm", "suessrahm", "butter "]),
     ("cheese", ["käse", "kaese", "gouda", "mozzarella", "feta", "camembert", "parmesan", "frischkäse",
                 "emmentaler", "edamer", "grana", "manchego", "obazda", "zottarella", "queso", "brunch",
-                "burrata", "kashkaval", "kasländer"]),
+                "burrata", "kashkaval", "kasländer",
+                # Cheese TYPES/names the house brands (Milbona, Milsani) file under a brand-leaf path
+                # with no "käse" in the name: "Maasdamer" is always cheese; "Badejunge" is the Rügener
+                # cheese; "Tolle Rolle" is the Milkana spreadable cheese (Milkana itself is multi-form
+                # — Frischeschale is dairy — so only the specific name, not the brand).
+                "maasdamer", "badejunge", "tolle rolle"]),
     ("dairy", ["milch", "joghurt", "jogurt", "quark", "sahne", "schmand", "buttermilch", "pudding", "skyr",
                "almighurt", "ehrmann", "kefir", "ayran", "grütze", "milchreis", "fruchtzwerge", "monte ", "paradies creme",
                "crème fraîche", "creme fraiche", "crème fraiche", "zaziki", "tzatziki", "milchschnitte", "pingui"]),
@@ -325,6 +330,9 @@ BRAND_CATEGORY: dict[str, str] = {
     "bahlsen": "sweets", "marabou": "sweets",
     "saint agur": "cheese", "rougette": "cheese", "petrella": "cheese", "almette": "cheese",
     "géramont": "cheese", "geramont": "cheese", "becel": "butter",
+    # Single-category cheese brands the source leaves on a bare brand-leaf path (no "käse" in the
+    # name): Rücker (Alter Schwede + Grill-/Pfannenkäse) and Grünländer (Hochland's cheese line).
+    "rücker": "cheese", "rucker": "cheese", "grünländer": "cheese", "grünlander": "cheese",
     "florida eis": "ice_cream", "leffe": "alcoholic", "heineken": "alcoholic",
     "starbucks": "soft_drinks", "wiltmann": "pork", "wilhelm brandenburg": "pork",
     "baldauf": "cheese", "wagner": "frozen", "purina": "household", "pedigree": "household",
@@ -522,6 +530,10 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     "bakery": ["roggenmischbrot", "vollkornbrot", "mehrkornbrot"],
     "pantry": ["guacamole", "tomatenketchup"],
     "beef": ["ochsen-bäckchen", "ochsenbäckchen"],
+    # Grated cheese the source mis-files under a PET-brand node ("Milsani Reibekäse XXL" under
+    # "Marken für Tiere"). Real cheese, not pet food, so it's a rescue — the pet guard's tokens
+    # don't match "reibekäse", and no pet product carries the word.
+    "cheese": ["reibekäse", "reibekase"],
     # Drinkable coffee filed under a non-food node (Senseo pads and a REWE Bio Caffè Crema sit
     # there). The APPLIANCES that share these words — Kaffeevollautomat, Espressomaschine,
     # Filterkaffeemaschine, "Melitta Barista" — are genuinely household and are held there by
