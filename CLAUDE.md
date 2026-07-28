@@ -267,14 +267,26 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `möhre`→vegetables that the source dumps under `Dessert>Eis`. **The 2026-07-15 cleanup added
   more L2 guards** for items the source buries under a food node so only L2 can beat the path:
   premixed/spirits →alcoholic (`havana club`, `nordhäuser`, `hard seltzer`), pet →household
-  (`dental`, `hello my cat`), and `drumstick`→poultry (breaded chicken dumped in
+  (`dental`, `hello my cat`, and **pet food** — see below), and `drumstick`→poultry (breaded chicken dumped in
   `Knabberzeug>Sticks`). Also: `"knusper"` was **removed** from the snacks keywords — it's a
   coating adjective (matched cat food/nuggets/bread, 0 real snacks); specific `knusper*` lines
   are pinned (`knusperdino`→poultry, `knusperjung`→bakery). And `BRAND_CATEGORY` `"lorenz"` →
   `"lorenz "` (trailing space) so it stops swallowing `Lorenzo` (cf. `"wasa "`)), food taxonomy
   node, brand map,
   **`_OVERRIDES`** (flavour words like sekt/choco — after the brand so Häagen-Dazs Chocolate
-  stays **ice_cream**, not sweets), keyword rules. **`ice_cream` is split out of `frozen`**
+  stays **ice_cream**, not sweets), keyword rules.
+  **Pet food never lands in a food chip (2026-07-28, user-reported: "Orlando in Chicken is dog
+  food")**: the pet veto (`_RESCUE_VETO`) only ran INSIDE the non-food-path rescue, so a **pathless**
+  pet product with a meat word — "Orlando Hundetrockennahrung **Rind**" → beef; "ROMEO Kauknochen aus
+  Kaffeeholz" → coffee; "Coshida Knabbersnacks" → snacks — sailed to the keyword layer. A **layer-2
+  `_FORM_OVERRIDES` household** guard now catches pet food before the meat/coffee/snacks keywords AND
+  before a mis-filed food PATH ("Sheba Katzennassfutter Filets" sits under a `Fisch` node → was fish,
+  L2 beats L3). Tokens are the animal-only `-nahrung`/`-futter` stems (`trockennahrung`,
+  `nassfutter`, …; baby food is *Anfangs-/Säuglings-/Trink*-nahrung, no match), the chew words
+  (`kausnack`/`kaurollen`/`kauknochen`/`kaustange`), `katzenstreu`, and the single-category pet
+  **brands** `coshida`/`sheba` — NOT `orlando` (which also sells human Mexican food; its pet lines
+  are caught by the tokens). 15 offers moved, all → household, 0 regressions.
+  **`ice_cream` is split out of `frozen`**
   (the source's `Eis`/`Speiseeis` path nodes + a keyword rule before frozen/sweets with the
   space-padded standalone word `" eis "` — safe vs Fleisch/Reis/Eisberg/Eistee/Eiweiß — plus
   ice-cream brands); `frozen` keeps savoury (pizza/Pommes/fish). ~40 ice_cream vs ~28 frozen/PLZ.

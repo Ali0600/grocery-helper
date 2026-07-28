@@ -385,10 +385,17 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # Jägermeister (Dessert>Eis), Havana Club Dosen (Softdrinks>Cola), a Nordhäuser Williams
     # pear brandy (Marken Getränke), a hard seltzer (Softdrinks>Energydrink).
     ("alcoholic", ["jägermeister", "havana club", "nordhäuser", "hard seltzer"]),
-    # Pet care / cat food the source files under a food node (dog Dental-Sticks in Knabberzeug>
-    # Sticks; "Hello my cat" under the Gut&Günstig house brand) — must beat the path. Also an
-    # artificial pot plant the source files under "Würzmittel > getrocknete Kräuter" (-> pantry).
-    ("household", ["dental", "hello my cat", "topfpflanze"]),
+    # Pet care / pet food the source files under a food node or leaves pathless with a meat word
+    # in the name — must beat both the path (L3) and the meat keywords (L6). Real cases fixed:
+    # "Orlando Hundetrockennahrung Rind" was BEEF; "ROMEO Kauknochen aus Kaffeeholz" was COFFEE;
+    # "Sheba Katzennassfutter Filets" (a "Fisch" path) was FISH; "Coshida Knabbersnacks" was SNACKS.
+    # Every token verified pet-only over the DB — the "-nahrung"/"-futter" stems are animal-only
+    # (baby food is Anfangs-/Säuglings-/Trink-nahrung, none of which match), and `coshida`/`sheba`
+    # are single-category pet brands (unlike Orlando, which also sells human Mexican food).
+    ("household", ["dental", "hello my cat", "topfpflanze",
+                   "trockennahrung", "nassnahrung", "nassfutter", "trockenfutter", "hundefutter",
+                   "hundenahrung", "tierfutter", "tiernahrung", "vogelfutter", "katzenstreu",
+                   "kausnack", "kaurollen", "kauknochen", "kaustange", "coshida", "sheba"]),
     # Breaded chicken drumsticks the source dumps into Knabberzeug>Sticks (a snacks node); no
     # ice-cream "Drumstick" is in the feed, so this is unambiguous poultry.
     ("poultry", ["drumstick"]),
