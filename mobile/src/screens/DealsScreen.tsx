@@ -42,7 +42,9 @@ import {
   buildSections,
   chainCounts as tallyChainCounts,
   compareOffers,
+  DealFilterOptions,
   DealSection,
+  facetCounts,
   filterDeals,
   MineSection,
   presentChains as derivePresentChains,
@@ -754,21 +756,21 @@ export default function DealsScreen() {
   // The lens can only count while something is actually hidden — same only-when-present guard
   // as the store lens, so a lens left on when the last hide expires is a no-op, not an empty list.
   const activeShowHidden = showHidden && hiddenKeys.size > 0;
-  const visibleOffers = useMemo(
-    () =>
-      filterDeals(offers, {
-        showNonFood,
-        hiddenKeys,
-        showHidden: activeShowHidden,
-        hiddenStores,
-        storeLens: activeLens,
-        specialDays,
-        bioOnly,
-        query,
-        selected,
-      }),
+  // One options object for the whole screen: the list, the "My Categories" base and the
+  // sheet's pill counts all read it, so none of them can drift from what's on screen.
+  const filterOpts = useMemo<DealFilterOptions>(
+    () => ({
+      showNonFood,
+      hiddenKeys,
+      showHidden: activeShowHidden,
+      hiddenStores,
+      storeLens: activeLens,
+      specialDays,
+      bioOnly,
+      query,
+      selected,
+    }),
     [
-      offers,
       showNonFood,
       hiddenKeys,
       activeShowHidden,
@@ -779,6 +781,16 @@ export default function DealsScreen() {
       query,
       selected,
     ],
+  );
+  const visibleOffers = useMemo(() => filterDeals(offers, filterOpts), [offers, filterOpts]);
+  // What each pill in the sheet would give you, with every OTHER active filter applied — so
+  // two selected store pills actually sum to the list length. Four extra passes over the
+  // loaded set, so it's computed only while the sheet is open; the closed-sheet fallback is
+  // never read (the pills aren't rendered), and `filterSheet` flips in the same render that
+  // mounts them, so there's no frame showing stale numbers.
+  const sheetCounts = useMemo(
+    () => (filterSheet ? facetCounts(offers, filterOpts) : null),
+    [filterSheet, offers, filterOpts],
   );
 
   // The sort actually in effect: your explicit pick for this category wins, else the
@@ -874,28 +886,10 @@ export default function DealsScreen() {
   // animation. It's memoized on the same inputs the list already filters by, so this is one extra
   // pass per filter change, not per render.
   const mineBase = useMemo(
-    () =>
-      filterDeals(offers, {
-        showNonFood,
-        hiddenKeys,
-        showHidden: activeShowHidden,
-        hiddenStores,
-        storeLens: activeLens,
-        specialDays,
-        bioOnly,
-        query: '',
-        selected: null,
-      }),
-    [
-      offers,
-      showNonFood,
-      hiddenKeys,
-      activeShowHidden,
-      hiddenStores,
-      activeLens,
-      specialDays,
-      bioOnly,
-    ],
+    // The shelves/cards ignore the search box and the category chip, but inherit every other
+    // filter from the list — so they can't drift from it.
+    () => filterDeals(offers, { ...filterOpts, query: '', selected: null }),
+    [offers, filterOpts],
   );
   const categoryLabels = useMemo(
     () => Object.fromEntries(cats.map((c) => [c.category, c.label])),
@@ -1301,20 +1295,20 @@ export default function DealsScreen() {
         onChangeSort={onChangeSort}
         hideSort={mine}
         chains={visibleChains}
-        chainCounts={chainCounts}
+        chainCounts={sheetCounts?.chains ?? chainCounts}
         storeLens={activeLens}
         onToggleStoreLens={onToggleStoreLens}
         onClearStoreLens={clearStoreLens}
         hasDayLimited={hasDayLimited}
-        dayLimitedCount={dayLimitedCount}
+        dayLimitedCount={sheetCounts?.specialDays ?? dayLimitedCount}
         specialDays={specialDays}
         onChangeSpecialDays={setSpecialDays}
         hasBio={hasBio}
-        bioCount={bioCount}
+        bioCount={sheetCounts?.bio ?? bioCount}
         bioOnly={bioOnly}
         onChangeBio={setBioOnly}
         showNonFood={showNonFood}
-        nonFoodCount={nonFoodCount}
+        nonFoodCount={sheetCounts?.nonFood ?? nonFoodCount}
         onToggleNonFood={onToggleNonFood}
         hiddenCount={hiddenKeys.size}
         showHidden={activeShowHidden}

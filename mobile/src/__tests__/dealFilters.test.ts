@@ -6,6 +6,7 @@ import {
   compareOffers,
   DealFilterOptions,
   dropEdekaCenterDuplicates,
+  facetCounts,
   filterDeals,
   presentChains,
 } from '../dealFilters';
@@ -488,5 +489,80 @@ describe('buildCategoryCards — the "My Categories" browser', () => {
   it('returns nothing for an empty base or an empty order', () => {
     expect(buildCategoryCards([], ['fruits'], labels, byUnit)).toEqual([]);
     expect(buildCategoryCards([disc('a', 10)], [], labels, byUnit)).toEqual([]);
+  });
+});
+
+
+// --- The Filters sheet's pill counts -------------------------------------------------
+
+describe('facetCounts — "how many would I see if I turned this on?"', () => {
+  const o = (over: Partial<Offer>) => makeOffer({ chain: 'lidl', ...over });
+  const offers = [
+    o({ id: 1, name: 'Lidl Bio Apfel', is_bio: true }),
+    o({ id: 2, name: 'Lidl Wurst' }),
+    o({ id: 3, name: 'Lidl Putzmittel', category: 'household' }),
+    o({ id: 4, name: 'REWE Bio Milch', chain: 'rewe', is_bio: true, day_limited: true }),
+    o({ id: 5, name: 'REWE Brot', chain: 'rewe' }),
+    o({ id: 6, name: 'Edeka Käse', chain: 'edeka', day_limited: true }),
+  ];
+
+  it('counts every store when no filter is on', () => {
+    expect(facetCounts(offers, OPTS).chains).toEqual({ lidl: 2, rewe: 2, edeka: 1 });
+    // Household is excluded because the non-food toggle is off — the old whole-set count
+    // said lidl: 3 and disagreed with the list.
+  });
+
+  it('reacts to the OTHER active filters', () => {
+    expect(facetCounts(offers, { ...OPTS, bioOnly: true }).chains).toEqual({ lidl: 1, rewe: 1 });
+    expect(facetCounts(offers, { ...OPTS, query: 'brot' }).chains).toEqual({ rewe: 1 });
+  });
+
+  it('does NOT react to the store lens itself — otherwise every unpicked store reads 0', () => {
+    // The count has to answer "what would I get if I picked this", which is unknowable if
+    // the current pick is already applied.
+    expect(facetCounts(offers, { ...OPTS, storeLens: ['lidl'] }).chains).toEqual({
+      lidl: 2,
+      rewe: 2,
+      edeka: 1,
+    });
+  });
+
+  it('is ADDITIVE with the list — two selected pills sum to what you see', () => {
+    // This is the property the whole change exists for.
+    const counts = facetCounts(offers, OPTS).chains;
+    const shown = filterDeals(offers, { ...OPTS, storeLens: ['lidl', 'rewe'] });
+    expect(shown).toHaveLength(counts.lidl + counts.rewe);
+  });
+
+  it('counts special days / bio / non-food the same way', () => {
+    const c = facetCounts(offers, OPTS);
+    expect(c.specialDays).toBe(2); // the REWE + Edeka day-limited offers
+    expect(c.bio).toBe(2);
+    expect(c.nonFood).toBe(1); // the household offer, which the list is currently hiding
+  });
+
+  it('each of those also reflects the other filters', () => {
+    // With Bio on, "Special days" must promise only what Bio would leave.
+    expect(facetCounts(offers, { ...OPTS, bioOnly: true }).specialDays).toBe(1);
+    // With a store picked, the bio count is that store's bio offers.
+    expect(facetCounts(offers, { ...OPTS, storeLens: ['rewe'] }).bio).toBe(1);
+  });
+
+  it('reflects the E-center dedupe — the original complaint', () => {
+    // E center's copy of an EDEKA product is suppressed in the list, so the pill must not
+    // count it: this pair is what made "E center (272)" show while the list held 170.
+    const dupes = [
+      makeOffer({ id: 20, name: 'Milka Tafel', chain: 'edeka', price_cents: 149 }),
+      makeOffer({ id: 21, name: 'Milka Tafel', chain: 'edeka_center', price_cents: 149 }),
+      makeOffer({ id: 22, name: 'Nur E center', chain: 'edeka_center', price_cents: 199 }),
+    ];
+    expect(facetCounts(dupes, OPTS).chains).toEqual({ edeka: 1, edeka_center: 1 });
+    expect(chainCounts(dupes).edeka_center).toBe(2); // the old whole-set number
+  });
+
+  it('reflects hidden deals and hidden stores', () => {
+    const hidden = new Set([hideKey(offers[1])]); // Lidl Wurst
+    expect(facetCounts(offers, { ...OPTS, hiddenKeys: hidden }).chains.lidl).toBe(1);
+    expect(facetCounts(offers, { ...OPTS, hiddenStores: ['rewe'] }).chains.rewe).toBeUndefined();
   });
 });
