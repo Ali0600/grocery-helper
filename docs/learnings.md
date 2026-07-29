@@ -1272,3 +1272,58 @@ German product nouns, edited by the same kind of change, with no link between th
 it before you're done. Better, make the omission visible: the audit that caught this was a one-off
 "which offers in this category have no sub-group?" query, and it's cheap enough to keep — a
 coverage number per category (produce is now 98%) turns silent drift into a number that moves.
+
+## An image is the only instrument that can see a product whose text all agrees — and lies
+
+Three keyword-driven category audits had already run and the "other" rate was down to 4.3%, yet
+the user still saw wrong categories. Auditing by **product photo** — 1086 distinct products, 43
+contact sheets built from `Offer.image_url` — found 104 more, because the remaining class is the
+one where the name, the brand, the source path *and* the caption all read plausibly for the wrong
+answer. `Apfeltasche` is a pastry. `Milsani Erdbeere` is a rack of Skyr pots. `Pick Paprika
+Kolbasz` is Hungarian salami. `Berliner Buletten` are meatballs. `Tillman's Toasty` is breaded
+chicken. Not one is findable by re-reading the rules, because every text field is *consistent* —
+consistently wrong.
+
+**Why it came up:** the user asked for an audit "but this time also use the images". The images
+were already in the DB at 100% coverage and had never been used systematically.
+
+**Takeaway:** when a rules engine has been tuned by reading its rules several times and errors
+persist, the next audit has to change *instrument*, not effort. Find the channel the rules don't
+consume — a photo, a raw payload field, a second source's answer for the same entity — and look
+at that. Re-reading the same inputs harder cannot find a defect where the inputs agree.
+
+## A candidate rule that looks obviously right is a hypothesis, not a fix
+
+Seven signals were added, simulated over the full 10,692-row table, and thrown away. Every one
+looked correct in the editor:
+
+- `brotaufstrich` → pantry: moved Fleischsalat and Eiersalat out of pork. *Brotaufstrich* is a
+  **use**, not an identity — a spread's category comes from what it's made of.
+- `tiefgefroren` → frozen: **84 rows**, emptying ice cream, fish and poultry. The freezer is a
+  shelf, not a category.
+- `% vol` → alcoholic: a substring of `20% **Vol**lmilch`, so a chocolate brioche became alcohol.
+- `weine` → alcoholic: a substring of `**Schweine**-`, so a Schweinebraten became alcohol.
+- `grilltaler` → cheese: Grillmeister's is a meat patty; only Milram's is cheese.
+- a `fast food` path node → ready_meals: dragged 15 pizzas, burgers and nuggets out of frozen.
+- `mirabelle` and `senf` **in the wrong order**: a fruit brandy became fruit, a Matjes became
+  mustard. `_FORM_OVERRIDES` is first-hit-wins, so position is part of the rule.
+
+Six of the seven were caught only by the diff. One was caught by the counter-example half of a
+test I was writing for a *different* fix.
+
+**Takeaway:** for any substring-matching rules table, the cost of a bad entry is silent and the
+cost of checking is one query. Always diff a candidate over the whole corpus before committing
+it, and always write the test as a **pair** — the product that must move and the sibling that
+must not. In German the sibling is usually a compound: the trap is nearly always that your token
+is a substring of a longer, unrelated word.
+
+## Deleting a bad node from a hierarchy only helps if its parent is innocent
+
+The source files regional Thüringen food under `Wasser > Wassermarken > Thüringer Waldquell`, so
+mustard and Leberwurst were classified as soft drinks. The obvious fix — drop `wassermarken` from
+the node→category map — measured **zero** moves, because the lookup scans leaf→root and simply
+fell through to `Wasser`, which is also mapped to soft drinks.
+
+**Takeaway:** when a lookup walks a hierarchy, removing one bad key just promotes the next one.
+Before deleting a node, check what its ancestors map to — and if the whole branch is wrong for
+this product, the fix belongs at a layer that runs *before* the hierarchy is consulted at all.

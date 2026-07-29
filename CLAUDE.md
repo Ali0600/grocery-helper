@@ -316,6 +316,28 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   a MEAT patty, only Milram's `hotties` is cheese). **A `_FOOD_RESCUE` substring trap nearly
   shipped**: `weine` is inside `Schweine-`, so an unguarded token made a Schweinebraten under a
   pet path ALCOHOLIC — rescue nouns that are substrings of a common compound need a space guard.
+  **Two more structural causes the later sheets exposed.** (1) **A BRAND at layer 4 beating the
+  truth**: `mövenpick`→ice_cream sent its whole *coffee* range (`Kaffee`, `Kaffeekapseln`, `Der
+  Himmlische`) to Ice Cream, and `baileys`→alcoholic made `Baileys Muffins` a liqueur. The
+  documented "its coffees are rescued a layer earlier by `ganze bohnen`/`iced coffee`" only
+  covered part of the range — a mitigation that looked complete and wasn't. Multi-category
+  brands need their *other* categories pinned at **layer 2**, which is the only layer above the
+  brand map. (2) **A brand-container PATH node**: the source files regional Thüringen food under
+  `Wasser > Wassermarken > Thüringer Waldquell`, so Senf/Leberwurst/Rostbratwurst/Schinken/
+  Mirabellen were served as **soft_drinks**. **Deleting the offending node from `_PATH_MAP` does
+  NOT fix that** — the leaf→root scan falls through to the parent (`Wasser`, also mapped). Only
+  layer 2 beats a path; removing a node helps only when its parent is unmapped.
+  **`_FORM_OVERRIDES` is first-hit-wins, so ORDER is part of the fix.** Two guards had to be
+  appended *before* the tokens they protect: `edelbrand`/`obstgeist` before `mirabelle` (a
+  Mirabellen Edelbrand is a fruit BRANDY) and `matjes` before `senf` (a "Matjes Honig-Senf" is
+  herring). Both were caught by the full-DB diff, neither by reading the code.
+  **Seven signals were simulated and REJECTED across the audit** — all seven read as obviously
+  correct while being typed, and six were only caught by the diff: the three above plus
+  `% vol` (a substring of `20% Vollmilch` — it made a chocolate brioche alcoholic) and a
+  `fast food` `_PATH_MAP` node (dragged 15 pizzas/burgers/nuggets out of frozen and beef).
+  **Simulate every candidate signal over the full DB before adding it; the editor cannot see
+  these.** Rebuild the contact sheets from `Offer.image_url` (Pillow + a paced httpx fetch,
+  ~16 min for ~1100 images) to re-run the audit on a new flyer week.
   **Pet food never lands in a food chip (2026-07-28, user-reported: "Orlando in Chicken is dog
   food")**: the pet veto (`_RESCUE_VETO`) only ran INSIDE the non-food-path rescue, so a **pathless**
   pet product with a meat word — "Orlando Hundetrockennahrung **Rind**" → beef; "ROMEO Kauknochen aus
