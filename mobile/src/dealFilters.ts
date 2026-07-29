@@ -292,7 +292,8 @@ export function buildCategoryCards(
 }
 
 // Per-section metadata for the grouped (category) view. `label === null` renders no
-// header; `muted` is the small "More" header above the trailing single-offer bucket.
+// header; `muted` is the small "More" header above the trailing bucket of offers that
+// carry no sub-group at all.
 export type SectionMeta = {
   label: string | null;
   count: number;
@@ -307,9 +308,11 @@ function withinGroup(items: Offer[], mode: SortMode): Offer[] {
   return [...items].sort((a, b) => compareOffers(a, b, mode));
 }
 
-// Turn the already-filtered + sorted category view into sections: each product with
-// 2+ offers becomes a headed comparison group (biggest first, then A–Z); single-offer
-// and ungrouped items collect into one trailing bucket sorted by the active toggle.
+// Turn the already-filtered + sorted category view into sections: EVERY product with a
+// sub-group gets its own header (biggest first, then A–Z), even at one offer — the
+// sub-category is the unit the user shops in and the unit the Basket keys on, so hiding
+// it below one offer made a lone Kiwi unnameable. Only offers with no sub-group at all
+// collect into the trailing bucket, sorted by the active toggle.
 export function buildSections(sorted: Offer[], mode: SortMode): DealSection[] {
   const byGroup = new Map<string, Offer[]>();
   const tail: Offer[] = [];
@@ -325,18 +328,16 @@ export function buildSections(sorted: Offer[], mode: SortMode): DealSection[] {
 
   const groups: DealSection[] = [];
   byGroup.forEach((items, key) => {
-    if (items.length >= 2) {
-      groups.push({
-        key,
-        data: withinGroup(items, mode),
-        label: items[0].group_label ?? key,
-        count: items.length,
-        fromCents: Math.min(...items.map((o) => o.price_cents)),
-        muted: false,
-      });
-    } else {
-      tail.push(items[0]); // a lone product has nothing to compare — send it down
-    }
+    // Unconditional: a byGroup entry is created as [o] and only ever grown, so it can
+    // never be empty — a length guard here would be a branch no test could ever fail.
+    groups.push({
+      key,
+      data: withinGroup(items, mode),
+      label: items[0].group_label ?? key,
+      count: items.length,
+      fromCents: Math.min(...items.map((o) => o.price_cents)),
+      muted: false,
+    });
   });
   groups.sort((x, y) => y.count - x.count || (x.label ?? '').localeCompare(y.label ?? ''));
 
@@ -345,7 +346,11 @@ export function buildSections(sorted: Offer[], mode: SortMode): DealSection[] {
     groups.push({
       key: '__rest__',
       data: tailSorted,
-      label: groups.length ? 'More' : null, // only label the bucket when groups sit above
+      // Only label the bucket when headed groups sit above it. Since every sub-group now
+      // gets a header, the unlabelled case means "not one offer here carries a sub-group"
+      // — i.e. a category `product_group` doesn't map (pantry, sweets, alcoholic, …),
+      // which must keep rendering as a plain flat list.
+      label: groups.length ? 'More' : null,
       count: tailSorted.length,
       fromCents: null,
       muted: true,

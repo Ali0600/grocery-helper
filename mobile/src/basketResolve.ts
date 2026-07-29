@@ -8,9 +8,35 @@ import { norm, offerMatchesItem } from './basket';
 import { CatalogItem, GROCERY_CATALOG } from './catalog';
 import { BasketItem, Offer } from './types';
 
-// The exact shape the "+" button pushes (see BasketModal `addCatalog`).
-function toItem(c: CatalogItem): BasketItem {
+// The exact shape the "+" button pushes — exported so BasketModal uses THIS and not a
+// fourth inline copy of the literal.
+export function toItem(c: CatalogItem): BasketItem {
   return { key: c.key, label: c.en, keywords: c.keywords, exclude: c.exclude };
+}
+
+/**
+ * The one rule that turns a product sub-group into a basket item — shared by the swipe
+ * (`resolveBasketItem` below) and by BasketModal's "in this week's flyers" suggestions,
+ * so both mint the SAME key and one product can never occupy two basket rows.
+ *
+ * `group` is the backend slug and is what the key is built from — never `norm(label)`.
+ * The two disagree: `product_group._slug` hyphenates ("Ganze Bohnen" -> "ganze-bohnen")
+ * while mobile `norm` keeps spaces ("ganze bohnen"). Keying off the label would give the
+ * "+" path `grp:ganze bohnen` against the swipe's `grp:ganze-bohnen` — two rows, one
+ * product, on a group that is live in coffee this week.
+ *
+ * A catalog hit wins over a synthesized item on purpose: catalog entries carry `exclude`
+ * guards (apple excludes Apfelsaft, leek excludes Knoblauch) that a `grp:` item has not.
+ */
+export function subGroupItem(group: string, groupLabel?: string | null): BasketItem {
+  const label = groupLabel ?? group;
+  const nl = norm(label);
+  const hit =
+    GROCERY_CATALOG.find((c) => norm(c.de) === nl) ??
+    GROCERY_CATALOG.find((c) => c.keywords.some((kw) => norm(kw) === nl));
+  if (hit) return toItem(hit);
+  // No catalog entry for this sub-group → keep it as its own sub-category.
+  return { key: `grp:${group}`, label, keywords: [nl] };
 }
 
 // Most specific catalog item matching this offer by name: longest matched keyword wins,
@@ -33,18 +59,9 @@ function reverseMatch(offer: Offer): CatalogItem | null {
 }
 
 export function resolveBasketItem(offer: Offer): BasketItem {
-  // 1. The offer's sub-group IS the sub-category the user sees ("Melone"). Map it to a
-  //    catalog item by its German label/keyword, so the added entry equals a "+" add.
-  if (offer.group) {
-    const label = offer.group_label ?? offer.group;
-    const nl = norm(label);
-    const hit =
-      GROCERY_CATALOG.find((c) => norm(c.de) === nl) ??
-      GROCERY_CATALOG.find((c) => c.keywords.some((kw) => norm(kw) === nl));
-    if (hit) return toItem(hit);
-    // No catalog entry for this sub-group → keep it as its own sub-category.
-    return { key: `grp:${offer.group}`, label, keywords: [nl] };
-  }
+  // 1. The offer's sub-group IS the sub-category the user sees ("Melone"), and it is the
+  //    same rule BasketModal's flyer suggestions use — see `subGroupItem`.
+  if (offer.group) return subGroupItem(offer.group, offer.group_label);
   // 2. No sub-group → reverse-match the catalog by name (the same signal the basket uses).
   const c = reverseMatch(offer);
   if (c) return toItem(c);

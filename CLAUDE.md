@@ -430,9 +430,16 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   not fresh produce) — they land in the list's trailing bucket, which is honest.
   Computed in the serializer → `OfferOut.group`/`group_label`
   (**no DB column / migration**, like `unit_price_cents`). The app renders a
-  `SectionList` **only in a selected category** (not All/search): products with ≥2
-  offers get a header and float up (`mobile/.../DealsScreen.tsx` `buildSections`,
-  `components/GroupHeader.tsx`); singletons sink to a "More" bucket. Grouping makes
+  `SectionList` **only in a selected category** (not All/search): **every** sub-group gets a
+  header, ordered by size then A–Z (`dealFilters.ts` `buildSections`, `components/GroupHeader.tsx`),
+  and only offers with **no** sub-group fall into the trailing "More" bucket. Single-offer groups
+  are headed too — `Kiwi · 1 offer · from 2,49 €`, singular — because the sub-category is the unit
+  the user shops in *and* the unit the Basket keys on, so hiding it below 2 offers made a lone Kiwi
+  unnameable (changed 2026-07-29; it costs ~12 extra headers across 8 categories). `buildSections`
+  pushes groups **unconditionally**: a `byGroup` entry is created as `[o]` and only grown, so a
+  length guard there is a branch no test can fail. `label: null` on the bucket now means "not one
+  offer in this category carries a sub-group" — i.e. a category `product_group` doesn't map
+  (pantry, sweets, alcoholic…), which must keep rendering as a plain flat list. Grouping makes
   category mis-classification *visible* (a peach-flavoured drink lands under
   "Pfirsich"), so it's a good lens for tuning `categories.py`.
 - **Aggregators soft-throttle bursts** (marktguru, Bonial): they return empty
@@ -795,6 +802,26 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   still shows whole-set `chainCounts` on purpose: it's the membership surface ("how many deals does
   this chain have"), where a number shrunk by a hidden store or an active search would be wrong.
   The **category chips** also stay whole-set — they come from the API's `/api/categories`.
+- **The Basket suggests the sub-groups actually in this week's flyers** (2026-07-29,
+  `BasketModal` "In this week's flyers"): the add-search used to be `GROCERY_CATALOG` alone — 79
+  curated items, and its memo didn't even take `offers` as a dependency — so a product like
+  **Kohlrabi could not be added at all**. It now also lists every distinct `offer.group` in
+  `foodOffers` (~96/week), grouped by category, below the plan inside the ScrollView. **Both paths
+  resolve through the one exported `basketResolve.ts` `subGroupItem(group, groupLabel)`**, so a
+  chip-add and a swipe-add of the same product produce the SAME key and can never occupy two
+  basket rows; `addCatalog` now calls the exported `toItem` too, killing the last inline copy.
+  **Key off the backend slug, never `norm(label)`** — `product_group._slug` hyphenates
+  ("Ganze Bohnen"→`ganze-bohnen`) while mobile `norm` keeps spaces, and coffee ships that exact
+  group today. De-dupe is against **basket keys ∪ the catalog chips above** (a live "Pilz"
+  resolves to the catalog `mushroom`, so without it you get two chips), and a catalog hit wins
+  over a synthesized `grp:` item because it brings its `exclude` guards. `addFromText` consults
+  the live groups before minting a `free:` item — typing "Kohlrabi" used to give `free:kohlrabi`
+  beside a swiped `grp:kohlrabi`. **`MAX_LIVE_CHIPS` is a runaway guard (400), not a display
+  budget**: it was 30 and that was a bug — the list is ordered by category name, so 30 slots went
+  to Bakery→Fish and Fruits/Vegetables fell off the end. Any cap small enough to bite truncates
+  alphabetically. Pinned by a test spanning 11 categories; unit fixtures with one category each
+  cannot catch it (web QA did). The `liveGroups` memo depends on **`foodOffers` only** — it walks
+  ~1600 offers, so adding `text` to its deps would re-run it per keystroke.
 - **Swipe-to-basket is NATIVE (runtime 1.1.0)**: `SwipeableOfferCard` wraps `OfferCard` in
   gesture-handler's built-in `Swipeable` (NOT ReanimatedSwipeable — deliberately no reanimated/
   worklets dep); left-swipe adds the offer's sub-category via the pure resolver
