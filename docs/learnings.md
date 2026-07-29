@@ -1231,3 +1231,44 @@ sentence is a testable claim — sabotage it. If nothing goes red, the arrangeme
 the next person will "tidy" it away. (One of the two turned out to be untestable at all: the only
 route reaching it was a native gesture jest can't drive. That's a fine answer — but say so at the
 call site instead of leaving a comment that reads as if it's covered.)
+
+## A cap over a sorted list deletes the tail, and the tail is what you built the feature for
+
+The Basket's new "in this week's flyers" chips are ordered by **category name** and were capped at
+30. There are ~96 sub-groups across 13 aisles, so the 30 slots were consumed by Bakery, Beef,
+Cheese, Chicken, Coffee and Fish — and **Fruits and Vegetables never rendered at all.** The feature
+existed *specifically* so produce could be added to the basket. It shipped through tsc, lint, 8
+green component tests and a full-suite run, and only fell over when I read the actual chips out of
+the running app.
+
+Two things made it invisible:
+
+- **The cap and the sort key were unrelated.** Nobody chose "drop Vegetables"; the ordering was
+  alphabetical for readability and the cap was for readability, and their composition silently
+  encoded a priority nobody intended.
+- **Every fixture was smaller than the cap.** Each test used one or two categories, so the
+  `.slice(0, 30)` could never bite. A test can only exercise a limit if the fixture exceeds it —
+  and the natural fixture (small, focused, one category) is exactly the one that can't.
+
+**Why it came up:** the user asked for *all* fruits and vegetables in the flyers to be reachable
+from the Basket. The measurement said 98% of produce now had a sub-group; the code said the chips
+were rendered; only the running app said 0% of produce was reachable.
+
+**Takeaway:** whenever a cap sits downstream of a sort, ask "what does the sort put last, and can I
+afford to lose it?" If the answer is the thing the feature is for, the cap is a bug — make it a
+runaway guard set far above the real population, or cap per group rather than globally. And pin it
+with a fixture **larger than the limit**; a focused fixture proves the happy path and hides the
+edge by construction.
+
+## Two lookup tables about the same nouns drift, and nothing tells you
+
+`categories.py` learned `pfifferling` and `portobello` in PR #106 so chanterelles and portobellos
+would classify as vegetables. `product_group.py` — the map that decides which *sub-group* a
+vegetable belongs to — never got them, so for a month they were vegetables with no sub-group: no
+section header, and unaddable from the Basket. Both files are keyword→label maps over the same
+German product nouns, edited by the same kind of change, with no link between them.
+
+**Takeaway:** when you add a product noun to one classification table, grep the sibling tables for
+it before you're done. Better, make the omission visible: the audit that caught this was a one-off
+"which offers in this category have no sub-group?" query, and it's cheap enough to keep — a
+coverage number per category (produce is now 98%) turns silent drift into a number that moves.
