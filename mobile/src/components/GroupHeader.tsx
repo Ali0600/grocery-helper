@@ -6,8 +6,9 @@ import { colors } from '../theme';
 
 /**
  * Section header for a product group inside a category (e.g. "Avocado · 2 offers ·
- * from 0,88 €"). `muted` renders the small "More" header above the trailing bucket
- * of single-offer items.
+ * from 0,88 €"). Every sub-group gets one, including a lone offer ("Kiwi · 1 offer ·
+ * from 2,49 €") — "the only Kiwi deal this week" is real information. `muted` renders
+ * the small "More" header above the trailing bucket of offers with no sub-group.
  */
 export function GroupHeader({
   label,
@@ -24,8 +25,9 @@ export function GroupHeader({
     <View style={styles.row}>
       <Text style={muted ? styles.labelMuted : styles.label}>{label}</Text>
       {!muted && count != null ? (
-        <Text style={styles.meta}>
-          {count} offers
+        <Text style={styles.meta} testID="group-header-meta">
+          {/* Singular matters: every sub-group gets a header now, including one-offer ones. */}
+          {count} offer{count === 1 ? '' : 's'}
           {fromCents != null ? (
             <Text style={styles.from}>{`  ·  from ${euro(fromCents)}`}</Text>
           ) : null}

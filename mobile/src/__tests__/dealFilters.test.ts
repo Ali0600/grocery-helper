@@ -125,22 +125,35 @@ describe('buildSections', () => {
     expect(buildSections([], 'price')).toEqual([]);
   });
 
-  it('groups products with 2+ offers, sends singletons and ungrouped to a "More" bucket', () => {
+  it('heads EVERY sub-group, sending only the ungrouped to a "More" bucket', () => {
     const sections = buildSections([avo(199), avo(149), solo, loose], 'price');
-    expect(sections).toHaveLength(2);
+    // Three sections, not two: the lone Kiwi keeps its own name instead of being
+    // anonymised into the bucket. Only `loose` (group === null) lands in "More".
+    expect(sections).toHaveLength(3);
     expect(sections[0].label).toBe('Avocado');
     expect(sections[0].count).toBe(2);
     expect(sections[0].fromCents).toBe(149); // cheapest in the group
     expect(sections[0].data.map((o) => o.price_cents)).toEqual([149, 199]); // sorted within
-    expect(sections[1].label).toBe('More');
-    expect(sections[1].muted).toBe(true);
-    expect(sections[1].data).toHaveLength(2);
+    expect(sections[1].label).toBe('Kiwi');
+    expect(sections[1].count).toBe(1);
+    expect(sections[2].label).toBe('More');
+    expect(sections[2].muted).toBe(true);
+    expect(sections[2].data).toHaveLength(1);
   });
 
-  it('a lone ungrouped list renders one unlabeled bucket', () => {
+  it('gives a single-offer product a real header, priced from its own offer', () => {
+    const sections = buildSections([solo], 'price');
+    expect(sections).toHaveLength(1);
+    expect(sections[0]).toMatchObject({ label: 'Kiwi', count: 1, muted: false, fromCents: 79 });
+  });
+
+  it('an all-ungrouped category renders one unlabeled bucket', () => {
+    // The ONLY route to `label: null` now that every sub-group is headed — it means no
+    // offer here carries a group at all, i.e. a category `product_group` doesn't map
+    // (pantry, sweets, alcoholic…), which must stay a plain flat list with no headers.
     const sections = buildSections([loose], 'price');
     expect(sections).toHaveLength(1);
-    expect(sections[0].label).toBeNull(); // no "More" header when nothing sits above
+    expect(sections[0].label).toBeNull();
   });
 
   it('orders groups by size, then label', () => {
@@ -148,6 +161,16 @@ describe('buildSections', () => {
       makeOffer({ group: 'tomate', group_label: 'Tomate', price_cents: p });
     const sections = buildSections([avo(1), avo(2), tom(1), tom(2), tom(3)], 'price');
     expect(sections.map((s) => s.label)).toEqual(['Tomate', 'Avocado']); // 3 > 2
+  });
+
+  it('sorts the single-offer groups A–Z below the multi-offer ones', () => {
+    // The alphabetical tiebreak was barely exercised before; now that every singleton
+    // ties on count it orders most of the list. Kiwi is passed FIRST so insertion order
+    // is a real discriminator — without the localeCompare the result is Kiwi, Banane.
+    const tom = (p: number) => makeOffer({ group: 'tomate', group_label: 'Tomate', price_cents: p });
+    const ban = makeOffer({ group: 'banane', group_label: 'Banane', price_cents: 55 });
+    const sections = buildSections([solo, ban, tom(1), tom(2), tom(3), avo(1), avo(2)], 'price');
+    expect(sections.map((s) => s.label)).toEqual(['Tomate', 'Avocado', 'Banane', 'Kiwi']);
   });
 });
 

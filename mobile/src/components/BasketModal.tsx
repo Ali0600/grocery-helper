@@ -11,6 +11,7 @@ import {
 import { AppModal } from './AppModal';
 
 import { buildPlan, matchOffers, norm, Plan, PlanLine } from '../basket';
+import { subGroupItem, toItem } from '../basketResolve';
 import { CatalogItem, GROCERY_CATALOG, POPULAR_KEYS } from '../catalog';
 import { chainColors, chainLabel } from '../chains';
 import { euro, fmtPricePerUnit } from '../format';
@@ -33,6 +34,15 @@ type Props = {
    * for the session). See LikesModal for the full explanation. */
   detail?: React.ReactNode;
 };
+
+// Runaway guard on the "in this week's flyers" chips, NOT a display budget. ~100 sub-groups
+// are typically on offer and all of them are shown: the section is grouped by category at the
+// bottom of the scroll view, so it costs nothing above it.
+//
+// It was 30, and that was a bug: the list is ordered by category name, so 30 slots were spent
+// on Bakery→Fish and Fruits/Vegetables — the whole point of the feature — fell off the end.
+// Any cap small enough to bite truncates alphabetically, which is never what you want.
+const MAX_LIVE_CHIPS = 400;
 
 function Pill({ chain }: { chain: string }) {
   const c = chainColors(chain);
@@ -149,6 +159,26 @@ export function BasketModal({
   const foodOffers = useMemo(() => offers.filter((o) => o.category !== 'household'), [offers]);
   const plan = useMemo(() => buildPlan(basket, foodOffers, picks), [basket, foodOffers, picks]);
 
+  // Every product sub-group actually in this week's flyers ("Kohlrabi", "Pfifferling"),
+  // so the add list is not limited to the ~80 hand-curated catalog items. Resolved
+  // through the SAME `subGroupItem` the swipe uses, so a chip-add and a swipe-add of one
+  // product de-dupe to a single basket row. Memoized on `foodOffers` alone — this walks
+  // ~1600 offers, so it must NOT depend on `text` or it would re-run per keystroke.
+  const liveGroups = useMemo(() => {
+    const seen = new Map<string, { item: BasketItem; label: string; categoryLabel: string }>();
+    for (const o of foodOffers) {
+      if (!o.group || seen.has(o.group)) continue;
+      seen.set(o.group, {
+        item: subGroupItem(o.group, o.group_label),
+        label: o.group_label ?? o.group,
+        categoryLabel: o.category_label ?? o.category,
+      });
+    }
+    return [...seen.values()].sort(
+      (a, b) => a.categoryLabel.localeCompare(b.categoryLabel) || a.label.localeCompare(b.label),
+    );
+  }, [foodOffers]);
+
   // Quick-add suggestions: filter the catalog by the typed text (English or German);
   // when empty, show the popular staples. Items already in the basket drop out.
   const suggestions = useMemo(() => {
@@ -171,22 +201,59 @@ export function BasketModal({
       .slice(0, 12);
   }, [text, basket]);
 
+  // What to render in the flyer section: drop anything already in the basket OR already
+  // shown as a catalog chip above — a live "Pilz" resolves to the catalog `mushroom` key,
+  // so without this it would appear twice. Then apply the typed filter, accepting BOTH the
+  // German sub-group label and the resolved English catalog label, so either language finds
+  // it with no translation table. Filtering runs over ~100 derived entries, not the offers.
+  const liveShown = useMemo(() => {
+    const shown = new Set([...basket.map((b) => b.key), ...suggestions.map((c) => c.key)]);
+    const t = norm(text.trim());
+    return liveGroups
+      .filter((g) => !shown.has(g.item.key))
+      .filter(
+        (g) =>
+          !t ||
+          norm(g.label).includes(t) ||
+          norm(g.item.label).includes(t) ||
+          g.item.keywords.some((kw) => norm(kw).includes(t)),
+      )
+      .slice(0, MAX_LIVE_CHIPS);
+  }, [liveGroups, suggestions, basket, text]);
+
+  // Grouped by category so "which fruits are actually on offer?" is answerable at a
+  // glance. `liveShown` is already sorted by category, so this is a single pass.
+  const liveSections = useMemo(() => {
+    const out: { categoryLabel: string; items: typeof liveShown }[] = [];
+    for (const g of liveShown) {
+      const last = out[out.length - 1];
+      if (last && last.categoryLabel === g.categoryLabel) last.items.push(g);
+      else out.push({ categoryLabel: g.categoryLabel, items: [g] });
+    }
+    return out;
+  }, [liveShown]);
+
   const hasItem = (key: string) => basket.some((b) => b.key === key);
 
-  const addCatalog = (c: CatalogItem) => {
-    if (!hasItem(c.key)) {
-      onChangeBasket([...basket, { key: c.key, label: c.en, keywords: c.keywords, exclude: c.exclude }]);
-    }
+  const addItem = (item: BasketItem) => {
+    if (!hasItem(item.key)) onChangeBasket([...basket, item]);
     setText('');
   };
+  const addCatalog = (c: CatalogItem) => addItem(toItem(c));
 
-  // Enter / "done": add the best catalog match if the text matches one (curated
-  // keywords), else add the raw text as a free-text item (matched literally).
+  // Enter / "done": the best catalog match if the text matches one (curated keywords),
+  // else a sub-group from this week's flyers, else the raw text as a free-text item.
+  // The flyer step is not just convenience: typing "Kohlrabi" used to mint `free:kohlrabi`
+  // while a swipe on the same deal mints `grp:kohlrabi` — two basket rows for one product.
   const addFromText = () => {
     const t = text.trim();
     if (!t) return;
     if (suggestions.length) {
       addCatalog(suggestions[0]);
+      return;
+    }
+    if (liveShown.length) {
+      addItem(liveShown[0].item);
       return;
     }
     const key = `free:${norm(t)}`;
@@ -324,6 +391,8 @@ export function BasketModal({
                       <Pressable
                         key={c.key}
                         onPress={() => addCatalog(c)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Add ${c.en} to basket`}
                         style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
                       >
                         <Text style={styles.chipText}>+ {c.en}</Text>
@@ -355,6 +424,34 @@ export function BasketModal({
                     </Pressable>
                   </>
                 )}
+
+                {/* Every sub-category actually on offer this week — the curated catalog is
+                    ~80 items and the flyers carry ~100 sub-groups, so products like Kohlrabi
+                    or Pfifferling were unreachable from here. Below the plan so it never
+                    pushes the basket down, and inside the ScrollView so it costs no height. */}
+                {liveSections.length ? (
+                  <View style={styles.liveSection}>
+                    <Text style={styles.liveTitle}>In this week&apos;s flyers</Text>
+                    {liveSections.map((sec) => (
+                      <View key={sec.categoryLabel}>
+                        <Text style={styles.liveCat}>{sec.categoryLabel}</Text>
+                        <View style={styles.chips}>
+                          {sec.items.map((g) => (
+                            <Pressable
+                              key={g.item.key}
+                              onPress={() => addItem(g.item)}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Add ${g.item.label} to basket`}
+                              style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
+                            >
+                              <Text style={styles.chipText}>+ {g.item.label}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
               </ScrollView>
             </>
           )}
@@ -426,6 +523,16 @@ const styles = StyleSheet.create({
 
   list: { paddingVertical: 8, paddingBottom: 16 },
   empty: { color: colors.muted, fontSize: 14, lineHeight: 20, textAlign: 'center', padding: 28 },
+  liveSection: { marginTop: space.lg, paddingTop: space.md, borderTopWidth: 1, borderTopColor: colors.border },
+  liveTitle: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  liveCat: {
+    color: colors.muted,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: space.md,
+  },
 
   // Basket row
   row: {

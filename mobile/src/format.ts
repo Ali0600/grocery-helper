@@ -95,8 +95,14 @@ export const dealsStale = (cachedAt: number | null): boolean =>
  * backend call at all while it's current, so without this a newly scraped chain stays
  * invisible until Sunday unless the user knows to hit Options → "Clear cached deals".
  * That happened with E center, and again with ALDI (2026-07-15 → v2).
+ *
+ * v3 (2026-07-29): `product_group` now covers the produce that had no sub-group (Kohlrabi,
+ * Radieschen, Mais, Pfifferling…) and four mis-filed products left the produce chips. Both
+ * are SERVE-TIME fields baked into whatever the client cached, so a cached week would show
+ * the old grouping — and this release's whole point is that a fruit or vegetable can be
+ * headed and basketed as its sub-category. Same trap as a new chain, same fix.
  */
-export const DEALS_CACHE_VERSION = 2;
+export const DEALS_CACHE_VERSION = 3;
 
 /**
  * True when the cached deals must be refetched: absent, written by an older app version,

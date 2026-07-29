@@ -534,7 +534,10 @@ Engineering practices demonstrated while building and operating this project:
 - [x] **Basket** — a shopping list you build from common items (bilingual quick-add:
       type "Strawberry" or "Erdbeere"); each item shows its cheapest current deal plus
       a store-by-store shopping plan with the savings vs. one store (matched
-      per-product against the live deals, client-side)
+      per-product against the live deals, client-side). An **"In this week's flyers"**
+      section lists every product sub-category actually on offer — grouped by aisle, so
+      Kohlrabi or Pfifferling can be added even though no curated catalogue lists them.
+      Adding from there and swiping a deal card produce the same basket entry
 - [x] CI/CD pipeline (GitHub Actions) — test / lint / typecheck / Docker-build gates,
       gated Render deploy (deploy hook), EAS Update OTA, and a weekly scrape cron
 - [x] Offline deals cache — instant open from an on-device cache + stale-while-revalidate
