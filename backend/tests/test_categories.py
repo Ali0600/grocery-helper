@@ -1055,3 +1055,47 @@ def test_food_rescue_stays_gated_on_a_nonfood_path():
     real_path = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Brotaufstrich",
                  "Fruchtaufstrich", "Fruchtmus", "Mandelmus"]
     assert classify("Maribel Bio Cashewmus", "Maribel", real_path) == "pantry"
+
+
+# --- Non-food and non-produce the source files under an Obst/Gemüse node (2026-07-29). These sat
+# in Fruits/Vegetables, which matters more than it looks: produce is sub-grouped for the deals
+# list AND for the Basket's suggestions, so a bin bag left in Fruits becomes recommendable. ---
+
+@pytest.mark.parametrize(
+    "name, brand, path, expected, was",
+    [
+        # Scented bin bags. The path really is Obst > Melone — the bags are watermelon-scented,
+        # so the source filed the SCENT, not the product.
+        ("Power Force Duft-Müllbeutel", "Power Force",
+         ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Obst", "Melone"],
+         "household", "fruits"),
+        # Herb cream cheese under Gemüse > Kohl > Kraut ("Kräuter" read as a cabbage node).
+        ("Bresso Feine Kräuter", "Bresso",
+         ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Gemüse", "Kohl", "Kraut"],
+         "cheese", "vegetables"),
+        # Breads the source files under produce nodes.
+        ("Couronne Feigen-Walnuss", None,
+         ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Obst"], "bakery", "fruits"),
+        ("Mestemacher Greek Flatbread Klassisch", "Mestemacher",
+         ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Gemüse"], "bakery",
+         "vegetables"),
+        # A cold sauce, not a vegetable.
+        ("SKANDINAVIC'S Remoulade", None,
+         ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Gemüse"], "pantry",
+         "vegetables"),
+    ],
+)
+def test_nonfood_and_nonproduce_leave_the_produce_chips(name, brand, path, expected, was):
+    assert classify(name, brand, path) == expected, f"was {was}"
+
+
+def test_the_produce_evictions_do_not_take_real_produce_with_them():
+    """Each guard above is a designation, so the genuine produce sharing its path stays put."""
+    obst = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Obst", "Melone"]
+    gemuese = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Gemüse", "Kohl"]
+    # A real watermelon under the SAME path the bin bags abused.
+    assert classify("Wassermelone", None, obst) == "fruits"
+    # A real cabbage under the same node as the Bresso cheese.
+    assert classify("Spitzkohl", None, gemuese) == "vegetables"
+    # "couronne"/"flatbread" are bread designations, not fruit/veg words: fresh figs stay fruit.
+    assert classify("Feigen", None, obst) == "fruits"

@@ -496,6 +496,20 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # Putenbrust" landed in pork. Proven by the same product classifying BOTH ways depending on
     # whether its path was a Wurstwaren node or a brand leaf. Only layer 2 can beat the path.
     ("poultry", ["geflügel", "hähnchen", "hähnchenbrust", "putenbrust", "puten-", "truthahn"]),
+    # Non-food and non-produce the source files under an Obst/Gemüse node, so only layer 2 can
+    # move them. Each was verified against the whole DB (13 rows, 7 products, every move strictly
+    # more correct, 0 regressions). The path really does say this:
+    #   "Power Force Duft-Müllbeutel"  (scented BIN BAGS)   -> "Obst > Melone", because the bags
+    #                                  are watermelon-scented                    -> was `fruits`
+    #   "Bresso Feine Kräuter"         (herb CREAM CHEESE)  -> "Gemüse > Kohl > Kraut"
+    #   "Couronne Feigen-Walnuss" / "Mestemacher Greek Flatbread" (BREADS)       -> Obst / Gemüse
+    #   "SKANDINAVIC'S Remoulade"      (a cold SAUCE)                            -> was `vegetables`
+    # This matters beyond tidiness: produce is sub-grouped for the deals list and the Basket's
+    # suggestions, so a bin bag left in Fruits becomes a recommendable "fruit".
+    ("household", ["müllbeutel", "frischhaltebeutel", "gefrierbeutel"]),
+    ("bakery", ["flatbread", "couronne"]),
+    ("pantry", ["remoulade"]),
+    ("cheese", ["bresso"]),
 ]
 
 # What the flyer CAPTION says the product is. Read from `Offer.unit`, which holds the source's

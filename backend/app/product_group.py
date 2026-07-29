@@ -53,35 +53,53 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         ("Kiwi", ["kiwi"]),
         ("Mango", ["mango"]),
         ("Ananas", ["ananas"]),
-        ("Melone", ["melone"]),
+        # "Piel de Sapo" is a melon cultivar the flyer names without the word "Melone".
+        ("Melone", ["melone", "piel de sapo"]),
         ("Pfirsich", ["pfirsich"]),
         ("Nektarine", ["nektarine"]),
         ("Aprikose", ["aprikose"]),
         ("Pflaume", ["pflaume", "zwetschge"]),
         ("Kirsche", ["kirsche"]),
         ("Physalis", ["physalis"]),
+        ("Grapefruit", ["grapefruit", "pampelmuse"]),
         ("Beere", ["beere"]),  # generic, must stay after the specific berries
     ],
     "vegetables": [
-        ("Tomate", ["tomate"]),
+        # "romatom": the feed ships a typo'd "Romatomen" (for Romatomaten) — a source
+        # defect, not a product. Harmless if they ever fix it.
+        ("Tomate", ["tomate", "romatom"]),
         ("Gurke", ["gurke"]),
         ("Kartoffel", ["kartoffel"]),
         ("Zwiebel", ["zwiebel"]),
         ("Paprika", ["paprika"]),
+        ("Peperoni", ["peperoni"]),
         ("Möhre", ["möhre", "karotte", "mohrrübe"]),
+        ("Radieschen", ["radieschen"]),
         ("Brokkoli", ["brokkoli", "broccoli"]),
-        ("Blumenkohl", ["blumenkohl"]),
+        ("Blumenkohl", ["blumenkohl"]),  # before the generic Kohl
+        ("Kohlrabi", ["kohlrabi"]),  # before the generic Kohl ("kohl" ⊂ "kohlrabi")
+        # the flyer hyphenates it ("Mini-Pak-Choi"), so the spaced form alone misses.
+        ("Pak Choi", ["pak choi", "pak-choi", "pakchoi"]),
         ("Spinat", ["spinat"]),
         ("Zucchini", ["zucchini"]),
         ("Aubergine", ["aubergine"]),
-        ("Pilz", ["pilz", "champignon", "seitling"]),
+        ("Pilz", ["pilz", "champignon", "seitling", "pfifferling", "portobello", "shiitake"]),
         ("Knoblauch", ["knoblauch"]),  # before Lauch ("lauch" ⊂ "knoblauch")
         ("Lauch", ["lauch", "porree"]),
         ("Sellerie", ["sellerie"]),
         ("Kürbis", ["kürbis"]),
         ("Spargel", ["spargel"]),
+        ("Mais", ["mais"]),
+        ("Bohne", ["bohne"]),  # Busch-/Prinzess-/Brech-/Stangenbohnen
+        ("Edamame", ["edamame"]),
+        ("Erbse", ["erbse"]),
+        ("Kresse", ["kresse"]),
+        ("Ingwer", ["ingwer"]),
+        ("Chicorée", ["chicor"]),  # covers Chicorée / Chicoree
         ("Rucola", ["rucola"]),
-        ("Salat", ["salat"]),  # generic, after Rucola
+        ("Salat", ["salat", "lollo"]),  # generic, after Rucola ("lollo": Lollo Bionda)
+        ("Kohl", ["kohl"]),  # generic, MUST stay after Blumenkohl + Kohlrabi
+        ("Gemüse", ["gemüse"]),  # generic veg mixes, last of all
     ],
     "beef": [
         ("Hackfleisch", ["hack"]),
