@@ -1292,3 +1292,41 @@ def test_the_new_rescues_still_only_fire_under_a_non_food_path():
     # leading space; both directions are pinned here.
     assert classify("Bauergut Schweinebraten", "Bauergut", pet) == "household"
     assert classify("Erben Weine", "Erben", ["Saison und Events", "Treuepunkte"]) == "alcoholic"
+
+
+# --- The "other" bucket, adjudicated against its product photos. Nothing here was claimed by
+# any layer before, so these are pure rescues — but each token still needs its guard. ---
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("Back Family Natron XXL", "pantry"),
+        ("CROWNFIELD Cerealien XXL", "pantry"),
+        ("DELUXE Ajvar", "pantry"),
+        ("Landliebe Konfitüre", "pantry"),
+        ("Deluxe Baklava Pistazie", "sweets"),
+        ("Deluxe Cantuccini", "sweets"),
+        ("DeBeukelaer Cereola", "sweets"),
+        ("Milsani Götterspeise XXL", "sweets"),
+        ("Kinder Delice", "sweets"),
+        ("DELUXE Crème Brûlée", "dairy"),
+        ("Milsani Mousse", "dairy"),
+        ("Meister Filet-Räucherling", "fish"),
+        ("MILRAM Hotties", "cheese"),
+        ("MEIN BESTES CroFranz", "bakery"),
+        ("KOPPENRATH WIESE Unsere Goldstücke", "bakery"),
+        ("GUT&GÜNSTIG Hygienestreu", "household"),
+    ],
+)
+def test_other_bucket_rescues(name, expected):
+    assert classify(name, None, None) == expected
+
+
+def test_grilltaler_is_not_a_cheese_token():
+    """`hotties` is Milram's grilling CHEESE, but the photo of "Grillmeister Brat- und
+    Grilltaler" is a MEAT patty (Grillmeister is Lidl's grill-meat brand). A bare `grilltaler`
+    token was simulated, caught here, and dropped — so the Milram rows move and the meat
+    patty does not become cheese."""
+    assert classify("Milram Hotties Grilltaler", "Milram", None, "Natur 180g Packung") == "cheese"
+    assert classify("Grillmeister Brat- und Grilltaler", "Grillmeister", None,
+                    "Versch. Sorten, Gekühlt 280 g") != "cheese"

@@ -624,6 +624,18 @@ _OVERRIDES: list[tuple[str, list[str]]] = [
     # `waffel` must keep meaning sweets for Manner Waffeln and Karamellwaffeln, so the fix is
     # the specific compound at layer 5, one step ahead of the keyword.
     ("snacks", ["reiswaffel", "maiswaffel", "dinkelwaffel", "linsenwaffel", "knäckebrot"]),
+    # --- The "other" bucket, adjudicated against its product photos (2026-07-29). Nothing
+    # here moves from a real category: every one of these was unclaimed by any layer. ---
+    ("pantry", ["natron", "cerealien", "ajvar", "konfitüre"]),
+    ("sweets", ["baklava", "cantuccini", "cereola", "götterspeise", "delice"]),
+    ("dairy", ["crème brûlée", "creme brulee", "mousse"]),
+    ("fish", ["räucherling"]),
+    # "hotties" is Milram's grilling CHEESE. Deliberately NOT the bare "grilltaler": the photo
+    # of "Grillmeister Brat- und Grilltaler" is a MEAT patty (Grillmeister is Lidl's grill-meat
+    # brand, "Gekühlt 280 g"), so that token would have made a burger into cheese.
+    ("cheese", ["hotties"]),
+    ("bakery", ["crofranz", "sandwich american", "goldstücke"]),
+    ("household", ["hygienestreu", "katzenstreu"]),
 ]
 
 
