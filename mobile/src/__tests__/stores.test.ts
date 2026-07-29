@@ -1,7 +1,10 @@
 import {
+  activeStoreLens,
   filterByVisibleStores,
   hasHiddenPresent,
+  storeLensLabel,
   toggleHiddenStore,
+  toggleStoreLens,
   visibleStoreChains,
 } from '../stores';
 import { makeOffer } from './fixtures';
@@ -52,5 +55,86 @@ describe('visibleStoreChains / hasHiddenPresent', () => {
     expect(hasHiddenPresent(present, ['edeka'])).toBe(true);
     expect(hasHiddenPresent(present, [])).toBe(false);
     expect(hasHiddenPresent(present, ['aldi'])).toBe(false); // hidden but not present -> nothing filtered
+  });
+});
+
+
+// --- The "Only show" lens (multi-select, persisted) ----------------------------------
+
+describe('toggleStoreLens', () => {
+  it('adds a chain to an empty (= All) lens', () => {
+    expect(toggleStoreLens([], 'edeka')).toEqual(['edeka']);
+  });
+
+  it('keeps a THIRD pick — the lens is uncapped, unlike the Recipes "Shop at" scope', () => {
+    // A two-element case can't catch a replace-oldest cap; this one can.
+    expect(toggleStoreLens(['lidl', 'rewe'], 'edeka')).toEqual(['lidl', 'rewe', 'edeka']);
+  });
+
+  it('removes a selected chain without touching the others', () => {
+    expect(toggleStoreLens(['edeka', 'lidl'], 'edeka')).toEqual(['lidl']);
+  });
+
+  it('clearing the LAST pick returns to All — there is deliberately no never-empty guard', () => {
+    // The mirror of toggleHiddenStore's guard: here empty MEANS all, so a guard would make
+    // the lens inescapable from the sheet.
+    expect(toggleStoreLens(['edeka'], 'edeka')).toEqual([]);
+  });
+});
+
+describe('activeStoreLens', () => {
+  const available = ['lidl', 'rewe', 'edeka'];
+
+  it('is empty when nothing is selected', () => {
+    expect(activeStoreLens([], available)).toEqual([]);
+  });
+
+  it('narrows PARTIALLY to the chains still available, rather than giving up', () => {
+    // 'netto' isn't loaded here; the edeka half of the selection must still apply.
+    expect(activeStoreLens(['edeka', 'netto'], available)).toEqual(['edeka']);
+  });
+
+  it('is a no-op when NONE of the selection is available (the stale-lens guard)', () => {
+    // This is what makes persisting the selection safe: a stale pick can never empty the list.
+    expect(activeStoreLens(['netto', 'penny'], available)).toEqual([]);
+  });
+
+  it('collapses to All when the selection covers every available chain', () => {
+    // Filtering to everything filters nothing — so it IS All, and the chip must not show.
+    expect(activeStoreLens(['edeka', 'lidl', 'rewe'], available)).toEqual([]);
+  });
+
+  it('collapses when a store is HIDDEN into full coverage, with no tap at all', () => {
+    // The reason the collapse lives here and not in the toggle: `available` shrinks
+    // underneath the selection when the user removes a store in the Stores modal.
+    expect(activeStoreLens(['lidl', 'rewe'], ['lidl', 'rewe'])).toEqual([]);
+  });
+
+  it('orders by availability, so tap order cannot change the result', () => {
+    // Canonical output => one chip label and one memo input per selection.
+    expect(activeStoreLens(['edeka', 'lidl'], available)).toEqual(['lidl', 'edeka']);
+    expect(activeStoreLens(['lidl', 'edeka'], available)).toEqual(['lidl', 'edeka']);
+  });
+
+  it('is empty when nothing is loaded yet', () => {
+    expect(activeStoreLens(['lidl'], [])).toEqual([]);
+  });
+});
+
+describe('storeLensLabel', () => {
+  it('names one store, exactly as the single-select chip always did', () => {
+    expect(storeLensLabel(['edeka'])).toBe('Only Edeka');
+  });
+
+  it('names two, reusing the store chip\'s " · " join', () => {
+    expect(storeLensLabel(['lidl', 'edeka'])).toBe('Only Lidl · Edeka');
+  });
+
+  it('counts from THREE up — the threshold, so an off-by-one fails here', () => {
+    expect(storeLensLabel(['lidl', 'rewe', 'edeka'])).toBe('Only 3 stores');
+  });
+
+  it('never joins five names — the chip row scrolls, so a long label shoves the sort button off', () => {
+    expect(storeLensLabel(['lidl', 'rewe', 'edeka', 'edeka_center', 'aldi'])).toBe('Only 5 stores');
   });
 });

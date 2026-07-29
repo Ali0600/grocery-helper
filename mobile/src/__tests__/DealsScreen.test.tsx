@@ -859,3 +859,101 @@ describe('DealsScreen — basket / like markers on the card', () => {
     );
   });
 });
+
+
+// --- The "Only show" store lens (multi-select, persisted) ----------------------------
+
+describe('DealsScreen — the "Only show" store lens', () => {
+  const LIDL = makeOffer({ id: 91, name: 'Lidl Butter', chain: 'lidl', price_cents: 149 });
+  const REWE = makeOffer({ id: 92, name: 'REWE Butter', chain: 'rewe', price_cents: 159 });
+  const EDEKA = makeOffer({ id: 93, name: 'Edeka Butter', chain: 'edeka', price_cents: 169 });
+
+  const seedStores = (storeLens?: string[]) =>
+    Promise.all([
+      seedCache({ offers: [LIDL, REWE, EDEKA] }),
+      storeLens ? AsyncStorage.setItem('storeLens', JSON.stringify(storeLens)) : Promise.resolve(),
+    ]);
+
+  const openFilters = async () => {
+    await fireEvent.press(await screen.findByText('Filters'));
+  };
+
+  it('shows no lens chip on a fresh render', async () => {
+    // The `[]`-is-truthy trap: with `activeLens ? …` instead of `activeLens.length ? …` a chip
+    // renders for an EMPTY lens on every launch. TypeScript is completely silent about it.
+    await seedStores();
+    await render(<DealsScreen />);
+    expect(await screen.findByText('Lidl Butter')).toBeTruthy();
+    expect(screen.queryByLabelText(/^Remove Only /)).toBeNull();
+  });
+
+  it('shows SEVERAL stores at once, and names them on the chip', async () => {
+    await seedStores();
+    await render(<DealsScreen />);
+    await screen.findByText('Lidl Butter');
+
+    await openFilters();
+    await fireEvent.press(await screen.findByLabelText('Only Lidl'));
+    await fireEvent.press(await screen.findByLabelText('Only REWE'));
+    await fireEvent.press(screen.getByText('Done'));
+
+    expect(await screen.findByText('Lidl Butter')).toBeTruthy();
+    expect(screen.getByText('REWE Butter')).toBeTruthy();
+    expect(screen.queryByText('Edeka Butter')).toBeNull(); // the one NOT selected
+    expect(screen.getByText('Only Lidl · REWE')).toBeTruthy();
+  });
+
+  it('deselecting one store keeps the other — the whole point of multi-select', async () => {
+    await seedStores(['lidl', 'rewe']);
+    await render(<DealsScreen />);
+    await screen.findByText('Lidl Butter');
+
+    await openFilters();
+    await fireEvent.press(await screen.findByLabelText('Only Lidl'));
+    await fireEvent.press(screen.getByText('Done'));
+
+    expect(await screen.findByText('REWE Butter')).toBeTruthy();
+    expect(screen.queryByText('Lidl Butter')).toBeNull();
+  });
+
+  it('restores the selection from storage on launch', async () => {
+    // The persistence pin: the user asked for the choice to survive a restart.
+    await seedStores(['edeka']);
+    await render(<DealsScreen />);
+    expect(await screen.findByText('Edeka Butter')).toBeTruthy();
+    expect(screen.queryByText('Lidl Butter')).toBeNull();
+    expect(screen.getByText('Only Edeka')).toBeTruthy();
+  });
+
+  it('selecting EVERY store is just "All" — no chip, nothing filtered', async () => {
+    await seedStores(['lidl', 'rewe', 'edeka']);
+    await render(<DealsScreen />);
+    expect(await screen.findByText('Lidl Butter')).toBeTruthy();
+    expect(screen.getByText('REWE Butter')).toBeTruthy();
+    expect(screen.getByText('Edeka Butter')).toBeTruthy();
+    expect(screen.queryByLabelText(/^Remove Only /)).toBeNull();
+  });
+
+  it('the chip’s ✕ brings every store back', async () => {
+    await seedStores(['lidl']);
+    await render(<DealsScreen />);
+    await screen.findByText('Lidl Butter');
+    expect(screen.queryByText('Edeka Butter')).toBeNull();
+
+    await fireEvent.press(screen.getByLabelText('Remove Only Lidl filter'));
+    expect(await screen.findByText('Edeka Butter')).toBeTruthy();
+  });
+
+  it('Reset clears it — it lives in the sheet and carries a chip, so it reads as a filter', async () => {
+    await seedStores(['lidl']);
+    await render(<DealsScreen />);
+    await screen.findByText('Lidl Butter');
+
+    await openFilters();
+    await fireEvent.press(await screen.findByText('Reset'));
+    await fireEvent.press(screen.getByText('Done'));
+
+    expect(await screen.findByText('Edeka Butter')).toBeTruthy();
+    expect(screen.queryByLabelText(/^Remove Only /)).toBeNull();
+  });
+});

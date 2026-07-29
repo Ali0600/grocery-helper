@@ -84,10 +84,11 @@ export type DealFilterOptions = {
    * The Filters sheet is the only route back to a hidden deal's detail. */
   showHidden: boolean;
   hiddenStores: string[];
-  /** Transient "Only this store" lens (session-only, never persisted) — isolates one
-   * chain's deals for a quick look. Distinct from `hiddenStores`, which is the user's
-   * persistent store list; the lens composes AFTER it, so it can't unhide a store. */
-  storeLens: string | null;
+  /** The "Only show" lens — which of the user's stores the deals list is showing. EMPTY =
+   * all of them. Multi-select and persisted, but still distinct from `hiddenStores`: that's
+   * membership (it scopes Basket/Recipes/Compare too), this is a deals-list view over the
+   * stores you already keep. It composes AFTER it, so it can't lens a hidden store into view. */
+  storeLens: string[];
   specialDays: boolean;
   bioOnly: boolean;
   query: string;
@@ -95,11 +96,10 @@ export type DealFilterOptions = {
 };
 
 /**
- * The deals-list filter stack, in its long-standing order: non-food → hidden stores →
- * E-center duplicates → store lens → special-days → bio → search/category. The store,
- * special-days and bio lenses only apply when
- * the loaded set actually contains such offers (same guard the screen always had), so a
- * stale toggle can't filter the list to empty.
+ * The deals-list filter stack, in its long-standing order: non-food → hidden deals → hidden
+ * stores → E-center duplicates → store lens → special-days → bio → search/category. The
+ * store, special-days and bio lenses only apply when the loaded set actually contains such
+ * offers (same guard the screen always had), so a stale toggle can't filter the list to empty.
  */
 export function filterDeals(offers: Offer[], opts: DealFilterOptions): Offer[] {
   const foodBase = opts.showNonFood ? offers : offers.filter((o) => o.category !== 'household');
@@ -117,13 +117,18 @@ export function filterDeals(offers: Offer[], opts: DealFilterOptions): Offer[] {
   //  * BEFORE the lens — lensing to "Only E center" strips EDEKA from the set, which would
   //    disable the guard and bring every duplicate back in the one view that most needs them gone.
   const dedupedBase = dropEdekaCenterDuplicates(storeBase);
-  // Same only-when-present guard as special-days/bio below: a lens whose chain has no
-  // offers left after the store filter (hidden mid-session, PLZ switched) is a no-op
-  // rather than emptying the list.
-  const lensBase =
-    opts.storeLens && dedupedBase.some((o) => o.chain === opts.storeLens)
-      ? dedupedBase.filter((o) => o.chain === opts.storeLens)
-      : dedupedBase;
+  // Same only-when-present guard as special-days/bio below, but PARTIAL: keep the selected
+  // chains that still have offers here, so a selection whose other chains were hidden
+  // mid-session (or aren't in this PLZ) narrows to what survives instead of no-op'ing
+  // wholesale. An empty intersection stays a full no-op — a stale lens must never empty the
+  // list, which is what makes the selection safe to persist.
+  // Tested against `dedupedBase`, NOT the raw `offers` arg that special-days/bio use: a chain
+  // whose every offer is an E-center duplicate is "present" in `offers` but has nothing left
+  // to show, so harmonising those guards would filter the list to empty.
+  const lens = opts.storeLens.length
+    ? opts.storeLens.filter((c) => dedupedBase.some((o) => o.chain === c))
+    : opts.storeLens;
+  const lensBase = lens.length ? dedupedBase.filter((o) => lens.includes(o.chain)) : dedupedBase;
   const hasDayLimited = offers.some((o) => o.day_limited);
   const base =
     opts.specialDays && hasDayLimited ? lensBase.filter((o) => o.day_limited) : lensBase;

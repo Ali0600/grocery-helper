@@ -5,9 +5,11 @@ import {
   getStoredLikes,
   getStoredMyCategories,
   getStoredSortByCategory,
+  getStoredStoreLens,
   setStoredLikes,
   setStoredMyCategories,
   setStoredSortByCategory,
+  setStoredStoreLens,
 } from '../storage';
 import { LikedItem } from '../types';
 
@@ -37,6 +39,35 @@ describe('myCategories persistence', () => {
     await setStoredMyCategories(['fruits']);
     await clearAllData();
     expect(await getStoredMyCategories()).toEqual([]);
+  });
+});
+
+describe('storeLens persistence', () => {
+  it('returns [] when nothing is stored (so a fresh install shows every store)', async () => {
+    expect(await getStoredStoreLens()).toEqual([]);
+  });
+
+  it('round-trips the chosen stores — the user asked for this to survive a restart', async () => {
+    await setStoredStoreLens(['lidl', 'edeka']);
+    expect(await getStoredStoreLens()).toEqual(['lidl', 'edeka']);
+  });
+
+  it('drops junk entries and a non-array payload rather than feeding them to the filter', async () => {
+    await AsyncStorage.setItem('storeLens', JSON.stringify(['lidl', 7, null, 'edeka']));
+    expect(await getStoredStoreLens()).toEqual(['lidl', 'edeka']);
+    await AsyncStorage.setItem('storeLens', JSON.stringify({ lidl: true }));
+    expect(await getStoredStoreLens()).toEqual([]);
+  });
+
+  it('returns [] for unparseable JSON instead of throwing', async () => {
+    await AsyncStorage.setItem('storeLens', 'not json');
+    expect(await getStoredStoreLens()).toEqual([]);
+  });
+
+  it('is cleared by "Reset all app data"', async () => {
+    await setStoredStoreLens(['lidl']);
+    await clearAllData();
+    expect(await getStoredStoreLens()).toEqual([]);
   });
 });
 
