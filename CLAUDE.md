@@ -311,6 +311,14 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `little moons`/`mochi`→ice_cream; `_FOOD_RESCUE` snacks/pantry += `cashew`/`walnusskern`/
   `reiswaffel`/`quinoa`/`agavendicksaft`). Left in Other on purpose (couldn't reach 0 regressions):
   `mars`/`paula` (Paulaner clash), bare `mandel`, `zetti` (Mazzetti), a blanket Trader-Joe's brand map.
+  **Non-food evicted from the produce chips (2026-07-29, L2 `_FORM_OVERRIDES`, 13 rows / 7 products,
+  0 regressions)**: the source files **scented bin bags under `Obst > Melone`** (the bags are
+  watermelon-scented — it filed the SCENT, not the product), a herb cream cheese under `Gemüse >
+  Kohl > Kraut`, and two breads under Obst/Gemüse. `müllbeutel`/`frischhaltebeutel`/`gefrierbeutel`
+  →household, `flatbread`/`couronne`→bakery, `remoulade`→pantry, `bresso`→cheese; two bonus rescues
+  out of `other` fell out (Schär Flatbreads, POWER FORCE Frischhaltebeutel). This is worth more than
+  tidiness now that produce is fully sub-grouped: a sub-group feeds the **Basket's** suggestions, so
+  a bin bag left in Fruits becomes a recommendable "fruit".
   **`ice_cream` is split out of `frozen`**
   (the source's `Eis`/`Speiseeis` path nodes + a keyword rule before frozen/sweets with the
   space-padded standalone word `" eis "` — safe vs Fleisch/Reis/Eisberg/Eistee/Eiweiß — plus
@@ -406,7 +414,21 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   span types (Volvic → water/tea/juice), the type-word groups come first and each brand's
   keyword sits in its PRIMARY type *after* them (so "Volvic Tee"→Tee, "Volvic naturelle"→
   Wasser). Guard: `" spezi"` (leading space) avoids the "…-Spezialsalz" trap; `"tea"` catches
-  English iced teas (Fuze Tea) vs the German `" tee"`. Computed in the serializer → `OfferOut.group`/`group_label`
+  English iced teas (Fuze Tea) vs the German `" tee"`.
+  **Produce coverage was completed 2026-07-29** (fruits+vegetables **82% → 98%** of a Berlin PLZ,
+  32 → 40 distinct sub-groups, 91 rows newly grouped / **0 regressions** over all 10,692 stored
+  offers). It matters beyond the deals list: a sub-group is the unit the **Basket** keys on
+  (`basketResolve.ts`), so a produce item with no group could not be added as a sub-category at
+  all. New: Grapefruit + `piel de sapo`→Melone (fruits); Kohlrabi, Radieschen, Mais, Bohne,
+  Edamame, Erbse, Kresse, Ingwer, Chicorée, Pak Choi, Peperoni, and `pfifferling`/`portobello`/
+  `shiitake`→**Pilz** — the last of which closes a real drift: PR #106 added those words to
+  `categories.py` (to move them *into* vegetables) and nobody added them here. **The two generics
+  `Kohl` and `Gemüse` MUST stay last** (`kohl` ⊂ Blumenkohl/Kohlrabi, `gemüse` ⊂ Gemüsezwiebel),
+  each pinned by an ordering test. Watch the spelling traps the DB proved: `"pak choi"` alone
+  misses the flyer's **`Mini-Pak-Choi`** (hyphens), and `romatom` exists only because the feed
+  ships a typo'd "Romatomen". Still ungrouped on purpose: Sauerkraut/Kimchi/Passata (preserved,
+  not fresh produce) — they land in the list's trailing bucket, which is honest.
+  Computed in the serializer → `OfferOut.group`/`group_label`
   (**no DB column / migration**, like `unit_price_cents`). The app renders a
   `SectionList` **only in a selected category** (not All/search): products with ≥2
   offers get a header and float up (`mobile/.../DealsScreen.tsx` `buildSections`,

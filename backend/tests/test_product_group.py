@@ -36,6 +36,84 @@ def test_specific_berry_beats_generic_beere():
     assert product_group("Gemischte Beeren", None, "fruits") == ("beere", "Beere")
 
 
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        # Real vegetable names sampled from the live DB. Everything below the divider was
+        # UNGROUPED before 2026-07-29 — 107 rows / 46 distinct produce products had no
+        # sub-group at all, so a lone fruit/veg had no sub-category to head a section with
+        # or to hand to the Basket.
+        ("Rispentomaten", "tomate"),
+        ("Salatgurke", "gurke"),
+        ("Speisefrühkartoffeln", "kartoffel"),
+        ("Zwiebeln", "zwiebel"),
+        ("Spitzpaprika", "paprika"),
+        ("Bio Möhren", "mohre"),
+        ("Brokkoli", "brokkoli"),
+        # ---- newly covered ----
+        ("Kohlrabi", "kohlrabi"),
+        ("EDEKA Regional Kohlrabi", "kohlrabi"),
+        ("Radieschen", "radieschen"),
+        ("Radieschentopf", "radieschen"),
+        ("Deutscher Frischer Zuckermais", "mais"),
+        ("Bonduelle Goldmais", "mais"),
+        ("Buschbohnen", "bohne"),
+        ("REWE Beste Wahl Prinzessbohnen", "bohne"),
+        ("REWE Bio Edamame", "edamame"),
+        ("Pfifferlinge", "pilz"),
+        ("Portobello", "pilz"),
+        ("Mini-Pak-Choi", "pak-choi"),
+        ("Spitzkohl", "kohl"),
+        ("Kresse", "kresse"),
+        ("Bio Ingwer", "ingwer"),
+        ("Chicorée", "chicoree"),
+        ("Peperoni-Mix", "peperoni"),
+        ("Lollo Bionda", "salat"),
+        ("EDEKA Bio Gemüse", "gemuse"),
+        # The feed ships a typo'd "Romatomen"; it is still a tomato.
+        ("Romatomen", "tomate"),
+    ],
+)
+def test_vegetable_names_group_by_product(name, expected):
+    key, _label = product_group(name, None, "vegetables")
+    assert key == expected
+
+
+def test_generic_kohl_stays_behind_the_specific_cabbages():
+    # "kohl" ⊂ "Blumenkohl" and ⊂ "Kohlrabi", so the generic MUST sit last in the list.
+    # Sabotage: move ("Kohl", ["kohl"]) above them -> the first two assertions fail.
+    assert product_group("Blumenkohl", None, "vegetables")[1] == "Blumenkohl"
+    assert product_group("Kohlrabi", None, "vegetables")[1] == "Kohlrabi"
+    # A cabbage with no specific rule falls back to the generic.
+    assert product_group("Spitzkohl", None, "vegetables") == ("kohl", "Kohl")
+
+
+def test_generic_gemuese_never_beats_a_named_vegetable():
+    # "gemüse" ⊂ "Gemüsezwiebel"/"Gemüsemais"; the named product must win, so the generic
+    # veg-mix bucket sits last of all. Sabotage: move ("Gemüse", …) up -> these fail.
+    assert product_group("Gemüsezwiebeln", None, "vegetables")[1] == "Zwiebel"
+    assert product_group("Gemüsemais", None, "vegetables")[1] == "Mais"
+    assert product_group("Frosta Gemüse Mix", None, "vegetables")[1] == "Gemüse"
+
+
+def test_pak_choi_matches_the_hyphenated_spelling():
+    # The flyer writes "Mini-Pak-Choi"; a spaced-only keyword misses it entirely (this was
+    # caught by diffing against the real DB, not by reading the code). Sabotage: drop
+    # "pak-choi" from the keywords -> the first assertion fails.
+    assert product_group("Mini-Pak-Choi", None, "vegetables")[1] == "Pak Choi"
+    assert product_group("Pak Choi", None, "vegetables")[1] == "Pak Choi"
+
+
+def test_grapefruit_and_melon_cultivars_group():
+    # Grapefruit had no rule at all; "Piel de Sapo" is a melon the flyer names without
+    # the word "Melone".
+    assert product_group("Grapefruit", None, "fruits") == ("grapefruit", "Grapefruit")
+    assert product_group("Piel de Sapo", None, "fruits")[1] == "Melone"
+    assert product_group("Piel de Sapo Melone", None, "fruits")[1] == "Melone"
+    # The category gate keeps grapefruit-FLAVOURED drinks out of the fruit bowl.
+    assert product_group("Rio d'Oro Pink Grapefruit", None, "soft_drinks")[1] != "Grapefruit"
+
+
 def test_label_is_returned_with_key():
     assert product_group("Avocado", None, "fruits") == ("avocado", "Avocado")
 
