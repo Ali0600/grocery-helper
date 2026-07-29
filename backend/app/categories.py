@@ -528,6 +528,13 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # has to beat the produce path/brand that currently wins (Bonduelle -> vegetables).
     ("pantry", ["gewürzgurke", "essiggurke", "cornichon", "sauerkraut", "passata",
                 "passierte tomaten", "ananas in stücken", "goldmais"]),
+    # More IMAGE-audit finds. "Metten Roastbeef" is a beef roast the source files under
+    # `Fleischzubereitungen` (-> pork), and the `mett` group name made it look right.
+    ("beef", ["roastbeef", "roast beef"]),
+    # Cheese-NAMED sausages: a Käsewiener/Käsebeißer/Käsekrainer is a cheese-filled sausage,
+    # not a cheese. One came via the `käse` keyword, the other via a `Käse` PATH node, so
+    # this has to sit at layer 2 to catch both.
+    ("pork", ["käsewiener", "käsebeisser", "käsebeißer", "käsekrainer", "käsegriller"]),
 ]
 
 # What the flyer CAPTION says the product is. Read from `Offer.unit`, which holds the source's
@@ -612,6 +619,11 @@ _OVERRIDES: list[tuple[str, list[str]]] = [
     # both obvious from the image and invisible in the name's prefix.
     ("bakery", ["apfeltasche", "apfelstrudel"]),
     ("sweets", ["orangette"]),
+    # A Reis-/Mais-/Dinkel-/Linsenwaffel is a savoury crispbread cake, not a sweet waffle —
+    # the picture is a stack of pale discs, and the captions read "gesalzen"/"ungesalzen".
+    # `waffel` must keep meaning sweets for Manner Waffeln and Karamellwaffeln, so the fix is
+    # the specific compound at layer 5, one step ahead of the keyword.
+    ("snacks", ["reiswaffel", "maiswaffel", "dinkelwaffel", "linsenwaffel", "knäckebrot"]),
 ]
 
 
@@ -626,19 +638,31 @@ _OVERRIDES: list[tuple[str, list[str]]] = [
 _FOOD_RESCUE: dict[str, list[str]] = {
     "fruits": ["nektarine", "plattpfirsich", "aprikose", "brombeere", "himbeere", "erdbeere",
                "pflaume", "wassermelone", "honigmelone", "kirsche", "heidelbeere", "blaubeere",
-               "stachelbeere", "johannisbeere", " mango", "papaya", "weintraube"],
+               "stachelbeere", "johannisbeere", " mango", "papaya", "weintraube",
+               "tafeltraube", "mandarin-orange"],
     "vegetables": ["rispentomate", "romatomate", "cherrytomate", "kulturchampignon", "champignon",
                    "zucchini", "rucola", "feldsalat", "wildkräuter salat"],
-    "fish": ["deutsche see", "lachsfilet", "pangasius", "räucher-garnele"],
-    "poultry": ["maishähnchen", "geflügelsalat", "geflügel-fleischsalat", "hähnchen-grillplatte"],
+    "fish": ["deutsche see", "lachsfilet", "pangasius", "räucher-garnele",
+             "heringsstipp", "tiger-garnele"],
+    "poultry": ["maishähnchen", "geflügelsalat", "geflügel-fleischsalat", "hähnchen-grillplatte",
+                "knusperdino"],
     "snacks": ["jumbo erdnüsse", "erdnusskerne", "erdnuss-flip", "cashew", "walnusskern", "reiswaffel"],
-    "bakery": ["roggenmischbrot", "vollkornbrot", "mehrkornbrot"],
+    "bakery": ["roggenmischbrot", "vollkornbrot", "mehrkornbrot", "kernbrot"],
     "pantry": ["guacamole", "tomatenketchup", "agavendicksaft", "quinoa"],
     "beef": ["ochsen-bäckchen", "ochsenbäckchen"],
     # Pork the source files under a non-food "Grillfleisch"/promo node → household ("Hausmarke
     # Schweine-Nackensteaks"). `nackensteak` is already a pork keyword, but the path wins first, so
     # the rescue re-claims it. Specific enough that only pork carries them.
-    "pork": ["schweinenacken", "schweine-nacken"],
+    "pork": ["schweinenacken", "schweine-nacken", "grillnackensteak"],
+    # 2026-07-29: the source sometimes attaches a path from an ENTIRELY UNRELATED domain --
+    # a Zott Monte under "Hautpflege > Creme", Capri-Sun syrup under "Reinigungsmittel >
+    # Spülmittel". Layer 1 always decides on a non-food path, so a rescue noun is the ONLY
+    # way back for these; the same product arrives with a correct path from another chain,
+    # which is how the self-disagreement check found them.
+    "dairy": ["monte mega", "fruchtjoghurt"],
+    "soft_drinks": ["capri sun", "capri-sun", "fruchtsäfte"],
+    "alcoholic": [" weine"],  # LEADING SPACE: bare "weine" is a substring of "Schweine-"
+    # (a Schweinebraten under a pet path classified as ALCOHOLIC before this guard).
     # Grated cheese the source mis-files under a PET-brand node ("Milsani Reibekäse XXL" under
     # "Marken für Tiere"). Real cheese, not pet food, so it's a rescue — the pet guard's tokens
     # don't match "reibekäse", and no pet product carries the word.

@@ -1221,3 +1221,74 @@ def test_a_bare_tiefgefroren_caption_is_rejected():
                     "Tiefgefroren. 750 g") == "poultry"
     assert classify("BON GELATI Stieleis Mandel XXL", "BON GELATI", None,
                     "Tiefgefroren. 8 Stück") == "ice_cream"
+
+
+# --- Image audit, batch 3: cheese-named sausages, savoury "waffles", and the food the
+# source buried under a non-food path (layer 1 always decides there, so _FOOD_RESCUE is the
+# ONLY reachable fix). ---
+
+def test_cheese_named_sausages_are_pork():
+    """A Käsewiener/Käsebeißer is a cheese-FILLED sausage. One arrived via the `käse`
+    keyword and the other via a `Käse` PATH node, so the guard has to sit at layer 2."""
+    assert classify("Delikat Käsewiener", "Delikat", None) == "pork"
+    kaese_path = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Käse"]
+    assert classify("Richter Käsebeißer", "Richter", kaese_path) == "pork"
+    # ...and a real cheese under the same node is untouched.
+    assert classify("Milbona Butterkäse XXL", "Milbona", kaese_path) == "cheese"
+
+
+def test_savoury_waffles_are_snacks_but_sweet_ones_are_not():
+    """Reis-/Mais-/Dinkelwaffeln are pale crispbread discs ("gesalzen"); Manner Waffeln are
+    confectionery. `waffel` must keep meaning sweets, so only the compounds move."""
+    assert classify("EDEKA Bio Maiswaffeln", "EDEKA Bio", None, "gesalzen 130g Beutel") == "snacks"
+    assert classify("EDEKA Herzstücke Reiswaffeln", "EDEKA", None) == "snacks"
+    assert classify("Manner Waffeln", "Manner", None) == "sweets"
+    assert classify("BISCOTTO Karamellwaffeln XXL", "BISCOTTO", None) == "sweets"
+
+
+def test_roastbeef_is_beef_not_pork():
+    """The source files it under `Fleischzubereitungen` (-> pork) and the brand is Metten,
+    which the `mett` sausage rule also likes."""
+    fz = ["Lebensmittel und Getränke", "Produkte", "Fleisch", "Fleischzubereitungen"]
+    assert classify("Metten Roastbeef", "Metten", fz) == "beef"
+    assert classify("Bauergut Schinkenmett", "Bauergut", fz) == "pork"  # real Mett unaffected
+
+
+@pytest.mark.parametrize(
+    "name, brand, path, expected",
+    [
+        # A path from an ENTIRELY unrelated domain — the classifier followed it faithfully.
+        ("ZOTT Monte Mega", "Zott",
+         ["Drogerie und Haushalt", "Produkte", "Drogerie", "Körperpflege", "Hautpflege",
+          "Hautpflegeprodukte", "Creme"], "dairy"),
+        ("CAPRI SUN Sirup", "CAPRI SUN",
+         ["Drogerie und Haushalt", "Produkte", "Haushalt", "Reinigen", "Reinigungsmittel",
+          "Spülmittel"], "soft_drinks"),
+        # ...and plain "no rescue noun existed" cases under pet/promo/brand leaves.
+        ("REWE Bio Sonnenkernbrot", "REWE Bio",
+         ["Lebensmittel und Getränke", "Marken", "REWE Bio"], "bakery"),
+        ("Golden Seafood White-Tiger-Garnelen XXL", "Golden Seafood",
+         ["Tierbedarf und Tierfutter", "Marken für Tiere"], "fish"),
+        ("Hamburger Heringsstipp", None,
+         ["Dienstleistungen", "Gastronomie"], "fish"),
+        ("REWE Beste Wahl Mix Tafeltrauben", "REWE Beste Wahl",
+         ["Tierbedarf und Tierfutter", "Marken für Tiere"], "fruits"),
+        ("Jack's Farm Knusperdinos XXL", "Jack's Farm",
+         ["Drogerie und Haushalt", "XXL"], "poultry"),
+    ],
+)
+def test_food_rescued_from_an_unrelated_path(name, brand, path, expected):
+    assert classify(name, brand, path) == expected
+
+
+def test_the_new_rescues_still_only_fire_under_a_non_food_path():
+    """The rescue gate is what makes these safe. Under a real FOOD path the normal layers
+    must still decide — otherwise `fruchtjoghurt` or `weine` would start hijacking rows."""
+    pet = ["Tierbedarf und Tierfutter", "Marken für Tiere"]
+    # A pet product that merely mentions a rescue noun stays household (the veto still wins).
+    assert classify("Hundefutter mit Rind", None, pet) == "household"
+    # THE SUBSTRING TRAP THIS ALMOST SHIPPED: "weine" is inside "Schweine-", so an unguarded
+    # rescue noun turned a Schweinebraten under a pet path into ALCOHOLIC. The token carries a
+    # leading space; both directions are pinned here.
+    assert classify("Bauergut Schweinebraten", "Bauergut", pet) == "household"
+    assert classify("Erben Weine", "Erben", ["Saison und Events", "Treuepunkte"]) == "alcoholic"
