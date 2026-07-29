@@ -288,6 +288,34 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   node, brand map,
   **`_OVERRIDES`** (flavour words like sekt/choco — after the brand so Häagen-Dazs Chocolate
   stays **ice_cream**, not sweets), keyword rules.
+  **The 2026-07-29 IMAGE audit** (contact sheets of all 1086 distinct food-category products,
+  built from `Offer.image_url`, 100% coverage) found the class a keyword audit structurally
+  cannot: a product whose name, brand, path AND caption all read plausibly for the wrong
+  category. 4 PRs (#115–#117 + #118), **~230 rows / ~105 distinct products, 0 regressions**;
+  live "other" 4.3% → ~2%. Examples that only a photo settles: `Apfeltasche` (apple-turnover
+  PASTRIES) and three `Apfelmus` (JARS) in Fruits, `Milsani Erdbeere` (a rack of SKYR pots) in
+  Fruits, `Pick Paprika Kolbasz` (Hungarian SALAMI) in Vegetables, `Berliner Buletten`
+  (MEATBALLS) and `Tillman's Toasty` (breaded CHICKEN) in Bakery, `Käsewiener`/`Käsebeißer`
+  (cheese-FILLED SAUSAGES) in Cheese, `Metten Roastbeef` (BEEF) in Pork, and EDEKA's
+  `Mais-/Dinkel-/Reiswaffeln` (savoury crispbread) in Sweets.
+  **A new trap class: the source sometimes attaches a path from an ENTIRELY unrelated domain**
+  — a rucksack under `Schaumwein > Sekt` (served as Alcoholic), a Zott Monte under `Hautpflege
+  > Creme` and Capri-Sun syrup under `Reinigungsmittel > Spülmittel` (both buried in
+  Household). The classifier follows it faithfully. They're findable because the *same*
+  product arrives with a correct path from another chain — so the **self-disagreement check is
+  a detector, not just a CI gate**. Run `classify(name, brand, None, unit)` vs
+  `classify(..., path, ...)` and look at the disagreements.
+  **Preserved produce leaves the FRESH chips** (user's convention): jarred/canned → pantry,
+  frozen → frozen, at layer 2 (canned is a definitive *form* and must beat the produce path
+  and brand — `Bonduelle` is mapped to vegetables, so a layer-5 override never gets a turn).
+  **Three signals were simulated and REJECTED, each pinned by a test** — the simulation is the
+  point, all three looked obviously right: a bare `brotaufstrich` caption (a USE, not an
+  identity — it moved Fleischsalat/Eiersalat out of pork and the Brunch spread out of cheese);
+  a bare `tiefgefroren` caption (**84 rows** — it emptied ice_cream, fish and poultry into
+  frozen: *the freezer is a shelf, not a category*); and a bare `grilltaler` (Grillmeister's is
+  a MEAT patty, only Milram's `hotties` is cheese). **A `_FOOD_RESCUE` substring trap nearly
+  shipped**: `weine` is inside `Schweine-`, so an unguarded token made a Schweinebraten under a
+  pet path ALCOHOLIC — rescue nouns that are substrings of a common compound need a space guard.
   **Pet food never lands in a food chip (2026-07-28, user-reported: "Orlando in Chicken is dog
   food")**: the pet veto (`_RESCUE_VETO`) only ran INSIDE the non-food-path rescue, so a **pathless**
   pet product with a meat word — "Orlando Hundetrockennahrung **Rind**" → beef; "ROMEO Kauknochen aus
