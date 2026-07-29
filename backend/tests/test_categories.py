@@ -1099,3 +1099,82 @@ def test_the_produce_evictions_do_not_take_real_produce_with_them():
     assert classify("Spitzkohl", None, gemuese) == "vegetables"
     # "couronne"/"flatbread" are bread designations, not fruit/veg words: fresh figs stay fruit.
     assert classify("Feigen", None, obst) == "fruits"
+
+
+# --- 2026-07-29 IMAGE audit: products whose NAME, PATH and BRAND all read plausibly for the
+# wrong category, and only the product photo settled it. Each case is paired with the sibling
+# that must NOT move — that pairing is the whole guard, since every fix here is a substring. ---
+
+@pytest.mark.parametrize(
+    "name, brand, path, expected, why",
+    [
+        # Fruits chip: the picture was a pastry, a jar, a yogurt pot and a chocolate bar.
+        ("Apfeltasche", None, None, "bakery", "apple turnover, was fruits via 'apfel'"),
+        ("Spreewaldhof Bio-Apfelmus", "Spreewaldhof", None, "pantry", "apple sauce in a jar"),
+        ("CHOCEUR Orangetten", "CHOCEUR", None, "sweets", "chocolate sticks, was fruits"),
+        # Vegetables chip: a sauce bottle, a jar of mayonnaise, and Hungarian salami.
+        ("Heinz Knoblauch-Sauce", "Heinz", None, "pantry", "a sauce, was vegetables"),
+        ("Miracel Whip Salatcreme Original", None, None, "pantry", "mayonnaise, was vegetables"),
+        ("Pick Paprika Kolbasz Paare", "Pick", ["Lebensmittel und Getränke", "Gemüse", "Paprika"],
+         "pork", "paprika-spiced salami the source filed under a Paprika node"),
+        # Bakery chip: fried meatballs and breaded chicken.
+        ("Bauerngut Berliner Buletten", "Bauerngut",
+         ["Lebensmittel und Getränke", "Brot", "Feingebäck"], "pork", "meatballs under Feingebäck"),
+        ("Tillman's Toasty", "Tillman's", None, "poultry", "breaded chicken, was bakery via 'toast'"),
+        # Alcoholic chip: the source filed a rucksack under Schaumwein > Sekt.
+        ("LIVE IN STYLE Rucksack", "LIVE IN STYLE",
+         ["Lebensmittel und Getränke", "Produkte", "Getränke", "Alkoholische Getränke",
+          "Schaumwein", "Sekt"], "household", "a rucksack served as Alcoholic"),
+    ],
+)
+def test_image_audit_moves(name, brand, path, expected, why):
+    assert classify(name, brand, path) == expected, why
+
+
+def test_image_audit_guards_do_not_take_their_siblings():
+    """Every fix above is a substring rule, so each needs the neighbour it must not touch."""
+    # `apfelmus`/`apfeltasche` must not disturb a real apple, and `orangette` not an orange.
+    assert classify("Apfel Pink Lady, lose", None, None) == "fruits"
+    assert classify("GUT&GÜNSTIG Orangen", "GUT&GÜNSTIG", None) == "fruits"
+    # `toasty` is the product; `toast` must keep meaning bread.
+    assert classify("GUT&GÜNSTIG Toastbrot", "GUT&GÜNSTIG", None) == "bakery"
+    # `bulette` is the meatball; a Berliner doughnut stays bakery.
+    assert classify("Berliner", None, ["Lebensmittel und Getränke", "Brot", "Feingebäck"]) == "bakery"
+    # `kolbasz` is the sausage; real peppers stay vegetables.
+    assert classify("EDEKA Regional Paprika, rot", "EDEKA", None) == "vegetables"
+    # `rucksack` is non-food; a real Sekt under the same node stays alcoholic.
+    sekt = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Alkoholische Getränke",
+            "Schaumwein", "Sekt"]
+    assert classify("Rotkäppchen Sekt", "Rotkäppchen", sekt) == "alcoholic"
+
+
+def test_caption_rescues_products_a_name_rule_could_not_reach():
+    """The two earlier audits DROPPED these because a name keyword clashed. The caption
+    states the designation with no such collision — which is what layer 2b is for."""
+    # `mars` as a name rule collides with Paulaner; the caption is unambiguous.
+    assert classify("Mars", "Mars", None, "Schokoladenriegel, versch. Sorten 225 g") == "sweets"
+    # Block House deliberately stayed OFF the brand map (it also sells garlic bread).
+    assert classify("Block House Burger", "Block House", None,
+                    "aus Rindfleisch, bratfertig tiefgefroren") == "beef"
+    # A lamb cut that nothing else names.
+    assert classify("DELUXE Merino-Lammlache", "DELUXE", None,
+                    "Vom Merino-Lamm. Gekühlt. 250 g") == "other_meat"
+    # ...but a MIXED mince keeps the house convention: "aus Schweine- und Rindfleisch" does
+    # not contain "aus rindfleisch", so it must stay pork.
+    assert classify("FAIR & GUT Cevapcici XXL", "FAIR & GUT", None,
+                    "Hackfleischröllchen aus Schweine- und Rindfleisch; zum Braten") == "pork"
+
+
+def test_brotaufstrich_is_rejected_as_a_caption_signal():
+    """A spread's category comes from what it is MADE of, so "Brotaufstrich" (a USE, not an
+    identity) must never be a caption signal — it moved Fleischsalat and Eiersalat out of pork
+    and the Brunch spread out of cheese. Same class as the already-rejected "gebäck"."""
+    assert classify("POPP Fleischsalat", "POPP", None, "Brotaufstrich, 150-g-Becher") == "pork"
+    assert classify("Bauern Gut Eiersalat", "Bauern Gut", None, "Brotaufstrich 150 g") == "pork"
+
+
+def test_vly_is_a_vegan_brand_not_dairy():
+    """Its "Joghurt Alternative" was Dairy because layer 2's `joghurt` form word fired;
+    layer 0 beats that. A real yogurt is unaffected."""
+    assert classify("Vly Joghurt Alternative", "Vly", None, "Stracciatella 400-g-Becher") == "vegan"
+    assert classify("Milbona Joghurt", "Milbona", None, "500 g") == "dairy"

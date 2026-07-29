@@ -16,7 +16,10 @@ from typing import Optional
 _VEGAN_RE = re.compile(
     r"(?<![a-zäöüß])(vegan|pflanzlich)"
     r"|(?<![a-zäöüß])(vemondo|vemodo|like meat|likemeat|like döner|next level|garden gourmet|"
-    r"beyond meat|vivera|endori|veganz|alpro|taifun|planted|heura|simply v|oatly)",
+    # `vly` is a pea-protein dairy-alternative brand; its "Joghurt Alternative" was served as
+    # Dairy because layer 2's `joghurt` form word fired. Layer 0 beats that. The lookbehind
+    # keeps it from firing inside a longer word.
+    r"beyond meat|vivera|endori|veganz|alpro|taifun|planted|heura|simply v|oatly|vly)",
     re.IGNORECASE,
 )
 

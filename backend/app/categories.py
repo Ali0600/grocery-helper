@@ -510,6 +510,17 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     ("bakery", ["flatbread", "couronne"]),
     ("pantry", ["remoulade"]),
     ("cheese", ["bresso"]),
+    # --- 2026-07-29 IMAGE audit: the picture showed something the path insisted otherwise ---
+    # A Kolbász is Hungarian salami (the source filed it under a `Paprika` node because the
+    # sausage is paprika-spiced); a Bulette is a fried meatball (filed under `Feingebäck`).
+    # Only layer 2 beats a path, which is why these aren't plain keywords.
+    ("pork", ["kolbasz", "kolbász", "bulette", "frikadelle"]),
+    # "Tillman's Toasty" is breaded CHICKEN — the `toast` bakery keyword swallowed it. The
+    # image is unambiguous; `toast` itself must keep matching Toastbrot, so guard the product.
+    ("poultry", ["toasty"]),
+    # A rucksack the source filed under `Schaumwein > Sekt`, so it was served as Alcoholic.
+    # No food is called a Rucksack, so this is safe at layer 2.
+    ("household", ["rucksack"]),
 ]
 
 # What the flyer CAPTION says the product is. Read from `Offer.unit`, which holds the source's
@@ -539,6 +550,24 @@ _CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
     # Schweinelachsschinken are cured PORK, and only the caption says so.
     ("pork", ["vom schwein", "schweinebauch", "schweinerücken", "schweinefleisch", "schweinelachs"]),
     ("ice_cream", ["stieleis", "eiscreme"]),
+    # --- 2026-07-29 audit: the caption is the ONLY place these state what they are. Most sat
+    # in `other` (nothing claimed them); two were products earlier audits deliberately DROPPED
+    # because a *name* keyword would have clashed — the caption has no such problem:
+    #   "Mars"              -> a bare `mars` name rule collides with Paulaner
+    #   "Block House Burger"-> Block House stayed off the brand map (it also sells garlic bread)
+    ("sweets", ["schokoladenriegel", "kaubonbon", "biskuitrolle"]),
+    ("beef", ["aus rindfleisch"]),  # NOT "aus Schweine- und Rindfleisch" — that stays pork
+    ("other_meat", ["vom merino-lamm", "vom lamm"]),
+    ("fish", ["seelachsfilet", "capelinrogen"]),
+    ("bakery", ["brot in scheiben", "roggenmischbrot"]),
+    ("pantry", ["gewürzmischung"]),
+    # A Skyr is a dairy product whatever fruit the NAME leads with ("Milsani Erdbeere" was
+    # served under Fruits; the picture is a rack of yogurt pots).
+    ("dairy", ["skyr high protein", "skyr, "]),
+    # REJECTED, and pinned by a test: a bare "brotaufstrich" caption. It reads like a
+    # designation but is a USE, not an identity — it moved POPP Fleischsalat and Bauern Gut
+    # Eiersalat out of pork and the Brunch cheese spread out of cheese. Same class as the
+    # already-rejected "gebäck". A spread's category comes from what it is MADE of.
 ]
 
 # Flavour / drink-type tokens (and specific compounds that must beat a generic fruit
@@ -558,7 +587,17 @@ _OVERRIDES: list[tuple[str, list[str]]] = [
     ("pork", ["fleischsalat", "wurstsalat"]),  # sausage-based deli salad, not "salat"
     ("vegetables", ["pflaumentomate"]),
     ("pantry", ["apfelessig", "weinessig", "obstessig", "balsamico",
-                "ketchup", "kartoffelsalat", "kartoffel-salat"]),
+                "ketchup", "kartoffelsalat", "kartoffel-salat",
+                # Found by the 2026-07-29 IMAGE audit — each was served under a produce chip
+                # while the picture showed a jar or a bottle. The prefix is the produce word,
+                # the compound is the product: an Apfelmus is apple SAUCE, a Salatcreme is
+                # mayonnaise. Same shape as `apfelessig` directly above.
+                "apfelmus", "apfelkompott", "salatcreme", "salatmayonnaise", "knoblauch-sauce",
+                "knoblauchsauce"]),
+    # An Apfeltasche is a PASTRY, an Orangette is a chocolate stick — both were in Fruits,
+    # both obvious from the image and invisible in the name's prefix.
+    ("bakery", ["apfeltasche", "apfelstrudel"]),
+    ("sweets", ["orangette"]),
 ]
 
 
