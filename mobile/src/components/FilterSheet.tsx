@@ -9,13 +9,38 @@ import { SortMode } from '../storage';
 import { colors, font, radius, space } from '../theme';
 import { Icon } from './Icon';
 
-type Opt = { label: string; active: boolean; onPress: () => void };
+type Opt = {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  /** Multi-select member: show a ✓ when active, so the row reads as "pick any" rather than
+   * "pick one" (every other section in this sheet is single-select). */
+  check?: boolean;
+  /** Announced name where the visible label is ambiguous or noisy — the store pills carry a
+   * count, and "All" appears in three sections. Same convention as RecipesModal's chips. */
+  a11yLabel?: string;
+};
 
 // One selectable pill (used for every option in the sheet).
-function Pill({ label, active, onPress }: Opt) {
+function Pill({ label, active, onPress, check, a11yLabel }: Opt) {
   return (
-    <Pressable onPress={onPress} style={[styles.pill, active && styles.pillActive]}>
-      <Text style={[styles.pillText, active && styles.pillTextActive]}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      style={[styles.pill, active && styles.pillActive]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={a11yLabel ?? label}
+    >
+      {check && active ? <Icon name="checkmark" size={13} color={colors.onAccent} /> : null}
+      <Text
+        style={[
+          styles.pillText,
+          active && styles.pillTextActive,
+          check && active && styles.pillTextGap,
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -45,13 +70,15 @@ export function FilterSheet(props: {
   // Hidden on the "My Categories" home: there's no single sort there — each shelf uses its
   // category's own default — so a single Sort selector would be misleading.
   hideSort?: boolean;
-  // Store MEMBERSHIP lives in the Stores modal (Add/Added). This is different: a
-  // transient single-select "Only show" lens for quickly peeking at one store's deals —
-  // one tap isolates, one tap (All / the bar chip's ✕) restores. Session-only.
+  // Store MEMBERSHIP lives in the Stores modal (Add/Added). This is different: the "Only
+  // show" lens, a MULTI-select view over the stores you already keep — tap to add, tap again
+  // to remove, All (or the bar chip's ✕) clears. Persisted, but it only ever narrows the
+  // deals list; it can't bring a removed store back.
   chains: string[]; // the VISIBLE chains (membership already applied)
   chainCounts: Record<string, number>;
-  storeLens: string | null;
-  onChangeStoreLens: (chain: string | null) => void;
+  storeLens: string[]; // empty = All
+  onToggleStoreLens: (chain: string) => void;
+  onClearStoreLens: () => void;
   hasDayLimited: boolean;
   dayLimitedCount: number;
   specialDays: boolean;
@@ -106,14 +133,17 @@ export function FilterSheet(props: {
               options={[
                 {
                   label: 'All',
-                  active: props.storeLens == null,
-                  onPress: () => props.onChangeStoreLens(null),
+                  a11yLabel: 'All stores', // "All" also appears in the Organic + Sale-days rows
+                  active: props.storeLens.length === 0,
+                  onPress: props.onClearStoreLens,
                 },
                 ...props.chains.map((c) => ({
                   label: `${chainLabel(c)} (${props.chainCounts[c] ?? 0})`,
-                  active: props.storeLens === c,
-                  // Tapping the active store again clears back to All.
-                  onPress: () => props.onChangeStoreLens(props.storeLens === c ? null : c),
+                  a11yLabel: `Only ${chainLabel(c)}`, // count-free, so it's a stable handle
+                  active: props.storeLens.includes(c),
+                  check: true,
+                  // No clear-on-active special case: removing the last pick yields [], which IS All.
+                  onPress: () => props.onToggleStoreLens(c),
                 })),
               ]}
             />
@@ -230,10 +260,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card2,
     borderWidth: 1,
     borderColor: colors.border,
+    // Row, so the multi-select ✓ sits beside its label instead of stacking above it.
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   pillActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  pillTextGap: { marginLeft: 5 },
   pillText: { color: colors.muted, fontSize: 13, fontWeight: '600' },
   pillTextActive: { color: colors.onAccent },
   done: {

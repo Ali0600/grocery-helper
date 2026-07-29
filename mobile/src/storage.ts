@@ -21,6 +21,7 @@ const MYSTORES_KEY = 'myStores';
 const SORT_KEY = 'sortMode'; // the global sort (used in "All")
 const SORT_BY_CATEGORY_KEY = 'sortByCategory'; // slug -> the user's explicit sort for it
 const HIDDEN_STORES_KEY = 'hiddenStores';
+const STORE_LENS_KEY = 'storeLens';
 const MYCATS_KEY = 'myCategories'; // ordered category slugs for the personalized "My Categories" home
 const BASKET_KEY = 'basket';
 const LIKES_KEY = 'likedItems';
@@ -87,6 +88,31 @@ export async function setStoredHiddenStores(chains: string[]): Promise<void> {
     await AsyncStorage.setItem(HIDDEN_STORES_KEY, JSON.stringify(chains));
   } catch (e) {
     console.warn('storage: setStoredHiddenStores failed', e);
+    // best-effort
+  }
+}
+
+// The Filters sheet's "Only show" lens: which of your stores the deals list is currently
+// showing. Empty = all of them. A narrower thing than `hiddenStores` above (that's membership,
+// and scopes Basket/Recipes/Compare too) — this is deals-list only, and composes after it.
+// Persisted at the user's request; safe to persist because `activeStoreLens` intersects it with
+// what's actually visible, so a stale pick is inert rather than an empty list.
+export async function getStoredStoreLens(): Promise<string[]> {
+  try {
+    const raw = await AsyncStorage.getItem(STORE_LENS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((c): c is string => typeof c === 'string') : [];
+  } catch (e) {
+    console.warn('storage: getStoredStoreLens failed', e);
+    return [];
+  }
+}
+
+export async function setStoredStoreLens(chains: string[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(STORE_LENS_KEY, JSON.stringify(chains));
+  } catch (e) {
+    console.warn('storage: setStoredStoreLens failed', e);
     // best-effort
   }
 }
@@ -391,6 +417,7 @@ export async function clearAllData(): Promise<void> {
     await AsyncStorage.multiRemove([
       NONFOOD_KEY,
       HIDDEN_STORES_KEY,
+      STORE_LENS_KEY,
       MYCATS_KEY,
       MYSTORES_KEY,
       SORT_KEY,

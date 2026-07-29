@@ -49,7 +49,15 @@ import {
 } from '../dealFilters';
 import { dealsCacheStale, dealsStale, refreshDeltaMessage } from '../format';
 import { resolveSortMode, sortLabel } from '../sort';
-import { filterByVisibleStores, hasHiddenPresent, toggleHiddenStore, visibleStoreChains } from '../stores';
+import {
+  activeStoreLens,
+  filterByVisibleStores,
+  hasHiddenPresent,
+  storeLensLabel,
+  toggleHiddenStore,
+  toggleStoreLens,
+  visibleStoreChains,
+} from '../stores';
 import { resolveBasketItem } from '../basketResolve';
 import { filterHidden, HiddenItem, hiddenKeySet, hideKey, toggleHidden } from '../hidden';
 import { isLiked, likeKey, onSaleCount, resolveLike } from '../likes';
@@ -63,6 +71,7 @@ import {
   getStoredBasket,
   getStoredHidden,
   getStoredHiddenStores,
+  getStoredStoreLens,
   getStoredLikes,
   getStoredMyCategories,
   getStoredMyStores,
@@ -79,6 +88,7 @@ import {
   setStoredBasket,
   setStoredHidden,
   setStoredHiddenStores,
+  setStoredStoreLens,
   setStoredLikes,
   setStoredMyCategories,
   setStoredMyStores,
@@ -130,18 +140,20 @@ export default function DealsScreen() {
   const [sortByCategory, setSortByCategory] = useState<Record<string, SortMode>>({});
   const [hiddenStores, setHiddenStores] = useState<string[]>([]); // persisted: chains hidden from the deals list
   const [specialDays, setSpecialDays] = useState(false); // session lens: only day-limited specials
-  // Session lens: isolate ONE store's deals for a quick look (the Filters "Only show"
-  // row). Deliberately not persisted — a peek must never leave the app stuck on one
-  // store — and distinct from `hiddenStores`, the persistent store list.
-  const [storeLens, setStoreLens] = useState<string | null>(null);
+  // The "Only show" lens (Filters sheet): which of your stores the deals list is showing.
+  // Empty = all. MULTI-select and persisted — distinct from `hiddenStores`, which is
+  // membership (it scopes Basket/Recipes/Compare too); this is a deals-list view over the
+  // stores you already keep, and composes after it. Safe to persist because `activeStoreLens`
+  // intersects it with what's visible, so a stale pick is inert rather than an empty list.
+  const [storeLens, setStoreLens] = useState<string[]>([]);
   const [bioOnly, setBioOnly] = useState(false); // session lens: only organic ("Bio") offers
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [basketModal, setBasketModal] = useState(false);
   const [likes, setLikes] = useState<LikedItem[]>([]); // persisted: right-swiped products
   const [likesModal, setLikesModal] = useState(false);
   const [hidden, setHidden] = useState<HiddenItem[]>([]); // persisted: deals dismissed for the week
-  // Session-only, like storeLens: a peek at your hidden deals must never leave the app stuck
-  // showing only them after a reload.
+  // Session-only (unlike the store lens, which the user asked to persist): "show me only my
+  // hidden deals" is a momentary peek, and surviving a reload would read as the app breaking.
   const [showHidden, setShowHidden] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -237,6 +249,7 @@ export default function DealsScreen() {
       setSortMode(await getStoredSortMode());
       setSortByCategory(await getStoredSortByCategory());
       setHiddenStores(await getStoredHiddenStores());
+      setStoreLens(await getStoredStoreLens());
       // Land on the personalized home when the user has picked categories, else on All (a fresh
       // install has none → never a blank Mine screen). `mine` is otherwise a session view toggle.
       const mc = await getStoredMyCategories();
@@ -605,6 +618,17 @@ export default function DealsScreen() {
     setHiddenStores([]);
     setStoredHiddenStores([]);
   };
+  // The chains the user can currently see — the universe both the "Only show" pills and the
+  // lens derivation work against. One memo, so the sheet's selectable chains and the
+  // derivation's "available" set can never disagree about what full coverage means.
+  const visibleChains = useMemo(
+    () => visibleStoreChains(presentChains, hiddenStores),
+    [presentChains, hiddenStores],
+  );
+  const clearStoreLens = useCallback(() => {
+    setStoreLens([]);
+    setStoredStoreLens([]);
+  }, []);
 
   // --- "My Categories" home ---
   // Selecting All or a category chip leaves the Mine view (existing single-select behaviour).
@@ -711,12 +735,22 @@ export default function DealsScreen() {
   // toggled on; a search matches name/brand across all categories (it ignores the
   // selected chip), otherwise the selected category filters.
   const q = query.trim().toLowerCase();
-  // The lens only counts while its store is still visible (present AND not removed from
-  // the store list) — derived, so removing the store mid-lens self-clears with no effect.
-  const activeLens =
-    storeLens && visibleStoreChains(presentChains, hiddenStores).includes(storeLens)
-      ? storeLens
-      : null;
+  // The lens only counts for stores still visible (present AND not removed from the store
+  // list), and collapses to "All" once it covers all of them — see `activeStoreLens`. Both
+  // memoized: `activeLens` feeds the `visibleOffers` and `mineBase` dep arrays, so a fresh
+  // array identity every render would re-run both filter stacks over ~1400 offers on every
+  // keystroke — exactly the cost this module was extracted to avoid.
+  const activeLens = useMemo(
+    () => activeStoreLens(storeLens, visibleChains),
+    [storeLens, visibleChains],
+  );
+  // Toggles the DERIVED lens, not the raw state: once a full-coverage selection has collapsed
+  // to All, the next tap must start from All — what the pills actually show.
+  const onToggleStoreLens = (chain: string) => {
+    const next = toggleStoreLens(activeLens, chain);
+    setStoreLens(next);
+    setStoredStoreLens(next);
+  };
   // The lens can only count while something is actually hidden — same only-when-present guard
   // as the store lens, so a lens left on when the last hide expires is a no-op, not an empty list.
   const activeShowHidden = showHidden && hiddenKeys.size > 0;
@@ -896,17 +930,13 @@ export default function DealsScreen() {
     activeShowHidden
       ? { key: 'hiddenLens', label: 'Showing hidden', onRemove: () => setShowHidden(false) }
       : null,
-    activeLens
-      ? {
-          key: 'lens',
-          label: `Only ${chainLabel(activeLens)}`,
-          onRemove: () => setStoreLens(null),
-        }
+    activeLens.length
+      ? { key: 'lens', label: storeLensLabel(activeLens), onRemove: clearStoreLens }
       : null,
     hasHiddenPresent(presentChains, hiddenStores)
       ? {
           key: 'store',
-          label: visibleStoreChains(presentChains, hiddenStores).map(chainLabel).join(' · '),
+          label: visibleChains.map(chainLabel).join(' · '),
           onRemove: showAllStores,
         }
       : null,
@@ -921,7 +951,7 @@ export default function DealsScreen() {
   // your store list, so resetting *filters* must not silently re-add a store you removed.
   // The store chip's ✕ (showAllStores) is still the direct way back.
   const resetFilters = () => {
-    setStoreLens(null); // the lens IS a transient filter, unlike the store list
+    clearStoreLens(); // the lens IS a filter (it lives here, with a chip), so Reset clears it
     setShowHidden(false); // ditto — but the hidden SET survives (a persisted choice,
     // like hiddenStores/sortByCategory); only "Reset all app data" clears it.
     setSpecialDays(false);
@@ -1270,10 +1300,11 @@ export default function DealsScreen() {
         sortMode={effectiveSort}
         onChangeSort={onChangeSort}
         hideSort={mine}
-        chains={visibleStoreChains(presentChains, hiddenStores)}
+        chains={visibleChains}
         chainCounts={chainCounts}
         storeLens={activeLens}
-        onChangeStoreLens={setStoreLens}
+        onToggleStoreLens={onToggleStoreLens}
+        onClearStoreLens={clearStoreLens}
         hasDayLimited={hasDayLimited}
         dayLimitedCount={dayLimitedCount}
         specialDays={specialDays}

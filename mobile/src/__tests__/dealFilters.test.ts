@@ -19,7 +19,7 @@ const OPTS: DealFilterOptions = {
   hiddenKeys: new Set<string>(),
   showHidden: false,
   hiddenStores: [],
-  storeLens: null,
+  storeLens: [],
   specialDays: false,
   bioOnly: false,
   query: '',
@@ -150,7 +150,7 @@ describe('buildSections', () => {
   });
 });
 
-describe('filterDeals — "Only this store" lens', () => {
+describe('filterDeals — the "Only show" store lens', () => {
   const offers = [
     makeOffer({ chain: 'lidl', name: 'Lidl Milch' }),
     makeOffer({ chain: 'edeka', name: 'Edeka Milch' }),
@@ -159,7 +159,7 @@ describe('filterDeals — "Only this store" lens', () => {
   ];
 
   it('isolates one chain', () => {
-    const out = filterDeals(offers, { ...OPTS, storeLens: 'edeka' });
+    const out = filterDeals(offers, { ...OPTS, storeLens: ['edeka'] });
     expect(out).toHaveLength(2);
     expect(out.every((o) => o.chain === 'edeka')).toBe(true);
   });
@@ -167,19 +167,53 @@ describe('filterDeals — "Only this store" lens', () => {
   it('is a no-op for a chain with no visible offers (the stale-lens guard)', () => {
     // e.g. the lensed store was removed from the store list, or the PLZ changed —
     // the list must never go empty because of a stale lens.
-    const out = filterDeals(offers, { ...OPTS, storeLens: 'rewe' });
+    const out = filterDeals(offers, { ...OPTS, storeLens: ['rewe'] });
     expect(out).toHaveLength(offers.length);
   });
 
   it('composes AFTER the store list: a hidden chain cannot be lensed into view', () => {
-    const out = filterDeals(offers, { ...OPTS, hiddenStores: ['edeka'], storeLens: 'edeka' });
+    const out = filterDeals(offers, { ...OPTS, hiddenStores: ['edeka'], storeLens: ['edeka'] });
     // edeka is hidden, so the lens finds nothing visible → no-op over the remaining set.
     expect(out.every((o) => o.chain !== 'edeka')).toBe(true);
     expect(out).toHaveLength(2);
   });
 
+  it('shows SEVERAL chains at once — the point of the multi-select lens', () => {
+    const out = filterDeals(offers, { ...OPTS, storeLens: ['edeka', 'aldi'] });
+    expect(out.every((o) => o.chain !== 'lidl')).toBe(true);
+    expect(new Set(out.map((o) => o.chain))).toEqual(new Set(['edeka', 'aldi']));
+  });
+
+  it('does not care about selection order', () => {
+    const a = filterDeals(offers, { ...OPTS, storeLens: ['aldi', 'edeka'] });
+    const b = filterDeals(offers, { ...OPTS, storeLens: ['edeka', 'aldi'] });
+    expect(a).toEqual(b);
+  });
+
+  it('narrows PARTIALLY when only some of the selection is visible', () => {
+    // edeka is hidden, so the lens applies to the lidl half rather than giving up entirely —
+    // an all-or-nothing guard would leave aldi in the list too.
+    const out = filterDeals(offers, {
+      ...OPTS,
+      hiddenStores: ['edeka'],
+      storeLens: ['edeka', 'lidl'],
+    });
+    expect(out.map((o) => o.chain)).toEqual(['lidl']);
+  });
+
+  it('is a no-op — never an EMPTY list — when none of the selection is visible', () => {
+    // The separate pin: the partial test above still passes with no guard at all. This is
+    // what makes persisting the selection safe.
+    const out = filterDeals(offers, { ...OPTS, storeLens: ['rewe', 'netto'] });
+    expect(out).toHaveLength(offers.length);
+  });
+
+  it('an empty lens is exactly "no lens"', () => {
+    expect(filterDeals(offers, { ...OPTS, storeLens: [] })).toEqual(filterDeals(offers, OPTS));
+  });
+
   it('composes with search and category', () => {
-    const bySearch = filterDeals(offers, { ...OPTS, storeLens: 'edeka', query: 'milch' });
+    const bySearch = filterDeals(offers, { ...OPTS, storeLens: ['edeka'], query: 'milch' });
     expect(bySearch.map((o) => o.name)).toEqual(['Edeka Milch']);
 
     const withCat = [
@@ -187,7 +221,7 @@ describe('filterDeals — "Only this store" lens', () => {
       makeOffer({ chain: 'edeka', category: 'bakery' }),
       makeOffer({ chain: 'lidl', category: 'dairy' }),
     ];
-    const byCat = filterDeals(withCat, { ...OPTS, storeLens: 'edeka', selected: 'dairy' });
+    const byCat = filterDeals(withCat, { ...OPTS, storeLens: ['edeka'], selected: 'dairy' });
     expect(byCat).toHaveLength(1);
     expect(byCat[0].chain).toBe('edeka');
   });
@@ -198,7 +232,7 @@ describe('filterDeals — "Only this store" lens', () => {
       makeOffer({ chain: 'edeka', is_bio: false }),
       makeOffer({ chain: 'lidl', is_bio: true }),
     ];
-    const out = filterDeals(mixed, { ...OPTS, storeLens: 'edeka', bioOnly: true });
+    const out = filterDeals(mixed, { ...OPTS, storeLens: ['edeka'], bioOnly: true });
     expect(out).toHaveLength(1);
     expect(out[0].chain).toBe('edeka');
   });
@@ -281,8 +315,30 @@ describe('filterDeals — E center duplicates in the stack', () => {
     // Lensing strips EDEKA from the set; if the dedupe ran after, the guard would find no
     // EDEKA and every duplicate would reappear in exactly the view that should be cleanest.
     const offers = [ed('Milka Tafel', 149), ec('Milka Tafel', 149), ec('Nur E center', 199)];
-    const out = filterDeals(offers, { ...OPTS, storeLens: 'edeka_center' });
+    const out = filterDeals(offers, { ...OPTS, storeLens: ['edeka_center'] });
     expect(out.map((o) => o.name)).toEqual(['Nur E center']);
+  });
+
+  it('the lens guard tests the DEDUPED set, not the raw offers', () => {
+    // Every E center offer here is an EDEKA duplicate, so after the dedupe the chain has
+    // nothing left to show. Testing the guard against the raw `offers` (i.e. "harmonising" it
+    // with the special-days/bio guards) would see edeka_center as present and filter the list
+    // to EMPTY. The user must get EDEKA's surviving row instead.
+    const offers = [ed('Milka Tafel', 149), ec('Milka Tafel', 149)];
+    const out = filterDeals(offers, { ...OPTS, storeLens: ['edeka_center'] });
+    expect(out.map((o) => o.chain)).toEqual(['edeka']);
+  });
+
+  it('still runs BEFORE a MULTI-chain lens', () => {
+    const offers = [ed('Milka Tafel', 149), ec('Milka Tafel', 149), ec('Nur E center', 199)];
+    const out = filterDeals(offers, { ...OPTS, storeLens: ['edeka_center', 'lidl'] });
+    expect(out.map((o) => o.name)).toEqual(['Nur E center']);
+  });
+
+  it('keeps the duplicate suppressed when BOTH EDEKA chains are lensed in', () => {
+    const offers = [ed('Milka Tafel', 149), ec('Milka Tafel', 149), ec('Nur E center', 199)];
+    const out = filterDeals(offers, { ...OPTS, storeLens: ['edeka', 'edeka_center'] });
+    expect(out.map((o) => o.name)).toEqual(['Milka Tafel', 'Nur E center']);
   });
 
   it('a search cannot surface a suppressed duplicate', () => {
