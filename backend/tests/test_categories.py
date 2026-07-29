@@ -1330,3 +1330,45 @@ def test_grilltaler_is_not_a_cheese_token():
     assert classify("Milram Hotties Grilltaler", "Milram", None, "Natur 180g Packung") == "cheese"
     assert classify("Grillmeister Brat- und Grilltaler", "Grillmeister", None,
                     "Versch. Sorten, Gekühlt 280 g") != "cheese"
+
+
+# --- Image audit, final sweep: four brands whose layer-4 entry was beating the truth. ---
+
+def test_moevenpick_coffees_are_not_ice_cream():
+    """Mövenpick is the documented multi-category brand. Its coffees were relying on the
+    `ganze bohnen`/`iced coffee` rescue, which does not fire for these three — all were
+    served as ICE CREAM. The brand entry stays, because its actual ice creams need it."""
+    assert classify("Mövenpick Kaffee", "Mövenpick", None,
+                    "versch. Sorten, gemahlener Bohnenkaffee je 500-g-Pckg.") == "coffee"
+    assert classify("Mövenpick Kaffeekapseln", "Mövenpick", None) == "coffee"
+    assert classify("Mövenpick Der Himmlische", "Mövenpick", None,
+                    "gemahlener Bohnenkaffee, je 500-g-Pckg.") == "coffee"
+    assert classify("MÖVENPICK Eis", "Mövenpick", None, "Tiefgefroren") == "ice_cream"
+
+
+def test_baileys_muffins_are_bakery():
+    assert classify("Baileys Muffins", "Baileys", None) == "bakery"
+    assert classify("BAILEY'S The Original Irish Cream Likör", "Baileys", None) == "alcoholic"
+
+
+def test_lachsfleisch_is_cured_pork_not_salmon():
+    """German "Lachs" is a loin CUT as well as a fish — same trap as `lachsschinken`."""
+    assert classify("Greußener Lachsfleisch mit Edelschimmel", None, None) == "pork"
+    assert classify("GOLDEN SEAFOOD Lachsfilet", "GOLDEN SEAFOOD", None) == "fish"
+
+
+def test_alcoholic_premixes_are_not_soft_drinks():
+    assert classify("Jack Daniel's Cola", "Jack Daniel's", None, "10% Vol.") == "alcoholic"
+    assert classify("Henderson Gin Tonic", None, None, "Mixgetränke, 10% Vol.") == "alcoholic"
+    assert classify("Coca-Cola Original Taste", "Coca-Cola", None) == "soft_drinks"
+
+
+def test_percent_vol_is_rejected_as_a_caption_signal():
+    """"% vol" is a substring of "20% Vollmilch-Schokolade" — as a caption signal it turned a
+    chocolate brioche into alcohol. Alcohol strength cannot be detected this way."""
+    brioche = ("EDEKA Herzstücke Briochettes", "EDEKA", None,
+               "weiche Brötchen mit 20% Vollmilch-Schokolade und 10% Butter")
+    assert classify(*brioche) != "alcoholic"
+    # ...and with its real path it is bakery, as it always was.
+    backwaren = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Backwaren"]
+    assert classify(brioche[0], brioche[1], backwaren, brioche[3]) == "bakery"

@@ -535,6 +535,19 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # not a cheese. One came via the `käse` keyword, the other via a `Käse` PATH node, so
     # this has to sit at layer 2 to catch both.
     ("pork", ["käsewiener", "käsebeisser", "käsebeißer", "käsekrainer", "käsegriller"]),
+    # --- Image audit, final sweep. All of these need layer 2 because a BRAND at layer 4 was
+    # winning: `mövenpick` -> ice_cream and `baileys` -> alcoholic. ---
+    # Mövenpick is the documented multi-category brand (ice cream AND coffee). Its coffees were
+    # relying on the `ganze bohnen`/`iced coffee` rescue, which does not fire for "Der
+    # Himmlische", plain "Kaffee" or "Kaffeekapseln" -- all three were served as ICE CREAM.
+    ("coffee", ["kaffeekapsel", "kaffeepad", "der himmlische", "mövenpick kaffee"]),
+    ("bakery", ["muffin"]),          # "Baileys Muffins" are muffins, not a liqueur
+    # German "Lachs" is a LOIN CUT as well as salmon: "Greußener Lachsfleisch mit
+    # Edelschimmel" is cured PORK. Same trap as the documented `lachsschinken`.
+    ("pork", ["lachsfleisch"]),
+    ("fish", ["garnelensalat", "thunfisch-salat"]),
+    # Ready-to-drink premixes at 10% Vol., served as Soft Drinks.
+    ("alcoholic", ["jack daniel", "gin tonic", "mixgetränk"]),
 ]
 
 # What the flyer CAPTION says the product is. Read from `Offer.unit`, which holds the source's
@@ -578,6 +591,11 @@ _CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
     # A Skyr is a dairy product whatever fruit the NAME leads with ("Milsani Erdbeere" was
     # served under Fruits; the picture is a rack of yogurt pots).
     ("dairy", ["skyr high protein", "skyr, "]),
+    # Only coffee is called Bohnenkaffee. Needed as a CAPTION signal because "Mövenpick
+    # Kaffee"'s name alone loses to the brand map. A "% vol" caption signal was tried here and
+    # REJECTED: it is a substring of "20% Vollmilch-Schokolade", which turned a chocolate
+    # brioche into alcohol.
+    ("coffee", ["bohnenkaffee"]),
     # Frozen PRODUCE -> frozen (the other half of the preserved-produce rule above). These are
     # produce designations, not generic freezer words: only fruit and veg is described as
     # "erntefrisch" (harvest-fresh) or sold "ungezuckert". A bare "tiefgefroren" caption signal
