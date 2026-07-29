@@ -548,6 +548,23 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     ("fish", ["garnelensalat", "thunfisch-salat"]),
     # Ready-to-drink premixes at 10% Vol., served as Soft Drinks.
     ("alcoholic", ["jack daniel", "gin tonic", "mixgetränk"]),
+    # --- Final sweep. ORDER IS LOAD-BEARING here (first hit wins): these two guards must
+    # precede the tokens below that would otherwise swallow them. ---
+    ("alcoholic", ["edelbrand", "obstgeist", "obstbrand"]),  # guards `mirabelle`: a Mirabellen
+    #   Edelbrand is a fruit BRANDY, not fruit.
+    ("fish", ["matjes"]),  # guards `senf`: a "Matjes Honig-Senf" is herring, not mustard.
+    # The source files regional Thüringen FOOD under `Wasser > Wassermarken > Thüringer
+    # Waldquell` -- a mineral-WATER brand node -- so mustard, Leberwurst, Rostbratwurst, ham
+    # and fresh Mirabellen were all served as Soft Drinks. Removing the `wassermarken` node
+    # does not help: the scan falls through to the parent `Wasser`, which also maps to
+    # soft_drinks. Only layer 2 beats a path.
+    ("pantry", ["senf", "high-protein-pulver", "high-protein-sahne", "protein-pulver"]),
+    ("pork", ["leberwurst", "rostbratwurst", "holzfällerscheibe", "filetpastete",
+              "fleischpastete", "leberpastete", "schwarzwälder schinken"]),
+    ("fruits", ["mirabelle"]),
+    # A "Viba Fruchtschnitte" is a fruit BAR; the source filed it under `Kaffee >
+    # Kaffeevariationen > Cafe au lait`.
+    ("sweets", ["fruchtschnitte"]),
 ]
 
 # What the flyer CAPTION says the product is. Read from `Offer.unit`, which holds the source's

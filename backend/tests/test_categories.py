@@ -1372,3 +1372,51 @@ def test_percent_vol_is_rejected_as_a_caption_signal():
     # ...and with its real path it is bakery, as it always was.
     backwaren = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Backwaren"]
     assert classify(brioche[0], brioche[1], backwaren, brioche[3]) == "bakery"
+
+
+# --- Image audit, final sweep: a water-BRAND path node serving regional food. ---
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("Born Thüringer Senf", "pantry"),
+        ("Die Thüringer Leberwurst", "pork"),
+        ("EWU Thüringer Rostbratwurst", "pork"),
+        ("Schwarzwaldhof Schwarzwälder Schinken", "pork"),
+        ("Mirabellen", "fruits"),
+    ],
+)
+def test_regional_food_under_a_water_brand_node(name, expected):
+    """The source files regional Thüringen FOOD under `Wasser > Wassermarken > Thüringer
+    Waldquell` — a mineral-water brand. Removing the `wassermarken` node does NOT fix it: the
+    scan falls through to the parent `Wasser`, which also maps to soft_drinks. Only layer 2
+    beats a path, which is why these are form words and not keywords."""
+    waldquell = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Wasser",
+                 "Wassermarken", "Thüringer Waldquell"]
+    assert classify(name, None, waldquell) == expected
+    # A real mineral water under the same node is untouched.
+    assert classify("Thüringer Waldquell Mineralwasser", None, waldquell) == "soft_drinks"
+
+
+def test_the_final_sweep_guards_hold_in_order():
+    """_FORM_OVERRIDES is first-hit-wins, so these two guards must PRECEDE the tokens they
+    protect against. Both were caught by the full-DB diff, not by reading the code."""
+    # `mirabelle` would have made a fruit BRANDY into fruit.
+    assert classify("PIRCHER Mirabellen Edelbrand", "PIRCHER", None) == "alcoholic"
+    # `senf` would have made a herring in honey-mustard sauce into a condiment.
+    assert classify("Matjes Honig-Senf", None, None) == "fish"
+
+
+def test_other_final_sweep_moves():
+    assert classify("Bauergut Holzfällerscheiben gewürzt", "Bauergut", None) == "pork"
+    assert classify("Landstolz Filetpastete mit Paprika", "Landstolz",
+                    ["Lebensmittel und Getränke", "Feinkostlebensmittel", "Feinkost",
+                     "Pastete"]) == "pork"
+    # The ALDI SPORTS powders were split across coffee and dairy by ` latte` and `sahne`.
+    assert classify("ALDI SPORTS High-Protein-Pulver Iced Matcha Latte", "ALDI SPORTS",
+                    None) == "pantry"
+    assert classify("ALDI SPORTS High-Protein-Sahne", "ALDI SPORTS", None) == "pantry"
+    # A fruit BAR the source filed under a coffee node.
+    assert classify("Viba Fruchtschnitte", "Viba",
+                    ["Lebensmittel und Getränke", "Kaffee", "Kaffeevariationen",
+                     "Cafe au lait"]) == "sweets"
