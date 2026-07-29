@@ -1182,3 +1182,52 @@ jsdom/test-renderer layer, so a passing unit test there is not evidence they wor
 that still passes is telling you the test is blind, not that the code is fine. Prove those on the
 platform that implements them (web/simulator/device), and write the unit test's comment to say
 plainly what it does *not* cover, so the next person doesn't trust it for more than it's worth.
+
+
+## Your test runtime is not your production runtime — find an instrument that is
+
+The app ships on **Hermes**; jest runs on **Node/V8**. A `nameKey` port needed a regex lookbehind
+and `\p{L}` under `/u`, and a fully green suite would have said nothing about whether the phone
+could run it. There was no Hermes VM in `node_modules` — only `hermesc`, the *compiler*. That turned
+out to be enough, because Hermes validates regex literals at build time: the file compiled clean,
+while `/\p{NotARealProperty}/gu` and `/(?<=abc/gu` were both rejected (exit 2). Checking those two
+controls is what made the pass mean something — an instrument that cannot fail is not a check.
+
+**Why it came up:** the alternative was a full `expo run:ios` build to answer one yes/no question
+about a regex.
+
+**Takeaway:** when a feature depends on engine behaviour and your tests run on a different engine,
+don't argue from documentation or ship on hope — find *any* artifact of the real engine (its
+compiler, its CLI, a devtools console on the target) and **prove it rejects something first**. Also
+worth knowing: a compiler counts as a runtime check for anything it evaluates eagerly (regex
+literals, constant folding), which is a cheap surface people forget exists.
+
+## Two normalizers on purpose — and the one you must not "simplify"
+
+The app has `normName` (its own product identity) and now `nameKey` (the join key into the
+price-history dataset). They disagree on ~4% of names: `normName` turns an apostrophe into a space
+and deletes accents (`"Lay's Bugles"` → `lay s bugles`), `nameKey` deletes the apostrophe and keeps
+accents (`lays bugles`). Both are correct for their own job, and the temptation to unify them is
+strong because they look like duplicates.
+
+Unifying would be silent data loss: `normName` is the **persisted** identity — it's the stored key
+of every History and Hidden entry on the user's device — so changing it orphans them with no
+migration signal and no error, just a page that quietly stops matching.
+
+**Takeaway:** when two similar-looking pure functions exist for different consumers, the test that
+protects them asserts **both** on the same inputs, in one table. Then "let's merge these" fails a
+row that states the reason, instead of passing because each function still satisfies its own tests.
+Keeping them in separate files is half the guard; the shared-input assertion is the other half.
+
+## A behavioural claim in a comment is an untested assertion
+
+Ten sabotages this session; **two did not fail anything** — and both were behaviours I'd written
+down in a code comment and never asserted: "the History write sits before the de-dupe so a repeat
+add is still recorded", and "the first add wins, so `addedPriceCents` means what you paid". Moving
+the call or overwriting the price passed the entire suite.
+
+**Takeaway:** when you write a comment explaining *why* code is arranged a particular way, that
+sentence is a testable claim — sabotage it. If nothing goes red, the arrangement is unprotected and
+the next person will "tidy" it away. (One of the two turned out to be untestable at all: the only
+route reaching it was a native gesture jest can't drive. That's a fine answer — but say so at the
+call site instead of leaving a comment that reads as if it's covered.)
