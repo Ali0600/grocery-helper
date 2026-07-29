@@ -332,6 +332,7 @@ BRAND_CATEGORY: dict[str, str] = {
     "schöller": "ice_cream", "ben & jerry's": "ice_cream", "ben & jerry": "ice_cream",
     "gustavo gusto": "frozen", "ferrero": "sweets", "loacker": "sweets",
     "dulano": "pork", "meica": "pork", "brunch": "cheese", "kerrygold": "butter",
+    "oro di parma": "pantry",  # canned/passata tomatoes only
     # Stockmeyer is single-category pork cold cuts (Salami, Sonntags-Frühstück). NOT Block House —
     # the steakhouse brand also sells garlic BREAD ("BLOCK HOUSE Brot XXL Knoblauch" → bakery), so
     # its two burgers stay in Other rather than risk that (pinned by test_classify_expanded_names).
@@ -521,6 +522,12 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # A rucksack the source filed under `Schaumwein > Sekt`, so it was served as Alcoholic.
     # No food is called a Rucksack, so this is safe at layer 2.
     ("household", ["rucksack"]),
+    # Preserved produce leaves the FRESH-produce chip (user's convention call, 2026-07-29):
+    # jarred/canned -> pantry, frozen -> frozen. A jar of Gewürzgurken beside loose cucumbers
+    # also makes the €/kg sort meaningless. Layer 2 because "canned" is a definitive FORM and
+    # has to beat the produce path/brand that currently wins (Bonduelle -> vegetables).
+    ("pantry", ["gewürzgurke", "essiggurke", "cornichon", "sauerkraut", "passata",
+                "passierte tomaten", "ananas in stücken", "goldmais"]),
 ]
 
 # What the flyer CAPTION says the product is. Read from `Offer.unit`, which holds the source's
@@ -564,6 +571,13 @@ _CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
     # A Skyr is a dairy product whatever fruit the NAME leads with ("Milsani Erdbeere" was
     # served under Fruits; the picture is a rack of yogurt pots).
     ("dairy", ["skyr high protein", "skyr, "]),
+    # Frozen PRODUCE -> frozen (the other half of the preserved-produce rule above). These are
+    # produce designations, not generic freezer words: only fruit and veg is described as
+    # "erntefrisch" (harvest-fresh) or sold "ungezuckert". A bare "tiefgefroren" caption signal
+    # was simulated and REJECTED — it emptied ice_cream, fish and poultry into frozen (84 rows:
+    # Fischstäbchen, Chicken Nuggets, every Eis). The freezer is not a category.
+    ("frozen", ["erntefrisch tiefgefroren", "tiefgefroren, ungezuckert",
+                "tiefgefroren, junge sojabohnen"]),
     # REJECTED, and pinned by a test: a bare "brotaufstrich" caption. It reads like a
     # designation but is a USE, not an identity — it moved POPP Fleischsalat and Bauern Gut
     # Eiersalat out of pork and the Brunch cheese spread out of cheese. Same class as the

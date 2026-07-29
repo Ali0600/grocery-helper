@@ -229,7 +229,11 @@ def test_classify_expanded_paths(path, expected):
         ("Bioland Bio Mini Pflaumentomaten", "Bioland", "vegetables"),  # tomato, not "pflaume"
         ("Unsere Heimat Apfelessig", "Unsere Heimat", "pantry"),  # vinegar, not "apfel"
         # guards: the new overrides must stay specific
-        ("Essiggurken", None, "vegetables"),  # generic gurke stays veg (essig override is compound-only)
+        # CONVENTION CHANGE 2026-07-29 (user's call): preserved produce leaves the FRESH chip,
+        # so a pickled gherkin is pantry now. This line previously asserted "vegetables"; it is
+        # updated deliberately, not relaxed — `test_fresh_produce_is_untouched_by_the_preserved_rule`
+        # pins that a loose Salatgurke still classifies as vegetables.
+        ("Essiggurken", None, "pantry"),
         ("Plattpfirsiche, lose", None, "fruits"),  # real peaches unaffected by the tomato/vinegar rules
         # prepared-deli + flavour traps that aren't raw produce
         ("Popp Fleischsalat", "Popp", "pork"),  # sausage-based deli salad, not "salat"
@@ -1178,3 +1182,42 @@ def test_vly_is_a_vegan_brand_not_dairy():
     layer 0 beats that. A real yogurt is unaffected."""
     assert classify("Vly Joghurt Alternative", "Vly", None, "Stracciatella 400-g-Becher") == "vegan"
     assert classify("Milbona Joghurt", "Milbona", None, "500 g") == "dairy"
+
+
+# --- Preserved produce leaves the FRESH-produce chips (user's convention, 2026-07-29):
+# jarred/canned -> pantry, frozen -> frozen. ---
+
+@pytest.mark.parametrize(
+    "name, brand, caption, expected",
+    [
+        ("Thüringer Landgarten Gewürzgurken", None, "360-g-Abtropfgew., je 670-g-Glas", "pantry"),
+        ("Spreewaldhof Sauerkraut", "Spreewaldhof", "650-g-Abtropfgew., 680-g-Glas", "pantry"),
+        ("REWE Bio Passata", "REWE Bio", "passierte Tomaten, vegan 700-g-Glas", "pantry"),
+        ("Bonduelle Goldmais", "Bonduelle", "300g Dose", "pantry"),
+        ("Oro di Parma Tomaten", "Oro di Parma", "ganz, passiert oder stückig", "pantry"),
+        ("ALL SEASONS Ananas in Stücken XXL", "ALL SEASONS", "Im eigenen Saft", "pantry"),
+        ("EDEKA Bio Gemüse", "EDEKA Bio", "erntefrisch tiefgefroren, versch. Sorten 300 g", "frozen"),
+        ("REWE Bio Edamame", "REWE Bio", "tiefgefroren, Junge Sojabohnen aus Bio-Anbau", "frozen"),
+    ],
+)
+def test_preserved_produce_leaves_the_fresh_chip(name, brand, caption, expected):
+    assert classify(name, brand, None, caption) == expected
+
+
+def test_fresh_produce_is_untouched_by_the_preserved_rule():
+    """The counter-example half: loose produce must stay exactly where it is."""
+    assert classify("Salatgurke", None, None, "Klasse I, je Stück") == "vegetables"
+    assert classify("Rispentomaten", None, None, "500-g-Schale") == "vegetables"
+    assert classify("Ananas, lose", None, None, "je Stück") == "fruits"
+
+
+def test_a_bare_tiefgefroren_caption_is_rejected():
+    """Simulated and rejected: a generic "tiefgefroren" caption signal moved 84 rows —
+    every Eis out of ice_cream, Fischstäbchen out of fish, Chicken Nuggets out of poultry.
+    The freezer is a shelf, not a category; only produce DESIGNATIONS ("erntefrisch") count."""
+    assert classify("NORDSEE Fischstäbchen XXL", "NORDSEE", None,
+                    "tiefgefroren, 450 g") == "fish"
+    assert classify("Chef Select Chicken Nuggets XXL", "Chef Select", None,
+                    "Tiefgefroren. 750 g") == "poultry"
+    assert classify("BON GELATI Stieleis Mandel XXL", "BON GELATI", None,
+                    "Tiefgefroren. 8 Stück") == "ice_cream"
