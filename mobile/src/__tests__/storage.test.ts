@@ -2,16 +2,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   clearAllData,
-  getStoredLikes,
+  getStoredHistory,
   getStoredMyCategories,
   getStoredSortByCategory,
   getStoredStoreLens,
-  setStoredLikes,
+  setStoredHistory,
   setStoredMyCategories,
   setStoredSortByCategory,
   setStoredStoreLens,
 } from '../storage';
-import { LikedItem } from '../types';
+import { HistoryItem } from '../types';
 
 describe('myCategories persistence', () => {
   it('returns [] when nothing is stored (so the home falls back to All)', async () => {
@@ -102,8 +102,63 @@ describe('sortByCategory persistence', () => {
   });
 });
 
-describe('likes persistence', () => {
-  const liked: LikedItem = {
+describe('history persistence', () => {
+  const entry: HistoryItem = {
+    key: 'mccain golden longs',
+    name: 'McCain Golden Longs',
+    brand: 'McCain',
+    group: null,
+    groupLabel: null,
+    chain: 'lidl',
+    addedPriceCents: 299,
+    addedAt: 1,
+  };
+
+  it('returns [] when nothing is stored', async () => {
+    expect(await getStoredHistory()).toEqual([]);
+  });
+
+  it('round-trips history entries', async () => {
+    await setStoredHistory([entry]);
+    expect(await getStoredHistory()).toEqual([entry]);
+  });
+
+  it('drops corrupt elements the History page would crash on', async () => {
+    // Every guarded field is one the UI calls a method on or formats — notably `chain`:
+    // chainLabel() does chain.charAt(0), so a missing chain is a TypeError, not a blank.
+    await AsyncStorage.setItem(
+      'likedItems',
+      JSON.stringify([
+        entry,
+        { name: 'no key' },
+        { key: '' },
+        { ...entry, chain: undefined },
+        { ...entry, addedPriceCents: 'free' },
+        { ...entry, addedAt: null },
+        'junk',
+        null,
+        42,
+      ]),
+    );
+    expect(await getStoredHistory()).toEqual([entry]);
+  });
+
+  it('returns [] for a non-array payload or unparseable JSON', async () => {
+    await AsyncStorage.setItem('likedItems', JSON.stringify({ key: 'x' }));
+    expect(await getStoredHistory()).toEqual([]);
+    await AsyncStorage.setItem('likedItems', 'not json');
+    expect(await getStoredHistory()).toEqual([]);
+  });
+});
+
+
+describe('history persistence — the Likes-era migration', () => {
+  // Entries written by the Likes build carry `likedPriceCents`/`likedAt`. Two directions have
+  // to work, and each fails SILENTLY rather than loudly if it doesn't:
+  //   * forwards — an existing user's likes must survive the upgrade and become History;
+  //   * backwards — the OLD build's shape filter REQUIRED `likedAt`, so writing only the new
+  //     names would make an OTA rollback drop every entry, with no error anywhere.
+  const legacy = {
     key: 'mccain golden longs',
     name: 'McCain Golden Longs',
     brand: 'McCain',
@@ -114,39 +169,58 @@ describe('likes persistence', () => {
     likedAt: 1,
   };
 
-  it('returns [] when nothing is stored', async () => {
-    expect(await getStoredLikes()).toEqual([]);
+  it('reads a Likes-era entry as History, so an upgrade keeps what you had', async () => {
+    await AsyncStorage.setItem('likedItems', JSON.stringify([legacy]));
+    expect(await getStoredHistory()).toEqual([
+      {
+        key: 'mccain golden longs',
+        name: 'McCain Golden Longs',
+        brand: 'McCain',
+        group: null,
+        groupLabel: null,
+        chain: 'lidl',
+        addedPriceCents: 299,
+        addedAt: 1,
+      },
+    ]);
   });
 
-  it('round-trips liked items', async () => {
-    await setStoredLikes([liked]);
-    expect(await getStoredLikes()).toEqual([liked]);
+  it('writes BOTH spellings, so an OTA rollback to the Likes build still reads them', async () => {
+    await setStoredHistory([
+      {
+        key: 'k',
+        name: 'N',
+        brand: null,
+        group: null,
+        groupLabel: null,
+        chain: 'lidl',
+        addedPriceCents: 299,
+        addedAt: 1,
+      },
+    ]);
+    const wire = JSON.parse((await AsyncStorage.getItem('likedItems')) as string);
+    expect(wire[0]).toMatchObject({
+      addedPriceCents: 299,
+      addedAt: 1,
+      likedPriceCents: 299, // what the old build's filter requires
+      likedAt: 1,
+    });
   });
 
-  it('drops corrupt elements the Likes page would crash on', async () => {
-    // Every guarded field is one the UI calls a method on or formats — notably `chain`:
-    // chainLabel() does chain.charAt(0), so a missing chain is a TypeError, not a blank.
+  it('prefers the new field when an entry carries both and they differ', async () => {
     await AsyncStorage.setItem(
       'likedItems',
-      JSON.stringify([
-        liked,
-        { name: 'no key' },
-        { key: '' },
-        { ...liked, chain: undefined },
-        { ...liked, likedPriceCents: 'free' },
-        { ...liked, likedAt: null },
-        'junk',
-        null,
-        42,
-      ]),
+      JSON.stringify([{ ...legacy, addedPriceCents: 199, addedAt: 42 }]),
     );
-    expect(await getStoredLikes()).toEqual([liked]);
+    const [got] = await getStoredHistory();
+    expect([got.addedPriceCents, got.addedAt]).toEqual([199, 42]);
   });
 
-  it('returns [] for a non-array payload or unparseable JSON', async () => {
-    await AsyncStorage.setItem('likedItems', JSON.stringify({ key: 'x' }));
-    expect(await getStoredLikes()).toEqual([]);
-    await AsyncStorage.setItem('likedItems', 'not json');
-    expect(await getStoredLikes()).toEqual([]);
+  it('still drops a legacy entry that is corrupt in a guarded field', async () => {
+    await AsyncStorage.setItem(
+      'likedItems',
+      JSON.stringify([{ ...legacy, likedAt: null }, { ...legacy, chain: undefined }]),
+    );
+    expect(await getStoredHistory()).toEqual([]);
   });
 });

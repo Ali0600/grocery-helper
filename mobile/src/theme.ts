@@ -38,6 +38,9 @@ export const tint = {
   loyalty: { bg: 'rgba(61,220,132,0.16)', fg: '#3ddc84' }, // card bonus green
   coupon: { bg: 'rgba(61,139,253,0.16)', fg: '#7da7ff' }, // Lidl Plus coupon blue
   flyer: { bg: 'rgba(240,180,60,0.16)', fg: '#e6b34d' }, // Prospekt amber
-  like: { bg: 'rgba(255,107,129,0.16)', fg: '#ff6b81' }, // liked-product pink (NOT colors.badge — that red means discount/error)
+  history: { bg: 'rgba(255,107,129,0.16)', fg: '#ff6b81' }, // History pink (NOT colors.badge — that red means discount/error)
   basket: { bg: 'rgba(61,220,132,0.16)', fg: '#3ddc84' }, // in-basket green (accent, translucent — matches the swipe Basket panel)
+  // The right-swipe Hide panel. Deliberately the calmest tint in here: hiding is a dismissal,
+  // and it shouldn't read as an achievement the way the green Basket panel does.
+  hide: { bg: 'rgba(120,132,150,0.22)', fg: '#9aa5b5' },
 } as const;

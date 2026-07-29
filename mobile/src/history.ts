@@ -1,48 +1,51 @@
-// Pure core for the "Likes" feature: right-swiping a deal likes the product; the Likes
-// page re-checks each liked product against the currently loaded offers. Offer ids churn
-// weekly, so a like persists the product's IDENTITY (normalized name + brand + group) and
+// Pure core for the "History" page: adding a deal to your basket records the product, and the
+// page re-checks each recorded product against the currently loaded offers. Offer ids churn
+// weekly, so an entry persists the product's IDENTITY (normalized name + brand + group) and
 // matches are recomputed each session — the same contract as the Basket wishlist.
 //
-// Matching tiers (deterministic, exclusive):
+// History is APPEND-ONLY: taking something out of this week's basket doesn't erase that you
+// shopped for it. The page's ✕ is the only way to prune.
+//
+// Matching tiers (deterministic, exclusive) — unchanged from the "Likes" page this replaces:
 //   1. exact  — normName equality (the EdekaVs "same item" semantics: case/punctuation-
 //               insensitive, umlauts significant, cross-chain).
 //   2. related — the flyer renamed or rotated the product ("McCain Golden Longs" →
 //               "McCain Golden Long"): fall back to the BRAND's products, ranked by how
-//               many name words they share with the liked product (so the rename lands
+//               many name words they share with the recorded product (so the rename lands
 //               first), then price. Brandless items (18% of offers) fall back to the
 //               product sub-group instead ("Rispentomaten" → other Tomaten offers).
 // No React/RN imports → unit-testable.
 import { normName } from './edekaVs';
-import { LikedItem, Offer } from './types';
+import { HistoryItem, Offer } from './types';
 
-/** How many fallback suggestions a Likes row shows before it stops being "quick". */
+/** How many fallback suggestions a History row shows before it stops being "quick". */
 const RELATED_CAP = 8;
 
-/** The stable identity of a liked product. One definition, used both to persist a like and
- * to ask "is this already liked?" — don't call `resolveLike` just to read a key, it stamps
- * `Date.now()`. */
-export const likeKey = (offer: Offer): string => normName(offer.name);
+/** The stable identity of a recorded product. One definition, used both to persist an entry
+ * and to ask "is this already recorded?" — don't call `resolveHistoryEntry` just to read a
+ * key, it stamps `Date.now()`. */
+export const historyKey = (offer: Offer): string => normName(offer.name);
 
-/** Is this offer's product already in the likes list? (Keys off the product identity, not
- * `offer.id` — ids churn weekly, so the answer stays right across flyer weeks.) */
-export const isLiked = (offer: Offer, likes: LikedItem[]): boolean =>
-  likes.some((l) => l.key === likeKey(offer));
+/** Is this offer's product already in History? (Keys off the product identity, not `offer.id`
+ * — ids churn weekly, so the answer stays right across flyer weeks.) */
+export const inHistory = (offer: Offer, items: HistoryItem[]): boolean =>
+  items.some((l) => l.key === historyKey(offer));
 
-/** Snapshot an offer's product identity as a persistable like. */
-export function resolveLike(offer: Offer): LikedItem {
+/** Snapshot an offer's product identity + the price you paid, as a persistable entry. */
+export function resolveHistoryEntry(offer: Offer): HistoryItem {
   return {
-    key: likeKey(offer),
+    key: historyKey(offer),
     name: offer.name,
     brand: offer.brand,
     group: offer.group,
     groupLabel: offer.group_label,
     chain: offer.chain,
-    likedPriceCents: offer.price_cents,
-    likedAt: Date.now(),
+    addedPriceCents: offer.price_cents,
+    addedAt: Date.now(),
   };
 }
 
-export type LikeMatch = {
+export type HistoryMatch = {
   exact: Offer[]; // same product on sale now, cheapest first ([] if none)
   related: Offer[]; // brand/group fallback when exact is empty, best-first, capped
   relatedLabel: string | null; // "More from McCain" / "Other Tomaten"
@@ -63,8 +66,8 @@ function matchesBrand(offer: Offer, brand: string): boolean {
   if (!wantTokens.length) return false;
   if (offerBrand) {
     // The offer names a DIFFERENT brand — only a match if that brand *contains* the
-    // liked one ("Langnese Ben & Jerry's"). Searching its NAME here would wreck the
-    // house brands that double as descriptors: liking Lidl's "Deluxe" would list
+    // recorded one ("Langnese Ben & Jerry's"). Searching its NAME here would wreck the
+    // house brands that double as descriptors: recording Lidl's "Deluxe" would list
     // "Trabi Deluxe Pils" (a beer), and "BBQ" would list every Honey-BBQ chicken.
     const offerBrandTokens = new Set(tokens(offer.brand ?? ''));
     return wantTokens.every((t) => offerBrandTokens.has(t));
@@ -74,16 +77,16 @@ function matchesBrand(offer: Offer, brand: string): boolean {
   return wantTokens.every((t) => nameTokens.has(t));
 }
 
-/** Rank fallback offers: most shared name-words with the liked product first (a renamed
+/** Rank fallback offers: most shared name-words with the recorded product first (a renamed
  * "McCain Golden Long" outranks "McCain Frites"), then cheapest. */
-function byNameOverlapThenPrice(likedName: string) {
-  const liked = new Set(tokens(likedName));
-  const overlap = (o: Offer) => tokens(o.name).filter((t) => liked.has(t)).length;
+function byNameOverlapThenPrice(recordedName: string) {
+  const recorded = new Set(tokens(recordedName));
+  const overlap = (o: Offer) => tokens(o.name).filter((t) => recorded.has(t)).length;
   return (a: Offer, b: Offer) => overlap(b) - overlap(a) || a.price_cents - b.price_cents;
 }
 
-/** Current on-sale status of one liked product against the loaded offers. */
-export function matchLiked(item: LikedItem, offers: Offer[]): LikeMatch {
+/** Current on-sale status of one recorded product against the loaded offers. */
+export function matchHistory(item: HistoryItem, offers: Offer[]): HistoryMatch {
   const exact = offers
     .filter((o) => normName(o.name) === item.key)
     .sort((a, b) => a.price_cents - b.price_cents);
@@ -102,9 +105,9 @@ export function matchLiked(item: LikedItem, offers: Offer[]): LikeMatch {
   return { exact: [], related, relatedLabel: related.length ? relatedLabel : null };
 }
 
-/** How many liked products are on sale RIGHT NOW (exact matches only) — the header
- * badge's "worth opening the Likes page" signal. */
-export function onSaleCount(likes: LikedItem[], offers: Offer[]): number {
+/** How many recorded products are on sale RIGHT NOW (exact matches only) — the header badge's
+ * "worth opening History" signal. */
+export function onSaleCount(items: HistoryItem[], offers: Offer[]): number {
   const names = new Set(offers.map((o) => normName(o.name)));
-  return likes.filter((l) => names.has(l.key)).length;
+  return items.filter((l) => names.has(l.key)).length;
 }

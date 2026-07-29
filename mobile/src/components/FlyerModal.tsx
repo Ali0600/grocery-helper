@@ -105,23 +105,19 @@ const FLYER_LINKS: Record<string, { label: string; url: string }> = {
 export function FlyerModal({
   offer,
   onClose,
-  onLike,
   onAddToBasket,
   onToggleHidden,
-  liked = false,
   inBasket = false,
   hidden = false,
 }: {
   offer: Offer | null;
   onClose: () => void;
-  /** The button counterparts of the card's swipe gestures — see the actions block below. */
-  onLike?: (offer: Offer) => void;
   onAddToBasket?: (offer: Offer) => void;
   /** Dismiss this deal from the list (and from Basket/Recipes/Compare) for this flyer week.
-   * A TOGGLE, unlike Like/Basket above: this is the only place to un-hide, reached via the
-   * Filters sheet's "Show hidden" lens. */
+   * A TOGGLE, unlike the add-only Basket button below: this is the only place to un-hide,
+   * reached via the Filters sheet's "Show hidden" lens. It's also the button counterpart of
+   * the card's right-swipe. */
   onToggleHidden?: (offer: Offer) => void;
-  liked?: boolean;
   inBasket?: boolean;
   hidden?: boolean;
 }) {
@@ -286,33 +282,12 @@ export function FlyerModal({
                 <Text style={styles.app}>{`Mit App: ${euro(offer.app_price_cents)}`}</Text>
               )}
 
-              {/* The non-gesture path to both swipe actions (right-swipe = Like, left-swipe =
-                  Basket): a swipe is unreachable for screen-reader/keyboard users, and Like had
-                  no other entry point at all. Add-only and DISABLED once added, so the control is
-                  never inert-looking; removing lives on the Likes/Basket pages. The state flip is
-                  the feedback — DealsScreen's toast renders *under* this modal. */}
+              {/* The non-gesture path to the left-swipe (Basket): a swipe is unreachable for
+                  screen-reader/keyboard users. Add-only and DISABLED once added, so the control is
+                  never inert-looking; removing lives on the Basket page. The state flip is the
+                  feedback — DealsScreen's toast renders *under* this modal. The right-swipe's
+                  counterpart is the Hide button in this modal's header. */}
               <View style={styles.actions}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.actionBtn,
-                    liked && styles.actionBtnDone,
-                    pressed && styles.flyerBtnPressed,
-                  ]}
-                  onPress={() => onLike?.(offer)}
-                  disabled={liked}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: liked }}
-                  accessibilityLabel={liked ? `${offer.name} is in your likes` : `Like ${offer.name}`}
-                >
-                  <Icon
-                    name={liked ? 'heart' : 'heart-outline'}
-                    size={16}
-                    color={liked ? tint.like.fg : colors.text}
-                  />
-                  <Text style={[styles.actionText, liked && { color: tint.like.fg }]}>
-                    {liked ? 'Liked ✓' : 'Like'}
-                  </Text>
-                </Pressable>
                 <Pressable
                   style={({ pressed }) => [
                     styles.actionBtn,

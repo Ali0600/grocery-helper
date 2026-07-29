@@ -7,7 +7,7 @@ import { DEFAULT_RECIPE_PREFS } from './recipes';
 import {
   BasketItem,
   CategoryCount,
-  LikedItem,
+  HistoryItem,
   MyStore,
   Offer,
   PayloadMap,
@@ -24,7 +24,10 @@ const HIDDEN_STORES_KEY = 'hiddenStores';
 const STORE_LENS_KEY = 'storeLens';
 const MYCATS_KEY = 'myCategories'; // ordered category slugs for the personalized "My Categories" home
 const BASKET_KEY = 'basket';
-const LIKES_KEY = 'likedItems';
+// The History list. The WIRE KEY stays 'likedItems' from when this was the Likes page:
+// the stored shape is the same, so renaming the string would buy nothing and cost a
+// migration that has to survive an OTA rollback.
+const HISTORY_KEY = 'likedItems';
 const HIDDEN_KEY = 'hiddenItems'; // deals dismissed from the deal detail (one flyer week)
 const DEALS_CACHE_KEY = 'dealsCache';
 const PAYLOAD_CACHE_KEY = 'payloadCache';
@@ -233,29 +236,47 @@ export async function setStoredBasket(items: BasketItem[]): Promise<void> {
   }
 }
 
-/** Liked products (right-swipe). Per-element shape filter (not just a cast) because the
- * Likes page dereferences these on every render — a corrupt entry must be dropped, not
- * crash the page. Guard EVERY field the UI calls a method on: `chainLabel(item.chain)`
- * does `chain.charAt(0)`, so a missing `chain` is a TypeError, not a blank label. */
-export async function getStoredLikes(): Promise<LikedItem[]> {
+/** History entries. Per-element shape filter (not just a cast) because the History page
+ * dereferences these on every render — a corrupt entry must be dropped, not crash the page.
+ * Guard EVERY field the UI calls a method on: `chainLabel(item.chain)` does `chain.charAt(0)`,
+ * so a missing `chain` is a TypeError, not a blank label.
+ *
+ * MIGRATION: entries written by the Likes build carry `likedPriceCents`/`likedAt`. Accept
+ * either spelling on read and write BOTH for now (see `setStoredHistory`) — the old build's
+ * filter *required* `likedAt`, so an OTA rollback onto new-only entries would drop every one
+ * of them silently. Drop the mirror a release or two after this ships. */
+export async function getStoredHistory(): Promise<HistoryItem[]> {
   try {
-    const raw = await AsyncStorage.getItem(LIKES_KEY);
+    const raw = await AsyncStorage.getItem(HISTORY_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (l): l is LikedItem =>
-        !!l &&
-        typeof l === 'object' &&
-        typeof l.key === 'string' &&
-        l.key.length > 0 &&
-        typeof l.name === 'string' &&
-        typeof l.chain === 'string' &&
-        typeof l.likedPriceCents === 'number' &&
-        typeof l.likedAt === 'number',
-    );
+    return parsed
+      .filter(
+        (l) =>
+          !!l &&
+          typeof l === 'object' &&
+          typeof l.key === 'string' &&
+          l.key.length > 0 &&
+          typeof l.name === 'string' &&
+          typeof l.chain === 'string' &&
+          typeof (l.addedPriceCents ?? l.likedPriceCents) === 'number' &&
+          typeof (l.addedAt ?? l.likedAt) === 'number',
+      )
+      .map(
+        (l): HistoryItem => ({
+          key: l.key,
+          name: l.name,
+          brand: l.brand ?? null,
+          group: l.group ?? null,
+          groupLabel: l.groupLabel ?? null,
+          chain: l.chain,
+          addedPriceCents: l.addedPriceCents ?? l.likedPriceCents,
+          addedAt: l.addedAt ?? l.likedAt,
+        }),
+      );
   } catch (e) {
-    console.warn('storage: getStoredLikes failed', e);
+    console.warn('storage: getStoredHistory failed', e);
     return [];
   }
 }
@@ -294,11 +315,19 @@ export async function setStoredHidden(items: HiddenItem[]): Promise<void> {
   }
 }
 
-export async function setStoredLikes(items: LikedItem[]): Promise<void> {
+export async function setStoredHistory(items: HistoryItem[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(LIKES_KEY, JSON.stringify(items));
+    // Written with BOTH field spellings for this release — see the migration note above: a
+    // rollback to the Likes build must not read these as corrupt and drop the lot. ~20 bytes
+    // an entry.
+    const wire = items.map((i) => ({
+      ...i,
+      likedPriceCents: i.addedPriceCents,
+      likedAt: i.addedAt,
+    }));
+    await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(wire));
   } catch (e) {
-    console.warn('storage: setStoredLikes failed', e);
+    console.warn('storage: setStoredHistory failed', e);
     // best-effort
   }
 }
@@ -423,7 +452,7 @@ export async function clearAllData(): Promise<void> {
       SORT_KEY,
       SORT_BY_CATEGORY_KEY,
       BASKET_KEY,
-      LIKES_KEY,
+      HISTORY_KEY,
       HIDDEN_KEY,
       DEALS_CACHE_KEY,
       PAYLOAD_CACHE_KEY,

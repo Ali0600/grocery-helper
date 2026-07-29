@@ -165,10 +165,10 @@ describe('DealsScreen — cold start on an unscraped PLZ', () => {
   });
 });
 
-describe('DealsScreen — the Likes heart badge', () => {
-  // The badge counts liked products on sale NOW (exact name match), not the list size —
-  // it's the "something you like is back on sale" signal.
-  async function seedLike(over: Partial<Record<string, unknown>> = {}) {
+describe('DealsScreen — the History badge', () => {
+  // The badge counts recorded products on sale NOW (exact name match), not the list size —
+  // it's the "something you buy is back on sale" signal.
+  async function seedHistory(over: Partial<Record<string, unknown>> = {}) {
     await AsyncStorage.setItem(
       'likedItems',
       JSON.stringify([
@@ -179,33 +179,33 @@ describe('DealsScreen — the Likes heart badge', () => {
           group: null,
           groupLabel: null,
           chain: 'lidl',
-          likedPriceCents: 299,
-          likedAt: 1,
+          addedPriceCents: 299,
+          addedAt: 1,
           ...over,
         },
       ]),
     );
   }
 
-  it('shows the on-sale count when a liked product is in the current deals', async () => {
+  it('shows the on-sale count when a recorded product is in the current deals', async () => {
     await seedCache();
-    await seedLike();
+    await seedHistory();
     await render(<DealsScreen />);
 
     await screen.findByText('Cached Bergkäse');
-    expect(within(screen.getByLabelText('Likes')).getByText('1')).toBeTruthy();
+    expect(within(screen.getByLabelText('History')).getByText('1')).toBeTruthy();
   });
 
-  it('stays badge-less when no liked product is on sale', async () => {
+  it('stays badge-less when no recorded product is on sale', async () => {
     await seedCache();
-    await seedLike({ key: 'nicht im angebot', name: 'Nicht im Angebot' });
+    await seedHistory({ key: 'nicht im angebot', name: 'Nicht im Angebot' });
     await render(<DealsScreen />);
 
     await screen.findByText('Cached Bergkäse');
-    expect(within(screen.getByLabelText('Likes')).queryByText(/\d/)).toBeNull();
+    expect(within(screen.getByLabelText('History')).queryByText(/\d/)).toBeNull();
   });
 
-  it('renders the deal detail INSIDE the Likes sheet, never as a sibling of it', async () => {
+  it('renders the deal detail INSIDE the History sheet, never as a sibling of it', async () => {
     // The iOS bug this pins (measured on a simulator, 2026-07-17): RN presents a Modal from
     // `[self reactViewController]` — the first view controller up the responder chain — so two
     // SIBLING modals resolve to the same root VC and iOS refuses the second:
@@ -217,33 +217,33 @@ describe('DealsScreen — the Likes heart badge', () => {
     // This constraint is invisible at the point that depends on it — moving the element one
     // level up in DealsScreen silently reintroduces the bug — so assert containment.
     await seedCache();
-    await seedLike();
+    await seedHistory();
     await render(<DealsScreen />);
     await screen.findByText('Cached Bergkäse');
 
-    fireEvent.press(screen.getByLabelText('Likes'));
+    fireEvent.press(screen.getByLabelText('History'));
     fireEvent.press(await screen.findByLabelText('Open deal for Cached Bergkäse'));
 
-    // "View payload" is unique to the deal detail; it must live INSIDE the Likes modal.
-    const likesModal = await screen.findByTestId('likes-modal');
-    await waitFor(() => expect(within(likesModal).getByText('View payload')).toBeTruthy());
+    // "View payload" is unique to the deal detail; it must live INSIDE the History modal.
+    const historyModal = await screen.findByTestId('history-modal');
+    await waitFor(() => expect(within(historyModal).getByText('View payload')).toBeTruthy());
 
-    // ...and the Likes row still comes first in tree order, which is what makes the detail
+    // ...and the History row still comes first in tree order, which is what makes the detail
     // paint on top on react-native-web (portals mount into document.body in JSX order under
     // one z-index, so DOM order — not visibility — decides). Both platforms, one layout.
-    const marks = screen.getAllByText(/liked at|View payload/);
-    expect(JSON.stringify(marks[0].props.children)).toContain('liked at');
+    const marks = screen.getAllByText(/paid|View payload/);
+    expect(JSON.stringify(marks[0].props.children)).toContain('paid');
     expect(JSON.stringify(marks[1].props.children)).toContain('View payload');
   });
 
-  it('opens the deal when the liked product NAME is tapped, not just the price block', async () => {
+  it('opens the deal when the recorded product NAME is tapped, not just the price block', async () => {
     // The name is the obvious thing to tap and was dead: only the ~45pt price block had a
     // press handler, so "I tap it and nothing happens" had two independent causes.
     await seedCache();
-    await seedLike();
+    await seedHistory();
     await render(<DealsScreen />);
     await screen.findByText('Cached Bergkäse');
-    fireEvent.press(screen.getByLabelText('Likes'));
+    fireEvent.press(screen.getByLabelText('History'));
 
     // The row's pressable wraps the whole main column, name included.
     const row = await screen.findByLabelText('Open deal for Cached Bergkäse');
@@ -253,20 +253,20 @@ describe('DealsScreen — the Likes heart badge', () => {
     expect(await screen.findByText('View payload')).toBeTruthy();
   });
 
-  it('drops the detail when the Likes sheet closes, so it cannot change host mid-flight', async () => {
+  it('drops the detail when the History sheet closes, so it cannot change host mid-flight', async () => {
     // If `active` outlived the sheet, the single detail element would move from inside the
     // sheet to the screen root — a remount that races a dismissal against a present.
     await seedCache();
-    await seedLike();
+    await seedHistory();
     await render(<DealsScreen />);
     await screen.findByText('Cached Bergkäse');
 
-    fireEvent.press(screen.getByLabelText('Likes'));
+    fireEvent.press(screen.getByLabelText('History'));
     fireEvent.press(await screen.findByLabelText('Open deal for Cached Bergkäse'));
     await screen.findByText('View payload');
 
-    // Both sheets carry a "Close" — the detail nests inside Likes — so target the labelled one.
-    fireEvent.press(screen.getByLabelText('Close likes'));
+    // Both sheets carry a "Close" — the detail nests inside History — so target the labelled one.
+    fireEvent.press(screen.getByLabelText('Close history'));
     await waitFor(() => expect(screen.queryByText('View payload')).toBeNull());
   });
 });
@@ -793,11 +793,11 @@ describe('DealsScreen — Hide / Un-Hide a deal', () => {
   });
 });
 
-describe('DealsScreen — basket / like markers on the card', () => {
-  const LIKE = makeOffer({ name: 'Cached Bergkäse', price_cents: 299 });
+describe('DealsScreen — the basket marker on the card', () => {
+  const CHEESE = makeOffer({ name: 'Cached Bergkäse', price_cents: 299 });
   const MILK = makeOffer({ name: 'Frische Vollmilch', category: 'dairy', price_cents: 119 });
 
-  async function seedCacheWith(offer: typeof LIKE) {
+  async function seedCacheWith(offer: typeof CHEESE) {
     await AsyncStorage.setItem('plz', '10115');
     await AsyncStorage.setItem(
       'dealsCache',
@@ -812,20 +812,6 @@ describe('DealsScreen — basket / like markers on the card', () => {
     );
   }
 
-  it('folds a liked marker into the card when the product is already liked', async () => {
-    await seedCacheWith(LIKE);
-    await AsyncStorage.setItem(
-      'likedItems',
-      JSON.stringify([
-        { key: 'cached bergkäse', name: 'Cached Bergkäse', chain: 'lidl', likedPriceCents: 299, likedAt: 1 },
-      ]),
-    );
-    await render(<DealsScreen />);
-    // The status rides on the card's own spoken label — proves the whole chain reached OfferCard:
-    // likedKeys -> renderOffer -> SwipeableOfferCard -> OfferCard.
-    expect(await screen.findByLabelText('Open deal for Cached Bergkäse, liked')).toBeTruthy();
-  });
-
   it('folds a basket marker into the card when the product is already in the basket', async () => {
     await seedCacheWith(MILK);
     // 'milk' is the key resolveBasketItem() derives for "Frische Vollmilch" (catalog reverse-match),
@@ -835,31 +821,123 @@ describe('DealsScreen — basket / like markers on the card', () => {
     expect(await screen.findByLabelText('Open deal for Frische Vollmilch, in your basket')).toBeTruthy();
   });
 
-  it('shows no marker when the product is neither liked nor basketed', async () => {
-    await seedCacheWith(LIKE);
+  it('shows no marker when the product is not in the basket', async () => {
+    await seedCacheWith(CHEESE);
     await render(<DealsScreen />);
     expect(await screen.findByLabelText('Open deal for Cached Bergkäse')).toBeTruthy();
-    expect(screen.queryByLabelText('Open deal for Cached Bergkäse, liked')).toBeNull();
   });
 
-  it('updates a card marker LIVE — liking from the deal detail lights the card behind it', async () => {
-    // Liking from the detail must light the card behind it (no remount). This proves the
-    // interaction path state -> renderOffer -> card. NOTE: it does NOT guard the `extraData` prop
-    // on the lists — jest re-renders eagerly and doesn't virtualize cells, so removing extraData
-    // still passes here (verified). extraData is the documented NATIVE mechanism; its live-update
-    // necessity is confirmed by web/native QA, not this test.
-    await seedCacheWith(LIKE);
+  it('carries NO history marker — being in History must not badge the card', async () => {
+    // Deliberate: History is auto-populated from every basket add, so a per-card badge would
+    // end up on most rows and stop meaning anything. Only "in the basket right now" is marked.
+    await seedCacheWith(CHEESE);
+    await AsyncStorage.setItem(
+      'likedItems',
+      JSON.stringify([
+        { key: 'cached bergkäse', name: 'Cached Bergkäse', chain: 'lidl', addedPriceCents: 299, addedAt: 1 },
+      ]),
+    );
+    await render(<DealsScreen />);
+    expect(await screen.findByLabelText('Open deal for Cached Bergkäse')).toBeTruthy();
+    expect(screen.queryByLabelText(/Cached Bergkäse, in your basket/)).toBeNull();
+  });
+
+  it('updates the marker LIVE — adding from the deal detail lights the card behind it', async () => {
+    // Proves the interaction path state -> renderOffer -> card without a remount. NOTE: it does
+    // NOT guard the `extraData` prop on the lists — jest re-renders eagerly and doesn't
+    // virtualize cells, so removing extraData still passes here (verified). extraData is the
+    // documented NATIVE mechanism; its necessity is confirmed by web/native QA, not this test.
+    await seedCacheWith(MILK);
     await render(<DealsScreen />);
 
-    await fireEvent.press(await screen.findByLabelText('Open deal for Cached Bergkäse'));
-    await fireEvent.press(await screen.findByLabelText('Like Cached Bergkäse'));
+    await fireEvent.press(await screen.findByLabelText('Open deal for Frische Vollmilch'));
+    await fireEvent.press(await screen.findByLabelText('Add Frische Vollmilch to basket'));
 
     await waitFor(() =>
-      expect(screen.getByLabelText('Open deal for Cached Bergkäse, liked')).toBeTruthy(),
+      expect(screen.getByLabelText('Open deal for Frische Vollmilch, in your basket')).toBeTruthy(),
     );
   });
 });
 
+// --- History is populated by basket adds ---------------------------------------------
+
+describe('DealsScreen — adding to the basket records History', () => {
+  const MILK = makeOffer({ name: 'Frische Vollmilch', category: 'dairy', price_cents: 119 });
+
+  const seed = () =>
+    seedCache({ offers: [MILK] }).then(() => AsyncStorage.removeItem('likedItems'));
+
+  const addFromDetail = async () => {
+    await fireEvent.press(await screen.findByLabelText('Open deal for Frische Vollmilch'));
+    await fireEvent.press(await screen.findByLabelText('Add Frische Vollmilch to basket'));
+    await fireEvent.press(screen.getByText('Close'));
+  };
+
+  it('records the product — with what you paid — when you add it to the basket', async () => {
+    await seed();
+    await render(<DealsScreen />);
+    await screen.findByText('Frische Vollmilch');
+    await addFromDetail();
+
+    await fireEvent.press(screen.getByLabelText('History'));
+    // The whole point: History remembers the price at the moment you added it.
+    expect(await screen.findByText(/paid 1,19/)).toBeTruthy();
+  });
+
+  it('keeps the entry after the product leaves the basket — History is append-only', async () => {
+    await seed();
+    await render(<DealsScreen />);
+    await screen.findByText('Frische Vollmilch');
+    await addFromDetail();
+
+    // Empty the basket the way the Basket sheet does.
+    await fireEvent.press(screen.getByLabelText('Basket'));
+    await fireEvent.press(await screen.findByText('Clear list'));
+    await fireEvent.press(screen.getByLabelText('Close basket'));
+
+    await fireEvent.press(screen.getByLabelText('History'));
+    // Scoped to the sheet — the name is also on the deals card behind it.
+    const sheet = await screen.findByTestId('history-modal');
+    expect(within(sheet).getByText('Frische Vollmilch')).toBeTruthy();
+  });
+
+  it('keeps the price you FIRST paid when you add the same product again', async () => {
+    // `addedPriceCents` means "what you paid", so a later add must not overwrite it with
+    // today's price — otherwise the comparison History exists for silently becomes today vs
+    // today. Seeded at 9,99; the loaded offer is 1,19.
+    await seedCache({ offers: [MILK] });
+    await AsyncStorage.setItem(
+      'likedItems',
+      JSON.stringify([
+        {
+          key: 'frische vollmilch',
+          name: 'Frische Vollmilch',
+          brand: null,
+          group: null,
+          groupLabel: null,
+          chain: 'lidl',
+          addedPriceCents: 999,
+          addedAt: 1,
+        },
+      ]),
+    );
+    await render(<DealsScreen />);
+    await screen.findByText('Frische Vollmilch');
+    await addFromDetail();
+
+    await fireEvent.press(screen.getByLabelText('History'));
+    expect(await screen.findByText(/paid 9,99/)).toBeTruthy();
+    expect(screen.queryByText(/paid 1,19/)).toBeNull();
+  });
+
+  it('records nothing until you actually add something', async () => {
+    await seed();
+    await render(<DealsScreen />);
+    await screen.findByText('Frische Vollmilch');
+    await fireEvent.press(screen.getByLabelText('History'));
+    expect(await screen.findByText(/Add a deal to your basket/)).toBeTruthy();
+  });
+});
 
 // --- The "Only show" store lens (multi-select, persisted) ----------------------------
 

@@ -1,0 +1,1252 @@
+{
+ "_source": "Ali0600/grocery-price-history@e918ab5 data/index.json (weeks 2026-W27..2026-W31)",
+ "_note": "Real upstream rows. The load-bearing invariant: nameKey(label) === name_key for every one.",
+ "schema": 1,
+ "weeks": [
+  "2026-W27",
+  "2026-W28",
+  "2026-W29",
+  "2026-W30",
+  "2026-W31"
+ ],
+ "products": [
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "coca cola",
+   "label": "Coca-Cola",
+   "category": "soft_drinks",
+   "group_label": "Cola",
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     399,
+     202
+    ],
+    [
+     "2026-W28",
+     69,
+     209
+    ],
+    [
+     "2026-W29",
+     149,
+     75
+    ],
+    [
+     "2026-W30",
+     1169,
+     97
+    ],
+    [
+     "2026-W31",
+     799,
+     133
+    ]
+   ],
+   "stats": {
+    "min": 69,
+    "median": 399,
+    "max": 1169,
+    "last": 799,
+    "weeks_seen": 5,
+    "appearances": 6
+   },
+   "last_week": "2026-W31",
+   "verdict": "worse"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "fleischkäse im brötchen",
+   "label": "Fleischkäse im Brötchen",
+   "category": "pork",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     150,
+     null
+    ],
+    [
+     "2026-W28",
+     150,
+     null
+    ],
+    [
+     "2026-W29",
+     150,
+     null
+    ],
+    [
+     "2026-W30",
+     150,
+     null
+    ],
+    [
+     "2026-W31",
+     150,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 150,
+    "median": 150,
+    "max": 150,
+    "last": 150,
+    "weeks_seen": 5,
+    "appearances": 5
+   },
+   "last_week": "2026-W31",
+   "verdict": "true_low"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "gouda",
+   "label": "Gouda",
+   "category": "cheese",
+   "group_label": "Gouda",
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     69,
+     690
+    ],
+    [
+     "2026-W28",
+     69,
+     690
+    ],
+    [
+     "2026-W29",
+     69,
+     690
+    ],
+    [
+     "2026-W30",
+     69,
+     690
+    ],
+    [
+     "2026-W31",
+     69,
+     690
+    ]
+   ],
+   "stats": {
+    "min": 69,
+    "median": 69,
+    "max": 69,
+    "last": 69,
+    "weeks_seen": 5,
+    "appearances": 5
+   },
+   "last_week": "2026-W31",
+   "verdict": "true_low"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "crelando geschenkpapier tüte bänder karten set",
+   "label": "CRELANDO® Geschenkpapier/-tüte/-bänder/Karten-Set",
+   "category": "household",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     75,
+     null
+    ],
+    [
+     "2026-W28",
+     75,
+     null
+    ],
+    [
+     "2026-W29",
+     75,
+     null
+    ],
+    [
+     "2026-W30",
+     75,
+     null
+    ],
+    [
+     "2026-W31",
+     75,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 75,
+    "median": 75,
+    "max": 75,
+    "last": 75,
+    "weeks_seen": 5,
+    "appearances": 5
+   },
+   "last_week": "2026-W31",
+   "verdict": "true_low"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "jes collection grillhelfer grillzubehör",
+   "label": "JES COLLECTION Grillhelfer/Grillzubehör",
+   "category": "household",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     67,
+     null
+    ],
+    [
+     "2026-W28",
+     67,
+     null
+    ],
+    [
+     "2026-W29",
+     67,
+     null
+    ],
+    [
+     "2026-W30",
+     67,
+     null
+    ],
+    [
+     "2026-W31",
+     67,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 67,
+    "median": 67,
+    "max": 67,
+    "last": 67,
+    "weeks_seen": 5,
+    "appearances": 5
+   },
+   "last_week": "2026-W31",
+   "verdict": "true_low"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "jes collection küchen haushaltshelfer",
+   "label": "JES COLLECTION Küchen-/Haushaltshelfer",
+   "category": "household",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     67,
+     null
+    ],
+    [
+     "2026-W28",
+     67,
+     null
+    ],
+    [
+     "2026-W29",
+     67,
+     null
+    ],
+    [
+     "2026-W30",
+     67,
+     null
+    ],
+    [
+     "2026-W31",
+     67,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 67,
+    "median": 67,
+    "max": 67,
+    "last": 67,
+    "weeks_seen": 5,
+    "appearances": 8
+   },
+   "last_week": "2026-W31",
+   "verdict": "true_low"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka",
+   "name_key": "lays bugles",
+   "label": "Lay's Bugles",
+   "category": "snacks",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     111,
+     1480
+    ]
+   ],
+   "stats": {
+    "min": 111,
+    "median": 111,
+    "max": 111,
+    "last": 111,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W27",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "müllers original heidefrühstück",
+   "label": "Müller’s Original Heidefrühstück",
+   "category": "other",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     179,
+     1790
+    ]
+   ],
+   "stats": {
+    "min": 179,
+    "median": 179,
+    "max": 179,
+    "last": 179,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W27",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka",
+   "name_key": "schäfers vollkorn quark brötchen",
+   "label": "Schäfer's Vollkorn-Quark-Brötchen",
+   "category": "bakery",
+   "group_label": "Brötchen",
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     80,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 80,
+    "median": 80,
+    "max": 80,
+    "last": 80,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W27",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "rewe",
+   "name_key": "butchers crispy chicken patties",
+   "label": "Butcher’s Crispy Chicken Patties",
+   "category": "poultry",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     199,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 199,
+    "median": 199,
+    "max": 199,
+    "last": 199,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W27",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "aldi",
+   "name_key": "rio doro smoothie",
+   "label": "Rio d’oro Smoothie",
+   "category": "soft_drinks",
+   "group_label": "Smoothie",
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W30",
+     129,
+     516
+    ]
+   ],
+   "stats": {
+    "min": 129,
+    "median": 129,
+    "max": 129,
+    "last": 129,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W30",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "aldi",
+   "name_key": "trader joes nuss variation xxl",
+   "label": "TRADER JOE'S Nuss-Variation XXL",
+   "category": "other",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W31",
+     599,
+     1198
+    ]
+   ],
+   "stats": {
+    "min": 599,
+    "median": 599,
+    "max": 599,
+    "last": 599,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W31",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "wrigleys extra plus kaugummi",
+   "label": "WRIGLEY’S Extra Plus Kaugummi",
+   "category": "sweets",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W31",
+     295,
+     4403
+    ]
+   ],
+   "stats": {
+    "min": 295,
+    "median": 295,
+    "max": 295,
+    "last": 295,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W31",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "beckers bester fruchtsäfte",
+   "label": "becker's bester Fruchtsäfte",
+   "category": "beverages",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W28",
+     149,
+     199
+    ]
+   ],
+   "stats": {
+    "min": 149,
+    "median": 149,
+    "max": 149,
+    "last": 149,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W28",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "moët chandon rosé imperial brut",
+   "label": "MOËT & CHANDON Rosé Imperial brut",
+   "category": "alcoholic",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W29",
+     4990,
+     6653
+    ]
+   ],
+   "stats": {
+    "min": 4990,
+    "median": 4990,
+    "max": 4990,
+    "last": 4990,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W29",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "rewe",
+   "name_key": "lillet rosé white peach",
+   "label": "Lillet Rosé White Peach",
+   "category": "beverages",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     699,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 699,
+    "median": 699,
+    "max": 699,
+    "last": 699,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W27",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "freixenet mederaño",
+   "label": "Freixenet Mederaño",
+   "category": "alcoholic",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W30",
+     299,
+     399
+    ]
+   ],
+   "stats": {
+    "min": 299,
+    "median": 299,
+    "max": 299,
+    "last": 299,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W30",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "rewe",
+   "name_key": "crêapan poffertjes",
+   "label": "Crêapan Poffertjes",
+   "category": "other",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W28",
+     199,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 199,
+    "median": 199,
+    "max": 199,
+    "last": 199,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W28",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "cimarosa zinfandel roséwein lieblich",
+   "label": "Cimarosa Zinfandel, Roséwein, lieblich",
+   "category": "beverages",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W28",
+     199,
+     265
+    ]
+   ],
+   "stats": {
+    "min": 199,
+    "median": 199,
+    "max": 199,
+    "last": 199,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W28",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "aldi",
+   "name_key": "uludağ gazoz original",
+   "label": "Uludağ Gazoz Original",
+   "category": "soft_drinks",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W31",
+     79,
+     239
+    ]
+   ],
+   "stats": {
+    "min": 79,
+    "median": 79,
+    "max": 79,
+    "last": 79,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W31",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "rewe",
+   "name_key": "rewe feine welt essreife avocado hass",
+   "label": "REWE Feine Welt Essreife Avocado »Hass«, Kl. I",
+   "category": "fruits",
+   "group_label": "Avocado",
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W28",
+     159,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 159,
+    "median": 159,
+    "max": 159,
+    "last": 159,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W28",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka",
+   "name_key": "gut günstig hähnchenschnitzel",
+   "label": "GUT&GÜNSTIG Hähnchenschnitzel",
+   "category": "poultry",
+   "group_label": "Hähnchen",
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W29",
+     299,
+     997
+    ]
+   ],
+   "stats": {
+    "min": 299,
+    "median": 299,
+    "max": 299,
+    "last": 299,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W29",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka",
+   "name_key": "gut günstig delikatess rohschinkenwürfel",
+   "label": "GUT&GÜNSTIG Delikatess-Rohschinkenwürfel",
+   "category": "pork",
+   "group_label": "Schinken",
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W31",
+     229,
+     916
+    ]
+   ],
+   "stats": {
+    "min": 229,
+    "median": 229,
+    "max": 229,
+    "last": 229,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W31",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "bauerngut fleischsalat oder geflügel fleischsalat",
+   "label": "BauernGut Fleischsalat oder Geflügel-Fleischsalat",
+   "category": "household",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W29",
+     169,
+     845
+    ]
+   ],
+   "stats": {
+    "min": 169,
+    "median": 169,
+    "max": 169,
+    "last": 169,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W29",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "guten morgen frühstück",
+   "label": "Guten-Morgen-Frühstück",
+   "category": "household",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W28",
+     590,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 590,
+    "median": 590,
+    "max": 590,
+    "last": 590,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W28",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "dr oetker löffelglück",
+   "label": "Dr. Oetker Löffelglück",
+   "category": "other",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W28",
+     99,
+     619
+    ]
+   ],
+   "stats": {
+    "min": 99,
+    "median": 99,
+    "max": 99,
+    "last": 99,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W28",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "bertolli olivenöl",
+   "label": "Bertolli Olivenöl",
+   "category": "pantry",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W29",
+     599,
+     1198
+    ]
+   ],
+   "stats": {
+    "min": 599,
+    "median": 599,
+    "max": 599,
+    "last": 599,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W29",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka",
+   "name_key": "gut günstig fix für salat",
+   "label": "GUT&GÜNSTIG Fix für Salat",
+   "category": "vegetables",
+   "group_label": "Salat",
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     49,
+     1225
+    ]
+   ],
+   "stats": {
+    "min": 49,
+    "median": 49,
+    "max": 49,
+    "last": 49,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W27",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "aldi",
+   "name_key": "wolf original thüringer rostbratwurst",
+   "label": "WOLF Original Thüringer Rostbratwurst",
+   "category": "pork",
+   "group_label": "Bratwurst",
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W31",
+     449,
+     641
+    ]
+   ],
+   "stats": {
+    "min": 449,
+    "median": 449,
+    "max": 449,
+    "last": 449,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W31",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "maoam kaubonbon mischungen",
+   "label": "MAOAM Kaubonbon-Mischungen",
+   "category": "sweets",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W31",
+     169,
+     676
+    ]
+   ],
+   "stats": {
+    "min": 169,
+    "median": 169,
+    "max": 169,
+    "last": 169,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W31",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka",
+   "name_key": "vitakraft xxl snacks bonas",
+   "label": "Vitakraft XXL-Snacks Bonas",
+   "category": "household",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W29",
+     499,
+     2495
+    ]
+   ],
+   "stats": {
+    "min": 499,
+    "median": 499,
+    "max": 499,
+    "last": 499,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W29",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "aldi",
+   "name_key": "up2fashion midi slips",
+   "label": "UP2FASHION Midi-Slips",
+   "category": "household",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W31",
+     699,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 699,
+    "median": 699,
+    "max": 699,
+    "last": 699,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W31",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "reis fit express reis",
+   "label": "reis-fit Express Reis",
+   "category": "pantry",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W28",
+     129,
+     516
+    ]
+   ],
+   "stats": {
+    "min": 129,
+    "median": 129,
+    "max": 129,
+    "last": 129,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W28",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "aldi",
+   "name_key": "myvay vegane steaks typ schwein",
+   "label": "MyVay Vegane Steaks Typ „Schwein“",
+   "category": "vegan",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W30",
+     199,
+     1244
+    ]
+   ],
+   "stats": {
+    "min": 199,
+    "median": 199,
+    "max": 199,
+    "last": 199,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W30",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka",
+   "name_key": "spreewaldhof bio apfelmus",
+   "label": "Spreewaldhof Bio-Apfelmus",
+   "category": "fruits",
+   "group_label": "Apfel",
+   "is_bio": true,
+   "series": [
+    [
+     "2026-W31",
+     339,
+     595
+    ]
+   ],
+   "stats": {
+    "min": 339,
+    "median": 339,
+    "max": 339,
+    "last": 339,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W31",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "aldi",
+   "name_key": "mucci sandwich eis classic",
+   "label": "Mucci Sandwich-Eis Classic",
+   "category": "ice_cream",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W30",
+     199,
+     276
+    ]
+   ],
+   "stats": {
+    "min": 199,
+    "median": 199,
+    "max": 199,
+    "last": 199,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W30",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "mowi viking burger",
+   "label": "Mowi Viking-Burger",
+   "category": "other",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     329,
+     1645
+    ]
+   ],
+   "stats": {
+    "min": 329,
+    "median": 329,
+    "max": 329,
+    "last": 329,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W27",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka",
+   "name_key": "popp brotaufstrich",
+   "label": "Popp Brotaufstrich",
+   "category": "bakery",
+   "group_label": "Brot",
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W31",
+     189,
+     1575
+    ]
+   ],
+   "stats": {
+    "min": 189,
+    "median": 189,
+    "max": 189,
+    "last": 189,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W31",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "harvest basket backofen super feine pommes",
+   "label": "Harvest Basket Backofen Super Feine Pommes",
+   "category": "frozen",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W30",
+     149,
+     149
+    ]
+   ],
+   "stats": {
+    "min": 149,
+    "median": 149,
+    "max": 149,
+    "last": 149,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W30",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "lavazza crema e gusto",
+   "label": "Lavazza Crema e Gusto",
+   "category": "beverages",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W28",
+     444,
+     1776
+    ]
+   ],
+   "stats": {
+    "min": 444,
+    "median": 444,
+    "max": 444,
+    "last": 444,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W28",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "under armour funktionsshirt",
+   "label": "UNDER ARMOUR Funktionsshirt",
+   "category": "household",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W30",
+     1499,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 1499,
+    "median": 1499,
+    "max": 1499,
+    "last": 1499,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W30",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "fonzies",
+   "label": "Fonzies",
+   "category": "snacks",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W31",
+     179,
+     1790
+    ]
+   ],
+   "stats": {
+    "min": 179,
+    "median": 179,
+    "max": 179,
+    "last": 179,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W31",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "rewe",
+   "name_key": "bad liebenwerda mineralwasser",
+   "label": "Bad Liebenwerda Mineralwasser",
+   "category": "beverages",
+   "group_label": null,
+   "is_bio": false,
+   "series": [
+    [
+     "2026-W27",
+     599,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 599,
+    "median": 599,
+    "max": 599,
+    "last": 599,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W27",
+   "verdict": "new"
+  }
+ ]
+}

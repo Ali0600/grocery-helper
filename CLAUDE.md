@@ -743,7 +743,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   sibling would be refused by iOS and latch (PR #81); (2) **a nestable modal must use
   `animationType="fade"`, never `"slide"`** — measured on react-native-web, a nested slide-in never
   resolves its transform and the sheet parks fully off-screen (top = viewport + sheet height), which is
-  why `CategoriesModal` is now fade like `FlyerModal`/`LikesModal`; (3) leaving the browser must also
+  why `CategoriesModal` is now fade like `FlyerModal`/`HistoryModal`; (3) leaving the browser must also
   close the editor (`leaveBrowser`), or it re-mounts at the root branch and covers whatever opened next
   — measured sitting on top of Compare. Compare→browser is a **replace**, sequenced on `onDismiss`
   (iOS) exactly like Compare→EdekaVs. Also: `mineBase` is deliberately **not** gated on "a category
@@ -768,7 +768,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `cheapestByName`, so the list and the EDEKA-vs-E-center page can never drift on what "the same
   product" means. **Display-only**: Compare/EdekaVs get the raw `offers` and still show the full
   overlap (that page's "Same item, different price" + "Only at E center 169" is where it lives);
-  Basket/Recipes/Likes use `modalOffers` and are untouched. The **Filters sheet's pill counts now
+  Basket/Recipes/History use `modalOffers` and are untouched. The **Filters sheet's pill counts now
   reflect this** (see `facetCounts` below) — E center reads *166*, not *272*. The **Stores modal**
   still shows whole-set `chainCounts` on purpose: it's the membership surface ("how many deals does
   this chain have"), where a number shrunk by a hidden store or an active search would be wrong.
@@ -810,7 +810,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   can **never retry** — so the detail stays dead until `visible` goes false again. In this app
   `active` only clears via the detail's own (unreachable) Close, so **one tap from a sheet killed
   every later deal tap, from anywhere, for the whole session** — the "it worked the first time,
-  now nothing opens" report. This hit **Likes, Compare AND EdekaVs** (all three did
+  now nothing opens" report. This hit **Likes (now History), Compare AND EdekaVs** (all three did
   `onOpenOffer={setActive}` with `FlyerModal` as a sibling) and was invisible to web QA, which
   has no VC presentation stack. Fix: `DealsScreen` builds **one** `FlyerModal` element and passes
   it as a `detail` prop into whichever sheet is open (`{likesModal ? detail : null}`), rendering
@@ -822,7 +822,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   Compare → EdekaVs swapped both in one commit, presenting while the root VC was still dismissing
   → now chained on Compare's `onDismiss` (**iOS-only**; web has no VC stack and never fires it, so
   web switches immediately). Pinned by `DealsScreen.test.tsx` ("renders the deal detail INSIDE the
-  Likes sheet") — sabotage-proved: rendering it as a sibling fails the test.
+  History sheet") — sabotage-proved: rendering it as a sibling fails the test.
 - **"Hide" a deal — the deal detail's Hide/Un-Hide button** (2026-07-17, `hidden.ts` + a `Hidden
   deals` section in the FilterSheet): dismisses a deal you're not interested in. Scope was the
   user's call: **this chain's copy, this flyer week** — hiding Edeka's Schnaps leaves Lidl's alone,
@@ -833,8 +833,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   reuses **`format.ts` `dealsStale(hiddenAt)`** — one weekly rule, not a second one. `activeHidden`
   is the single expiry gate every read goes through; expired entries are pruned on write.
   **Hidden applies EVERYWHERE** (deals list, Basket, Recipes, Compare, EdekaVs — they take
-  `notHidden`, not the raw set) with **one deliberate exception: the Likes page**, which keeps the
-  unfiltered set — Likes is a watchlist you curated, so a hidden+liked product would render "Not on
+  `notHidden`, not the raw set) with **one deliberate exception: the History page**, which keeps
+  the unfiltered set — History is a record you built by shopping, so a hidden entry would render "Not on
   sale this week", a lie. In `filterDeals` the hide step runs **first, before the E-center dedupe**:
   hiding EDEKA's copy then surfaces E center's twin instead of losing the product from both (pinned
   by a test). **Pressing Hide CLOSES the deal detail** (2026-07-17): hiding is a dismissal, so one press finishes it — `onToggleHidden` clears `active` when the result is hidden. Un-Hide deliberately does NOT close (it *restores* the deal; you may want to read it) and just flips the button back. Side effect: the `Hidden X` toast renders *under* the detail and was never seen — with the sheet closed it's finally the confirmation.
@@ -843,65 +843,56 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   later hide can't silently flip the list into only-hidden mode). The sheet's **Reset clears the
   lens, not the hidden set** (a persisted choice, like `hiddenStores`/`sortByCategory`); only
   "Reset all app data" clears `hiddenItems`.
-- **Swipe-RIGHT = "Like" a product** (2026-07-16, `likes.ts` + `LikesModal` + the heart header
-  icon): a like persists the product's **identity** (`LikedItem`: `key = normName(name)` + brand +
-  group + a liked-at price/chain memo — **never `offer.id`**, ids churn weekly; storage key
-  `likedItems`, cleared by "Reset all app data" only) and the Likes page re-matches it against the
-  loaded offers each session. **Match tiers** (pure `matchLiked`, exclusive): (1) exact `normName`
+- **History = what you've added to your basket; swipe-RIGHT hides** (2026-07-29, replaced the
+  "Likes" feature — `history.ts` + `HistoryModal` + the clock header icon). Adding a deal to the
+  basket (swipe-LEFT, or the deal detail's Basket button) records the **exact product** and what
+  you paid; the History page re-matches it against the loaded offers each session so you can see
+  what it costs now. **APPEND-ONLY** — removing it from the basket doesn't erase it; the page's ✕ is
+  the only prune. `HistoryItem`: `key = normName(name)` + brand + group + an added-at price/chain
+  memo — **never `offer.id`**, ids churn weekly.
+  **Match tiers** (pure `matchHistory`, exclusive, unchanged from Likes): (1) exact `normName`
   equality (reuses `edekaVs.ts`'s exported `normName` — case/punctuation-insensitive, umlauts
   significant, cross-chain), cheapest first; (2) the **brand's** other products when the flyer
-  renamed/rotated it ("McCain Golden Longs" → "Golden Long" — the user's founding example), brand
-  matched by normName equality OR token containment (brand words ⊆ name words; tokens NOT
-  substrings, so `ja!`→"ja" can't fire mid-word), ranked by shared-name-token count then price,
-  capped at 8; (3) product **group** for brandless items (18% of offers; "Rispentomaten"→ other
-  Tomaten). The **heart badge = likes with an exact match on sale now** (`onSaleCount`), not the
-  list size — hides at 0. Gesture wiring: legacy `Swipeable`'s `onSwipeableOpen` direction names the **panel side**
-  — 'left' panel = right-swipe = Like, 'right' panel = left-swipe = basket — routed through the
+  renamed/rotated it ("McCain Golden Longs" → "Golden Long"), brand matched by normName equality OR
+  token containment (brand words ⊆ name words; tokens NOT substrings, so `ja!`→"ja" can't fire
+  mid-word), ranked by shared-name-token count then price, capped at 8; (3) product **group** for
+  brandless items (18% of offers; "Rispentomaten"→ other Tomaten). The **clock badge = entries with
+  an exact match on sale now** (`onSaleCount`), not the list size — hides at 0.
+  **The History write sits BEFORE the basket de-dupe** in `onAddToBasket`, deliberately: the basket
+  key is coarse (two different melons collapse to `melon`) while History keeps the specific product,
+  so a second product in an already-basketed sub-category must still be recorded. That line is
+  **unreachable from any non-gesture route** — the detail's Basket button is `disabled` once the
+  sub-category is in the basket — so jest can't cover it (moving the call passes the whole suite);
+  proven instead by web QA, where two Zott yoghurts collapsed to one `yogurt` basket key while
+  History kept both.
+  **Storage keeps the wire key `'likedItems'`** (same shape, so a rename would only cost a
+  migration), but the fields moved `likedPriceCents`/`likedAt` → `addedPriceCents`/`addedAt`.
+  `getStoredHistory` **reads either spelling and `setStoredHistory` writes both** for now: the old
+  build's shape filter *required* `likedAt`, so writing new-only names would make an **OTA rollback
+  silently drop every entry**. Drop the mirror a release or two out.
+  Gesture wiring: legacy `Swipeable`'s `onSwipeableOpen` direction names the **panel side** —
+  'left' panel = right-swipe = **Hide**, 'right' panel = left-swipe = basket — routed through the
   exported `handleSwipeableOpen` seam (SwipeableOfferCard.tsx), which is unit-testable since the
   native pan can't run under jest; it follows the freeze contract (close first, rAF-defer, and
-  DealsScreen's `onLikeOffer` reads likes via `likesRef` so the memoized rows keep stable props).
-  Likes match against `modalOffers` (hidden stores excluded — the Basket/Recipes convention) and
-  deliberately do NOT copy BasketModal's drop-household filter (equality matching has no keyword
-  traps; liking a household item is legitimate). `tint.like` (pink) is the marker color — NOT
-  `colors.badge` red (that means discount/error).
-- **On-card basket + like markers** (2026-07-20, `OfferCard` `liked`/`inBasket` props): a small
-  heart (`tint.like` pink) and cart (`tint.basket` green) in the tag row, shown **only** when the
-  product is already liked / in the basket — so a glance answers "have I got this?" without opening
-  the flyer. Icon-only (no text) to stay calm next to the chain/Bio/day pills; the status is folded
-  into the card's **spoken** label (`… , in your basket, liked`) because the Pressable is the
-  accessible element, so the markers' own labels aren't separately focusable. Semantics are the
-  **exact same checks the flyer detail uses** — `isLiked(offer, likes)` and
-  `basket.some(b => b.key === resolveBasketItem(offer).key)` — so card and detail always agree; NOT
-  the loose `offerMatchesItem` keyword matcher. Consequence (intended, matches the detail):
-  same-named offers share the like key and offers resolving to the same catalog/sub-group share the
-  basket key, so **siblings light up together**. **Freeze-safe wiring**: `DealsScreen` derives
-  `likedKeys`/`basketKeys` Sets from state, computes the two booleans in `renderOffer`, and passes
-  them as **primitive** props through the memoized `SwipeableOfferCard` — only the row whose flag
-  flips re-renders, and the flip lands after the gesture settles (the rAF-deferred write). **The
-  lists MUST pass `extraData={ {likedKeys, basketKeys} }`** — RN `VirtualizedList` cells are
-  PureComponent-like and `data` is referentially unchanged on like/add, so without it a fresh marker
-  never appears. **jest can't guard `extraData`** (it re-renders eagerly, no virtualization — a
-  removed-`extraData` sabotage still passes); the live-update path is proven by web QA on
-  react-native-web instead. Don't touch the ref-backed `onAddToBasket`/`onLikeOffer` callbacks —
-  their identity stability is the freeze contract.
-  `git-compare` button): per product sub-group (`offer.group`), each selected store's cheapest
-  price side by side, cheapest highlighted, rows sorted by spread; needs ≥2 stores sharing a
-  sub-group; tap a price → FlyerModal (rendered beneath it). Store multi-select defaults to all
-  present chains (its own picker — deliberately ignores `hiddenStores`). A **"Store scorecard"**
-  variant (per-store deal count / avg discount / category wins) is a wanted follow-up. A dedicated
-  **"EDEKA vs E center" diff page** (`components/EdekaVsModal.tsx` + pure `edekaVs.ts`, opened from a
-  button in CompareModal shown only when both chains are present — it **closes Compare** so modals
-  never stack 3-deep) matches by **normalized product name** (`normName`, not `offer.group` — the
-  user wanted "same name"): a "same item, different price" table (cheapest per chain, biggest gap
-  first, cheaper highlighted) + an "Only at E center" list (names E center has that EDEKA doesn't,
-  A–Z); tap → FlyerModal. Display-only/OTA (served chain/name/price_cents); big gaps can be same
-  name / different pack size, so rows show the unit. The header is a **pin-only** location control +
-  six circular icon
-  actions (`IconButton`) using **`@expo/vector-icons` Ionicons** behind `components/Icon.tsx`;
-  search sits under the header. Spacing/type/tag colours come from `theme.ts` tokens
-  (`space`/`radius`/`font`/`tint`), not per-component hardcodes.
+  DealsScreen's writers read via `historyRef`/`basketRef` so the memoized rows keep stable props).
+  History matches against `historyOffers` (hidden STORES excluded, hidden DEALS deliberately not —
+  it's a record you built by shopping, so a hidden+recorded product would read "Not on sale this
+  week", a lie) and deliberately does NOT copy BasketModal's drop-household filter (equality
+  matching has no keyword traps). `tint.history` (pink) is its colour; `tint.hide` is the calmest
+  tint in the file on purpose — hiding is a dismissal, not an achievement.
+- **On-card basket marker** (2026-07-20, narrowed 2026-07-29): a small cart (`tint.basket` green)
+  in `OfferCard`'s tag row, shown **only** when the product is in the basket — so a glance answers
+  "have I got this?" without opening the flyer. The heart (liked) marker went with the Likes
+  feature, and History deliberately gets **no** card marker: it's auto-populated from every basket
+  add, so the badge would end up on most rows and stop meaning anything. Icon-only to stay calm next
+  to the chain/Bio/day pills; the status is folded into the card's **spoken** label (the Pressable
+  is the accessible element, so the marker's own label isn't separately focusable). **The lists MUST
+  pass `extraData`** — RN `VirtualizedList` cells are PureComponent-like and `data` is referentially
+  unchanged on an add, so without it a fresh marker never appears. **jest can't guard `extraData`**
+  (it re-renders eagerly, no virtualization — a removed-`extraData` sabotage still passes); the
+  live-update path is proven by web QA on react-native-web instead.
 - **The header shows ONLY the location pin — no PLZ text** (2026-07-16): six 38px icon actions plus a
-  text block don't fit a phone. Adding the 6th (Likes) collapsed the location control 122px → 76px
+  text block don't fit a phone. Adding the 6th (then Likes, now History) collapsed the location control 122px → 76px
   and rendered "PLZ 10713" as **"P…"** at both 375 and 390pt (i.e. most iPhones, not just the SE).
   The chains subline ("Lidl · REWE · …") went with it. **The code is not lost**: the pin opens
   `PlzModal`, which shows it, and the pin's `accessibilityLabel` is
@@ -916,7 +907,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   **Basket** buttons (DealsScreen is its single render site and reuses the *existing* stable
   `onLikeOffer`/`onAddToBasket`, so there's no second copy of the dedupe rules). **Add-only and
   `disabled` once added** — `Liked ✓` / `In basket ✓` — so the control is never inert-looking;
-  removal stays on the Likes/Basket pages. Note the DealsScreen toast renders *under* this modal, so
+  removal stays on the History/Basket pages. Note the DealsScreen toast renders *under* this modal, so
   **the button's state flip is the feedback**, not a toast. `likes.ts` exports `likeKey(offer)` +
   `isLiked(offer, likes)` — use those for the check, never `resolveLike` (it stamps `Date.now()`).
 - **Deployment**: backend is live on **Render** (free tier) at

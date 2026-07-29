@@ -75,20 +75,20 @@ export type BasketItem = {
   exclude?: string[];
 };
 
-// A product the user Liked via right-swipe (persisted locally). Persists the product's
-// IDENTITY, never offer.id (ids churn weekly); the Likes page re-matches it against the
-// loaded offers each session — exact name first, else brand (else sub-group) fallback,
-// see likes.ts. `chain`/`likedPriceCents`/`likedAt` are display-only memos of the moment
-// it was liked; matching is cross-chain.
-export type LikedItem = {
+// A product recorded in History when you added it to your basket (persisted locally).
+// Persists the product's IDENTITY, never offer.id (ids churn weekly); the History page
+// re-matches it against the loaded offers each session — exact name first, else brand (else
+// sub-group) fallback, see history.ts. `chain`/`addedPriceCents`/`addedAt` are display-only
+// memos of the moment you added it ("what you paid"); matching is cross-chain.
+export type HistoryItem = {
   key: string; // normName(name) — stable identity + dedupe key
-  name: string; // as displayed when liked ("McCain Golden Longs")
+  name: string; // as displayed when added ("McCain Golden Longs")
   brand: string | null; // fallback tier ("McCain")
   group: string | null; // fallback tier for brandless items ("tomate")
   groupLabel: string | null;
   chain: string;
-  likedPriceCents: number;
-  likedAt: number;
+  addedPriceCents: number;
+  addedAt: number;
 };
 
 export type ScrapeResult = {

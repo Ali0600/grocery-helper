@@ -68,20 +68,21 @@ build the cheapest basket across one or two stores.
   to the shopping basket (a melon offer adds "Melon", which then tracks the cheapest
   melon all week) — native gesture handling with haptic feedback, and a resolver
   that reconciles the server's product sub-groups with the client catalog.
-- **Swipe-to-like with brand-aware re-matching** — swipe a deal right to "Like" the
-  exact product; the Likes page re-checks your liked products against every new
-  flyer week (a header heart badges how many are on sale again right now). Products
-  are tracked by identity, not by id: if the flyer renames "McCain Golden Longs" to
-  "Golden Long" next week, the exact match falls back to the brand's other offers
-  (and to the product sub-group for brandless produce), ranked by name similarity.
-- **At-a-glance basket / like markers on each deal** — a small cart or heart in the
-  card's tag row shows when a product is already in your basket or already liked, so you
-  don't have to open the flyer to check. The markers update live as you add or like
-  (a memoization-safe wiring that keeps the swipe gestures smooth) and read out as part
-  of the card for screen readers.
-- **Hide a deal you're not interested in** — the deal detail's Hide button dismisses it
-  from the list (and from the Basket, Recipes and Compare pages) for that flyer week,
-  at that chain: hiding Edeka's Schnaps leaves Lidl's alone, and it returns when the
+- **Shopping history with brand-aware re-matching** — everything you add to your
+  basket is recorded with the price you paid, and the History page re-checks it
+  against every new flyer week (a header badge shows how many are on sale again right
+  now). Products are tracked by identity, not by id: if the flyer renames "McCain
+  Golden Longs" to "Golden Long" next week, the exact match falls back to the brand's
+  other offers (and to the product sub-group for brandless produce), ranked by name
+  similarity. It's append-only — clearing your basket doesn't erase what you shopped for.
+- **At-a-glance basket marker on each deal** — a small cart in the card's tag row
+  shows when a product is already in your basket, so you don't have to open the flyer
+  to check. It updates live as you add (a memoization-safe wiring that keeps the swipe
+  gestures smooth) and reads out as part of the card's spoken label, so a screen-reader
+  user gets the same information.
+- **Hide a deal you're not interested in** — swipe a deal right (or use the deal detail's
+  Hide button) and it disappears from the list (and from the Basket, Recipes and Compare
+  pages) for that flyer week, at that chain: hiding Edeka's Schnaps leaves Lidl's alone, and it returns when the
   flyers refresh. Hides are stored by product identity rather than by offer id, which
   churns on every re-scrape. Filters → "Show hidden" reveals them again to un-hide.
 - **Persisted store visibility** — hide chains you never shop at; the preference
