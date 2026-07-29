@@ -9,10 +9,10 @@ import { Icon } from './Icon';
 import { OfferCard } from './OfferCard';
 
 // Swipe a deal LEFT to add it to the basket (green "Basket" panel on the right), or
-// RIGHT to Like the product (pink "Like" panel on the left — see likes.ts). Releasing
-// past the threshold acts, buzzes, and snaps the row shut — fling-to-act, the row never
-// stays open. NOTE the legacy Swipeable's `direction` names the PANEL SIDE that opened,
-// not the finger motion: a right-swipe opens the LEFT panel → direction === 'left'.
+// RIGHT to hide it (muted "Hide" panel on the left — see hidden.ts). Releasing past the
+// threshold acts, buzzes, and snaps the row shut — fling-to-act, the row never stays open.
+// NOTE the legacy Swipeable's `direction` names the PANEL SIDE that opened, not the finger
+// motion: a right-swipe opens the LEFT panel → direction === 'left'.
 //
 // FREEZE HARDENING: the gesture's completion callback must stay pure. Mutating app
 // state inside it (basket + toast → the whole list re-renders mid-gesture) and only
@@ -23,18 +23,18 @@ import { OfferCard } from './OfferCard';
 // re-rendered under.
 /** The swipe→action seam, exported for tests (the native pan can't run under jest).
  * `direction` routes by PANEL SIDE: 'right' panel (left-swipe) → basket, 'left' panel
- * (right-swipe) → like. Close FIRST, then defer the state write + haptic by a frame —
+ * (right-swipe) → hide. Close FIRST, then defer the state write + haptic by a frame —
  * the freeze-hardening contract above. */
 export function handleSwipeableOpen(
   direction: 'left' | 'right',
   swipeable: { close: () => void },
   offer: Offer,
-  actions: { onAdd: (offer: Offer) => void; onLike: (offer: Offer) => void },
+  actions: { onAdd: (offer: Offer) => void; onHide: (offer: Offer) => void },
 ): void {
   swipeable.close();
   requestAnimationFrame(() => {
     if (direction === 'right') actions.onAdd(offer);
-    else actions.onLike(offer);
+    else actions.onHide(offer);
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     }
@@ -45,17 +45,15 @@ export const SwipeableOfferCard = memo(function SwipeableOfferCard({
   offer,
   onPressOffer,
   onAdd,
-  onLike,
-  liked,
+  onHide,
   inBasket,
 }: {
   offer: Offer;
   onPressOffer: (offer: Offer) => void;
   onAdd: (offer: Offer) => void;
-  onLike: (offer: Offer) => void;
-  // Primitive props: booleans compare by value under memo(), so only the row whose flag actually
+  onHide: (offer: Offer) => void;
+  // Primitive prop: booleans compare by value under memo(), so only the row whose flag actually
   // flips re-renders — the freeze contract (identity-stable props) is preserved.
-  liked?: boolean;
   inBasket?: boolean;
 }) {
   return (
@@ -72,16 +70,16 @@ export const SwipeableOfferCard = memo(function SwipeableOfferCard({
         </View>
       )}
       renderLeftActions={() => (
-        <View style={[styles.action, styles.likeAction]}>
-          <Icon name="heart" size={20} color={tint.like.fg} />
-          <Text style={[styles.label, styles.likeLabel]}>Like</Text>
+        <View style={[styles.action, styles.hideAction]}>
+          <Icon name="eye-off" size={20} color={tint.hide.fg} />
+          <Text style={[styles.label, styles.hideLabel]}>Hide</Text>
         </View>
       )}
       onSwipeableOpen={(direction, swipeable) =>
-        handleSwipeableOpen(direction, swipeable, offer, { onAdd, onLike })
+        handleSwipeableOpen(direction, swipeable, offer, { onAdd, onHide })
       }
     >
-      <OfferCard offer={offer} onPress={() => onPressOffer(offer)} liked={liked} inBasket={inBasket} />
+      <OfferCard offer={offer} onPress={() => onPressOffer(offer)} inBasket={inBasket} />
     </Swipeable>
   );
 });
@@ -98,12 +96,12 @@ const styles = StyleSheet.create({
     marginRight: space.md,
     paddingHorizontal: 22,
   },
-  // The left (Like) panel mirrors the right one: its own margin side, pink tint.
-  likeAction: {
-    backgroundColor: tint.like.bg,
+  // The left (Hide) panel mirrors the right one: its own margin side, muted tint.
+  hideAction: {
+    backgroundColor: tint.hide.bg,
     marginRight: 0,
     marginLeft: space.md,
   },
   label: { color: colors.onAccent, fontWeight: '700', fontSize: 13 },
-  likeLabel: { color: tint.like.fg },
+  hideLabel: { color: tint.hide.fg },
 });

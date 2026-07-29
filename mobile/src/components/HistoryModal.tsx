@@ -3,23 +3,23 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { chainColors, chainLabel } from '../chains';
 import { euro, fmtPricePerUnit } from '../format';
-import { matchLiked } from '../likes';
+import { matchHistory } from '../history';
 import { colors, tint } from '../theme';
-import { LikedItem, Offer } from '../types';
+import { HistoryItem, Offer } from '../types';
 import { AppModal } from './AppModal';
 import { Icon } from './Icon';
 
-// The Likes page: every product the user right-swiped, re-checked against the currently
-// loaded offers. A liked product that's on sale again shows its cheapest current deal
+// The History page: every product the user has added to their basket, re-checked against the
+// currently loaded offers. A recorded product that's on sale again shows its cheapest current deal
 // (tap → the deal detail); one whose exact name is gone falls back to its brand's other
 // products ("More from McCain") or, brandless, its sub-group ("Other Tomaten") — see
-// likes.ts for the matching tiers. Offers passed in follow the Basket/Recipes convention
+// history.ts for the matching tiers. Offers passed in follow the Basket/Recipes convention
 // (hidden stores excluded). Tapped offers surface via onOpenOffer → DealsScreen's sibling
 // FlyerModal (never a nested modal).
 
 type Props = {
   visible: boolean;
-  likes: LikedItem[];
+  items: HistoryItem[];
   offers: Offer[];
   onRemove: (key: string) => void;
   onOpenOffer: (offer: Offer) => void;
@@ -37,7 +37,7 @@ function Pill({ chain }: { chain: string }) {
   );
 }
 
-function LikeRow({
+function HistoryRow({
   item,
   exact,
   related,
@@ -45,7 +45,7 @@ function LikeRow({
   onOpenOffer,
   onRemove,
 }: {
-  item: LikedItem;
+  item: HistoryItem;
   exact: Offer[];
   related: Offer[];
   relatedLabel: string | null;
@@ -55,19 +55,19 @@ function LikeRow({
   const best = exact[0];
   const ppu = best ? fmtPricePerUnit(best.price_per_unit) : null;
 
-  // The name + "liked at" line, shown either way. When the product IS on sale the WHOLE row
+  // The name + "added at" line, shown either way. When the product IS on sale the WHOLE row
   // opens the deal — the name is the obvious thing to tap, and it used to be dead (only the
   // ~45pt price block responded).
   const head = (
     <>
       <View style={styles.nameLine}>
-        <Icon name="heart" size={12} color={tint.like.fg} />
+        <Icon name="time-outline" size={12} color={tint.history.fg} />
         <Text style={styles.itemName} numberOfLines={1}>
           {item.name}
         </Text>
       </View>
       <Text style={styles.meta}>
-        {chainLabel(item.chain)} · liked at {euro(item.likedPriceCents)}
+        {chainLabel(item.chain)} · paid {euro(item.addedPriceCents)}
       </Text>
     </>
   );
@@ -123,7 +123,7 @@ function LikeRow({
         onPress={onRemove}
         hitSlop={8}
         accessibilityRole="button"
-        accessibilityLabel={`Remove ${item.name} from likes`}
+        accessibilityLabel={`Remove ${item.name} from history`}
         style={({ pressed }) => [styles.removeBtn, pressed && styles.pressed]}
       >
         <Text style={styles.remove}>✕</Text>
@@ -132,26 +132,26 @@ function LikeRow({
   );
 }
 
-export function LikesModal({
+export function HistoryModal({
   visible,
-  likes,
+  items,
   offers,
   onRemove,
   onOpenOffer,
   onClose,
   detail,
 }: Props) {
-  // Re-match every like against the current offers; on-sale-now first, then newest like.
+  // Re-match every entry against the current offers; on-sale-now first, then most recent.
   const rows = useMemo(
     () =>
-      likes
-        .map((item) => ({ item, ...matchLiked(item, offers) }))
+      items
+        .map((item) => ({ item, ...matchHistory(item, offers) }))
         .sort(
           (a, b) =>
             Number(b.exact.length > 0) - Number(a.exact.length > 0) ||
-            b.item.likedAt - a.item.likedAt,
+            b.item.addedAt - a.item.addedAt,
         ),
-    [likes, offers],
+    [items, offers],
   );
 
   return (
@@ -160,19 +160,19 @@ export function LikesModal({
       transparent
       animationType="fade"
       onRequestClose={onClose}
-      testID="likes-modal"
+      testID="history-modal"
     >
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Likes</Text>
+            <Text style={styles.headerTitle}>History</Text>
             {/* Labelled: the deal detail nests inside this sheet and has its own "Close", so
                 the bare text is ambiguous to a screen reader (and to a test). */}
             <Pressable
               onPress={onClose}
               hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel="Close likes"
+              accessibilityLabel="Close history"
             >
               <Text style={styles.close}>Close</Text>
             </Pressable>
@@ -180,12 +180,12 @@ export function LikesModal({
           <ScrollView contentContainerStyle={styles.list}>
             {rows.length === 0 ? (
               <Text style={styles.empty}>
-                Swipe a deal to the right to like it. Liked products show up here whenever
-                they&apos;re on sale again.
+                Add a deal to your basket and it shows up here — with what you paid, and
+                what it costs now.
               </Text>
             ) : (
               rows.map(({ item, exact, related, relatedLabel }) => (
-                <LikeRow
+                <HistoryRow
                   key={item.key}
                   item={item}
                   exact={exact}
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   noDeal: { color: colors.muted, fontSize: 13, marginTop: 6, fontStyle: 'italic' },
 
   related: { marginTop: 8 },
-  relatedTitle: { color: tint.like.fg, fontSize: 12, fontWeight: '700', marginBottom: 4 },
+  relatedTitle: { color: tint.history.fg, fontSize: 12, fontWeight: '700', marginBottom: 4 },
   relatedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
   relatedName: { color: colors.text, fontSize: 13, flexShrink: 1, flexGrow: 1 },
   relatedPrice: { color: colors.text, fontSize: 13, fontWeight: '700' },

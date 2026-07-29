@@ -26,7 +26,7 @@ import { FlyerModal } from '../components/FlyerModal';
 import { GroupHeader } from '../components/GroupHeader';
 import { Icon } from '../components/Icon';
 import { IconButton } from '../components/IconButton';
-import { LikesModal } from '../components/LikesModal';
+import { HistoryModal } from '../components/HistoryModal';
 import { SwipeableOfferCard } from '../components/SwipeableOfferCard';
 import { OptionsModal } from '../components/OptionsModal';
 import { PlzModal } from '../components/PlzModal';
@@ -62,7 +62,7 @@ import {
 } from '../stores';
 import { resolveBasketItem } from '../basketResolve';
 import { filterHidden, HiddenItem, hiddenKeySet, hideKey, toggleHidden } from '../hidden';
-import { isLiked, likeKey, onSaleCount, resolveLike } from '../likes';
+import { inHistory, historyKey, onSaleCount, resolveHistoryEntry } from '../history';
 import { DEFAULT_RECIPE_PREFS } from '../recipes';
 import {
   clearAllData,
@@ -74,7 +74,7 @@ import {
   getStoredHidden,
   getStoredHiddenStores,
   getStoredStoreLens,
-  getStoredLikes,
+  getStoredHistory,
   getStoredMyCategories,
   getStoredMyStores,
   getStoredPlz,
@@ -91,7 +91,7 @@ import {
   setStoredHidden,
   setStoredHiddenStores,
   setStoredStoreLens,
-  setStoredLikes,
+  setStoredHistory,
   setStoredMyCategories,
   setStoredMyStores,
   setStoredPlz,
@@ -102,7 +102,7 @@ import {
   SortMode,
 } from '../storage';
 import { colors, radius, space } from '../theme';
-import { BasketItem, CategoryCount, LikedItem, MyStore, Offer, RecipePrefs } from '../types';
+import { BasketItem, CategoryCount, HistoryItem, MyStore, Offer, RecipePrefs } from '../types';
 
 // Override via mobile/.env (EXPO_PUBLIC_DEFAULT_PLZ) so a personal postal code isn't
 // committed; falls back to a neutral central-Berlin default for the public bundle.
@@ -151,8 +151,8 @@ export default function DealsScreen() {
   const [bioOnly, setBioOnly] = useState(false); // session lens: only organic ("Bio") offers
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [basketModal, setBasketModal] = useState(false);
-  const [likes, setLikes] = useState<LikedItem[]>([]); // persisted: right-swiped products
-  const [likesModal, setLikesModal] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]); // persisted: products you've added to the basket
+  const [historyModal, setHistoryModal] = useState(false);
   const [hidden, setHidden] = useState<HiddenItem[]>([]); // persisted: deals dismissed for the week
   // Session-only (unlike the store lens, which the user asked to persist): "show me only my
   // hidden deals" is a momentary peek, and surviving a reload would read as the app breaking.
@@ -260,7 +260,7 @@ export default function DealsScreen() {
       // The browser opens on your categories when you have some, else on the full list.
       setBrowserMode(mc.length > 0 ? 'mine' : 'all');
       setBasket(await getStoredBasket());
-      setLikes(await getStoredLikes());
+      setHistory(await getStoredHistory());
       setHidden(await getStoredHidden());
       setRecipePrefs(await getStoredRecipePrefs());
       setAlwaysHave(await getStoredAlwaysHave());
@@ -411,6 +411,36 @@ export default function DealsScreen() {
     setStoredBasket(next);
   }, []);
 
+  // History: every product you've added to your basket, kept so the History page can tell you
+  // what you paid and what it costs now. APPEND-ONLY — taking something out of this week's
+  // basket doesn't erase that you shopped for it; the page's ✕ is the only way to prune.
+  // Same ref pattern as the basket below: the callback must stay STABLE (rows are memoized;
+  // an unstable prop re-renders every row mid-gesture — the freeze trigger).
+  const historyRef = useRef(history);
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
+  // Writers update the ref SYNCHRONOUSLY as well as the state: the effect above only re-syncs
+  // it after a render, so two writes landing in the same frame (two rows flung at once) would
+  // both read the same stale ref and the second would clobber the first. Writing the ref here
+  // makes back-to-back calls compose.
+  const commitHistory = useCallback((next: HistoryItem[]) => {
+    historyRef.current = next;
+    setHistory(next);
+    setStoredHistory(next);
+  }, []);
+  const recordInHistory = useCallback((offer: Offer) => {
+    const item = resolveHistoryEntry(offer);
+    // De-duped by normalized-name key, and the FIRST add wins: `addedPriceCents` means "what
+    // you paid", so re-adding later must not overwrite it with today's price.
+    if (historyRef.current.some((l) => l.key === item.key)) return;
+    commitHistory([...historyRef.current, item]);
+  }, [commitHistory]);
+  const onRemoveHistory = useCallback(
+    (key: string) => commitHistory(historyRef.current.filter((l) => l.key !== key)),
+    [commitHistory],
+  );
+
   // Swipe-left on a deal → add its sub-category (the same entry the "+" adds) to the
   // basket, de-duped by key so re-swiping the same product just re-confirms.
   // Reads the basket through a ref so this callback is STABLE — a `[basket]` dep would
@@ -422,6 +452,15 @@ export default function DealsScreen() {
   }, [basket]);
   const onAddToBasket = useCallback(
     (offer: Offer) => {
+      // BEFORE the basket de-dupe below, deliberately: History is a record of what you shopped
+      // for, so it should catch the add even when the basket already holds this sub-category
+      // (the basket key is coarse — two different melons collapse to one entry — while History
+      // keeps the specific product).
+      // NOT covered by a component test, and not for lack of trying: once the sub-category is
+      // in the basket the detail's Basket button is `disabled`, so the SWIPE is the only route
+      // that still reaches this line — and the native pan can't run under jest. Moving this
+      // call below the de-dupe passes the whole suite. Verified by hand in web QA instead.
+      recordInHistory(offer);
       const item = resolveBasketItem(offer);
       const current = basketRef.current;
       if (current.some((b) => b.key === item.key)) {
@@ -431,45 +470,10 @@ export default function DealsScreen() {
       onChangeBasket([...current, item]);
       showToast(`Added ${item.label} to basket`);
     },
-    [onChangeBasket, showToast],
+    [onChangeBasket, recordInHistory, showToast],
   );
 
-  // Swipe-right on a deal → Like the product (persisted; the Likes page re-checks it
-  // weekly). Same ref pattern as the basket: the callback must stay STABLE (rows are
-  // memoized; an unstable prop re-renders every row mid-gesture — the freeze trigger).
-  // De-duped by normalized-name key, so liking the same product at another chain (or
-  // re-swiping) just re-confirms.
-  const likesRef = useRef(likes);
-  useEffect(() => {
-    likesRef.current = likes;
-  }, [likes]);
-  // Both writers update the ref SYNCHRONOUSLY as well as the state: the effect above
-  // only re-syncs it after a render, so two likes landing in the same frame (two rows
-  // flung at once) would both read the same stale ref and the second would clobber the
-  // first. Writing the ref here makes back-to-back calls compose.
-  const commitLikes = useCallback((next: LikedItem[]) => {
-    likesRef.current = next;
-    setLikes(next);
-    setStoredLikes(next);
-  }, []);
-  const onLikeOffer = useCallback(
-    (offer: Offer) => {
-      const item = resolveLike(offer);
-      if (likesRef.current.some((l) => l.key === item.key)) {
-        showToast(`${item.name} is already in your likes`);
-        return;
-      }
-      commitLikes([...likesRef.current, item]);
-      showToast(`Liked ${item.name}`);
-    },
-    [commitLikes, showToast],
-  );
-  const onRemoveLike = useCallback(
-    (key: string) => commitLikes(likesRef.current.filter((l) => l.key !== key)),
-    [commitLikes],
-  );
-
-  // Same ref-mirror discipline as likes: the handler must keep a stable identity or the
+  // Same ref-mirror discipline as History: the handler must keep a stable identity or the
   // memoized rows re-render (the swipe-freeze contract), and reading state via the ref keeps
   // it out of the dep list.
   const hiddenRef = useRef(hidden);
@@ -500,10 +504,9 @@ export default function DealsScreen() {
   // Stable per-row callbacks: rows are memoized, so nothing about an unrelated
   // re-render (toast in/out, filter tweaks) touches a row while a gesture is live.
   const openOffer = useCallback((o: Offer) => setActive(o), []);
-  // Membership keys for the on-card status markers, derived from STATE (not the basketRef/likesRef
+  // Membership keys for the on-card basket marker, derived from STATE (not the basketRef
   // mirrors — a ref read can't trigger a re-render). Same identity checks the flyer detail uses
-  // (`isLiked` / `resolveBasketItem(...).key`), so the card and the detail always agree.
-  const likedKeys = useMemo(() => new Set(likes.map((l) => l.key)), [likes]);
+  // (`inHistory` / `resolveBasketItem(...).key`), so the card and the detail always agree.
   const basketKeys = useMemo(() => new Set(basket.map((b) => b.key)), [basket]);
   const renderOffer = useCallback(
     ({ item }: { item: Offer }) => (
@@ -511,17 +514,16 @@ export default function DealsScreen() {
         offer={item}
         onPressOffer={openOffer}
         onAdd={onAddToBasket}
-        onLike={onLikeOffer}
-        liked={likedKeys.has(likeKey(item))}
+        onHide={onToggleHidden}
         inBasket={basketKeys.has(resolveBasketItem(item).key)}
       />
     ),
-    [openOffer, onAddToBasket, onLikeOffer, likedKeys, basketKeys],
+    [openOffer, onAddToBasket, onToggleHidden, basketKeys],
   );
   // VirtualizedList cells are PureComponent-like: `data` is referentially unchanged when you
   // like/add, so without an `extraData` change the cells never re-invoke `renderOffer` and a fresh
   // marker never appears. This is the load-bearing wiring — passed to every list below.
-  const listExtra = useMemo(() => ({ likedKeys, basketKeys }), [likedKeys, basketKeys]);
+  const listExtra = useMemo(() => ({ basketKeys }), [basketKeys]);
 
   const onChangeRecipePrefs = useCallback((next: RecipePrefs) => {
     setRecipePrefs(next);
@@ -544,7 +546,7 @@ export default function DealsScreen() {
     await clearAllData();
     setMyStores([]);
     setBasket([]);
-    setLikes([]);
+    setHistory([]);
     setHidden([]);
     setShowHidden(false);
     setShowNonFood(false);
@@ -670,7 +672,7 @@ export default function DealsScreen() {
   // Leaving the browser must ALSO drop its nested editor. Otherwise `categoriesModal` stays true
   // and the editor re-mounts at the root (the `{!categoriesBrowser ? editor : null}` branch),
   // where it sits on top of whatever opened next — measured: it covered Compare after the handoff.
-  // Same guard the Likes/Compare/EdekaVs closers apply to the deal detail.
+  // Same guard the History/Compare/EdekaVs closers apply to the deal detail.
   const leaveBrowser = useCallback(() => {
     setCategoriesBrowser(false);
     setCategoriesModal(false);
@@ -704,7 +706,7 @@ export default function DealsScreen() {
   const hiddenKeys = useMemo(() => hiddenKeySet(hidden), [hidden]);
 
   // "Hidden" means hidden EVERYWHERE you shop from — Compare, EdekaVs, Basket and Recipes all
-  // work off this, not the raw set. The one exception is the Likes page (see `modalOffers`).
+  // work off this, not the raw set. The one exception is the History page (see below).
   const notHidden = useMemo(() => filterHidden(offers, hiddenKeys), [offers, hiddenKeys]);
 
   // Hidden stores apply EVERYWHERE the user shops from: the deals list (via filterDeals
@@ -715,17 +717,20 @@ export default function DealsScreen() {
     [notHidden, hiddenStores],
   );
 
-  // Likes deliberately IGNORES hidden deals: it's a watchlist you curated by hand, so a hidden
+  // History deliberately IGNORES hidden deals: it's a record you built by shopping, so a hidden
   // liked product would render "Not on sale this week" — which would be false. An explicit
   // watchlist beats a browsing declutter; hiding still applies to everything else.
-  const likesOffers = useMemo(
+  const historyOffers = useMemo(
     () => filterByVisibleStores(offers, hiddenStores),
     [offers, hiddenStores],
   );
 
-  // The heart badge = liked products on sale RIGHT NOW (exact name match), not the size
-  // of the likes list — it's the "worth opening the page" signal, and hides at 0.
-  const likedOnSale = useMemo(() => onSaleCount(likes, likesOffers), [likes, likesOffers]);
+  // The History badge = recorded products on sale RIGHT NOW (exact name match), not the size
+  // of the History list — it's the "worth opening the page" signal, and hides at 0.
+  const historyOnSale = useMemo(
+    () => onSaleCount(history, historyOffers),
+    [history, historyOffers],
+  );
 
   const dayLimitedCount = useMemo(() => offers.filter((o) => o.day_limited).length, [offers]);
   const bioCount = useMemo(() => offers.filter((o) => o.is_bio).length, [offers]);
@@ -811,15 +816,13 @@ export default function DealsScreen() {
   // The deal detail is ONE element with ONE set of wiring (so the like/basket dedupe rules
   // have no second copy), but WHERE it renders matters on iOS: a Modal presents from the
   // first view controller up its responder chain, so it must be nested inside whichever
-  // sheet opened it rather than sitting beside it. See LikesModal for the full explanation.
+  // sheet opened it rather than sitting beside it. See HistoryModal for the full explanation.
   const detail = (
     <FlyerModal
       offer={active}
       onClose={() => setActive(null)}
-      onLike={onLikeOffer}
       onAddToBasket={onAddToBasket}
       onToggleHidden={onToggleHidden}
-      liked={!!active && isLiked(active, likes)}
       inBasket={!!active && basket.some((b) => b.key === resolveBasketItem(active).key)}
       hidden={!!active && hiddenKeys.has(hideKey(active))}
     />
@@ -841,13 +844,13 @@ export default function DealsScreen() {
 
   // At most one of these is ever open: they're opened from header buttons that sit on the
   // deals screen, underneath any open sheet.
-  const sheetOpen = likesModal || compareModal || edekaVsModal || recipesModal || basketModal;
+  const sheetOpen = historyModal || compareModal || edekaVsModal || recipesModal || basketModal;
 
   // Closing a sheet also drops the detail: otherwise it would change host (sheet → root),
   // remounting into a dismiss/present race. Unreachable via the UI (the detail's backdrop
   // covers the sheet), but the guard costs one line.
-  const closeLikes = useCallback(() => {
-    setLikesModal(false);
+  const closeHistory = useCallback(() => {
+    setHistoryModal(false);
     setActive(null);
   }, []);
   const closeCompare = useCallback(() => {
@@ -986,10 +989,10 @@ export default function DealsScreen() {
               onPress={() => setBasketModal(true)}
             />
             <IconButton
-              name="heart-outline"
-              accessibilityLabel="Likes"
-              badge={likedOnSale}
-              onPress={() => setLikesModal(true)}
+              name="time-outline"
+              accessibilityLabel="History"
+              badge={historyOnSale}
+              onPress={() => setHistoryModal(true)}
             />
             <IconButton
               name="storefront-outline"
@@ -1207,14 +1210,14 @@ export default function DealsScreen() {
         onClose={closeEdekaVs}
         detail={edekaVsModal ? detail : null}
       />
-      <LikesModal
-        visible={likesModal}
-        likes={likes}
-        offers={likesOffers}
-        onRemove={onRemoveLike}
+      <HistoryModal
+        visible={historyModal}
+        items={history}
+        offers={historyOffers}
+        onRemove={onRemoveHistory}
         onOpenOffer={setActive}
-        onClose={closeLikes}
-        detail={likesModal ? detail : null}
+        onClose={closeHistory}
+        detail={historyModal ? detail : null}
       />
       {/* No sheet open → the deals-list path hosts the detail itself. */}
       {!sheetOpen ? detail : null}

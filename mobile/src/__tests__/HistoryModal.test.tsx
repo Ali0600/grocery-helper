@@ -4,29 +4,29 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
 
-import { LikesModal } from '../components/LikesModal';
-import { LikedItem } from '../types';
+import { HistoryModal } from '../components/HistoryModal';
+import { HistoryItem } from '../types';
 import { makeOffer } from './fixtures';
 
-const liked: LikedItem = {
+const liked: HistoryItem = {
   key: 'mccain golden longs',
   name: 'McCain Golden Longs',
   brand: 'McCain',
   group: null,
   groupLabel: null,
   chain: 'lidl',
-  likedPriceCents: 299,
-  likedAt: 1,
+  addedPriceCents: 299,
+  addedAt: 1,
 };
 
 const noop = () => {};
 
-describe('LikesModal', () => {
+describe('HistoryModal', () => {
   it('shows the empty state when nothing is liked', async () => {
     await render(
-      <LikesModal visible likes={[]} offers={[]} onRemove={noop} onOpenOffer={noop} onClose={noop} />,
+      <HistoryModal visible items={[]} offers={[]} onRemove={noop} onOpenOffer={noop} onClose={noop} />,
     );
-    expect(screen.getByText(/Swipe a deal to the right to like it/)).toBeTruthy();
+    expect(screen.getByText(/Add a deal to your basket/)).toBeTruthy();
   });
 
   it('renders an on-sale like with its cheapest current deal, tappable to the detail', async () => {
@@ -36,9 +36,9 @@ describe('LikesModal', () => {
     ];
     const onOpenOffer = jest.fn();
     await render(
-      <LikesModal
+      <HistoryModal
         visible
-        likes={[liked]}
+        items={[liked]}
         offers={offers}
         onRemove={noop}
         onOpenOffer={onOpenOffer}
@@ -54,9 +54,9 @@ describe('LikesModal', () => {
   it('falls back to "More from <brand>" when the exact name is gone (the rename case)', async () => {
     const offers = [makeOffer({ name: 'McCain Golden Long', brand: 'McCain', price_cents: 279 })];
     await render(
-      <LikesModal
+      <HistoryModal
         visible
-        likes={[liked]}
+        items={[liked]}
         offers={offers}
         onRemove={noop}
         onOpenOffer={noop}
@@ -71,16 +71,16 @@ describe('LikesModal', () => {
   it('removes a like via its ✕', async () => {
     const onRemove = jest.fn();
     await render(
-      <LikesModal
+      <HistoryModal
         visible
-        likes={[liked]}
+        items={[liked]}
         offers={[]}
         onRemove={onRemove}
         onOpenOffer={noop}
         onClose={noop}
       />,
     );
-    fireEvent.press(screen.getByLabelText('Remove McCain Golden Longs from likes'));
+    fireEvent.press(screen.getByLabelText('Remove McCain Golden Longs from history'));
     expect(onRemove).toHaveBeenCalledWith('mccain golden longs');
   });
 });

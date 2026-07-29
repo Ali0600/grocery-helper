@@ -15,7 +15,6 @@ export function OfferCard({
   offer,
   onPress,
   accessibilityLabel,
-  liked,
   inBasket,
 }: {
   offer: Offer;
@@ -24,11 +23,10 @@ export function OfferCard({
    * card opens the detail — but NOT in the Basket's picker, where pressing it picks the offer for
    * your plan. A screen reader was being told the wrong action there. */
   accessibilityLabel?: string;
-  /** Show a heart / cart marker in the tag row when the product is already liked / in the basket,
-   * so you don't have to open the flyer to check. The status is also folded into the spoken label
-   * (the markers themselves aren't separately focusable inside the row button). Passed only from
-   * the deals list — the Basket picker leaves both undefined. */
-  liked?: boolean;
+  /** Show a cart marker in the tag row when the product is already in the basket, so you don't
+   * have to open the flyer to check. The status is also folded into the spoken label (the marker
+   * itself isn't separately focusable inside the row button). Passed only from the deals list —
+   * the Basket picker leaves it undefined. */
   inBasket?: boolean;
 }) {
   const meta = [offer.category_label, formatBrand(offer.brand), cleanUnit(offer.unit)]
@@ -39,11 +37,11 @@ export function OfferCard({
   const appDeal = hasAppDeal(offer);
   const discount = headlineDiscountPct(offer);
   const strike = headlineStrikeCents(offer);
-  // Fold basket/like status into the spoken label: the Pressable is the accessible element, so the
-  // markers' own labels aren't separately focusable at runtime — a screen-reader user only hears
+  // Fold basket status into the spoken label: the Pressable is the accessible element, so the
+  // marker's own label isn't separately focusable at runtime — a screen-reader user only hears
   // the row's label, so the status has to live there too.
   const spokenLabel = onPress
-    ? `${accessibilityLabel ?? `Open deal for ${offer.name}`}${inBasket ? ', in your basket' : ''}${liked ? ', liked' : ''}`
+    ? `${accessibilityLabel ?? `Open deal for ${offer.name}`}${inBasket ? ', in your basket' : ''}`
     : undefined;
   return (
     <Pressable
@@ -93,13 +91,10 @@ export function OfferCard({
               <Text style={[styles.iconPillText, { color: tint.day.fg }]}>{offer.valid_days}</Text>
             </View>
           ) : null}
-          {/* Status markers, icon-only: shown only when already liked / in the basket. They carry a
-              label for RNTL/query purposes; the runtime announcement rides on the card label above. */}
-          {liked ? (
-            <View style={[styles.marker, { backgroundColor: tint.like.bg }]} accessibilityLabel="Liked">
-              <Icon name="heart" size={11} color={tint.like.fg} />
-            </View>
-          ) : null}
+          {/* Status marker, icon-only: shown only when the product is already in the basket. It
+              carries a label for RNTL/query purposes; the runtime announcement rides on the card
+              label above. (A "you've bought this before" marker from History was considered and
+              left out — History is auto-populated, so it would end up on most cards.) */}
           {inBasket ? (
             <View
               style={[styles.marker, { backgroundColor: tint.basket.bg }]}
