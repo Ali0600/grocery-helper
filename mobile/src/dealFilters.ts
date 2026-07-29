@@ -23,12 +23,49 @@ export function presentChains(offers: Offer[]): string[] {
   return [...ordered, ...extra];
 }
 
-/** Per-chain offer totals for the store-pill counts (static, whole-set). */
+/** Per-chain offer totals over whatever set you hand it. */
 export function chainCounts(offers: Offer[]): Record<string, number> {
   return offers.reduce<Record<string, number>>((acc, o) => {
     acc[o.chain] = (acc[o.chain] ?? 0) + 1;
     return acc;
   }, {});
+}
+
+/** The counts shown on the Filters sheet's pills. */
+export type FacetCounts = {
+  chains: Record<string, number>;
+  specialDays: number;
+  bio: number;
+  nonFood: number;
+};
+
+/**
+ * "How many deals would I see if I turned this option on?" — for every pill in the sheet.
+ *
+ * Each facet is counted with **its own filter neutralised and every other one still applied**,
+ * which is the only reading that makes the number actionable: counting with the facet ON would
+ * show 0 for every store you haven't picked, and counting the whole set (what these pills used
+ * to do) over-reports, because it ignores the E-center dedupe, hidden deals, search, and the
+ * rest of the stack.
+ *
+ * The store counts are exactly additive with the list: the lens step is a plain per-chain
+ * filter and everything after it is a per-offer predicate, so selecting {A,B} yields
+ * `chains[A] + chains[B]` rows. (The one exception is the lens's own no-op guard — a chain
+ * whose every offer is an E-center duplicate counts 0 and, if picked alone, no-ops to the full
+ * list. Rare, and 0 is the honest thing to show.)
+ *
+ * Four passes over the loaded set, so callers should memoize and only ask while the sheet is
+ * open — see DealsScreen.
+ */
+export function facetCounts(offers: Offer[], opts: DealFilterOptions): FacetCounts {
+  const without = (over: Partial<DealFilterOptions>) => filterDeals(offers, { ...opts, ...over });
+  return {
+    chains: chainCounts(without({ storeLens: [] })),
+    specialDays: without({ specialDays: false }).filter((o) => o.day_limited).length,
+    bio: without({ bioOnly: false }).filter((o) => o.is_bio).length,
+    // Non-food is the first step, so "how many would appear" means running with it shown.
+    nonFood: without({ showNonFood: true }).filter((o) => o.category === 'household').length,
+  };
 }
 
 /**

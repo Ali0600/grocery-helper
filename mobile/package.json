@@ -53,9 +53,9 @@
     "coverageThreshold": {
       "global": {
         "statements": 74,
-        "branches": 67,
-        "functions": 70,
-        "lines": 74
+        "branches": 68,
+        "functions": 71,
+        "lines": 75
       }
     },
     "transformIgnorePatterns": [

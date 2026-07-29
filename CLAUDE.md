@@ -678,6 +678,24 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   release that adds a chain** (or otherwise changes served deals a cached week can't represent);
   `setDealsCache` stamps it. A mismatch is treated as **stale, not absent** — the old deals still
   render instantly (no spinner, no cold-start block) while a background `revalidate` swaps them.
+- **The Filters sheet's pill counts are FACETED** (2026-07-29, `dealFilters.ts` `facetCounts`):
+  every count answers **"how many would I see if I turned this on?"** — each facet is counted with
+  **its own filter neutralised and every other one still applied**. That's the only reading that's
+  actionable: counting with the facet ON shows 0 for every store you haven't picked, and counting
+  the whole set (what these pills did before) over-reports, since it ignores the E-center dedupe,
+  hidden deals, non-food, search and the category chip. Live example: E center *278 → 166*, and with
+  Bio on the store pills read 2/19/16/11/1 — summing to exactly the Bio count (49).
+  **The store counts are additive with the list**: the lens step is a plain per-chain filter and
+  everything after it is a per-offer predicate, so picking {A,B} yields `chains[A] + chains[B]` rows
+  (the one exception is the lens's own no-op guard — a chain whose every offer is an E-center
+  duplicate counts 0 and, picked alone, no-ops to the full list; 0 is the honest thing to show).
+  **The section GATES stay whole-set** (`hasDayLimited`/`hasBio`, and `hiddenCount` = the size of
+  the hidden set): a section that vanished because a filter excluded everything would strand you —
+  notably you'd lose the only route back to un-hide. So a section can render "Special days (0)",
+  which is the honest answer, rather than disappearing. Four extra pipeline passes, so it's
+  **computed only while the sheet is open** — measured **0.70 ms** for all four over 1635 offers
+  (3.5x one list pass). `DealsScreen` builds one `filterOpts` memo that the list, `mineBase` and
+  the counts all share, so they cannot drift.
 - **Deals-screen filter UI (redesigned)**: secondary filters live in a **bottom sheet**
   (`components/FilterSheet.tsx`) opened from a single **`FilterBar`** (sort summary + a "Filters"
   button badged with the active-filter count + a removable chip per active filter). The sheet holds
@@ -750,10 +768,11 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `cheapestByName`, so the list and the EDEKA-vs-E-center page can never drift on what "the same
   product" means. **Display-only**: Compare/EdekaVs get the raw `offers` and still show the full
   overlap (that page's "Same item, different price" + "Only at E center 169" is where it lives);
-  Basket/Recipes/Likes use `modalOffers` and are untouched. Known wart: `chainCounts` (Stores modal,
-  the "Only show" pills) and the category chips stay **whole-set**, so E center reads *272* while
-  the list shows *170* — consistent with the existing convention that those counts ignore
-  client-side filters.
+  Basket/Recipes/Likes use `modalOffers` and are untouched. The **Filters sheet's pill counts now
+  reflect this** (see `facetCounts` below) — E center reads *166*, not *272*. The **Stores modal**
+  still shows whole-set `chainCounts` on purpose: it's the membership surface ("how many deals does
+  this chain have"), where a number shrunk by a hidden store or an active search would be wrong.
+  The **category chips** also stay whole-set — they come from the API's `/api/categories`.
 - **Swipe-to-basket is NATIVE (runtime 1.1.0)**: `SwipeableOfferCard` wraps `OfferCard` in
   gesture-handler's built-in `Swipeable` (NOT ReanimatedSwipeable — deliberately no reanimated/
   worklets dep); left-swipe adds the offer's sub-category via the pure resolver

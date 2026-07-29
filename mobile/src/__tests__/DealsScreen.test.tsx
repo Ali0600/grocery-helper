@@ -957,3 +957,54 @@ describe('DealsScreen — the "Only show" store lens', () => {
     expect(screen.queryByLabelText(/^Remove Only /)).toBeNull();
   });
 });
+
+
+// --- The Filters sheet's pill counts react to the active filters ---------------------
+
+describe('DealsScreen — the sheet\'s pill counts', () => {
+  const seedMixed = () =>
+    seedCache({
+      offers: [
+        makeOffer({ id: 81, name: 'Lidl Apfel', chain: 'lidl' }),
+        makeOffer({ id: 82, name: 'Lidl Brot', chain: 'lidl' }),
+        makeOffer({ id: 83, name: 'Lidl Putzmittel', chain: 'lidl', category: 'household' }),
+        makeOffer({ id: 84, name: 'REWE Milch', chain: 'rewe' }),
+      ],
+    });
+
+  it('excludes what the list is already hiding, so the pills match what you see', async () => {
+    // Whole-set Lidl is 3; the list shows 2 because non-food is hidden. The pill must say 2 —
+    // this is the wiring, and reverting it to the whole-set counts passes every other test.
+    await seedMixed();
+    await render(<DealsScreen />);
+    await screen.findByText('Lidl Apfel');
+
+    await fireEvent.press(await screen.findByText('Filters'));
+    expect(await screen.findByText('Lidl (2)')).toBeTruthy();
+    expect(screen.queryByText('Lidl (3)')).toBeNull();
+    expect(screen.getByText('REWE (1)')).toBeTruthy();
+  });
+
+  it('re-counts when another filter changes', async () => {
+    await seedMixed();
+    await render(<DealsScreen />);
+    await screen.findByText('Lidl Apfel');
+
+    await fireEvent.press(await screen.findByText('Filters'));
+    await fireEvent.press(await screen.findByText('Shown (1)')); // show non-food
+    // Lidl now has its household offer back.
+    expect(await screen.findByText('Lidl (3)')).toBeTruthy();
+  });
+
+  it('does not zero the other stores once one is picked', async () => {
+    // The count answers "what would I get if I picked this", so it must ignore the lens.
+    await seedMixed();
+    await render(<DealsScreen />);
+    await screen.findByText('Lidl Apfel');
+
+    await fireEvent.press(await screen.findByText('Filters'));
+    await fireEvent.press(await screen.findByLabelText('Only Lidl'));
+    expect(await screen.findByText('REWE (1)')).toBeTruthy();
+    expect(screen.queryByText('REWE (0)')).toBeNull();
+  });
+});
