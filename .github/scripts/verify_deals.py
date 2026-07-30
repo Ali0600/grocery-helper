@@ -48,14 +48,28 @@ import urllib.parse
 import urllib.request
 from collections import defaultdict
 
-FLOOR_CHAINS = 5
-FLOOR_OFFERS = 800
-FLOOR_UNIT_PRICE_PCT = 50.0
-CEIL_OTHER_PCT = 15.0
 CEIL_SELF_DISAGREE_PCT = 20.0
 # Below this many comparable products the rate is too noisy to gate on (one disagreement in a
-# handful of names would swing it past any ceiling). Live carries ~126.
+# handful of names would swing it past any ceiling). Grocery carries ~126; drugstore, at one
+# chain and ~283 offers, will usually fall under it and skip — which is the honest answer.
 MIN_COMPARABLE = 20
+
+# One profile per vertical, because a single global gate would be wrong in both directions:
+# `chains >= 5` goes RED the moment the served set is vertical-scoped, and a floor loose
+# enough for a one-chain drugstore could not detect a grocery collapse. Each vertical is
+# fetched and judged separately.
+#
+# `unit_price_pct: None` means "don't gate on it". Measured 2026-07-30, Rossmann carries a
+# Grundpreis on **48%** of offers — under grocery's 50% floor — and €/kg is barely meaningful
+# for cosmetics anyway, so gating it there would be a permanent red with nothing behind it.
+PROFILES: dict[str, dict] = {
+    # Measured 2026-07-15, prod AND local agreeing: 1650-1663 offers, 5 chains, ~71% €/kg,
+    # ~7.4% "other". Unchanged by the split — this is still the same population.
+    "grocery": {"chains": 5, "offers": 800, "unit_price_pct": 50.0, "other_pct": 15.0},
+    # Measured 2026-07-30: Rossmann alone, 283 offers. The floor is ~half that so normal
+    # weekly variance can't flap it, while a fallback-to-samples collapse still trips it.
+    "drugstore": {"chains": 1, "offers": 150, "unit_price_pct": None, "other_pct": 15.0},
+}
 
 
 def self_disagreeing(offers: list[dict]) -> tuple[list[tuple[str, set[str], int]], int]:
@@ -78,13 +92,16 @@ def self_disagreeing(offers: list[dict]) -> tuple[list[tuple[str, set[str], int]
     return bad, len(comparable)
 
 
-def fetch(url: str, plz: str) -> list[dict]:
-    qs = urllib.parse.urlencode({"plz": plz, "limit": 2000})
+def fetch(url: str, plz: str, vertical: str | None = None) -> list[dict]:
+    params = {"plz": plz, "limit": 2000}
+    if vertical:
+        params["vertical"] = vertical
+    qs = urllib.parse.urlencode(params)
     with urllib.request.urlopen(f"{url}?{qs}", timeout=180) as resp:
         return json.load(resp)
 
 
-def verify(offers: list[dict]) -> int:
+def verify(offers: list[dict], profile: dict) -> int:
     chains = sorted({o.get("chain") for o in offers if o.get("chain")})
     total = len(offers)
     with_unit = sum(1 for o in offers if o.get("unit_price_cents"))
@@ -93,16 +110,18 @@ def verify(offers: list[dict]) -> int:
     other_pct = (other / total * 100) if total else 0.0
     disagree, comparable = self_disagreeing(offers)
     disagree_pct = (len(disagree) / comparable * 100) if comparable else 0.0
+    floor_unit = profile["unit_price_pct"]
 
     checks = [
-        (len(chains) >= FLOOR_CHAINS,
-         f"chains: {len(chains)} {chains} (floor {FLOOR_CHAINS})"),
-        (total >= FLOOR_OFFERS,
-         f"offers: {total} (floor {FLOOR_OFFERS})"),
-        (unit_pct >= FLOOR_UNIT_PRICE_PCT,
-         f"eur/kg sortable: {unit_pct:.1f}% (floor {FLOOR_UNIT_PRICE_PCT}%)"),
-        (other_pct <= CEIL_OTHER_PCT,
-         f"'other' rate: {other_pct:.1f}% (ceiling {CEIL_OTHER_PCT}%)"),
+        (len(chains) >= profile["chains"],
+         f"chains: {len(chains)} {chains} (floor {profile['chains']})"),
+        (total >= profile["offers"],
+         f"offers: {total} (floor {profile['offers']})"),
+        (floor_unit is None or unit_pct >= floor_unit,
+         f"eur/kg sortable: {unit_pct:.1f}% "
+         + (f"(floor {floor_unit}%)" if floor_unit is not None else "(not gated here)")),
+        (other_pct <= profile["other_pct"],
+         f"'other' rate: {other_pct:.1f}% (ceiling {profile['other_pct']}%)"),
         # Skipped rather than passed when there's nothing to compare: "couldn't evaluate" must
         # not read as "all clear" (it still fails the offers floor above if the set collapsed).
         (comparable < MIN_COMPARABLE or disagree_pct <= CEIL_SELF_DISAGREE_PCT,
@@ -128,20 +147,34 @@ def main() -> int:
     ap.add_argument("--url", help="offers endpoint, e.g. https://host/api/offers")
     ap.add_argument("--plz", default="10115")
     ap.add_argument("--file", help="offline: verify a saved offers JSON instead")
+    ap.add_argument("--vertical", choices=sorted(PROFILES),
+                    help="offline: which profile to judge --file against (default grocery)")
     args = ap.parse_args()
 
     if args.file:
         with open(args.file, encoding="utf-8") as f:
             offers = json.load(f)
-    elif args.url:
-        offers = fetch(args.url, args.plz)
-    else:
+        if not isinstance(offers, list):
+            print(f"FAIL  response is not an offer list ({type(offers).__name__})")
+            return 1
+        return verify(offers, PROFILES[args.vertical or "grocery"])
+
+    if not args.url:
         ap.error("need --url or --file")
         return 2
-    if not isinstance(offers, list):
-        print(f"FAIL  response is not an offer list ({type(offers).__name__})")
-        return 1
-    return verify(offers)
+
+    # Every vertical is judged on its OWN thresholds, and every one runs even after a
+    # failure — a red grocery must not hide a collapsed drugstore.
+    failed = False
+    for vertical, profile in PROFILES.items():
+        print(f"--- {vertical} ---")
+        offers = fetch(args.url, args.plz, vertical)
+        if not isinstance(offers, list):
+            print(f"FAIL  response is not an offer list ({type(offers).__name__})")
+            failed = True
+            continue
+        failed = verify(offers, profile) != 0 or failed
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
