@@ -1280,6 +1280,19 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   **local, not CI**, because the keyless design uses your logged-in Claude Code (`claude -p`), not
   a managed `ANTHROPIC_API_KEY`. The deterministic prereqs: `app/scripts/scrape.py`
   (wraps `run_scrapers`) refreshes `grocery.db`; `app/scripts/recipe_seed.py` dumps candidates.
+  - **That `claude -p` auth is the schedule's single point of failure, and it broke silently
+    for 11 days** (2026-07-26 → 2026-07-30): launchd fired, the scrape and dump succeeded, then
+    `claude -p` returned "Not logged in", `set -e` aborted, and *nothing said so*. Fixed by
+    **preflighting auth before the scrape** (a failed probe now costs one tiny call instead of
+    ~15 requests to the flyer publishers) and by three failure channels — a `.recipe-regen.status`
+    file (a local write, so it can't fail), a macOS notification, and a deduplicated
+    `recipe-failure` GitHub issue that closes itself on recovery. The issue is deliberately
+    **last**: `gh` authenticates via the keyring, the same class of thing that broke here.
+    **`./scripts/regenerate-recipes.sh --check`** reports the last outcome and exits non-zero on
+    failure. It is NOT a keychain-ACL problem — the item reads fine non-interactively; the stored
+    credential itself goes stale, and a desktop-app session keeps working because it uses
+    host-provided auth, which is why the breakage is invisible from inside one. See
+    `docs/recipes.md`.
   **Recipes are authored PER CHAIN** (2026-07-18): `recipe_seed.py` emits
   `{plz, by_chain: {chain: {category: [...]}}}` and deliberately has **no** flat
   "cheapest anywhere" view — authoring from one picks the globally cheapest item per category and
