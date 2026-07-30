@@ -97,6 +97,37 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     pass `ALL_OSM_TAGS`, the union across verticals — without it the store directory silently
     lists no drugstore at all, whatever `CHAINS` says. `dm` is in `CHAINS` but NOT
     `ACTIVE_CHAINS`: it appears in the directory, but we serve no dm deals.
+  - **Drugstore categories are resolved INSIDE the layer-1 non-food branch** (2026-07-30):
+    `_DRUGSTORE_PATH_MAP` (source node → slug) then `_DRUGSTORE_RULES` (name/brand tokens),
+    via `_drugstore_hit`, running after `_FOOD_RESCUE` and before the fall to `household`.
+    11 new slugs appended to `CATEGORIES`: hair/face/body/dental/makeup/fragrance/baby/
+    health/cleaning/laundry/pet. **0-regression BY CONSTRUCTION** — the step is only
+    reachable where the answer was already `household`, so nothing food can move; the
+    full-DB diff agreed (**638 rows moved, 0 out of a food category**). Drugstore
+    `household` went **91% → 36%**; grocery's shrank 19% (a Nivea deo at Lidl is body care,
+    which is the point, not a side effect). `makeup` currently serves 0 — no make-up in this
+    week's flyers — and `/api/categories` simply omits it.
+    - **Order inside layer 1 is load-bearing**: food rescue → drugstore → veto → household.
+      A `_RESCUE_VETO` word must NOT block a drugstore aisle: `maschine` is a veto token
+      (for Kaffeevollautomaten) and a substring of "Finish Spül**maschinen**-caps", which
+      really is Cleaning. And the food rescue must stay first, or `Waschmittel` claims the
+      spare ribs the source files under it.
+    - **`_DRUGSTORE_VETO` is checked before the PATH map**, because the path decides first:
+      the source hangs a RAMA Cremefine (cooking cream) and an AMICELLI Milchcreme
+      (chocolate wafer) off `Körperpflege > Creme`. They stay `household` — the honest
+      "can't tell" — rather than a confidently wrong Body & Shower.
+    - **Six candidate rules were rejected, every one caught by the diff, not by reading**
+      (the same score as the image audit): three BRAND CONTAINERS — `Marken Parfum` made
+      *Axe Duschgel* a fragrance, `Marken für Tiere` made an *EDEKA Feine Pastete* and a
+      *REWE Salatschale* cat food, `Marken Baby`; `Hautpflege` (spans face AND body —
+      "NIVEA Pflegedusche" is a shower gel); `Babynahrung` (a FOOD node — *Huel
+      Trinkmahlzeit* is an adult meal drink); `Textilreinigung` (covers drying hardware —
+      a *LEIFHEIT Wäscheschirm*, even a *WORKZONE Konstruktionsschnur*). Plus three token
+      traps: `mund` ⊂ **Mund**harmonika (a harmonica), a bare `vitamin` (an ingredient claim
+      across cosmetics — it made a Garnier face serum a supplement), and `müllbeutel`
+      (bin bags were deliberately routed to household by an earlier audit).
+      **Only the path nodes that NAME A PRODUCT KIND are safe. Simulate every candidate over
+      the full DB before keeping it — the editor cannot see these.**
   - **`verify_deals.py` is now PER VERTICAL** (`PROFILES`). One global gate would be wrong both
     ways: `chains >= 5` goes red the moment the set is scoped, and a floor loose enough for a
     one-chain drugstore couldn't detect a grocery collapse. Grocery keeps its measured thresholds;

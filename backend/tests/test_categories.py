@@ -5,7 +5,14 @@ misfired (a flavour/brand word won over the real category).
 """
 import pytest
 
-from app.categories import BRAND_CATEGORY, CATEGORIES, classify
+from app.categories import (
+    _DRUGSTORE_PATH_MAP,
+    _DRUGSTORE_RULES,
+    BRAND_CATEGORY,
+    CATEGORIES,
+    DRUGSTORE_CATEGORIES,
+    classify,
+)
 
 
 @pytest.mark.parametrize(
@@ -1285,8 +1292,12 @@ def test_the_new_rescues_still_only_fire_under_a_non_food_path():
     """The rescue gate is what makes these safe. Under a real FOOD path the normal layers
     must still decide — otherwise `fruchtjoghurt` or `weine` would start hijacking rows."""
     pet = ["Tierbedarf und Tierfutter", "Marken für Tiere"]
-    # A pet product that merely mentions a rescue noun stays household (the veto still wins).
-    assert classify("Hundefutter mit Rind", None, pet) == "household"
+    # A pet product that merely mentions a rescue noun must never reach a FOOD chip — that
+    # was the "Orlando dog food in Chicken" bug. It now lands in the `pet` aisle rather than
+    # the undifferentiated `household`, which is strictly more correct; what this pins is the
+    # part that matters, that `rind` does NOT win.
+    assert classify("Hundefutter mit Rind", None, pet) == "pet"
+    assert classify("Hundefutter mit Rind", None, pet) != "beef"
     # THE SUBSTRING TRAP THIS ALMOST SHIPPED: "weine" is inside "Schweine-", so an unguarded
     # rescue noun turned a Schweinebraten under a pet path into ALCOHOLIC. The token carries a
     # leading space; both directions are pinned here.
@@ -1420,3 +1431,95 @@ def test_other_final_sweep_moves():
     assert classify("Viba Fruchtschnitte", "Viba",
                     ["Lebensmittel und Getränke", "Kaffee", "Kaffeevariationen",
                      "Cafe au lait"]) == "sweets"
+
+
+# --------------------------------------------------------------------------------------
+# Drugstore categories (layer 1, after the food rescue, before the fall to `household`).
+#
+# The step can only fire where the answer was ALREADY `household`, so it is 0-regression by
+# construction — the full-DB diff agreed: 608 rows moved, every one out of `household`, none
+# out of a food category. What these tests pin is the part construction does NOT guarantee:
+# that each rule picks the RIGHT drugstore aisle, and that the tokens which look obviously
+# correct while being typed don't fire on their lookalikes.
+# --------------------------------------------------------------------------------------
+_DRUG = ["Drogerie und Haushalt", "Produkte", "Drogerie"]  # non-food, no useful leaf
+_HAUS = ["Drogerie und Haushalt", "Produkte", "Haushalt"]
+
+
+@pytest.mark.parametrize(
+    "name,path,expected",
+    [
+        # --- the aisles, via the source's own product-kind nodes -----------------------
+        ("AIGNER Cara Mia Ti Amo", _DRUG + ["Parfümerie", "Düfte"], "fragrance"),
+        ("Isana Professional Shampoo", _DRUG + ["Haarpflege"], "hair"),
+        ("Guido Maria Kretschmer Daycream", _DRUG + ["Körperpflege"], "body"),
+        ("taxofit Elektrolyte Tablette", _DRUG + ["Gesundheit", "Nahrungsergänzungsmittel"], "health"),
+        ("Felix Katze Nassfutter", ["Tierbedarf und Tierfutter", "Produkte", "Tierfutter"], "pet"),
+        # --- and via name tokens, for the paths that dead-end at a brand container ------
+        ("Schauma Shampoo", _DRUG + ["Marken Drogerie", "Schauma"], "hair"),
+        ("Oral-B Elektrische Zahnbürste", _DRUG + ["Marken", "ORAL-B"], "dental"),
+        ("Nivea Deospray", _DRUG + ["Marken Drogerie", "Nivea"], "body"),
+        ("Perwoll Waschmittel Flüssig", _HAUS + ["Marken Haushalt", "Henkel"], "laundry"),
+        ("Finish Spülmaschinen-caps", _HAUS + ["Calgonit", "Finish"], "cleaning"),
+        ("Pampers Sparpack Baby Dry Windel", _DRUG + ["Marken Baby", "Pampers"], "baby"),
+    ],
+)
+def test_drugstore_aisles(name, path, expected):
+    assert classify(name, None, path) == expected
+
+
+@pytest.mark.parametrize(
+    "name,path,expected,why",
+    [
+        # Each of these was caught by the full-DB diff, NOT by reading the rule — the
+        # sibling that must not move, paired with the aisle it was wrongly claiming.
+        ("Mundharmonika", ["Sonstige", "Produkte", "Musikinstrumente"], "household",
+         "a HARMONICA: `mund` must not reach the dental rules"),
+        ("Ideenwelt Dusch-Teleskopbürste", _DRUG, "household",
+         "a shower BRUSH is hardware; `dusch` must not make it body care"),
+        ("Garnier Skin Active 2in1 Vitamin C", _DRUG, "household",
+         "a bare `vitamin` is an ingredient claim across cosmetics, not a supplement"),
+        ("Axe Duschgel", _DRUG + ["Marken", "Marken Parfum", "Axe"], "body",
+         "`Marken Parfum` is a BRAND CONTAINER — Axe also makes shower gel"),
+        ("EDEKA Herzstücke Feine Pastete", ["Tierbedarf und Tierfutter", "Marken für Tiere"],
+         "household", "`Marken für Tiere` is a brand container holding human food too"),
+        ("NIVEA Pflegedusche", _DRUG + ["Hautpflege", "Hautpflegeprodukte", "Creme"], "household",
+         "`Hautpflege` spans face AND body, and the source hangs unrelated products off it"),
+        ("Huel Trinkmahlzeit Banana", ["Baby und Kinder", "Baby", "Babynahrung"], "household",
+         "`Babynahrung` is a FOOD node; an adult meal drink must not become a drugstore aisle"),
+        ("Gillette Fusion5", _DRUG + ["Körperpflege", "Haarentfernung"], "body",
+         "hair REMOVAL is shaving — body, not hair care"),
+        ("LEIFHEIT Wäscheschirm", _HAUS + ["Textilreinigung", "Textiltrocknung"], "household",
+         "`Textilreinigung` covers drying hardware, not just detergent"),
+        ("Zugbandmüllbeutel", _HAUS + ["Marken Haushalt", "Swirl"], "household",
+         "bin bags were deliberately routed to household by an earlier audit"),
+    ],
+)
+def test_drugstore_rejected_signals(name, path, expected, why):
+    assert classify(name, None, path) == expected, why
+
+
+def test_drugstore_step_cannot_touch_a_food_path():
+    """The 0-regression property, as a test rather than an argument: the step lives inside
+    the layer-1 non-food branch, so a FOOD path never reaches it — even for a product whose
+    name is full of drugstore tokens."""
+    food = ["Lebensmittel und Getränke", "Produkte", "Molkereiprodukte", "Joghurt"]
+    assert classify("Milram Buttermilch Shampoo-Edition", None, food) == "dairy"
+
+
+def test_a_food_rescue_still_beats_the_drugstore_step():
+    """Order inside layer 1: `_FOOD_RESCUE` runs FIRST, so real food buried under a
+    drugstore path stays food. The source files these spare ribs under `Waschmittel`."""
+    path = ["Drogerie und Haushalt", "Produkte", "Haushalt", "Textilreinigung", "Waschmittel"]
+    assert classify("ASIA GREEN GARDEN Spare Ribs", None, path) == "pork"
+
+
+def test_every_drugstore_slug_is_a_real_category():
+    """No rule may name a slug the app doesn't serve — the chips come straight from these,
+    so a typo would render a category with a missing label. `_DRUGSTORE_RULES` may also
+    resolve to plain `household` (a guard entry); the PATH map may not."""
+    assert DRUGSTORE_CATEGORIES <= set(CATEGORIES)
+    for slug, _tokens in _DRUGSTORE_RULES:
+        assert slug in CATEGORIES
+    for slug in _DRUGSTORE_PATH_MAP.values():
+        assert slug in DRUGSTORE_CATEGORIES
