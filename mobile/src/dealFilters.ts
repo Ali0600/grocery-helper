@@ -13,8 +13,11 @@ import { SortMode } from './storage';
 import type { CategoryCount } from './types';
 import { Offer } from './types';
 
-// Preferred order for the store filter; any other chains follow, alphabetically.
-export const CHAIN_ORDER = ['lidl', 'rewe', 'edeka', 'edeka_center', 'aldi'];
+// Preferred order for the store filter; any other chains follow, alphabetically. Spans BOTH
+// verticals — a list only ever holds one vertical's chains, so the other's are simply absent.
+// Load-bearing beyond ordering: StoresModal builds placeholder rows from it, and RecipesModal
+// derives its "Shop at" chips from it, so a chain missing here is silently unselectable.
+export const CHAIN_ORDER = ['lidl', 'rewe', 'edeka', 'edeka_center', 'aldi', 'rossmann'];
 
 /** Chains present in the loaded set, CHAIN_ORDER first, unknown chains appended A–Z. */
 export function presentChains(offers: Offer[]): string[] {

@@ -381,6 +381,45 @@ class EdekaCenterScraper(MeinprospektScraper):
         ]
 
 
+class RossmannScraper(MeinprospektScraper):
+    """Rossmann's weekly Prospekt — the DRUGSTORE vertical's first chain.
+
+    Publisher ``DE-1064`` at ``/rossmann-de``. The shipped engine parses it with **no parser
+    change at all**: measured 2026-07-30 for a Berlin PLZ, 283 offers, 98% with a
+    ``category_path``, 100% with an image, 48% with a Grundpreis, 17% with a strike price.
+
+    **dm is deliberately NOT here.** Its publisher (``DE-909``, ``/dm-de``) exists and lists a
+    brochure, but that brochure's ``/pages`` returns ``{"contents": []}`` — zero offers, ever.
+    dm publishes only an online catalog (everyday prices, no validity window), which is a
+    different data model and its own plan. Don't re-probe meinprospekt for it.
+
+    Note Rossmann also runs long campaign brochures (a two-month "Schulaktion"), which
+    ``_select_brochures`` correctly ignores via ``MAX_FLYER_DAYS`` — the weekly "Mein
+    Drogeriemarkt" is the one we want."""
+
+    publisher_id = "DE-1064"
+    publisher_page = "https://www.meinprospekt.de/rossmann-de"
+    chain = "rossmann"
+    store_label = "Rossmann"
+
+    def _sample(self) -> List[ScrapedOffer]:
+        today = date.today()
+        end = today + timedelta(days=6)
+
+        def o(ext, name, price, regular, unit, brand=None):
+            return ScrapedOffer(external_id=ext, name=name, price_cents=price,
+                                regular_price_cents=regular, unit=unit, brand=brand,
+                                valid_from=today, valid_to=end)
+
+        return [
+            o("ro-001", "Schauma Shampoo", 159, None, "400 ml", "Schauma"),
+            o("ro-002", "Nivea Deospray", 199, 249, "150 ml", "Nivea"),
+            o("ro-003", "Pampers Feuchttücher", 499, None, "4x52 St.", "Pampers"),
+            o("ro-004", "Perwoll Waschmittel Flüssig", 449, None, "1,44 l", "Perwoll"),
+            o("ro-005", "meridol Mundspülung", 349, None, "400 ml", "meridol"),
+        ]
+
+
 class _AldiScraper(MeinprospektScraper):
     """ALDI's weekly Prospekt. ALDI is **two independent companies** with disjoint
     territories, each with its own publisher — and unlike REWE/EDEKA, BOTH publisher pages

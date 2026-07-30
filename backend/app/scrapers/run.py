@@ -30,6 +30,7 @@ from .bonial import (
     EdekaCenterScraper,
     EdekaScraper,
     ReweScraper,
+    RossmannScraper,
 )
 from .lidl import LidlScraper
 
@@ -153,6 +154,14 @@ def run_scrapers(session: Session, plz: str) -> int:
             aldi = aldi_scraper.fetch(plz, store.lat, store.lng)
             aldi_store = _get_or_create_store(session, aldi)
             total += _upsert(session, aldi_store, aldi.offers, source=aldi_scraper.source)
+
+        # 7. Rossmann — the DRUGSTORE vertical. Scraped in the same run as the grocery
+        #    chains (one scrape fills both verticals); which vertical it lands in is decided
+        #    at serve time by `app/verticals.py`, from its chain slug.
+        rossmann_scraper = RossmannScraper()
+        rossmann = rossmann_scraper.fetch(plz, store.lat, store.lng)
+        rossmann_store = _get_or_create_store(session, rossmann)
+        total += _upsert(session, rossmann_store, rossmann.offers, source=rossmann_scraper.source)
 
     session.commit()
     return total

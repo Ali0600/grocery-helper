@@ -1,0 +1,681 @@
+{
+ "contents": [
+  {
+   "number": 0,
+   "images": [
+    {
+     "size": "75x96",
+     "url": "https://content-media.bonial.biz/a31d90f3-cb64-4a5a-a34a-540334aa048e/zoomlarge_page_0.jpg?impolicy=previews"
+    },
+    {
+     "size": "768x1024",
+     "url": "https://content-media.bonial.biz/a31d90f3-cb64-4a5a-a34a-540334aa048e/zoomlarge_page_0.jpg?impolicy=768x1024"
+    },
+    {
+     "size": "1600x1600",
+     "url": "https://content-media.bonial.biz/a31d90f3-cb64-4a5a-a34a-540334aa048e/zoomlarge_page_0.jpg?impolicy=large"
+    },
+    {
+     "size": "2800x2800",
+     "url": "https://content-media.bonial.biz/a31d90f3-cb64-4a5a-a34a-540334aa048e/zoomlarge_page_0.jpg?impolicy=zoomlarge"
+    }
+   ],
+   "linkOuts": [],
+   "offers": [
+    {
+     "placement": "",
+     "adFormat": null,
+     "content": {
+      "id": "6e3188fe-2b37-4cad-8d3f-20827addc963",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-1064",
+       "name": "Rossmann",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/6e3188fe-2b37-4cad-8d3f-20827addc963/main.jpg",
+      "parentContent": {
+       "id": "a01fc696-f712-4f14-bd5d-af9178a5ae0e",
+       "legacyId": 2501203124,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.2587646,
+          "y": 0.5325325
+         },
+         "topLeft": {
+          "x": 0.021702837,
+          "y": 0.3963964
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Revitalift Laser X3 Tagespflege",
+        "brandName": "L'Oréal Paris",
+        "description": [
+         {
+          "paragraph": "Dreifach-Power Anti-Age Pflege, Mildet Falten, festigt, regeneriert, mit Pro-Xylane + Vitamin C + Arginine Peptide 50 ml"
+         }
+        ],
+        "images": [
+         {
+          "url": "https://content-media.bonial.biz/6e3188fe-2b37-4cad-8d3f-20827addc963/41268a39-8b20-416e-b377-131793e5ab1a.jpg",
+          "dimensions": {
+           "width": 192,
+           "height": 231
+          }
+         }
+        ],
+        "categoryPaths": [
+         {
+          "id": "DE-447",
+          "name": "Drogerie und Haushalt"
+         },
+         {
+          "id": "DE-448",
+          "name": "Produkte"
+         },
+         {
+          "id": "DE-142239397",
+          "name": "Drogerie"
+         },
+         {
+          "id": "DE-457",
+          "name": "Körperpflege"
+         },
+         {
+          "id": "DE-142228435",
+          "name": "Hautpflege"
+         },
+         {
+          "id": "DE-456",
+          "name": "Gesichtspflege"
+         },
+         {
+          "id": "DE-142227682",
+          "name": "Gesichtscreme"
+         },
+         {
+          "id": "DE-7004",
+          "name": "Tagespflege"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 13.99,
+        "min": 13.99,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 l = 279.80",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-07-26T22:00:00.000+0000",
+         "endDate": "2026-07-31T21:59:59.000+0000"
+        }
+       }
+      ]
+     },
+     "externalTracking": {
+      "impression": [],
+      "click": []
+     }
+    },
+    {
+     "placement": "",
+     "adFormat": null,
+     "content": {
+      "id": "778dd918-4032-4ef8-b651-33698fa240ae",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-1064",
+       "name": "Rossmann",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/778dd918-4032-4ef8-b651-33698fa240ae/main.jpg",
+      "parentContent": {
+       "id": "a01fc696-f712-4f14-bd5d-af9178a5ae0e",
+       "legacyId": 2501203124,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.9816898,
+          "y": 0.7927928
+         },
+         "topLeft": {
+          "x": 0.7462437,
+          "y": 0.6626627
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Feuchttücher 99 % Water oder Aqua Soft Touch",
+        "brandName": "Pampers",
+        "description": [
+         {
+          "paragraph": "3 x 60 Stück oder 3 x 48 Stück"
+         }
+        ],
+        "images": [
+         {
+          "url": "https://content-media.bonial.biz/778dd918-4032-4ef8-b651-33698fa240ae/2c1d5971-5f4f-46f1-beee-323ba8b1b262.jpg",
+          "dimensions": {
+           "width": 174,
+           "height": 146
+          }
+         }
+        ],
+        "categoryPaths": [
+         {
+          "id": "DE-447",
+          "name": "Drogerie und Haushalt"
+         },
+         {
+          "id": "DE-448",
+          "name": "Produkte"
+         },
+         {
+          "id": "DE-102845035",
+          "name": "Haushalt"
+         },
+         {
+          "id": "DE-104419756",
+          "name": "Haushaltsartikel"
+         },
+         {
+          "id": "DE-142251443",
+          "name": "weitere Haushaltsartikel"
+         },
+         {
+          "id": "DE-53316854",
+          "name": "Pflege"
+         },
+         {
+          "id": "DE-70789",
+          "name": "Feuchttücher"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 4.99,
+        "min": 4.99,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": ""
+       },
+       {
+        "type": "OTHER",
+        "conditions": [
+         {
+          "other": "App-Coupon"
+         }
+        ],
+        "max": 0,
+        "min": 0,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": "2+1 Aktion \n2 x Pampers Feuchttücher Aqua Soft Touch 3 x 48 Stück und/oder 99 % Water 3 x 60 Stück kaufen – 1 x 3er Pack gratis dazu erhalten"
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-07-26T22:00:00.000+0000",
+         "endDate": "2026-07-31T21:59:00.000+0000"
+        }
+       }
+      ]
+     },
+     "externalTracking": {
+      "impression": [],
+      "click": []
+     }
+    },
+    {
+     "placement": "",
+     "adFormat": null,
+     "content": {
+      "id": "c4485a8c-7837-4afd-8e97-938de339e94d",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-1064",
+       "name": "Rossmann",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/c4485a8c-7837-4afd-8e97-938de339e94d/main.jpg",
+      "parentContent": {
+       "id": "a01fc696-f712-4f14-bd5d-af9178a5ae0e",
+       "legacyId": 2501203124,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.50417364,
+          "y": 0.9229229
+         },
+         "topLeft": {
+          "x": 0.2587646,
+          "y": 0.7927928
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Kinder-Spülbecken",
+        "description": [
+         {
+          "paragraph": "Wasserhahn mit Spülfunktion, inkl. 14-teiligem Zubehör, 3+"
+         }
+        ],
+        "images": [
+         {
+          "url": "https://content-media.bonial.biz/c4485a8c-7837-4afd-8e97-938de339e94d/5a00e494-3083-4a99-8271-9a6d4b73ab49.jpg",
+          "dimensions": {
+           "width": 338,
+           "height": 335
+          }
+         }
+        ],
+        "categoryPaths": [
+         {
+          "id": "DE-748",
+          "name": "Spielzeug"
+         },
+         {
+          "id": "DE-749",
+          "name": "Produkte"
+         },
+         {
+          "id": "DE-769",
+          "name": "Kinderspielzeug"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 14.99,
+        "min": 14.99,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-07-26T22:00:00.000+0000",
+         "endDate": "2026-07-31T21:59:59.000+0000"
+        }
+       }
+      ]
+     },
+     "externalTracking": {
+      "impression": [],
+      "click": []
+     }
+    },
+    {
+     "placement": "",
+     "adFormat": null,
+     "content": {
+      "id": "143e510c-7eaf-4bd2-98f7-6d1cc36777d8",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-1064",
+       "name": "Rossmann",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/143e510c-7eaf-4bd2-98f7-6d1cc36777d8/main.jpg",
+      "parentContent": {
+       "id": "a01fc696-f712-4f14-bd5d-af9178a5ae0e",
+       "legacyId": 2501203124,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.9816898,
+          "y": 0.9229229
+         },
+         "topLeft": {
+          "x": 0.7462437,
+          "y": 0.7927928
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Magnetbauset",
+        "description": [
+         {
+          "paragraph": "35-teilig, Versch. Ausführungen, 5+"
+         }
+        ],
+        "images": [
+         {
+          "url": "https://content-media.bonial.biz/143e510c-7eaf-4bd2-98f7-6d1cc36777d8/e4338ae8-49cb-46a6-86fa-e87fdf98a5f4.jpg",
+          "dimensions": {
+           "width": 527,
+           "height": 351
+          }
+         }
+        ],
+        "categoryPaths": [
+         {
+          "id": "DE-748",
+          "name": "Spielzeug"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 14.99,
+        "min": 14.99,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-07-26T22:00:00.000+0000",
+         "endDate": "2026-07-31T21:59:00.000+0000"
+        }
+       }
+      ]
+     },
+     "externalTracking": {
+      "impression": [],
+      "click": []
+     }
+    },
+    {
+     "placement": "",
+     "adFormat": null,
+     "content": {
+      "id": "f84173f5-8d33-41d0-aafa-5c51bdd3c25f",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-1064",
+       "name": "Rossmann",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/f84173f5-8d33-41d0-aafa-5c51bdd3c25f/main.jpg",
+      "parentContent": {
+       "id": "a01fc696-f712-4f14-bd5d-af9178a5ae0e",
+       "legacyId": 2501203124,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.7462437,
+          "y": 0.9229229
+         },
+         "topLeft": {
+          "x": 0.50417364,
+          "y": 0.7927928
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Wackelfigur",
+        "description": [
+         {
+          "paragraph": "Plappert alles nach und tanzt dabei \nVersch. Ausführungen"
+         }
+        ],
+        "images": [
+         {
+          "url": "https://content-media.bonial.biz/f84173f5-8d33-41d0-aafa-5c51bdd3c25f/6c62d4ed-3f3a-4e09-bd19-60307df166d7.jpg",
+          "dimensions": {
+           "width": 192,
+           "height": 319
+          }
+         }
+        ],
+        "categoryPaths": [
+         {
+          "id": "DE-143564627",
+          "name": "Dekoration und Geschenkartikel"
+         },
+         {
+          "id": "DE-143564692",
+          "name": "Produkte"
+         },
+         {
+          "id": "DE-143564739",
+          "name": "Dekoration"
+         },
+         {
+          "id": "DE-104504321",
+          "name": "Raumdekoration"
+         },
+         {
+          "id": "DE-9923",
+          "name": "Dekofiguren"
+         },
+         {
+          "id": "DE-2380581",
+          "name": "Wackelhase"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 12.99,
+        "min": 12.99,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "",
+        "description": ""
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-07-26T22:00:00.000+0000",
+         "endDate": "2026-07-31T21:59:59.000+0000"
+        }
+       }
+      ]
+     },
+     "externalTracking": {
+      "impression": [],
+      "click": []
+     }
+    },
+    {
+     "placement": "",
+     "adFormat": null,
+     "content": {
+      "id": "e934a2c9-2ff4-472f-b814-f2069cc4bb26",
+      "type": "offer",
+      "publisher": {
+       "id": "DE-1064",
+       "name": "Rossmann",
+       "images": []
+      },
+      "image": "https://content-media.bonial.biz/e934a2c9-2ff4-472f-b814-f2069cc4bb26/main.jpg",
+      "parentContent": {
+       "id": "a01fc696-f712-4f14-bd5d-af9178a5ae0e",
+       "legacyId": 2501203124,
+       "type": "static_brochure",
+       "page": {
+        "number": 0,
+        "area": {
+         "bottomRight": {
+          "x": 0.50417364,
+          "y": 0.6626627
+         },
+         "topLeft": {
+          "x": 0.2587646,
+          "y": 0.5325325
+         }
+        }
+       }
+      },
+      "products": [
+       {
+        "name": "Shampoo",
+        "brandName": "Schauma",
+        "description": [
+         {
+          "paragraph": "400 ml"
+         }
+        ],
+        "images": [
+         {
+          "url": "https://content-media.bonial.biz/e934a2c9-2ff4-472f-b814-f2069cc4bb26/522c9922-16d5-4b06-84b9-8947e9d208ae.jpg",
+          "dimensions": {
+           "width": 171,
+           "height": 396
+          }
+         },
+         {
+          "url": "https://content-media.bonial.biz/e934a2c9-2ff4-472f-b814-f2069cc4bb26/975a62f5-f773-4978-ae20-4275df04abdb.jpg",
+          "dimensions": {
+           "width": 152,
+           "height": 339
+          }
+         }
+        ],
+        "categoryPaths": [
+         {
+          "id": "DE-447",
+          "name": "Drogerie und Haushalt"
+         },
+         {
+          "id": "DE-48989170",
+          "name": "Marken"
+         },
+         {
+          "id": "DE-107706095",
+          "name": "Marken Drogerie"
+         },
+         {
+          "id": "DE-7027",
+          "name": "Schwarzkopf"
+         },
+         {
+          "id": "DE-23954",
+          "name": "Schauma"
+         }
+        ]
+       },
+       {
+        "name": "Spülung",
+        "brandName": "Schauma",
+        "description": [
+         {
+          "paragraph": "250 ml"
+         }
+        ],
+        "images": [],
+        "categoryPaths": [
+         {
+          "id": "DE-447",
+          "name": "Drogerie und Haushalt"
+         },
+         {
+          "id": "DE-48989170",
+          "name": "Marken"
+         },
+         {
+          "id": "DE-107706095",
+          "name": "Marken Drogerie"
+         },
+         {
+          "id": "DE-7027",
+          "name": "Schwarzkopf"
+         },
+         {
+          "id": "DE-23954",
+          "name": "Schauma"
+         }
+        ]
+       }
+      ],
+      "deals": [
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 1.59,
+        "min": 1.59,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 l = 3.98",
+        "description": "Shampoo"
+       },
+       {
+        "type": "SALES_PRICE",
+        "conditions": [],
+        "currencyCode": "EUR",
+        "max": 1.59,
+        "min": 1.59,
+        "frequency": "ONCE",
+        "priceByBaseUnit": "1 l = 6.36",
+        "description": "Spülung"
+       }
+      ],
+      "linkOuts": [],
+      "publicationProfiles": [
+       {
+        "validity": {
+         "startDate": "2026-07-26T22:00:00.000+0000",
+         "endDate": "2026-07-31T21:59:59.000+0000"
+        }
+       }
+      ]
+     },
+     "externalTracking": {
+      "impression": [],
+      "click": []
+     }
+    }
+   ]
+  }
+ ]
+}

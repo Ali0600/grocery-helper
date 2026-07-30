@@ -4,7 +4,14 @@ import json
 import os
 
 from app.services import store_locator as sl
-from app.services.store_locator import _chain_for, _haversine, _select_nearest, nearby_stores
+from app.services.store_locator import (
+    ALL_OSM_TAGS,
+    _chain_for,
+    _haversine,
+    _overpass_query,
+    _select_nearest,
+    nearby_stores,
+)
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "overpass_stores.json")
 CENTER = (52.5, 13.4)  # the fixture's coords are laid out relative to this
@@ -23,7 +30,39 @@ def test_one_entry_per_known_chain():
     chains = sorted(s.chain for s in _stores())
     # The fixture's E center carries brand="EDEKA" + a hyphenated name — the two real
     # OSM patterns that used to misclassify — and must surface as its own chain row.
-    assert chains == ["aldi", "edeka", "edeka_center", "kaufland", "lidl", "netto", "penny", "rewe"]
+    # dm/Rossmann are `shop=chemist`, the drugstore vertical's tag.
+    assert chains == [
+        "aldi", "dm", "edeka", "edeka_center", "kaufland",
+        "lidl", "netto", "penny", "rewe", "rossmann",
+    ]
+
+
+def test_drugstores_are_found_and_rossmann_is_active():
+    by_chain = {s.chain: s for s in _stores()}
+    assert by_chain["rossmann"].label == "Rossmann"
+    assert by_chain["rossmann"].active is True  # we scrape its deals
+    assert by_chain["dm"].active is False  # listed only — its flyer serves no offers
+
+
+def test_overpass_query_default_is_unchanged_but_tags_are_selectable():
+    """The default MUST reproduce the pre-drugstore query byte-for-byte: every existing
+    caller and cached area depends on it. Only an explicit `tags` changes the shape."""
+    assert _overpass_query(52.52, 13.4, 2500) == (
+        "[out:json][timeout:25];"
+        '(node["shop"="supermarket"](around:2500,52.52,13.4);'
+        'way["shop"="supermarket"](around:2500,52.52,13.4););'
+        "out center tags;"
+    )
+    chemist = _overpass_query(52.52, 13.4, 2500, ("shop=chemist",))
+    assert '"shop"="chemist"' in chemist and "supermarket" not in chemist
+
+
+def test_all_osm_tags_covers_every_vertical():
+    # Without the chemist clause the live query returns ZERO drugstore elements, so the
+    # directory would silently never list one no matter what CHAINS says.
+    assert set(ALL_OSM_TAGS) == {"shop=supermarket", "shop=chemist"}
+    both = _overpass_query(52.52, 13.4, 2500, ALL_OSM_TAGS)
+    assert '"shop"="supermarket"' in both and '"shop"="chemist"' in both
 
 
 def test_excludes_non_allowlisted_markets():

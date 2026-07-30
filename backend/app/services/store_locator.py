@@ -16,11 +16,12 @@ import logging
 import math
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import httpx
 
 from ..http import tracked_client
+from ..verticals import VERTICALS
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +41,20 @@ CHAINS: Dict[str, Tuple[str, List[str]]] = {
     "netto": ("Netto", ["netto"]),
     "penny": ("Penny", ["penny"]),
     "kaufland": ("Kaufland", ["kaufland"]),
+    # Drugstore vertical. Tagged `shop=chemist` in OSM, not `shop=supermarket` — see
+    # ALL_OSM_TAGS below, without which these are unfindable no matter what's in here.
+    "rossmann": ("Rossmann", ["rossmann"]),
+    "dm": ("dm", ["dm-drogerie", "dm drogerie", "dm "]),
 }
 # Chains we actually scrape deals for; everything else is a placeholder.
-ACTIVE_CHAINS = {"lidl", "rewe", "edeka", "edeka_center", "aldi"}
+ACTIVE_CHAINS = {"lidl", "rewe", "edeka", "edeka_center", "aldi", "rossmann"}
+
+# Every shop kind we look for, unioned across verticals. A German Drogerie is
+# `shop=chemist`; querying only supermarkets returns ZERO elements for dm/Rossmann, so
+# the store directory would silently never list them.
+ALL_OSM_TAGS: Tuple[str, ...] = tuple(
+    dict.fromkeys(tag for spec in VERTICALS.values() for tag in spec.osm_tags)
+)
 
 # ALDI is two independent companies with disjoint territories (the "Aldi-Äquator"), and each
 # has its own meinprospekt publisher. Unlike REWE/EDEKA, BOTH publishers are national and
@@ -207,7 +219,7 @@ def chain_branches(
         own = client is None
         client = client or tracked_client(timeout=30, headers=HEADERS)
         try:
-            elements = _fetch_overpass(_overpass_query(lat, lng, radius_m), client)
+            elements = _fetch_overpass(_overpass_query(lat, lng, radius_m, ALL_OSM_TAGS), client)
         finally:
             if own:
                 client.close()
@@ -302,13 +314,23 @@ def aldi_division(
     return None
 
 
-def _overpass_query(lat: float, lng: float, radius_m: int) -> str:
-    return (
-        "[out:json][timeout:25];"
-        f'(node["shop"="supermarket"](around:{radius_m},{lat},{lng});'
-        f'way["shop"="supermarket"](around:{radius_m},{lat},{lng}););'
-        "out center tags;"
+def _overpass_query(
+    lat: float, lng: float, radius_m: int, tags: Sequence[str] = ("shop=supermarket",)
+) -> str:
+    """Nearby shops of the given OSM kinds, as `key=value` tags.
+
+    Parameterised because a German Drogerie (dm/Rossmann) is `shop=chemist`, not
+    `shop=supermarket`, so the supermarket-only query returns zero elements for them —
+    a drugstore chain would be permanently unfindable. The DEFAULT reproduces the original
+    query byte-for-byte, so every existing caller and test is unaffected (there's a test
+    pinning exactly that).
+    """
+    clauses = "".join(
+        f'{kind}["{tag.split("=", 1)[0]}"="{tag.split("=", 1)[1]}"](around:{radius_m},{lat},{lng});'
+        for tag in tags
+        for kind in ("node", "way")
     )
+    return f"[out:json][timeout:25];({clauses});out center tags;"
 
 
 def _fetch_overpass(query: str, client: httpx.Client) -> Optional[List[dict]]:
@@ -378,7 +400,7 @@ def nearby_stores(
     own = client is None
     client = client or tracked_client(timeout=30, headers=HEADERS)
     try:
-        elements = _fetch_overpass(_overpass_query(lat, lng, radius_m), client)
+        elements = _fetch_overpass(_overpass_query(lat, lng, radius_m, ALL_OSM_TAGS), client)
     finally:
         if own:
             client.close()

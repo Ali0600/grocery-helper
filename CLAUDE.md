@@ -72,8 +72,37 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     take it because they promise to mirror `/api/offers` — without it a drugstore session
     downloads every grocery payload and that contract quietly stops holding.
   - **Omitting it = NO filter**, i.e. exactly today's behaviour, so an already-installed pre-OTA
-    build keeps working. Unfiltered is 1913 < 2000 today — thin. **The dm plan (21k catalog
-    products) must revisit this default rather than inherit it.**
+    build keeps working. **Measured with Rossmann live: unfiltered is 1956 of 2000 — 44 headroom.**
+    That is now the thinnest margin in the app. **The dm plan (21k catalog products) must revisit
+    this default rather than inherit it**, and any further chain needs server-side `q` search first.
+- **Rossmann is the drugstore vertical's chain** (`bonial.py` `RossmannScraper`, publisher
+  **`DE-1064`**, page `/rossmann-de`). The shipped `MeinprospektScraper` parses it with **zero
+  parser changes**: measured 282 served offers for a Berlin PLZ, 100% images, 58% €/kg-sortable.
+  It runs in the same `run_scrapers` pass as the grocery chains — one scrape fills both verticals;
+  the vertical is decided at serve time from the chain slug.
+  - It publishes **two** brochures: the weekly "Mein Drogeriemarkt" (23 pages) and a ~2-month
+    "Schulaktion" (18 pages). `MAX_FLYER_DAYS` correctly keeps the weekly one — verified live.
+  - Its offers carry a **per-offer `publicationProfiles` window** that starts a day AFTER the
+    brochure's own `validFrom` (Mon vs Sun), so the parser's per-offer validity is load-bearing
+    here: taking the brochure dates would advertise the whole flyer a day early.
+  - **dm is NOT a flyer chain and never can be.** Its publisher `DE-909` (`/dm-de`) exists and
+    lists a brochure, but that brochure's `/pages` returns **`{"contents": []}`** — zero offers.
+    dm has only an online catalog (`product-search.services.dmtech.com`, ~21k products, national
+    everyday prices, no validity window, 1000-result cap per query so it must be sliced by the
+    `categoryNames` facet, and it rate-limits). That's a different data model and its own plan.
+    **Don't re-probe meinprospekt for dm.** Rossmann's own web shop is bot-walled (a Fastly JS
+    challenge on every path), so the two chains are exact mirror images of each other.
+  - **OSM tags a Drogerie `shop=chemist`, not `shop=supermarket`.** `_overpass_query` takes a
+    `tags` argument (default unchanged **byte-for-byte**, pinned by a test) and the real callers
+    pass `ALL_OSM_TAGS`, the union across verticals — without it the store directory silently
+    lists no drugstore at all, whatever `CHAINS` says. `dm` is in `CHAINS` but NOT
+    `ACTIVE_CHAINS`: it appears in the directory, but we serve no dm deals.
+  - **`verify_deals.py` is now PER VERTICAL** (`PROFILES`). One global gate would be wrong both
+    ways: `chains >= 5` goes red the moment the set is scoped, and a floor loose enough for a
+    one-chain drugstore couldn't detect a grocery collapse. Grocery keeps its measured thresholds;
+    drugstore is chains ≥1 / offers ≥150, with **no €/kg floor** — Rossmann measures 48–58%,
+    straddling grocery's 50% floor, and €/kg means little for cosmetics. Every vertical runs even
+    after one fails, so a red grocery can't hide a collapsed drugstore.
   - **The three caches are keyed PER VERTICAL** (`dealsCache:grocery`, `dealsCache:drugstore`, same
     for `payloadCache`/`traceCache`). Sharing one key would make every switch a cache miss — a
     cold-start round trip on the free tier, for a control the user taps constantly. `clearDealsCache`
