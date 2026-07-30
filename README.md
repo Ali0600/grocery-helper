@@ -1,20 +1,29 @@
 # Grocery Helper
 
-Find the best weekly grocery deals near you in Berlin. The app scrapes the
-weekly offers ("Angebote") from local supermarket chains, normalizes and
+Find the best weekly deals near you in Berlin. The app scrapes the weekly offers
+("Angebote") from local supermarket **and drugstore** chains, normalizes and
 categorizes them, computes the **% discount** for every item, and helps you
 build the cheapest basket across one or two stores.
 
-> **Status:** v1.1 in progress. **Live Lidl + REWE + EDEKA + E center + ALDI offers** + API +
-> the React Native app work end-to-end — real Berlin prices, resolved from your postal
-> code via the Lidl Plus endpoints and the meinprospekt weekly-flyer feed. Five
-> chains make the basket optimizer, the per-product grouping, and the **Compare
-> Stores** face-off meaningful. The **backend is deployed on Render** (HTTPS), and
-> the iOS app ships via **EAS → TestFlight** (build 1.1.0) with OTA updates.
+> **Status:** v1.1 in progress. The app opens on a home screen with **two sections —
+> Grocery and Drugstore** — and everything below it is scoped to one of them.
+> **Live Lidl + REWE + EDEKA + E center + ALDI (grocery) and Rossmann (drugstore)
+> offers** + API + the React Native app work end-to-end — real Berlin prices,
+> resolved from your postal code via the Lidl Plus endpoints and the meinprospekt
+> weekly-flyer feed. Six chains make the basket optimizer, the per-product grouping,
+> and the **Compare Stores** face-off meaningful. The **backend is deployed on
+> Render** (HTTPS), and the iOS app ships via **EAS → TestFlight** (build 1.1.0)
+> with OTA updates.
 > See [Deploy](#deploy-to-render-free-https-for-testflight) and [Roadmap](#roadmap).
 
 ## Highlights
 
+- **Two shopping sections behind one home screen** — Grocery (five supermarket chains)
+  and Drugstore (Rossmann), picked from two large buttons on launch. Every fetch, cache
+  and filter chip is scoped to the chosen section, which is also what keeps each one
+  clear of the API's 2,000-offer ceiling: unfiltered, the two together now serve 1,956.
+  Each section keeps its own cached flyer week, so switching between them is instant and
+  makes no network call at all.
 - **Automated grocery-deal ETL pipeline** — scrapes and normalizes weekly offers
   from multiple German retail sources into a relational database on a scheduled,
   containerized cron job, computing per-item discount percentages.
@@ -325,6 +334,14 @@ division that operates at the postal code from OpenStreetMap's per-branch tags, 
 scrapes only that one — if it can't tell, ALDI is skipped and logged rather than guessed,
 because a missing chain is visible whereas wrong-region deals are not (~244 offers/PLZ).
 
+**Rossmann weekly flyer** (`source="flyer"`, `chain="rossmann"`) — the drugstore section's
+chain, and the same engine again for publisher `DE-1064` (~280 offers/PLZ). It publishes a
+weekly "Mein Drogeriemarkt" alongside a months-long campaign brochure; the engine's
+flyer-length rule keeps the weekly one. **dm is deliberately absent**: its meinprospekt
+brochure exists but serves an empty page, so no flyer offer can ever be parsed from it.
+dm publishes only an online catalog (everyday prices, no validity window) — a different
+data model, tracked as future work rather than a missing scraper.
+
 **Categorization.** [`categories.py`](backend/app/categories.py) classifies each
 offer with a path-aware, deterministic pipeline:
 
@@ -557,6 +574,15 @@ Engineering practices demonstrated while building and operating this project:
 - [x] Security & ops hardening — header-based admin auth on destructive endpoints,
       scrape throttling, Berlin-timezone validity, supply-chain-pinned CI, non-root
       container
+- [x] Grocery / Drugstore sections — a home screen with two large buttons, with every
+      fetch, cache and chip scoped to the chosen one (which is also what keeps each
+      section clear of the API's 2,000-offer ceiling)
+- [x] Rossmann as the drugstore chain, plus 11 drugstore categories (hair, face, body,
+      dental, fragrance, baby, health, cleaning, laundry, pet, make-up) so its offers
+      stop collapsing into "Household & Non-food"
+- [ ] dm — its meinprospekt brochure serves no offers, so it needs its online catalog
+      instead: ~21k products at everyday prices with no validity window. A different
+      data model from the deals pipeline; likely belongs in the price-history collector
 - [ ] Production monitoring/alerting (uptime + scraper health) on a persistent DB
 - [ ] "Store scorecard" compare view — per-store summary (deal count, avg discount,
       which categories each store wins)
