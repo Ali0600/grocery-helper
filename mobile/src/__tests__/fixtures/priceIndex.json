@@ -1,0 +1,280 @@
+{
+ "schema": 1,
+ "generated_at": "2026-07-26T10:40:48.219Z",
+ "regions": [
+  "berlin"
+ ],
+ "weeks": [
+  "2026-W27",
+  "2026-W28",
+  "2026-W29",
+  "2026-W30",
+  "2026-W31"
+ ],
+ "products": [
+  {
+   "region": "berlin",
+   "chain": "aldi",
+   "name_key": "6io ingwer",
+   "label": "6io Ingwer",
+   "category": "vegetables",
+   "group_label": null,
+   "is_bio": false,
+   "image_url": "https://content-media.bonial.biz/54aa9943-6c82-497a-815e-e9f4ed762ddd/main.jpg",
+   "series": [
+    [
+     "2026-W30",
+     49,
+     490
+    ]
+   ],
+   "stats": {
+    "min": 49,
+    "median": 49,
+    "max": 49,
+    "last": 49,
+    "weeks_seen": 1,
+    "appearances": 1
+   },
+   "last_week": "2026-W30",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "pepsi",
+   "label": "PEPSI",
+   "category": "soft_drinks",
+   "group_label": "Cola",
+   "is_bio": false,
+   "image_url": "https://content-media.bonial.biz/6ce3d54c-6203-4683-a910-4b61d621d988/main.jpg",
+   "series": [
+    [
+     "2026-W29",
+     69,
+     null
+    ],
+    [
+     "2026-W30",
+     119,
+     68
+    ]
+   ],
+   "stats": {
+    "min": 69,
+    "median": 94,
+    "max": 119,
+    "last": 119,
+    "weeks_seen": 2,
+    "appearances": 2
+   },
+   "last_week": "2026-W30",
+   "verdict": "new"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "nektarinen",
+   "label": "Nektarinen",
+   "category": "fruits",
+   "group_label": "Nektarine",
+   "is_bio": false,
+   "image_url": "https://content-media.bonial.biz/fba86177-35a6-49c6-aa6e-00673abf8684/main.jpg",
+   "series": [
+    [
+     "2026-W27",
+     175,
+     175
+    ],
+    [
+     "2026-W29",
+     149,
+     149
+    ],
+    [
+     "2026-W31",
+     249,
+     166
+    ]
+   ],
+   "stats": {
+    "min": 149,
+    "median": 175,
+    "max": 249,
+    "last": 249,
+    "weeks_seen": 3,
+    "appearances": 3
+   },
+   "last_week": "2026-W31",
+   "verdict": "worse"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "gouda",
+   "label": "Gouda",
+   "category": "cheese",
+   "group_label": "Gouda",
+   "is_bio": false,
+   "image_url": "https://content-media.bonial.biz/3e2f6e19-759a-477e-ba84-f9411300721d/main.jpg",
+   "series": [
+    [
+     "2026-W27",
+     69,
+     690
+    ],
+    [
+     "2026-W28",
+     69,
+     690
+    ],
+    [
+     "2026-W29",
+     69,
+     690
+    ],
+    [
+     "2026-W30",
+     69,
+     690
+    ],
+    [
+     "2026-W31",
+     69,
+     690
+    ]
+   ],
+   "stats": {
+    "min": 69,
+    "median": 69,
+    "max": 69,
+    "last": 69,
+    "weeks_seen": 5,
+    "appearances": 5
+   },
+   "last_week": "2026-W31",
+   "verdict": "true_low"
+  },
+  {
+   "region": "berlin",
+   "chain": "edeka_center",
+   "name_key": "coca cola",
+   "label": "Coca-Cola",
+   "category": "soft_drinks",
+   "group_label": "Cola",
+   "is_bio": false,
+   "image_url": "https://content-media.bonial.biz/0d3470c5-3a23-40cf-996c-249bba50bbf7/main.jpg",
+   "series": [
+    [
+     "2026-W27",
+     399,
+     202
+    ],
+    [
+     "2026-W28",
+     69,
+     209
+    ],
+    [
+     "2026-W29",
+     149,
+     75
+    ],
+    [
+     "2026-W30",
+     1169,
+     97
+    ],
+    [
+     "2026-W31",
+     799,
+     133
+    ]
+   ],
+   "stats": {
+    "min": 69,
+    "median": 399,
+    "max": 1169,
+    "last": 799,
+    "weeks_seen": 5,
+    "appearances": 6
+   },
+   "last_week": "2026-W31",
+   "verdict": "worse"
+  },
+  {
+   "region": "berlin",
+   "chain": "lidl",
+   "name_key": "plattpfirsiche",
+   "label": "Plattpfirsiche",
+   "category": "fruits",
+   "group_label": "Pfirsich",
+   "is_bio": false,
+   "image_url": "https://content-media.bonial.biz/d0f907fe-637f-4ae0-bdb5-9d4dfb123f4d/main.jpg",
+   "series": [
+    [
+     "2026-W27",
+     179,
+     179
+    ],
+    [
+     "2026-W29",
+     199,
+     199
+    ],
+    [
+     "2026-W31",
+     179,
+     null
+    ]
+   ],
+   "stats": {
+    "min": 179,
+    "median": 179,
+    "max": 199,
+    "last": 179,
+    "weeks_seen": 3,
+    "appearances": 3
+   },
+   "last_week": "2026-W31",
+   "verdict": "true_low"
+  },
+  {
+   "region": "berlin",
+   "chain": "rewe",
+   "name_key": "plattpfirsiche",
+   "label": "Plattpfirsiche",
+   "category": "fruits",
+   "group_label": "Pfirsich",
+   "is_bio": false,
+   "image_url": "https://content-media.bonial.biz/2bf1b0bd-64db-4a71-a1eb-c226d60b6407/main.jpg",
+   "series": [
+    [
+     "2026-W27",
+     333,
+     333
+    ],
+    [
+     "2026-W28",
+     111,
+     null
+    ],
+    [
+     "2026-W30",
+     99,
+     198
+    ]
+   ],
+   "stats": {
+    "min": 99,
+    "median": 111,
+    "max": 333,
+    "last": 99,
+    "weeks_seen": 3,
+    "appearances": 3
+   },
+   "last_week": "2026-W30",
+   "verdict": "true_low"
+  }
+ ]
+}

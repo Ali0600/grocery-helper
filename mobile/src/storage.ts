@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CatalogItem, GROCERY_CATALOG } from './catalog';
 import { DEALS_CACHE_VERSION } from './format';
 import { activeHidden, HiddenItem } from './hidden';
+import { CachedPriceHistory } from './priceHistory';
 import { DEFAULT_RECIPE_PREFS } from './recipes';
 import {
   BasketItem,
@@ -44,6 +45,12 @@ const scoped = (base: string, vertical: Vertical): string => `${base}:${vertical
 /** Every per-vertical cache key, so the clear paths can't miss one when a vertical is added. */
 const allCacheKeys = (): string[] =>
   VERTICALS.flatMap((v) => CACHE_KEYS.map((base) => scoped(base, v)));
+// Weekly price series from the grocery-price-history collector, projected to just the
+// products in this device's History. Deliberately NOT in CACHE_KEYS: it is a different
+// source on a different host with its own weekly cadence, so "Clear cached deals" should
+// not force a fresh 418 KB download of something that wasn't the problem. Cleared by the
+// full reset only. Unscoped by vertical, because History itself is shared across both.
+const PRICE_HISTORY_KEY = 'priceHistory';
 const RECIPE_PREFS_KEY = 'recipePrefs';
 const ALWAYS_HAVE_KEY = 'alwaysHave';
 
@@ -454,6 +461,25 @@ export async function setTraceCache(vertical: Vertical, data: CachedTraces): Pro
   }
 }
 
+export async function getPriceHistory(): Promise<CachedPriceHistory | null> {
+  try {
+    const raw = await AsyncStorage.getItem(PRICE_HISTORY_KEY);
+    return raw ? (JSON.parse(raw) as CachedPriceHistory) : null;
+  } catch (e) {
+    console.warn('storage: getPriceHistory failed', e);
+    return null;
+  }
+}
+
+export async function setPriceHistory(data: CachedPriceHistory): Promise<void> {
+  try {
+    await AsyncStorage.setItem(PRICE_HISTORY_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.warn('storage: setPriceHistory failed', e);
+    // best-effort: History still renders its local paid-vs-now spine without the trail.
+  }
+}
+
 // Wipe the persisted prefs, saved stores, basket, and cache — a full app reset. The saved
 // PLZ (location) is deliberately kept: a data reset shouldn't relocate the user to a default.
 export async function clearAllData(): Promise<void> {
@@ -470,6 +496,7 @@ export async function clearAllData(): Promise<void> {
       HISTORY_KEY,
       HIDDEN_KEY,
       ...allCacheKeys(),
+      PRICE_HISTORY_KEY,
       RECIPE_PREFS_KEY,
       ALWAYS_HAVE_KEY,
     ]);

@@ -1423,3 +1423,35 @@ grouping choice and is really an availability coupling.
 **Takeaway:** inherited guards are invisible at the point you add code under them. Ask what
 the enclosing condition is actually protecting against, and whether your case needs it —
 then pin the answer with a test that runs the degraded path.
+
+## A default that's only persisted when changed makes `null` the normal state
+
+The price trail read the user's postal code with `getStoredPlz() ?? ''` and skipped the
+fetch for anything outside Berlin. Every unit test passed. In the app the feature was
+completely dead — because the PLZ is only written to storage once the user *changes* it, so
+on a fresh install (and after "Reset all app data") the stored value is `null` and the app
+runs on the env default. `null ?? ''` is not covered, so the fetch never happened.
+
+**Why it came up:** the whole tiering, projection and join were exercised by 30 passing
+tests, and the first time the page was opened in a browser it rendered nothing at all.
+
+**Takeaway:** when a setting has a default that lives somewhere other than storage, `null`
+means "still on the default", not "unset" — resolve it through the same default the rest of
+the app uses, and pin that the default satisfies whatever guard reads it. A guard that
+rejects your own default is indistinguishable from a feature that was never built.
+
+## An explicit `unmount()` in RNTL poisons `screen` for the rest of the file
+
+One test rendered, called `unmount()`, then rendered again — reasonable-looking, and it
+passed. Three tests later an assertion counting rendered nodes got zero. The component was
+fine: after the manual unmount, `screen` (and the destructured `toJSON`) kept pointing at
+the torn-down tree, so *later* tests were asserting against an empty render.
+
+The tell was that the failing test passed when run alone with `-t` and failed in the full
+file — which reads exactly like a flaky test and is actually cross-test state.
+
+**Why it came up:** proving the price-trail sparkline draws one bar per weekly observation.
+
+**Takeaway:** don't call `unmount()` by hand to test two states — write two tests and let
+RNTL's own cleanup run. And when a test passes in isolation but fails in its file, suspect
+shared state from an earlier test before you suspect the code.

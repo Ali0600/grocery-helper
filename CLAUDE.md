@@ -1130,6 +1130,28 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `getStoredHistory` **reads either spelling and `setStoredHistory` writes both** for now: the old
   build's shape filter *required* `likedAt`, so writing new-only names would make an **OTA rollback
   silently drop every entry**. Drop the mirror a release or two out.
+  - **Each row carries a PRICE TRAIL from the `grocery-price-history` collector** (2026-07-30,
+    `priceHistory.ts` + `usePriceHistory.ts` + `components/PriceTrail.tsx`). Read straight from
+    `raw.githubusercontent.com/.../data/index.json` — 418 KB gzipped, `access-control-allow-origin: *`.
+    - **It is TIERED BY EVIDENCE because 93.75% of the collector's 6,588 products have exactly
+      ONE data point** (≥2 weeks: 6.25%, ≥3: 0.76%). **Tier 0 renders `null`** — no "no history
+      yet" line, no empty chart. A placeholder on 94% of rows reads as a broken feature; the row
+      is already complete without it (paid-vs-now is local). Tier 1 states the single sighting,
+      tier 2 a signed delta, tier 3 stats + an 8-bar sparkline built from plain Views (no new dep).
+    - **Two suppressions, both measured.** `max/min >= 4` = a collapsed `name_key` (dm-style pack
+      variants: `edeka_center "coca cola"` runs 399·69·149·1169·799 — can vs bottle vs crate, 29 of
+      the 412 multi-week products) → drop the stats, keep the shape, say why. And `min == max`
+      renders "always X", because "low X · usual X" is a tautology dressed as insight.
+    - **Only the PROJECTION is persisted, never the index** (2.76 MB decompressed → ~20 KB for 100
+      items), and **`misses` are mandatory**: without them "absent" is indistinguishable from
+      "never looked up" and 94% of rows refetch forever. A **304 does NOT prove a NEW key is
+      absent** — the projection discarded everything it wasn't asked for — so `If-None-Match` is
+      sent only when every current key is already accounted for. The ETag is **per content
+      encoding** (`W/"…"` gzip vs `"…"` plain), so hand-testing with curl and no `--compressed`
+      returns a full 200 and looks like the server ignoring the header.
+    - **The PLZ falls back to `DEFAULT_PLZ` (now in `src/config.ts`), not to `''`.** The stored PLZ
+      is only written when the user *changes* it, so `null` is the normal first-run state — reading
+      it as uncovered silently disabled the whole feature while every unit test passed.
   Gesture wiring: legacy `Swipeable`'s `onSwipeableOpen` direction names the **panel side** —
   'left' panel = right-swipe = **Hide**, 'right' panel = left-swipe = basket — routed through the
   exported `handleSwipeableOpen` seam (SwipeableOfferCard.tsx), which is unit-testable since the

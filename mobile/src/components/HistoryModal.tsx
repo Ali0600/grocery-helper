@@ -4,10 +4,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { chainColors, chainLabel } from '../chains';
 import { euro, fmtPricePerUnit } from '../format';
 import { matchHistory } from '../history';
+import { NO_TRAIL, PriceTrail as Trail, trailFor } from '../priceHistory';
 import { colors, tint } from '../theme';
 import { HistoryItem, Offer } from '../types';
+import { usePriceHistory } from '../usePriceHistory';
 import { AppModal } from './AppModal';
 import { Icon } from './Icon';
+import { PriceTrail } from './PriceTrail';
 
 // The History page: every product the user has added to their basket, re-checked against the
 // currently loaded offers. A recorded product that's on sale again shows its cheapest current deal
@@ -42,6 +45,7 @@ function HistoryRow({
   exact,
   related,
   relatedLabel,
+  trail,
   onOpenOffer,
   onRemove,
 }: {
@@ -49,6 +53,7 @@ function HistoryRow({
   exact: Offer[];
   related: Offer[];
   relatedLabel: string | null;
+  trail: Trail;
   onOpenOffer: (offer: Offer) => void;
   onRemove: () => void;
 }) {
@@ -91,6 +96,7 @@ function HistoryRow({
             {best.name}
             {exact.length > 1 ? ` · ${exact.length} deals ›` : ' ›'}
           </Text>
+          <PriceTrail trail={trail} />
         </Pressable>
       ) : (
         // Nothing to open, so the row stays unpressable; the related list has its own rows.
@@ -117,6 +123,7 @@ function HistoryRow({
               ))}
             </View>
           ) : null}
+          <PriceTrail trail={trail} />
         </View>
       )}
       <Pressable
@@ -141,6 +148,10 @@ export function HistoryModal({
   onClose,
   detail,
 }: Props) {
+  // The weekly price series, fetched only while this sheet is open — see usePriceHistory
+  // for why it isn't part of the deals prefetch, and why it reads the PLZ itself.
+  const { cache } = usePriceHistory(visible, items);
+
   // Re-match every entry against the current offers; on-sale-now first, then most recent.
   const rows = useMemo(
     () =>
@@ -153,6 +164,16 @@ export function HistoryModal({
         ),
     [items, offers],
   );
+
+  // `todayCents` comes from the LIVE matched offer, not the index: the "% of usual" line
+  // must stay right when this week's deal postdates the last collector run.
+  const trails = useMemo(() => {
+    const byKey = cache?.byKey;
+    if (!byKey) return new Map<string, Trail>();
+    return new Map(
+      rows.map((r) => [r.item.key, trailFor(r.item, byKey, r.exact[0]?.price_cents ?? null)]),
+    );
+  }, [rows, cache]);
 
   return (
     <AppModal
@@ -191,6 +212,7 @@ export function HistoryModal({
                   exact={exact}
                   related={related}
                   relatedLabel={relatedLabel}
+                  trail={trails.get(item.key) ?? NO_TRAIL}
                   onOpenOffer={onOpenOffer}
                   onRemove={() => onRemove(item.key)}
                 />
