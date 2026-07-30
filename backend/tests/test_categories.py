@@ -1514,6 +1514,72 @@ def test_a_food_rescue_still_beats_the_drugstore_step():
     assert classify("ASIA GREEN GARDEN Spare Ribs", None, path) == "pork"
 
 
+# dm sends ONE flat category leaf, not a hierarchy — `_path_nonfood` sees a root that
+# isn't the food root, so layer 1 decides and the drugstore step is what resolves it.
+@pytest.mark.parametrize(
+    "name, path, expected, why",
+    [
+        # --- the class dm's own taxonomy fixes, with the sibling that must NOT move ----
+        ("CATRICE Blush Stick Blushin' Charm 020 Coral Cutie", ["Blush"], "makeup",
+         "a blush in shade 'Coral Cutie' was reaching the `coral` DETERGENT brand token"),
+        ("Coral Colorwaschmittel", ["Drogerie und Haushalt", "Waschmittel"], "laundry",
+         "the counter-example: real Coral detergent must STILL be laundry"),
+        ("OGX Scalp Serum ProGrowth + Peptide", ["Haarkur & Haarmaske"], "hair",
+         "dm's leaf names the product kind; without it this is an undifferentiated blob"),
+        ("M. Asam Toner Magic Care", ["Gesichtswasser"], "face", "a toner is face care"),
+        ("NYX PROFESSIONAL MAKEUP Körperöl", ["Körperöl"], "body", "body oil, not face"),
+        ("Mivolis Basen-Tabletten", ["Mineralstoffe"], "health", "a supplement"),
+        ("Denkmit Bodenreiniger Caps", ["Bodenreiniger"], "cleaning", "a floor cleaner"),
+        ("Dein Bestes Katzenleckerli", ["Snacks für Katzen"], "pet",
+         "cat treats are pet, not the household catch-all"),
+        # --- FOOD leaves: layer 1 can never fall through, so only this step reaches them
+        ("LEBENSBAUM Früchtetee Zeit für Dankbarkeit", ["Tee"], "soft_drinks",
+         "dm's tea was buried in household; the drugstore step may return a food slug"),
+        ("Fisherman's Friend Pastillen", ["Bonbons & Fruchtgummi"], "sweets", "sweets"),
+        ("dmBio Kürbiscreme mit Olivenöl", ["Herzhafte Brotaufstriche"], "pantry", "a spread"),
+        # --- garden seeds are NOT produce -------------------------------------------
+        # `zucchini` is a `_FOOD_RESCUE` token, so WITHOUT the veto this seed packet is
+        # served in the Vegetables chip. Note the fix is a veto, not a path-map entry:
+        # the food rescue runs first, so a map entry here would be dead code.
+        ("Stadt Land blüht Saaten, Zucchini (Zuboda)", ["Saaten & Körner"], "household",
+         "a SEED PACKET must not be rescued into fresh produce by the plant's name"),
+        ("Stadt Land blüht Saaten, Rucola (Wilde Rauke)", ["Saaten & Körner"], "household",
+         "same, via the `rucola` rescue token"),
+        ("Zucchini", ["Obst und Gemüse", "Gemüse"], "vegetables",
+         "the counter-example: a real zucchini must still be produce"),
+        ("Meisterbrot mit Saaten", None, "bakery",
+         "the real bread this corpus holds: pathless, so keyword-decided and untouched — "
+         "but it is why the veto token is the BRAND and not a bare `saaten`"),
+    ],
+)
+def test_dm_category_leaves(name, path, expected, why):
+    assert classify(name, None, path) == expected, why
+
+
+@pytest.mark.parametrize(
+    "name, path, expected, why",
+    [
+        ("CATRICE Eyeliner- und Lidschattenhelfer", ["Beautyhelfer"], "makeup",
+         "`Beautyhelfer` is a CONTAINER (refill bottles AND makeup tools) — mapping it to "
+         "`body` DEMOTED this row, which already resolves correctly on its own"),
+        ("ebelin Reiseset Refillflaschen", ["Beautyhelfer"], "household",
+         "the other half of that container node, correctly left in household"),
+        ("trend !t up Lippenbalsam Butter Bliss Soft Tinted 030", ["Lipbalm"], "body",
+         "`Lipbalm` is deliberately unmapped: it would move 8 rows body->face for no blob "
+         "reduction and disagree with the `lippenbalsam` rule for pathless lip balms"),
+    ],
+)
+def test_dm_rejected_leaves(name, path, expected, why):
+    assert classify(name, None, path) == expected, why
+
+
+def test_dm_leaf_cannot_drag_a_food_path_into_a_drugstore_aisle():
+    """The 0-regression property still holds with dm's leaves in the map: the step is
+    inside the layer-1 non-food branch, so a real FOOD path never reaches it."""
+    food = ["Lebensmittel und Getränke", "Produkte", "Süßwaren", "Bonbons & Fruchtgummi"]
+    assert classify("Haribo Goldbären", None, food) == "sweets"
+
+
 def test_every_drugstore_slug_is_a_real_category():
     """No rule may name a slug the app doesn't serve — the chips come straight from these,
     so a typo would render a category with a missing label. `_DRUGSTORE_RULES` may also
@@ -1521,5 +1587,12 @@ def test_every_drugstore_slug_is_a_real_category():
     assert DRUGSTORE_CATEGORIES <= set(CATEGORIES)
     for slug, _tokens in _DRUGSTORE_RULES:
         assert slug in CATEGORIES
-    for slug in _DRUGSTORE_PATH_MAP.values():
-        assert slug in DRUGSTORE_CATEGORIES
+    # The PATH map is overwhelmingly drugstore aisles, but a few leaves deliberately
+    # resolve elsewhere: dm files tea / savoury spreads / sweets under its own FOOD leaves
+    # and layer 1 can never fall through, so this step is the only thing that can rescue
+    # them; and `Saaten & Körner` is garden seed packets, which are household. Enumerated
+    # rather than relaxed, so a TYPO ("soft_drink") still fails this gate.
+    non_aisle = {"soft_drinks", "pantry", "sweets", "household"}
+    for node, slug in _DRUGSTORE_PATH_MAP.items():
+        assert slug in CATEGORIES, node
+        assert slug in DRUGSTORE_CATEGORIES | non_aisle, node

@@ -759,6 +759,14 @@ _FOOD_RESCUE: dict[str, list[str]] = {
 _RESCUE_VETO: list[str] = [
     "pflanze", "hyazinth", "röschen", "strauch", "saatgut", " samen", "topfrose", "kunstblume",
     "schleierkraut", " beet", "kübel", "blumen", "baumschule",
+    # dm sells GARDEN SEED PACKETS named after the plant — "Saaten, Zucchini (Zuboda)",
+    # "Saaten, Rucola (Wilde Rauke)" — and `zucchini`/`rucola`/`feldsalat` are all
+    # `_FOOD_RESCUE` tokens, so without a veto the app offers you a seed packet under
+    # Fruits & Veg. The token is the BRAND, not a bare "saaten": that is a substring of
+    # "Meisterbrot mit Saaten" and "Kerne-Saaten-Granola" — both pathless today, so the
+    # veto would not reach them, but the bakery rescue above exists precisely to pull
+    # breads out of a non-food path, and "saaten" would then veto the rescue it needs.
+    "stadt land blüht",
     " hose", "shirt", "jacke", "socken", "kleid", "pulli", "pullover", "jeans", "leggings",
     " holz", "möbel", " lack",
     "knabbermix", "katzen", "hunde", "für tiere", " napf", "tierfutter", "vogelfutter",
@@ -811,6 +819,43 @@ _DRUGSTORE_PATH_MAP: dict[str, str] = {
     "reinigungsmittel": "cleaning", "spülmittel": "cleaning", "putzmittel": "cleaning",
     "reinigen": "cleaning", "wc-reiniger": "cleaning",
     "tierfutter": "pet", "katzenfutter": "pet", "hundefutter": "pet", "tierbedarf": "pet",
+
+    # ---- dm's own taxonomy (2026-07-30) ---------------------------------------------
+    # dm sends a single, flat category leaf per product (100% coverage), and it is a far
+    # better signal than the product NAME: dm's cosmetics names are full of shade words
+    # that collide with tokens tuned for grocery flyers — a CATRICE blush in shade "Coral
+    # Cutie" was reaching `_DRUGSTORE_RULES` "coral", the Henkel DETERGENT brand, and
+    # being served as Laundry. The path map is consulted before those tokens, so mapping
+    # the leaf fixes that class outright.
+    # Every entry below was simulated over all stored offers before being kept.
+    "blush": "makeup", "lipgloss": "makeup", "lipliner": "makeup", "highlighter": "makeup",
+    "puder & mattierung": "makeup", "contouring": "makeup", "abdeckstift": "makeup",
+    "lidschatten & paletten": "makeup", "make-up pinsel": "makeup", "make-up primer": "makeup",
+    "nagelpflege": "makeup", "nageldesign": "makeup", "nagelfolien": "makeup",
+    "kunstnägel": "makeup", "top coat & base coat": "makeup",
+    "haarkur & haarmaske": "hair", "kindershampoo": "hair",
+    "gesichtswasser": "face", "tagescreme": "face", "nachtcreme": "face",
+    # Lip CARE, matching the `lippenpflege` -> face entry above.
+    "lippenöl": "face",
+    "körperöl": "body", "bodylotion & hautcreme": "body", "body spray": "body",
+    "after shave & rasurpflege": "body", "sonnencreme": "body", "sonnenspray": "body",
+    "elektrorasierer": "body", "feuchttücher & co.": "body",
+    "babyöl & babycreme": "baby", "babyshampoo, badezusätze & co.": "baby",
+    "immunsystem unterstützen": "health", "magen & verdauung": "health",
+    "mineralstoffe": "health", "halsschmerzen & schluckbeschwerden": "health",
+    "schlafen & nerven": "health", "wundheilung": "health", "schwangerschaftstests": "health",
+    "bodenreiniger": "cleaning", "spezialreiniger": "cleaning",
+    "waschzusatz": "laundry",
+    "snacks für katzen": "pet",
+    # NB: `Saaten & Körner` (dm's garden seed packets) is deliberately NOT here. Mapping it
+    # would be DEAD CODE: `_FOOD_RESCUE` runs before this step, so "Saaten, Zucchini" is
+    # already rescued to Vegetables and never reaches the path map. The fix has to be a
+    # `_RESCUE_VETO` token, which is where it lives.
+    # Food leaves. The drugstore step may return a FOOD slug — `_food_rescue` already does
+    # from the same branch — and it must here, or dm's tea and sweets stay buried in
+    # household, which is the one thing layer 1 can never fall through from.
+    "tee": "soft_drinks", "herzhafte brotaufstriche": "pantry",
+    "bonbons & fruchtgummi": "sweets",
 }
 # DELIBERATELY NOT MAPPED, each caught by the full-DB diff rather than by reading:
 #   `Marken Parfum`, `Marken für Tiere`, `Marken Baby`  — BRAND CONTAINERS, the documented
@@ -821,6 +866,14 @@ _DRUGSTORE_PATH_MAP: dict[str, str] = {
 #     a chocolate wafer, sits under `Hautpflege > Creme`). Too broad to be trusted.
 #   `Babynahrung` — a FOOD node. `Huel Trinkmahlzeit Banana` is an adult meal drink the
 #     source filed there; baby food belongs in the food categories, not a drugstore aisle.
+#   `Beautyhelfer` (dm) — a CONTAINER node again: it holds refill travel bottles (household)
+#     AND a CATRICE eyeliner tool that already resolves to makeup on its own. Mapping it to
+#     `body` DEMOTED a correct row, which is why only nodes naming a product KIND are safe.
+#   `Selbstbräuner & Bräunungsbeschleuniger` (dm) — spans face drops and body lotions.
+#   `Lipbalm` (dm) — mapping it would move 8 already-categorised rows body -> face for no
+#     reduction in the household blob, and would then disagree with the `lippenbalsam` rule
+#     that files pathless lip balms as body. The face/body split on lip care is pre-existing;
+#     resolving it means moving Rossmann and grocery rows too, so it needs its own diff.
 
 # Products the drugstore step must NOT touch, checked BEFORE the path map (which would
 # otherwise decide them first). These are food the source hangs off a body-care node —
