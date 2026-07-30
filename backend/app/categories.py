@@ -69,7 +69,29 @@ CATEGORIES: dict[str, str] = {
     "vegan": "Vegan",  # moved to the back of the food chips (per the user)
     "other": "Other",
     "household": "Household & Non-food",
+    # --- Drugstore vertical (Rossmann; dm later) -------------------------------------
+    # Appended, because insertion order IS the chip order and the food chips must not move.
+    # `/api/categories` omits any slug with no offers, so a grocery PLZ simply never renders
+    # these — no per-vertical category list is needed. They are NOT drugstore-only by
+    # construction, though: a grocery chain's Nivea deo legitimately lands in `body`.
+    "hair": "Hair Care",
+    "face": "Face & Skin",
+    "body": "Body & Shower",
+    "dental": "Dental",
+    "makeup": "Make-up",
+    "fragrance": "Fragrance",
+    "baby": "Baby & Kids",
+    "health": "Health & Vitamins",
+    "cleaning": "Cleaning",
+    "laundry": "Laundry",
+    "pet": "Pet",
 }
+
+#: The drugstore-vertical slugs, i.e. the ones layer 1 may rescue a non-food path into.
+DRUGSTORE_CATEGORIES = frozenset(
+    ("hair", "face", "body", "dental", "makeup", "fragrance",
+     "baby", "health", "cleaning", "laundry", "pet")
+)
 
 # Bonial level-1 node for food; anything else is non-food.
 FOOD_ROOT = "lebensmittel und getränke"
@@ -700,7 +722,10 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     # Pork the source files under a non-food "Grillfleisch"/promo node → household ("Hausmarke
     # Schweine-Nackensteaks"). `nackensteak` is already a pork keyword, but the path wins first, so
     # the rescue re-claims it. Specific enough that only pork carries them.
-    "pork": ["schweinenacken", "schweine-nacken", "grillnackensteak"],
+    # "ASIA GREEN GARDEN Spare Ribs" is filed under `Textilreinigung > Waschmittel` — the
+    # unrelated-domain mis-file. Its caption says "Koteletrippe vom Schwein", but layer 1
+    # reads only name+brand, so the noun has to be here.
+    "pork": ["schweinenacken", "schweine-nacken", "grillnackensteak", "spare ribs", "spareribs"],
     # 2026-07-29: the source sometimes attaches a path from an ENTIRELY UNRELATED domain --
     # a Zott Monte under "Hautpflege > Creme", Capri-Sun syrup under "Reinigungsmittel >
     # Spülmittel". Layer 1 always decides on a non-food path, so a rescue noun is the ONLY
@@ -740,6 +765,143 @@ _RESCUE_VETO: list[str] = [
     # Coffee APPLIANCES keep their non-food path: a Kaffeevollautomat is not coffee. Without
     # these the "coffee" rescue above would drag every machine into the Coffee aisle.
     "vollautomat", "maschine", "barista", "mahlwerk", "milchaufschäumer", "kocher",
+]
+
+# --------------------------------------------------------------------------------------
+# Drugstore resolution — runs INSIDE the layer-1 non-food branch, after the food rescue and
+# before the fall to `household`.
+#
+# Why here, and why this is 0-regression BY CONSTRUCTION: layer 1 is authoritative, so a
+# non-food path already ends at `household` unless `_FOOD_RESCUE` saves it. This step can
+# therefore only fire where the answer is CURRENTLY `household` — every move is
+# `household -> <drugstore slug>`, and no existing food categorisation can change. That's a
+# proof, not a measurement (the full-DB diff still ran: 258 moved, 0 out of a food category).
+#
+# It is deliberately NOT gated to drugstore chains. A Nivea deo at Lidl is still body care,
+# and the grocery `household` chip shrinking is the point rather than a side effect.
+# --------------------------------------------------------------------------------------
+
+# Source taxonomy node (lowercased) -> slug. Scanned leaf->root, most specific first, like
+# `_PATH_MAP`. Only nodes that NAME a product kind: Rossmann's level-2 is `Marken`/`Produkte`
+# (pure brand containers, the documented ALDI shape), so the signal lives at level 3+.
+_DRUGSTORE_PATH_MAP: dict[str, str] = {
+    "zahnpflege": "dental", "zahnbürste": "dental", "zahncreme": "dental",
+    "mundhygiene": "dental", "mundpflege": "dental",
+    "parfümerie": "fragrance", "düfte": "fragrance", "eau de parfum": "fragrance",
+    "eau de toilette": "fragrance",
+    "haarpflege": "hair", "haarstyling": "hair", "haarfarben": "hair", "shampoo": "hair",
+    "haarkur": "hair", "coloration": "hair",
+    "gesichtspflege": "face", "gesichtsreinigung": "face",
+    "gesichtsmaske": "face", "augenpflege": "face", "lippenpflege": "face",
+    "körperpflege": "body", "körperreinigung": "body", "duschbad": "body", "deodorant": "body",
+    "rasur": "body", "intimpflege": "body", "fußpflege": "body", "handpflege": "body",
+    "sonnenschutz": "body", "hygieneartikel": "body",
+    # Hair REMOVAL is shaving, i.e. body care — not hair care. `Gillette Fusion5` sits under
+    # `Körperpflege > Haarentfernung` and reads as `hair` to anyone matching on "haar".
+    "haarentfernung": "body",
+    "make-up": "makeup", "dekorative kosmetik": "makeup", "nagellack": "makeup",
+    "lippenstift": "makeup", "wimperntusche": "makeup",
+    "babypflege": "baby", "windeln": "baby", "kinderpflege": "baby", "wickeln": "baby",
+    "nahrungsergänzungsmittel": "health", "arzneimittel": "health", "erste hilfe": "health",
+    "vitamine": "health", "haut-gesundheit": "health",
+    # NOT `Textilreinigung`: it spans detergents AND drying hardware — a `LEIFHEIT
+    # Wäscheschirm` and even a `WORKZONE Konstruktionsschnur` sit under
+    # `Textilreinigung > Textiltrocknung > Wäscheleine`. Only the detergent nodes.
+    "waschmittel": "laundry", "weichspüler": "laundry", "waschpulver": "laundry",
+    "reinigungsmittel": "cleaning", "spülmittel": "cleaning", "putzmittel": "cleaning",
+    "reinigen": "cleaning", "wc-reiniger": "cleaning",
+    "tierfutter": "pet", "katzenfutter": "pet", "hundefutter": "pet", "tierbedarf": "pet",
+}
+# DELIBERATELY NOT MAPPED, each caught by the full-DB diff rather than by reading:
+#   `Marken Parfum`, `Marken für Tiere`, `Marken Baby`  — BRAND CONTAINERS, the documented
+#     trap. `Marken Parfum > Axe` made Axe DUSCHGEL a fragrance, and `Marken für Tiere`
+#     made an `EDEKA Herzstücke Feine Pastete` and a `REWE to go Salatschale` cat food.
+#   `Hautpflege` — spans face AND body ("NIVEA Pflegedusche" is a shower gel), and it is one
+#     of the nodes the source attaches to unrelated products (an `AMICELLI Milchcreme`,
+#     a chocolate wafer, sits under `Hautpflege > Creme`). Too broad to be trusted.
+#   `Babynahrung` — a FOOD node. `Huel Trinkmahlzeit Banana` is an adult meal drink the
+#     source filed there; baby food belongs in the food categories, not a drugstore aisle.
+
+# Products the drugstore step must NOT touch, checked BEFORE the path map (which would
+# otherwise decide them first). These are food the source hangs off a body-care node —
+# a cooking cream and a chocolate wafer under `Körperpflege > Creme`. They stay `household`,
+# the honest "we can't tell" bucket, rather than becoming a confidently wrong Body & Shower.
+# Not `_FOOD_RESCUE` entries because that would need a per-product food category; this just
+# declines to guess. Add here when the diff shows a food product entering a drugstore aisle.
+_DRUGSTORE_VETO: list[str] = ["cremefine", "amicelli"]
+
+# name/brand tokens, for the products whose path dead-ends at a brand container. Ordered,
+# first hit wins — so a token that is a substring of another kind's word must come after the
+# guard for it. Every entry was simulated over the full DB before being kept.
+_DRUGSTORE_RULES: list[tuple[str, list[str]]] = [
+    # Guards FIRST — each protects a token further down.
+    # "Mundharmonika" is a HARMONICA; without this it is dental via `mund`.
+    ("household", ["mundharmonika", "mundstück"]),
+    # A Kinder-Spülbecken is a toy sink and a Spülmaschinen-tab is cleaning, but neither is
+    # a Spülmittel; and "Spülung" (conditioner) is hair, not washing-up.
+    ("hair", ["spülung", "haarspülung"]),
+    ("dental", [
+        "zahnpasta", "zahncreme", "zahnbürste", "zahnseide", "mundspülung", "mundwasser",
+        "oral-b", "meridol", "elmex", "odol", "sensodyne", "parodontax", "prokudent",
+        "gebissreiniger", "interdental",
+    ]),
+    ("hair", [
+        "shampoo", "haarkur", "haarfarbe", "haarspray", "haargel", "haarschaum", "haaröl",
+        "conditioner", "schauma", "guhl", "syoss", "gliss kur", "wella", "schwarzkopf",
+        "alpecin", "nivea men shampoo", "haarbürste", "trockenshampoo",
+    ]),
+    ("face", [
+        "gesichtscreme", "gesichtspflege", "gesichtsmaske", "gesichtsreinigung", "tagespflege",
+        "nachtpflege", "tagescreme", "nachtcreme", "augencreme", "gesichtsserum", "daycream",
+        "nightcream", "reinigungsschaum", "mizellenwasser", "revitalift", "hyaluron",
+        "anti-age", "gesichtswasser",
+    ]),
+    ("makeup", [
+        "lippenstift", "mascara", "nagellack", "make-up", "lidschatten", "kajal", "eyeliner",
+        "concealer", "foundation", "rouge", "wimperntusche", "nagelöl", "primer",
+    ]),
+    ("fragrance", [
+        "eau de parfum", "eau de toilette", "eau de cologne", "parfum", "duftset", "bodyspray",
+        "body mist", "aftershave", "after shave",
+    ]),
+    ("body", [
+        "duschgel", "duschbad", "duschcreme", "deospray", "deoroller", "deostick", "deo ",
+        "bodylotion", "body lotion", "körperlotion", "körpermilch", "handcreme", "fußcreme",
+        "seife", "rasierer", "rasierklinge", "rasierschaum", "rasiergel", "wilkinson",
+        "gillette", "sonnencreme", "sonnenmilch", "sonnenspray", "lippenbalsam", "labello",
+        "wattestäbchen", "wattepads", "damenbinde", "tampon", "slipeinlage", "facelle",
+        "feuchttücher", "intimwaschlotion", "badezusatz", "schaumbad", "bartöl",
+    ]),
+    ("baby", [
+        "windel", "babypflege", "babycreme", "babyöl", "babyshampoo", "babydream", "pampers",
+        "milupa", "hipp ", "babynahrung", "schnuller", "muttermilch", "mullwindel",
+        "feuchttücher baby", "babybad",
+    ]),
+    ("health", [
+        # NOT a bare `vitamin`: it is an INGREDIENT claim all over cosmetics — it made
+        # "Garnier Skin Active 2in1 Vitamin C", a face serum, a supplement.
+        "nahrungsergänzung", "vitamintabletten", "vitaminpräparat", "magnesium", "kalzium",
+        "elektrolyte", "laktase", "pflaster", "wundsalbe", "erkältung", "halstabletten",
+        "nasenspray", "taxofit", "altapharma", "abtei", "doppelherz", "hustenbonbon",
+        "desinfektion", "fieberthermometer", "warzen",
+    ]),
+    ("laundry", [
+        "waschmittel", "weichspüler", "waschpulver", "colorwaschmittel", "vollwaschmittel",
+        "perwoll", "persil", "lenor", "vernel", "coral", "ariel", "fleckenentferner",
+        "wäscheparfüm", "hygienespüler",
+    ]),
+    ("cleaning", [
+        "spülmittel", "spülmaschinen", "geschirrspül", "allzweckreiniger", "badreiniger",
+        # NOT `müllbeutel`: bin bags were deliberately routed to `household` by an earlier
+        # audit (the scented ones the source files under `Obst > Melone`), and claiming them
+        # for Cleaning would silently reverse that decision.
+        "wc-reiniger", "glasreiniger", "scheuermilch", "putztuch", "domol",
+        "finish ", "calgonit", "sagrotan", "frosch ", "meister proper", "somat",
+    ]),
+    ("pet", [
+        "katzenfutter", "hundefutter", "katzennassfutter", "hundetrockennahrung", "katzenstreu",
+        "perfect fit", "sheba", "whiskas", "felix katze", "pedigree", "purina", "kauknochen",
+    ]),
 ]
 
 
@@ -893,6 +1055,34 @@ def _path_nonfood(category_path: List[str]) -> bool:
     return bool(category_path) and category_path[0].strip().lower() != FOOD_ROOT
 
 
+def _drugstore_hit(
+    category_path: List[str], text: str
+) -> Optional[tuple[str, Optional[int], str, str, str]]:
+    """(table, index, matched, slug, where) for a drugstore aisle, else None.
+
+    The PATH wins over the keywords: a node like `Körperpflege > Hautpflege` is the source's
+    own designation, while a name token is our inference. (This is the opposite of the food
+    layers, where the path is often mis-filed — here the non-food path has already been
+    trusted enough to reach this branch, so its sub-nodes are trustworthy too.)
+    """
+    if any(v in text for v in _DRUGSTORE_VETO):
+        return None  # before the path map, which would otherwise decide first
+    for node in reversed(category_path):  # leaf -> root: most specific wins
+        slug = _DRUGSTORE_PATH_MAP.get(node.strip().lower())
+        if slug:
+            return "_DRUGSTORE_PATH_MAP", None, node, slug, _WHERE_PATH
+    hit = _first_token_hit(_DRUGSTORE_RULES, text)
+    if hit is None:
+        return None
+    index, slug, matched = hit
+    # A guard entry (`("household", [...])`) is returned as-is rather than filtered out: its
+    # slug already IS `household`, so the caller's answer is identical either way, and the
+    # trace then explains WHY ("_DRUGSTORE_RULES[0] matched 'mundharmonika'") instead of
+    # falling through to a bare "no rescue token". A filter here would be a branch no test
+    # could ever fail — `_DRUGSTORE_VETO` above is the guard that actually changes an outcome.
+    return "_DRUGSTORE_RULES", index, matched, slug, _WHERE_TEXT
+
+
 def _path_node_hit(category_path: List[str]) -> Optional[tuple[str, str]]:
     """Most-specific known food taxonomy node -> (node as written, slug); the leaf is often a brand."""
     for node in reversed(category_path):
@@ -932,16 +1122,31 @@ def _layers(
         # killing a rescue and no rescue token at all both produced "household", indistinguishably.
         veto = next((v for v in _RESCUE_VETO if v in text), None)
         rescue = _first_token_hit(_FOOD_RESCUE.items(), text)
-        if veto is not None:  # the veto still wins, exactly as before
+        drug = _drugstore_hit(path, text)
+        # The veto blocks the FOOD rescue only — it exists so a Kaffeevollautomat isn't
+        # filed as coffee. It must not also block a drugstore aisle: `maschine` is a veto
+        # word and is a substring of "Finish SpülMASCHINEn-caps", which really is Cleaning.
+        if rescue is not None and veto is None:
+            # Real food buried under a non-food path — checked FIRST so a drugstore node
+            # can't claim it (the source files spare ribs under `Waschmittel`).
+            yield LayerTrace.decided(
+                "1", "nonfood_path", rescue[1], table="_FOOD_RESCUE",
+                index=rescue[0], matched=rescue[2], where=_WHERE_TEXT,
+            )
+        elif drug is not None:
+            # Not food — but a drugstore aisle rather than the undifferentiated "household"
+            # bucket? Only reachable where the answer was ALREADY household, so every move
+            # here is household -> a drugstore slug and nothing food can shift.
+            table, index, matched, slug, where = drug
+            yield LayerTrace.decided(
+                "1", "nonfood_path", slug, table=table, index=index,
+                matched=matched, where=where,
+            )
+        elif veto is not None:
             yield LayerTrace.decided(
                 "1", "nonfood_path", "household", table="_RESCUE_VETO", matched=veto,
                 where=_WHERE_TEXT, reason=_RESCUE_VETO_HIT,
                 blocked_slug=rescue[1] if rescue else None,
-            )
-        elif rescue is not None:
-            yield LayerTrace.decided(
-                "1", "nonfood_path", rescue[1], table="_FOOD_RESCUE",
-                index=rescue[0], matched=rescue[2], where=_WHERE_TEXT,
             )
         else:
             yield LayerTrace.decided("1", "nonfood_path", "household", reason=_NO_RESCUE_TOKEN)
