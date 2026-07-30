@@ -1302,6 +1302,14 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   **local, not CI**, because the keyless design uses your logged-in Claude Code (`claude -p`), not
   a managed `ANTHROPIC_API_KEY`. The deterministic prereqs: `app/scripts/scrape.py`
   (wraps `run_scrapers`) refreshes `grocery.db`; `app/scripts/recipe_seed.py` dumps candidates.
+  - **NEVER couple a test to the CONTENT of `mobile/src/data/recipes.ts`.** That file is
+    rewritten every Sunday from whatever is on sale, so any assertion naming an ingredient is
+    a time bomb: on 2026-07-30 the first regen in two weeks turned `main` red because four
+    `DealsScreen.test.tsx` cases were pinned to "Gouda" — and they exist to guard the iOS
+    modal-NESTING invariant, which has nothing to do with cheese. Mock `../data/recipes` with
+    a fixed fixture (one matchable ingredient + one staple) as that file now does. The CI
+    failure also *looks* like two problems — the coverage ratchet reports a miss too — but a
+    failed suite contributes no coverage, so fixing the tests restores it; never lower it.
   - **That `claude -p` auth is the schedule's single point of failure, and it broke silently
     for 11 days** (2026-07-26 → 2026-07-30): launchd fired, the scrape and dump succeeded, then
     `claude -p` returned "Not logged in", `set -e` aborted, and *nothing said so*. Fixed by

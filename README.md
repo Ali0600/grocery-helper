@@ -85,6 +85,14 @@ build the cheapest basket across one or two stores.
   Golden Longs" to "Golden Long" next week, the exact match falls back to the brand's
   other offers (and to the product sub-group for brandless produce), ranked by name
   similarity. It's append-only — clearing your basket doesn't erase what you shopped for.
+- **Price history that admits what it doesn't know** — each History row also shows the
+  product's weekly price series, collected since July by a sibling project. Because 94%
+  of tracked products have been seen in only one week so far, the row is tiered by
+  evidence: nothing at all when there's no history (rather than a "no data" placeholder
+  on almost every row), a single sighting when that's all there is, a price delta at two
+  weeks, and only at three or more the full low/usual figures with a sparkline. It also
+  refuses to state confident numbers when the underlying series mixes pack sizes — a
+  "Coca-Cola" whose weekly prices span a can and a crate says so instead of averaging them.
 - **At-a-glance basket marker on each deal** — a small cart in the card's tag row
   shows when a product is already in your basket, so you don't have to open the flyer
   to check. It updates live as you add (a memoization-safe wiring that keeps the swipe
@@ -600,6 +608,8 @@ Engineering practices demonstrated while building and operating this project:
 - [ ] dm's full catalog (~21k products at everyday prices, no validity window) — still a
       different data model from the deals pipeline; likely belongs in the price-history
       collector rather than here
+- [x] Weekly price history on History rows, read from the companion
+      `grocery-price-history` collector and tiered by how much evidence exists
 - [ ] Production monitoring/alerting (uptime + scraper health) on a persistent DB
 - [ ] "Store scorecard" compare view — per-store summary (deal count, avg discount,
       which categories each store wins)
