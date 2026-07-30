@@ -101,3 +101,46 @@ Runs **Sundays 10:00 local**, logs to `.recipe-regen.log`. Notes / gotchas:
 - **PATH**: the plist points `claude`/`node` at this machine's paths (Homebrew + fnm); adjust if
   yours differ (`which claude`, `which node`). The script also re-resolves node via `fnm`.
 - The Mac must be awake at the scheduled time; launchd runs a missed job once on next wake.
+
+## When the schedule fails (it did, silently, for 11 days)
+
+**2026-07-26 → 2026-07-30 the weekly job produced nothing and nobody knew.** launchd fired
+on time and every deterministic step worked — `git pull`, a 1,638-offer scrape, a 100 KB
+candidate dump — then `claude -p` printed `Not logged in · Please run /login` and exited 1,
+so `set -euo pipefail` aborted. Failing closed was correct (no broken recipes shipped);
+failing *quietly* was the bug, and recipes silently drifted two flyer weeks out of date.
+
+The script now has three failure channels, ordered so the most reliable can't be skipped:
+
+| channel | what it gives you | can it fail? |
+|---|---|---|
+| `.recipe-regen.status` | one line, `OK`/`FAILED` + reason + timestamp | no — a local write |
+| macOS notification | immediate, if you're at the keyboard | best effort |
+| GitHub issue, label `recipe-failure` | durable + deduplicated; mirrors `scrape.yml`'s `scrape-failure` machinery, and closes itself on the next healthy run | `gh` authenticates via the **keyring** — the same class of thing that broke here, so it is deliberately last |
+
+Check the schedule's health without reading the log:
+
+```bash
+./scripts/regenerate-recipes.sh --check
+```
+
+It prints the last outcome and exits non-zero if that was a failure. (It is handled
+*before* the `ERR` trap is armed — a check that correctly reports FAILED must not itself
+raise a new alert.)
+
+### Auth is preflighted before the scrape
+
+`claude -p` is now probed *first*, before anything expensive. The scrape is ~30 s and ~15
+requests to the flyer publishers; firing that burst when we already can't author anything
+is both wasteful and impolite to sources we're trying to stay welcome at.
+
+### If it says "not authenticated"
+
+Run `claude` interactively and `/login`. Note what this is **not**: the keychain item is
+readable non-interactively (verified — `security find-generic-password` exits 0), so this
+is not a keychain-ACL or "background process can't unlock it" problem. The stored
+credential itself went stale — its `mdat` is `20260726080036Z`, ~35 s into the failing
+run, which is the CLI attempting a token refresh, failing, and writing itself out as
+logged-out. A Claude Code session running inside the desktop app is unaffected, because
+that uses host-provided auth rather than this keychain item — which is exactly why the
+breakage was invisible from inside a working session.

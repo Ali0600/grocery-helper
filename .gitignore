@@ -26,3 +26,4 @@ web-build/
 
 # Weekly recipe automation (local-only artifacts)
 .recipe-candidates.json
+.recipe-regen.status
