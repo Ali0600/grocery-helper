@@ -186,6 +186,34 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   - **The clearance list is volatile** (251 → 250 within an hour of probing), so
     `verify_deals.py`'s drugstore profile leans on **`chains >= 2`**, not a tight offers floor:
     a size swing is normal, a chain dropping to 1 is not. Only one week has been observed.
+  - **dm's own category leaf is mapped in `_DRUGSTORE_PATH_MAP`** (2026-07-30). dm sends ONE
+    flat leaf per product with 100% coverage, and `_path_nonfood` treats any path whose root
+    isn't the food root as non-food — so layer 1 always decides for dm, which is why the
+    drugstore step reaches it at all and why unmapped leaves blob. 40 leaves mapped: **60 rows
+    moved, 0 unexplained regressions**, dm `household` **54% → 28%**, drugstore chip household
+    44% → 33%, Make-up 56 → 80.
+    - **Prefer dm's leaf over its product NAME.** dm's cosmetics names are shade-heavy and
+      collide with tokens tuned for grocery flyers: a CATRICE blush in shade "Coral Cutie" was
+      matching `_DRUGSTORE_RULES` `coral` — the Henkel DETERGENT brand — and served as Laundry.
+      The path map is consulted before those tokens, so mapping the leaf fixes the class.
+    - **A path-map entry for something `_FOOD_RESCUE` already catches is DEAD CODE.** Layer 1
+      runs food rescue → drugstore → veto → household, so a rescued product never reaches the
+      map. `Saaten & Körner` (dm's GARDEN SEED packets, "Saaten, Zucchini (Zuboda)") looked like
+      a map entry and changed nothing — `zucchini`/`rucola`/`feldsalat` are rescue tokens, so the
+      packets were being served in the **Vegetables** chip. The fix is a `_RESCUE_VETO` token,
+      and it is the **brand** (`stadt land blüht`), not a bare `saaten`: that is a substring of
+      "Meisterbrot mit Saaten" and "Kerne-Saaten-Granola", and the bakery rescue exists precisely
+      to pull breads out of a non-food path.
+    - **The drugstore step MAY return a food slug** — `_food_rescue` already does from the same
+      branch — and must, for `Tee`/`Herzhafte Brotaufstriche`/`Bonbons & Fruchtgummi`: layer 1
+      can never fall through, so nothing downstream could rescue them. The
+      "every drugstore slug is a real category" test now carries an explicit allowlist for these
+      rather than being relaxed, so a typo'd slug still fails.
+    - **Three leaves simulated and REJECTED**: `Beautyhelfer` (a CONTAINER — refill bottles AND
+      a makeup tool that already resolved correctly; mapping it DEMOTED a right answer),
+      `Selbstbräuner` (spans face and body), and `Lipbalm` (would move 8 already-correct rows
+      body→face for no blob reduction and disagree with the `lippenbalsam` rule; the face/body
+      split on lip care is pre-existing and needs its own diff).
 - **Local API port is 8001**, not 8000 (8000 is usually already taken on the dev
   machine). `mobile/.env` → `EXPO_PUBLIC_API_URL=http://localhost:8001`. The iOS
   simulator reaches the Mac via `localhost`; a physical phone needs the LAN IP.
