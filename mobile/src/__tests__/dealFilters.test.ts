@@ -9,6 +9,7 @@ import {
   facetCounts,
   filterDeals,
   presentChains,
+  shouldLandOnMine,
 } from '../dealFilters';
 import { SortMode } from '../storage';
 import { hideKey } from '../hidden';
@@ -587,5 +588,28 @@ describe('facetCounts — "how many would I see if I turned this on?"', () => {
     const hidden = new Set([hideKey(offers[1])]); // Lidl Wurst
     expect(facetCounts(offers, { ...OPTS, hiddenKeys: hidden }).chains.lidl).toBe(1);
     expect(facetCounts(offers, { ...OPTS, hiddenStores: ['rewe'] }).chains.rewe).toBeUndefined();
+  });
+});
+
+describe('shouldLandOnMine — the landing rule across verticals', () => {
+  const cat = (category: string) => ({ category, label: category, count: 1 });
+
+  it('lands on Mine when a chosen category is served here', () => {
+    expect(shouldLandOnMine(['fruits', 'cheese'], [cat('fruits'), cat('bakery')])).toBe(true);
+  });
+
+  it('lands on All when NONE of the chosen categories exist here', () => {
+    // The drugstore case: every pick is a grocery category, so Mine would render
+    // "None of your categories have deals this week" as a greeting. `myCategories` is
+    // shared across verticals, and this is the one place its inertness isn't enough.
+    expect(shouldLandOnMine(['fruits', 'cheese'], [cat('hair'), cat('dental')])).toBe(false);
+  });
+
+  it('lands on All when nothing is chosen (a fresh install is never a blank Mine)', () => {
+    expect(shouldLandOnMine([], [cat('fruits')])).toBe(false);
+  });
+
+  it('lands on All when no categories are served at all', () => {
+    expect(shouldLandOnMine(['fruits'], [])).toBe(false);
   });
 });

@@ -14,6 +14,7 @@ import {
   RecipePrefs,
   TraceMap,
 } from './types';
+import { Vertical, VERTICALS } from './verticals';
 
 const PLZ_KEY = 'plz';
 const NONFOOD_KEY = 'showNonFood';
@@ -29,9 +30,20 @@ const BASKET_KEY = 'basket';
 // migration that has to survive an OTA rollback.
 const HISTORY_KEY = 'likedItems';
 const HIDDEN_KEY = 'hiddenItems'; // deals dismissed from the deal detail (one flyer week)
+// The three caches are keyed PER VERTICAL (`dealsCache:grocery`, `dealsCache:drugstore`).
+// Sharing one key would make every switch between Grocery and Drugstore a cache miss, i.e.
+// a cold-start round trip on the free tier, for a control the user taps constantly. Keeping
+// both resident costs a second copy of the same bounded, single-PLZ payload.
 const DEALS_CACHE_KEY = 'dealsCache';
 const PAYLOAD_CACHE_KEY = 'payloadCache';
 const TRACE_CACHE_KEY = 'traceCache';
+const CACHE_KEYS = [DEALS_CACHE_KEY, PAYLOAD_CACHE_KEY, TRACE_CACHE_KEY] as const;
+
+const scoped = (base: string, vertical: Vertical): string => `${base}:${vertical}`;
+
+/** Every per-vertical cache key, so the clear paths can't miss one when a vertical is added. */
+const allCacheKeys = (): string[] =>
+  VERTICALS.flatMap((v) => CACHE_KEYS.map((base) => scoped(base, v)));
 const RECIPE_PREFS_KEY = 'recipePrefs';
 const ALWAYS_HAVE_KEY = 'alwaysHave';
 
@@ -344,9 +356,9 @@ export type CachedDeals = {
   version?: number; // DEALS_CACHE_VERSION at write time; absent on pre-versioning caches
 };
 
-export async function getDealsCache(): Promise<CachedDeals | null> {
+export async function getDealsCache(vertical: Vertical): Promise<CachedDeals | null> {
   try {
-    const raw = await AsyncStorage.getItem(DEALS_CACHE_KEY);
+    const raw = await AsyncStorage.getItem(scoped(DEALS_CACHE_KEY, vertical));
     return raw ? (JSON.parse(raw) as CachedDeals) : null;
   } catch (e) {
     console.warn('storage: getDealsCache failed', e);
@@ -354,12 +366,12 @@ export async function getDealsCache(): Promise<CachedDeals | null> {
   }
 }
 
-export async function setDealsCache(data: CachedDeals): Promise<void> {
+export async function setDealsCache(vertical: Vertical, data: CachedDeals): Promise<void> {
   try {
     // Stamped here rather than at every call site, so a cache written by this build is
     // always readable by it (an unstamped write would look stale forever).
     const stamped: CachedDeals = { ...data, version: DEALS_CACHE_VERSION };
-    await AsyncStorage.setItem(DEALS_CACHE_KEY, JSON.stringify(stamped));
+    await AsyncStorage.setItem(scoped(DEALS_CACHE_KEY, vertical), JSON.stringify(stamped));
   } catch (e) {
     console.warn('storage: setDealsCache failed', e);
     // best-effort (e.g. storage quota) — the app still works without the cache
@@ -371,7 +383,10 @@ export async function setDealsCache(data: CachedDeals): Promise<void> {
 // is showing stale data). The two are coupled to the same PLZ/week, so they clear together.
 export async function clearDealsCache(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([DEALS_CACHE_KEY, PAYLOAD_CACHE_KEY, TRACE_CACHE_KEY]);
+    // Every vertical, not just the current one: "deals won't update" is a whole-app
+    // complaint, and leaving the other vertical's stale week behind would reproduce
+    // exactly the bug this button exists to fix, one tap later.
+    await AsyncStorage.multiRemove(allCacheKeys());
   } catch (e) {
     console.warn('storage: clearDealsCache failed', e);
     // best-effort
@@ -389,9 +404,9 @@ export type CachedPayloads = {
   cachedAt: number; // ms epoch of the fetch
 };
 
-export async function getPayloadCache(): Promise<CachedPayloads | null> {
+export async function getPayloadCache(vertical: Vertical): Promise<CachedPayloads | null> {
   try {
-    const raw = await AsyncStorage.getItem(PAYLOAD_CACHE_KEY);
+    const raw = await AsyncStorage.getItem(scoped(PAYLOAD_CACHE_KEY, vertical));
     return raw ? (JSON.parse(raw) as CachedPayloads) : null;
   } catch (e) {
     console.warn('storage: getPayloadCache failed', e);
@@ -399,9 +414,9 @@ export async function getPayloadCache(): Promise<CachedPayloads | null> {
   }
 }
 
-export async function setPayloadCache(data: CachedPayloads): Promise<void> {
+export async function setPayloadCache(vertical: Vertical, data: CachedPayloads): Promise<void> {
   try {
-    await AsyncStorage.setItem(PAYLOAD_CACHE_KEY, JSON.stringify(data));
+    await AsyncStorage.setItem(scoped(PAYLOAD_CACHE_KEY, vertical), JSON.stringify(data));
   } catch (e) {
     console.warn('storage: setPayloadCache failed', e);
     // best-effort (e.g. storage quota) — "View payload" just falls back to a network fetch
@@ -419,9 +434,9 @@ export type CachedTraces = {
   cachedAt: number; // ms epoch of the fetch
 };
 
-export async function getTraceCache(): Promise<CachedTraces | null> {
+export async function getTraceCache(vertical: Vertical): Promise<CachedTraces | null> {
   try {
-    const raw = await AsyncStorage.getItem(TRACE_CACHE_KEY);
+    const raw = await AsyncStorage.getItem(scoped(TRACE_CACHE_KEY, vertical));
     return raw ? (JSON.parse(raw) as CachedTraces) : null;
   } catch (e) {
     console.warn('storage: getTraceCache failed', e);
@@ -429,9 +444,9 @@ export async function getTraceCache(): Promise<CachedTraces | null> {
   }
 }
 
-export async function setTraceCache(data: CachedTraces): Promise<void> {
+export async function setTraceCache(vertical: Vertical, data: CachedTraces): Promise<void> {
   try {
-    await AsyncStorage.setItem(TRACE_CACHE_KEY, JSON.stringify(data));
+    await AsyncStorage.setItem(scoped(TRACE_CACHE_KEY, vertical), JSON.stringify(data));
   } catch (e) {
     console.warn('storage: setTraceCache failed', e);
     // best-effort (e.g. the web localStorage quota, where this + payloads + deals is tight)
@@ -454,9 +469,7 @@ export async function clearAllData(): Promise<void> {
       BASKET_KEY,
       HISTORY_KEY,
       HIDDEN_KEY,
-      DEALS_CACHE_KEY,
-      PAYLOAD_CACHE_KEY,
-      TRACE_CACHE_KEY,
+      ...allCacheKeys(),
       RECIPE_PREFS_KEY,
       ALWAYS_HAVE_KEY,
     ]);

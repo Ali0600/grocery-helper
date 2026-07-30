@@ -10,6 +10,7 @@ import {
   Store,
   TraceMap,
 } from './types';
+import { Vertical } from './verticals';
 
 // Default to the deployed backend so device + OTA builds work out of the box. Override
 // via mobile/.env (EXPO_PUBLIC_API_URL) for local dev — e.g. http://localhost:8001, or
@@ -75,22 +76,23 @@ const post = <T>(
 export const api = {
   base: BASE,
 
-  // Load the whole PLZ set; the app does category/search/non-food filtering
-  // client-side, so search covers every deal (not just the top-ranked ones).
-  // Two chains (Lidl + REWE) push a Berlin PLZ past ~1300 offers, so the limit
-  // is generous; if a 3rd chain pushes a PLZ over this, move search server-side
-  // (a `q` param on /api/offers) rather than raising it further.
-  offers(params: { plz?: string; sort?: 'discount' | 'price' } = {}) {
+  // Load the whole vertical's set for the PLZ; the app does category/search/non-food
+  // filtering client-side, so search covers every deal (not just the top-ranked ones).
+  // `vertical` is what keeps this under the 2000 cap: five grocery chains already measure
+  // ~1630, and the drugstore chains would otherwise be added on top of that, not beside it.
+  offers(params: { plz?: string; sort?: 'discount' | 'price'; vertical?: Vertical } = {}) {
     const q = new URLSearchParams();
     if (params.plz) q.set('plz', params.plz);
+    if (params.vertical) q.set('vertical', params.vertical);
     q.set('sort', params.sort ?? 'discount');
     q.set('limit', '2000');
     return get<Offer[]>(`/api/offers?${q.toString()}`);
   },
 
-  categories(plz?: string) {
+  categories(plz?: string, vertical?: Vertical) {
     const q = new URLSearchParams();
     if (plz) q.set('plz', plz);
+    if (vertical) q.set('vertical', vertical);
     return get<CategoryCount[]>(`/api/categories?${q.toString()}`);
   },
 
@@ -107,8 +109,13 @@ export const api = {
   // Every offer's payload for a PLZ (keyed by id) — prefetched in the background so "View
   // payload" is instant + offline (no per-offer call to the sleepy backend). ~2 MB, so a
   // longer timeout; it's best-effort (the detail view falls back to `offerPayload`).
-  offerPayloads(plz: string) {
-    return get<PayloadMap>(`/api/offers/payloads?plz=${encodeURIComponent(plz)}`, 60000);
+  // Scoped by `vertical` for the same reason the caches are: without it a drugstore
+  // session downloads every grocery payload too, and the endpoint's "ids line up with
+  // the list" contract quietly stops holding.
+  offerPayloads(plz: string, vertical?: Vertical) {
+    const q = new URLSearchParams({ plz });
+    if (vertical) q.set('vertical', vertical);
+    return get<PayloadMap>(`/api/offers/payloads?${q.toString()}`, 60000);
   },
 
   // Why one offer is in its category: which rule decided, which layers were skipped, and
@@ -120,8 +127,10 @@ export const api = {
   // Every offer's trace for a PLZ (keyed by id) — prefetched so "Why this category?" is
   // instant + offline. ~1.3 MB (trimmed server-side), so the longer timeout; best-effort,
   // since the detail view falls back to `offerCategoryTrace`.
-  offerCategoryTraces(plz: string) {
-    return get<TraceMap>(`/api/offers/category-traces?plz=${encodeURIComponent(plz)}`, 60000);
+  offerCategoryTraces(plz: string, vertical?: Vertical) {
+    const q = new URLSearchParams({ plz });
+    if (vertical) q.set('vertical', vertical);
+    return get<TraceMap>(`/api/offers/category-traces?${q.toString()}`, 60000);
   },
 
   // Nearest store of each known chain around the PLZ (OSM); active=true for

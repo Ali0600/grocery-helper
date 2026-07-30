@@ -30,10 +30,22 @@ from ..serializers import offer_to_out
 from ..services.optimizer import optimize_basket
 from ..throttle import RateLimiter
 from ..validity import berlin_today
+from ..verticals import VERTICALS, chains_for
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["offers"])
+
+# Scope a listing to one shop kind (grocery / drugstore). Built from VERTICALS so a new
+# vertical needs no edit here, and matched as a pattern — like `source` above — so an
+# unknown value is a 422 rather than silently returning EVERY chain (a typo that quietly
+# widens a filter is the "gate evaluating less than it claims" trap).
+#
+# Omitting it means NO filter, i.e. exactly today's behaviour: an already-installed app
+# build predates this param, and must keep working. Unfiltered is 1913 offers against the
+# 2000 cap — fine now, but the margin is thin, so the dm plan (21k catalog products) has
+# to revisit this default rather than inherit it.
+_VERTICAL_PATTERN = "^(" + "|".join(VERTICALS) + ")$"
 
 
 def _require_admin(
@@ -85,14 +97,17 @@ def list_offers(
     min_discount: Optional[float] = Query(None, ge=0, le=100),
     sort: str = Query("discount", pattern="^(discount|price)$"),
     limit: int = Query(200, ge=1, le=2000),
+    vertical: Optional[str] = Query(None, pattern=_VERTICAL_PATTERN),
 ):
-    """List offers, filterable by category/chain/plz/min-discount.
+    """List offers, filterable by vertical/category/chain/plz/min-discount.
 
     Default sort is by % discount descending — the headline feature.
     """
     stmt = select(Offer).options(selectinload(Offer.store)).join(Store)
     if category:
         stmt = stmt.where(Offer.category == category)
+    if vertical:
+        stmt = stmt.where(Store.chain.in_(chains_for(vertical)))
     if chain:
         stmt = stmt.where(Store.chain == chain)
     if plz:
@@ -127,16 +142,26 @@ def offer_payload(session: SessionDep, offer_id: int):
 
 
 @router.get("/offers/payloads")
-def offer_payloads(session: SessionDep, plz: Optional[str] = None):
+def offer_payloads(
+    session: SessionDep,
+    plz: Optional[str] = None,
+    vertical: Optional[str] = Query(None, pattern=_VERTICAL_PATTERN),
+):
     """All raw payloads for a PLZ's (deduped) offers, keyed by offer id — lets the app
     prefetch + cache them so the deal detail's "View payload" is instant + offline instead
     of a per-offer round-trip (which, on the sleepy free tier, means a cold start). Mirrors
     /api/offers' dedup + validity filter so the ids line up with the list; a value is null
     where the payload wasn't captured (pre-capture / sample fallback). Not in OfferOut (too
-    big for the list) — this is fetched once, in the background."""
+    big for the list) — this is fetched once, in the background.
+
+    It takes `vertical` for the same reason: the app caches payloads per vertical, so
+    without it a drugstore session would download every grocery payload too (~2 MB for a
+    283-offer list) and the "ids line up with the list" contract would quietly be false."""
     stmt = select(Offer).options(selectinload(Offer.store)).join(Store)
     if plz:
         stmt = stmt.where(Store.plz == plz)
+    if vertical:
+        stmt = stmt.where(Store.chain.in_(chains_for(vertical)))
     stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today()))
     rows = dedup_offers(session.scalars(stmt).all())
     return {str(o.id): (json.loads(o.raw_payload) if o.raw_payload else None) for o in rows}
@@ -224,13 +249,20 @@ def offer_category_trace(session: SessionDep, offer_id: int):
 
 
 @router.get("/offers/category-traces")
-def offer_category_traces(session: SessionDep, plz: Optional[str] = None):
+def offer_category_traces(
+    session: SessionDep,
+    plz: Optional[str] = None,
+    vertical: Optional[str] = Query(None, pattern=_VERTICAL_PATTERN),
+):
     """Every (deduped) offer's classification trace for a PLZ, keyed by offer id — the app
     prefetches this so "Why this category?" is instant + offline. Mirrors /api/offers' dedup
-    + validity filter so the ids line up with the list, exactly like /offers/payloads."""
+    + validity filter (and its `vertical` scope) so the ids line up with the list, exactly
+    like /offers/payloads."""
     stmt = select(Offer).options(selectinload(Offer.store)).join(Store)
     if plz:
         stmt = stmt.where(Store.plz == plz)
+    if vertical:
+        stmt = stmt.where(Store.chain.in_(chains_for(vertical)))
     stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today()))
     rows = dedup_offers(session.scalars(stmt).all())
     out = {}
@@ -242,16 +274,25 @@ def offer_category_traces(session: SessionDep, plz: Optional[str] = None):
 
 
 @router.get("/categories", response_model=List[CategoryCount])
-def list_categories(session: SessionDep, plz: Optional[str] = None):
+def list_categories(
+    session: SessionDep,
+    plz: Optional[str] = None,
+    vertical: Optional[str] = Query(None, pattern=_VERTICAL_PATTERN),
+):
     """Categories that currently have offers, with counts (for filter chips).
 
-    Counts distinct products (deduped) so the chip number matches the deduped list.
+    Counts distinct products (deduped) so the chip number matches the deduped list, and
+    takes the same `vertical` scope as `/offers` so the chips match the list they filter.
+    Categories with no offers are omitted, so a vertical simply never sees the other's
+    chips — no per-vertical category list is needed.
     """
     stmt = select(Offer).options(selectinload(Offer.store)).join(Store).where(
         (Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today())
     )
     if plz:
         stmt = stmt.where(Store.plz == plz)
+    if vertical:
+        stmt = stmt.where(Store.chain.in_(chains_for(vertical)))
     counts = Counter(o.category for o in dedup_offers(session.scalars(stmt).all()))
     return [
         CategoryCount(category=slug, label=lbl, count=counts[slug])

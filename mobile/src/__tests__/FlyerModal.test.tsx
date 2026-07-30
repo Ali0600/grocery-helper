@@ -26,14 +26,14 @@ const noop = () => {};
 describe('FlyerModal — Basket / Hide buttons', () => {
   it('Basket fires onAddToBasket with the offer', async () => {
     const onAdd = jest.fn();
-    await render(<FlyerModal offer={offer} onClose={noop} onAddToBasket={onAdd} />);
+    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} onAddToBasket={onAdd} />);
     await fireEvent.press(screen.getByLabelText('Add McCain Golden Longs to basket'));
     expect(onAdd).toHaveBeenCalledWith(offer);
   });
 
   it('shows a done state and does NOT fire once already in the basket', async () => {
     const onAdd = jest.fn();
-    await render(<FlyerModal offer={offer} onClose={noop} onAddToBasket={onAdd} inBasket />);
+    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} onAddToBasket={onAdd} inBasket />);
     expect(screen.getByText('In basket ✓')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('McCain Golden Longs is in your basket'));
     expect(onAdd).not.toHaveBeenCalled();
@@ -41,19 +41,19 @@ describe('FlyerModal — Basket / Hide buttons', () => {
 
   it('offers Hide — the button counterpart of the right-swipe', async () => {
     const onToggleHidden = jest.fn();
-    await render(<FlyerModal offer={offer} onClose={noop} onToggleHidden={onToggleHidden} />);
+    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} onToggleHidden={onToggleHidden} />);
     await fireEvent.press(screen.getByLabelText('Hide McCain Golden Longs'));
     expect(onToggleHidden).toHaveBeenCalledWith(offer);
   });
 
   it('has no Like affordance left — liking is gone, the right-swipe hides now', async () => {
-    await render(<FlyerModal offer={offer} onClose={noop} onAddToBasket={noop} />);
+    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} onAddToBasket={noop} />);
     expect(screen.queryByText('Like')).toBeNull();
     expect(screen.queryByLabelText(/Like /)).toBeNull();
   });
 
   it('renders nothing actionable with no offer', async () => {
-    await render(<FlyerModal offer={null} onClose={noop} onAddToBasket={noop} />);
+    await render(<FlyerModal vertical="grocery" offer={null} onClose={noop} onAddToBasket={noop} />);
     expect(screen.queryByText('Basket')).toBeNull();
   });
 });
@@ -93,7 +93,7 @@ describe('FlyerModal — Why this category?', () => {
 
   it('reads the prefetched cache instead of the network, and names the deciding rule', async () => {
     (getTraceCache as jest.Mock).mockResolvedValue({ byId: { [String(offer.id)]: trace() } });
-    await render(<FlyerModal offer={offer} onClose={noop} />);
+    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} />);
     await fireEvent.press(screen.getByLabelText('Why this category?'));
 
     // The verdict names the layer AND the token, so the report is actionable as-is.
@@ -106,7 +106,7 @@ describe('FlyerModal — Why this category?', () => {
 
   it('shows what the LOSING layers would have said', async () => {
     (getTraceCache as jest.Mock).mockResolvedValue({ byId: { [String(offer.id)]: trace() } });
-    await render(<FlyerModal offer={offer} onClose={noop} />);
+    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} />);
     await fireEvent.press(screen.getByLabelText('Why this category?'));
     // Layer 3's path says fish — that's how you tell a wrong rule from one holding the line.
     expect(await screen.findByText(/Path node → fish/)).toBeTruthy();
@@ -114,7 +114,7 @@ describe('FlyerModal — Why this category?', () => {
 
   it('surfaces the source path, which the deals API does not expose', async () => {
     (getTraceCache as jest.Mock).mockResolvedValue({ byId: { [String(offer.id)]: trace() } });
-    await render(<FlyerModal offer={offer} onClose={noop} />);
+    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} />);
     await fireEvent.press(screen.getByLabelText('Why this category?'));
     expect(await screen.findByText(/Lebensmittel und Getränke › Fisch › Lachs/)).toBeTruthy();
   });
@@ -127,7 +127,7 @@ describe('FlyerModal — Why this category?', () => {
         }),
       },
     });
-    await render(<FlyerModal offer={offer} onClose={noop} />);
+    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} />);
     await fireEvent.press(screen.getByLabelText('Why this category?'));
     expect(await screen.findByText(/Shown as Beef, but the current rules say/)).toBeTruthy();
   });
@@ -135,7 +135,7 @@ describe('FlyerModal — Why this category?', () => {
   it('falls back to the network when the offer was not prefetched', async () => {
     (getTraceCache as jest.Mock).mockResolvedValue({ byId: {} });
     (api.offerCategoryTrace as jest.Mock).mockResolvedValue(trace());
-    await render(<FlyerModal offer={offer} onClose={noop} />);
+    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} />);
     await fireEvent.press(screen.getByLabelText('Why this category?'));
     expect(await screen.findByText(/Form words "lachsschinken"/)).toBeTruthy();
     expect(api.offerCategoryTrace).toHaveBeenCalledWith(offer.id);

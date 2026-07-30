@@ -44,7 +44,11 @@ def _seed(session: Session) -> None:
     lidl = Store(chain="lidl", name="Lidl 10115", plz="10115")
     edeka = Store(chain="edeka", name="Edeka 10115", plz="10115")
     far = Store(chain="rewe", name="REWE 99999", plz="99999")
-    session.add_all([lidl, edeka, far])
+    # A drugstore-vertical store in the same PLZ, so the `vertical` filter has something to
+    # separate. Kept out of every other test's expectations: it's `household`, `flyer`, and
+    # carries no discount, so the category/source/min_discount assertions above are unmoved.
+    rossmann = Store(chain="rossmann", name="Rossmann 10115", plz="10115")
+    session.add_all([lidl, edeka, far, rossmann])
     session.flush()
 
     def o(store, ext, name, price, **kw):
@@ -63,6 +67,7 @@ def _seed(session: Session) -> None:
             o(edeka, "e", "Expired Erdbeeren", 199, valid_to=TODAY - timedelta(days=1)),
             o(edeka, "f", "Forever Feta", 189, valid_to=None, category="cheese"),
             o(far, "g", "Gouda (andere PLZ)", 299, category="cheese"),
+            o(rossmann, "h", "Schauma Shampoo", 159, category="household"),
         ]
     )
     session.commit()
@@ -111,6 +116,55 @@ def test_limit_truncates(client):
 def test_serializer_carries_store_fields(client):
     offer = client.get("/api/offers?chain=lidl&limit=1").json()[0]
     assert offer["chain"] == "lidl" and offer["store_name"] == "Lidl 10115"
+
+
+# --------------------------------------------------------------------------- #
+# `vertical` — the grocery/drugstore split
+# --------------------------------------------------------------------------- #
+def test_vertical_scopes_offers_to_its_chains(client):
+    chains = lambda r: {o["chain"] for o in r.json()}  # noqa: E731
+
+    grocery = client.get("/api/offers?vertical=grocery&limit=100")
+    assert "rossmann" not in chains(grocery)
+    assert {"lidl", "edeka"} <= chains(grocery)
+
+    drugstore = client.get("/api/offers?vertical=drugstore&limit=100")
+    assert chains(drugstore) == {"rossmann"}
+    assert [o["name"] for o in drugstore.json()] == ["Schauma Shampoo"]
+
+
+def test_vertical_omitted_returns_every_chain(client):
+    """An already-installed app build predates this param and sends nothing — it must keep
+    seeing what it saw before, so "omitted" is NO filter rather than a defaulted vertical."""
+    chains = {o["chain"] for o in client.get("/api/offers?limit=100").json()}
+    assert {"lidl", "edeka", "rewe", "rossmann"} <= chains
+
+
+def test_unknown_vertical_is_rejected_not_ignored(client):
+    """A typo must 422, never fall through to "no filter" — a bad value that silently widens
+    the query is a filter that reports success while evaluating nothing."""
+    assert client.get("/api/offers?vertical=grocerry&limit=100").status_code == 422
+    assert client.get("/api/categories?vertical=pharmacy").status_code == 422
+
+
+def test_categories_take_the_same_vertical_scope(client):
+    """The chips must describe the list they filter, or they promise offers that aren't there."""
+    grocery = {c["category"] for c in client.get("/api/categories?vertical=grocery").json()}
+    assert "household" not in grocery  # the only household offer is Rossmann's
+    assert {"fruits", "fish"} <= grocery
+
+    drugstore = client.get("/api/categories?vertical=drugstore").json()
+    assert [(c["category"], c["count"]) for c in drugstore] == [("household", 1)]
+
+
+def test_bulk_prefetch_endpoints_honour_vertical(client):
+    """Both promise to mirror /api/offers so their ids line up with the list; if they ignored
+    `vertical` a drugstore session would also pull every grocery payload."""
+    listed = {str(o["id"]) for o in client.get("/api/offers?vertical=drugstore&limit=100").json()}
+    payloads = client.get("/api/offers/payloads?vertical=drugstore").json()
+    traces = client.get("/api/offers/category-traces?vertical=drugstore").json()
+    assert set(payloads) == listed
+    assert set(traces) == listed
 
 
 # --------------------------------------------------------------------------- #

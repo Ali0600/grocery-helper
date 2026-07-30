@@ -101,8 +101,13 @@ export const dealsStale = (cachedAt: number | null): boolean =>
  * are SERVE-TIME fields baked into whatever the client cached, so a cached week would show
  * the old grouping — and this release's whole point is that a fruit or vegetable can be
  * headed and basketed as its sub-category. Same trap as a new chain, same fix.
+ *
+ * v4 (2026-07-30): the app split into Grocery and Drugstore verticals, and the cache keys
+ * became per-vertical (`dealsCache:grocery`). A v3 cache sits under the OLD unscoped key,
+ * so it is simply never read again — the bump is belt-and-braces for anything that does
+ * find one, and marks the release that changed what a cached week can represent.
  */
-export const DEALS_CACHE_VERSION = 3;
+export const DEALS_CACHE_VERSION = 4;
 
 /**
  * True when the cached deals must be refetched: absent, written by an older app version,

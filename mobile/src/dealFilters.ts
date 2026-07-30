@@ -10,6 +10,7 @@ import { cheapestByName, ECENTER, EDEKA, normName } from './edekaVs';
 import { filterHidden, onlyHidden } from './hidden';
 import { filterByVisibleStores } from './stores';
 import { SortMode } from './storage';
+import type { CategoryCount } from './types';
 import { Offer } from './types';
 
 // Preferred order for the store filter; any other chains follow, alphabetically.
@@ -190,6 +191,20 @@ export type MineSection = {
   total: number;
   data: Offer[];
 };
+
+/**
+ * Should the app land on the personalized "My Categories" home rather than All?
+ *
+ * Only when at least one chosen category actually exists in what's served here. `myCategories`
+ * is shared across verticals (category slugs never collide, so a stale one is normally inert),
+ * but *landing* is the one place that inertness isn't enough: a user whose picks are all grocery
+ * categories would open Drugstore straight into "None of your categories have deals this week".
+ * That message is honest when you chose those categories in this section, and wrong as a greeting.
+ */
+export function shouldLandOnMine(myCategories: string[], cats: CategoryCount[]): boolean {
+  const served = new Set(cats.map((c) => c.category));
+  return myCategories.some((slug) => served.has(slug));
+}
 
 /**
  * Build the "My Categories" home from an already-filtered base. `base` MUST be the `filterDeals`
