@@ -104,11 +104,11 @@ import {
 } from '../storage';
 import { colors, radius, space } from '../theme';
 import { BasketItem, CategoryCount, HistoryItem, MyStore, Offer, RecipePrefs } from '../types';
+import { DEFAULT_PLZ } from '../config';
 import { hasRecipes, Vertical } from '../verticals';
 
-// Override via mobile/.env (EXPO_PUBLIC_DEFAULT_PLZ) so a personal postal code isn't
-// committed; falls back to a neutral central-Berlin default for the public bundle.
-const DEFAULT_PLZ = process.env.EXPO_PUBLIC_DEFAULT_PLZ ?? '10115';
+// Moved to `../config` now that the price-history fetch reads it too — one source of truth
+// for the one constant that must never carry a personal postal code.
 
 type Props = {
   /** Which section of the app this is: scopes every fetch, cache and chip. */
