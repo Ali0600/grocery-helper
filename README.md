@@ -7,11 +7,11 @@ build the cheapest basket across one or two stores.
 
 > **Status:** v1.1 in progress. The app opens on a home screen with **two sections —
 > Grocery and Drugstore** — and everything below it is scoped to one of them.
-> **Live Lidl + REWE + EDEKA + E center + ALDI (grocery) and Rossmann (drugstore)
+> **Live Lidl + REWE + EDEKA + E center + ALDI (grocery) and Rossmann + dm (drugstore)
 > offers** + API + the React Native app work end-to-end — real Berlin prices,
-> resolved from your postal code via the Lidl Plus endpoints and the meinprospekt
-> weekly-flyer feed. Six chains make the basket optimizer, the per-product grouping,
-> and the **Compare Stores** face-off meaningful. The **backend is deployed on
+> resolved from your postal code via the Lidl Plus endpoints, the meinprospekt
+> weekly-flyer feed and dm's clearance API. Seven chains make the basket optimizer, the
+> per-product grouping, and the **Compare Stores** face-off meaningful. The **backend is deployed on
 > Render** (HTTPS), and the iOS app ships via **EAS → TestFlight** (build 1.1.0)
 > with OTA updates.
 > See [Deploy](#deploy-to-render-free-https-for-testflight) and [Roadmap](#roadmap).
@@ -19,9 +19,10 @@ build the cheapest basket across one or two stores.
 ## Highlights
 
 - **Two shopping sections behind one home screen** — Grocery (five supermarket chains)
-  and Drugstore (Rossmann), picked from two large buttons on launch. Every fetch, cache
-  and filter chip is scoped to the chosen section, which is also what keeps each one
-  clear of the API's 2,000-offer ceiling: unfiltered, the two together now serve 1,956.
+  and Drugstore (Rossmann + dm), picked from two large buttons on launch. Every fetch,
+  cache and filter chip is scoped to the chosen section, which is also what keeps each
+  one clear of the API's 2,000-offer ceiling: as a single query all seven chains would
+  now serve 2,169 and be silently truncated, where per section it's 1,674 and 495.
   Each section keeps its own cached flyer week, so switching between them is instant and
   makes no network call at all.
 - **Automated grocery-deal ETL pipeline** — scrapes and normalizes weekly offers
@@ -337,10 +338,22 @@ because a missing chain is visible whereas wrong-region deals are not (~244 offe
 **Rossmann weekly flyer** (`source="flyer"`, `chain="rossmann"`) — the drugstore section's
 chain, and the same engine again for publisher `DE-1064` (~280 offers/PLZ). It publishes a
 weekly "Mein Drogeriemarkt" alongside a months-long campaign brochure; the engine's
-flyer-length rule keeps the weekly one. **dm is deliberately absent**: its meinprospekt
-brochure exists but serves an empty page, so no flyer offer can ever be parsed from it.
-dm publishes only an online catalog (everyday prices, no validity window) — a different
-data model, tracked as future work rather than a missing scraper.
+flyer-length rule keeps the weekly one.
+
+**dm clearance** (`source="clearance"`, `chain="dm"`,
+[`dm.py`](backend/app/scrapers/dm.py)) — the drugstore section's second chain, and the
+only source that isn't a flyer or a coupon. dm's meinprospekt brochure serves an empty
+page, so no flyer offer can ever be parsed from it; instead this reads the **Ausverkauf
+(clearance) facet of dm's product-search API** — the whole feed in a single request
+(~250 products, ~215 of them stocked in a branch). It is the app's best-quality discount
+source: **every item carries a struck-through original price** (median 48% off), plus an
+image and a category. Three things the parser is careful about, each pinned by a test:
+the API also returns a `netPrice` that is *net of VAT* and must never be used as the
+price; the Grundpreis string leads with the pack size rather than the unit price
+(`"0,036 kg (81,94 € je 1 kg)"`); and "Nur Online" items are skipped because they aren't
+stocked in a branch. Prices are national, so unlike the flyer scrapers this one needs no
+postal-code coordinates — and it deliberately runs *before* the coordinate lookup, so a
+Lidl outage can't take dm down with it.
 
 **Categorization.** [`categories.py`](backend/app/categories.py) classifies each
 offer with a path-aware, deterministic pipeline:
@@ -580,9 +593,13 @@ Engineering practices demonstrated while building and operating this project:
 - [x] Rossmann as the drugstore chain, plus 11 drugstore categories (hair, face, body,
       dental, fragrance, baby, health, cleaning, laundry, pet, make-up) so its offers
       stop collapsing into "Household & Non-food"
-- [ ] dm — its meinprospekt brochure serves no offers, so it needs its online catalog
-      instead: ~21k products at everyday prices with no validity window. A different
-      data model from the deals pipeline; likely belongs in the price-history collector
+- [x] dm as the second drugstore chain — sourced from its **Ausverkauf (clearance) API**
+      rather than a flyer, since its meinprospekt brochure serves no offers. Every item
+      carries a struck-through original price (median 48% off), the best discount
+      coverage of any chain in the app
+- [ ] dm's full catalog (~21k products at everyday prices, no validity window) — still a
+      different data model from the deals pipeline; likely belongs in the price-history
+      collector rather than here
 - [ ] Production monitoring/alerting (uptime + scraper health) on a persistent DB
 - [ ] "Store scorecard" compare view — per-store summary (deal count, avg discount,
       which categories each store wins)

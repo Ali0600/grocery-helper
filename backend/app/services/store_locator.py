@@ -47,7 +47,7 @@ CHAINS: Dict[str, Tuple[str, List[str]]] = {
     "dm": ("dm", ["dm-drogerie", "dm drogerie", "dm "]),
 }
 # Chains we actually scrape deals for; everything else is a placeholder.
-ACTIVE_CHAINS = {"lidl", "rewe", "edeka", "edeka_center", "aldi", "rossmann"}
+ACTIVE_CHAINS = {"lidl", "rewe", "edeka", "edeka_center", "aldi", "rossmann", "dm"}
 
 # Every shop kind we look for, unioned across verticals. A German Drogerie is
 # `shop=chemist`; querying only supermarkets returns ZERO elements for dm/Rossmann, so

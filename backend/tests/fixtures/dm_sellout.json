@@ -1,0 +1,877 @@
+{
+ "count": 12,
+ "currentPage": 0,
+ "pageSize": 1000,
+ "totalPages": 1,
+ "products": [
+  {
+   "gtin": 3574661870328,
+   "dan": 3121559,
+   "brandName": "OGX",
+   "title": "Scalp Serum ProGrowth + Peptide, 10 ml",
+   "tileData": {
+    "brand": {
+     "name": "OGX"
+    },
+    "dan": 3121559,
+    "eyecatchers": [
+     {
+      "alt": "Ausverkauf Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782815050/assets/mp/highlight-graphics/media_highlight_graphic_sale_de_de/media_highlight_graphic_sale_de_de"
+     }
+    ],
+    "gtin": 3574661870328,
+    "images": [
+     {
+      "alt": "Scalp Serum ProGrowth + Peptide OGX",
+      "tileSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_320,w_320/v1776984695/assets/pas/images/719369dc-0b6d-45b4-a3ef-b143fc013307/ogx-scalp-serum-progrowth-peptide"
+     }
+    ],
+    "isPharmacy": false,
+    "netPrice": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "6,68 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "10,88 €"
+      }
+     },
+     "tileInfos": [
+      "0,01 l (668,07 € je 1 l)"
+     ]
+    },
+    "price": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "7,95 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "12,95 €"
+      }
+     },
+     "tileInfos": [
+      "0,01 l (795,00 € je 1 l)"
+     ]
+    },
+    "self": "/p/d/3121559/ogx-scalp-serum-progrowth-peptide",
+    "title": {
+     "tileHeadline": "Scalp Serum ProGrowth + Peptide, 10 ml"
+    },
+    "trackingData": {
+     "brand": "OGX",
+     "categories": [
+      "Haarkur & Haarmaske"
+     ],
+     "currency": "EUR",
+     "isPharmacy": false,
+     "price": 7.95
+    }
+   }
+  },
+  {
+   "gtin": 4066447247176,
+   "dan": 1657392,
+   "brandName": "ALANA",
+   "title": "Strickschuhe, grün, 3-6 Monate, 1 St",
+   "tileData": {
+    "brand": {
+     "name": "ALANA"
+    },
+    "dan": 1657392,
+    "eyecatchers": [
+     {
+      "alt": "Ausverkauf Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782815050/assets/mp/highlight-graphics/media_highlight_graphic_sale_de_de/media_highlight_graphic_sale_de_de"
+     },
+     {
+      "alt": "Nur Online Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782814967/assets/mp/highlight-graphics/media_highlight_graphic_os_exclusive_de_de/media_highlight_graphic_os_exclusive_de_de"
+     }
+    ],
+    "gtin": 4066447247176,
+    "images": [
+     {
+      "alt": "Strickschuhe, grün, 3-6 Monate ALANA",
+      "tileSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_320,w_320/v1746208641/assets/pas/images/ff8b2c03-d49a-48dc-855e-557a17b45bae/alana-strickschuhe-gruen-3-6-monate"
+     }
+    ],
+    "isPharmacy": false,
+    "netPrice": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "4,62 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "6,30 €"
+      }
+     }
+    },
+    "price": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "5,50 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "7,50 €"
+      }
+     }
+    },
+    "self": "/p/d/1657392/alana-strickschuhe-gruen-3-6-monate",
+    "title": {
+     "tileHeadline": "Strickschuhe, grün, 3-6 Monate, 1 St"
+    },
+    "trackingData": {
+     "brand": "ALANA",
+     "categories": [
+      "Babyschuhe"
+     ],
+     "currency": "EUR",
+     "isPharmacy": false,
+     "price": 5.5
+    }
+   }
+  },
+  {
+   "gtin": 4066076230198,
+   "dan": 1662866,
+   "brandName": "BOLTZE",
+   "title": "Kerzenhalter aus Metall, schwarz (H20cm), 1 St",
+   "tileData": {
+    "brand": {
+     "name": "BOLTZE"
+    },
+    "dan": 1662866,
+    "eyecatchers": [
+     {
+      "alt": "Ausverkauf Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782815050/assets/mp/highlight-graphics/media_highlight_graphic_sale_de_de/media_highlight_graphic_sale_de_de"
+     },
+     {
+      "alt": "Nur Online Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782814967/assets/mp/highlight-graphics/media_highlight_graphic_os_exclusive_de_de/media_highlight_graphic_os_exclusive_de_de"
+     }
+    ],
+    "gtin": 4066076230198,
+    "images": [
+     {
+      "alt": "Kerzenhalter aus Metall, schwarz (H20cm) BOLTZE",
+      "tileSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_320,w_320/v1755019572/assets/pas/images/b14769bf-04c7-48de-a20c-603395be934a/boltze-kerzenhalter-aus-metall-schwarz-h20cm"
+     }
+    ],
+    "isPharmacy": false,
+    "netPrice": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "4,16 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "5,84 €"
+      }
+     },
+     "tileInfos": [
+      "1 St (4,16 € je 1 St)"
+     ]
+    },
+    "price": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "4,95 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "6,95 €"
+      }
+     },
+     "tileInfos": [
+      "1 St (4,95 € je 1 St)"
+     ]
+    },
+    "self": "/p/d/1662866/boltze-kerzenhalter-aus-metall-schwarz-h20cm",
+    "title": {
+     "tileHeadline": "Kerzenhalter aus Metall, schwarz (H20cm), 1 St"
+    },
+    "trackingData": {
+     "brand": "BOLTZE",
+     "categories": [
+      "Kerzenhalter",
+      "Deko Klassiker"
+     ],
+     "currency": "EUR",
+     "isPharmacy": false,
+     "price": 4.95
+    }
+   }
+  },
+  {
+   "gtin": 4009932135589,
+   "dan": 3090223,
+   "brandName": "Doppelherz",
+   "title": "Immun + Nacht direct Granulat-Sticks 20 St, 36 g",
+   "tileData": {
+    "brand": {
+     "name": "Doppelherz"
+    },
+    "dan": 3090223,
+    "eyecatchers": [
+     {
+      "alt": "Ausverkauf Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782815050/assets/mp/highlight-graphics/media_highlight_graphic_sale_de_de/media_highlight_graphic_sale_de_de"
+     }
+    ],
+    "gtin": 4009932135589,
+    "images": [
+     {
+      "alt": "Immun + Nacht direct Granulat-Sticks 20 St Doppelherz",
+      "tileSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_320,w_320/v1752492169/assets/pas/images/28c6eb19-bf7d-4976-8500-ef75503c5a39/doppelherz-immun-nacht-direct-granulat-sticks-20-st"
+     }
+    ],
+    "isPharmacy": false,
+    "netPrice": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "2,76 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "3,69 €"
+      }
+     },
+     "tileInfos": [
+      "0,036 kg (76,58 € je 1 kg)"
+     ]
+    },
+    "price": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "2,95 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "3,95 €"
+      }
+     },
+     "tileInfos": [
+      "0,036 kg (81,94 € je 1 kg)"
+     ]
+    },
+    "self": "/p/d/3090223/doppelherz-immun-nacht-direct-granulat-sticks-20-st",
+    "title": {
+     "subheadline": "Nahrungsergänzungsmittel",
+     "tileHeadline": "Immun + Nacht direct Granulat-Sticks 20 St, 36 g"
+    },
+    "trackingData": {
+     "brand": "Doppelherz",
+     "categories": [
+      "Schlafen & Nerven"
+     ],
+     "currency": "EUR",
+     "isPharmacy": false,
+     "price": 2.95
+    }
+   }
+  },
+  {
+   "gtin": 4070765027358,
+   "dan": 3136069,
+   "brandName": "trend !t up",
+   "title": "Holo Glam Cream Sunset Stage 020, 3 g",
+   "tileData": {
+    "brand": {
+     "name": "trend !t up"
+    },
+    "dan": 3136069,
+    "eyecatchers": [
+     {
+      "alt": "Ausverkauf Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782815050/assets/mp/highlight-graphics/media_highlight_graphic_sale_de_de/media_highlight_graphic_sale_de_de"
+     },
+     {
+      "alt": "Marke von dm Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782977607/assets/mp/highlight-graphics/media_highlight_graphic_dm_brand_de_de/media_highlight_graphic_dm_brand_de_de"
+     }
+    ],
+    "gtin": 4070765027358,
+    "images": [
+     {
+      "alt": "Holo Glam Cream Sunset Stage 020 trend !t up",
+      "tileSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_320,w_320/v1779317037/assets/pas/images/8d1b5833-cc86-4d6a-9aff-c88c720d18fe/trend-t-up-holo-glam-cream-sunset-stage-020"
+     }
+    ],
+    "isPharmacy": false,
+    "netPrice": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "1,64 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "2,90 €"
+      }
+     },
+     "tileInfos": [
+      "3 g (0,55 € je 1 g)"
+     ]
+    },
+    "price": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "1,95 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "3,45 €"
+      }
+     },
+     "tileInfos": [
+      "3 g (0,65 € je 1 g)"
+     ]
+    },
+    "self": "/p/d/3136069/trend-t-up-holo-glam-cream-sunset-stage-020",
+    "title": {
+     "tileHeadline": "Holo Glam Cream Sunset Stage 020, 3 g"
+    },
+    "trackingData": {
+     "brand": "trend !t up",
+     "categories": [
+      "Make-up Primer",
+      "Highlighter"
+     ],
+     "currency": "EUR",
+     "isPharmacy": false,
+     "price": 1.95
+    }
+   }
+  },
+  {
+   "gtin": 4067796274134,
+   "dan": 3118979,
+   "brandName": "trend !t up",
+   "title": "Eyeliner In My Spring Bubble Pastel 010, 2,5 ml",
+   "tileData": {
+    "brand": {
+     "name": "trend !t up"
+    },
+    "dan": 3118979,
+    "eyecatchers": [
+     {
+      "alt": "Ausverkauf Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782815050/assets/mp/highlight-graphics/media_highlight_graphic_sale_de_de/media_highlight_graphic_sale_de_de"
+     },
+     {
+      "alt": "Marke von dm Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782977607/assets/mp/highlight-graphics/media_highlight_graphic_dm_brand_de_de/media_highlight_graphic_dm_brand_de_de"
+     }
+    ],
+    "gtin": 4067796274134,
+    "images": [
+     {
+      "alt": "Eyeliner In My Spring Bubble Pastel 010 trend !t up",
+      "tileSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_320,w_320/v1772580305/assets/pas/images/07aa96a3-cabf-47db-8031-f15091d1eb48/trend-t-up-eyeliner-in-my-spring-bubble-pastel-010"
+     }
+    ],
+    "isPharmacy": false,
+    "netPrice": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "1,47 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "2,31 €"
+      }
+     },
+     "tileInfos": [
+      "2,5 ml (0,59 € je 1 ml)"
+     ]
+    },
+    "price": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "1,75 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "2,75 €"
+      }
+     },
+     "tileInfos": [
+      "2,5 ml (0,70 € je 1 ml)"
+     ]
+    },
+    "self": "/p/d/3118979/trend-t-up-eyeliner-in-my-spring-bubble-pastel-010",
+    "title": {
+     "tileHeadline": "Eyeliner In My Spring Bubble Pastel 010, 2,5 ml"
+    },
+    "trackingData": {
+     "brand": "trend !t up",
+     "categories": [
+      "Eyeliner"
+     ],
+     "currency": "EUR",
+     "isPharmacy": false,
+     "price": 1.75
+    }
+   }
+  },
+  {
+   "gtin": 4066447743722,
+   "dan": 3061034,
+   "brandName": "ebelin",
+   "title": "Seifendose stapelbar, 1 St",
+   "tileData": {
+    "brand": {
+     "name": "ebelin"
+    },
+    "dan": 3061034,
+    "eyecatchers": [
+     {
+      "alt": "Ausverkauf Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782815050/assets/mp/highlight-graphics/media_highlight_graphic_sale_de_de/media_highlight_graphic_sale_de_de"
+     },
+     {
+      "alt": "Marke von dm Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782977607/assets/mp/highlight-graphics/media_highlight_graphic_dm_brand_de_de/media_highlight_graphic_dm_brand_de_de"
+     }
+    ],
+    "gtin": 4066447743722,
+    "images": [
+     {
+      "alt": "Seifendose stapelbar ebelin",
+      "tileSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_320,w_320/v1755093454/assets/pas/images/6f130225-12c6-4ca3-a6fd-af225814516a/ebelin-seifendose-stapelbar"
+     }
+    ],
+    "isPharmacy": false,
+    "netPrice": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "1,64 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "2,14 €"
+      }
+     },
+     "tileInfos": [
+      "1 St (1,64 € je 1 St)"
+     ]
+    },
+    "price": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "1,95 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "2,55 €"
+      }
+     },
+     "tileInfos": [
+      "1 St (1,95 € je 1 St)"
+     ]
+    },
+    "self": "/p/d/3061034/ebelin-seifendose-stapelbar",
+    "title": {
+     "tileHeadline": "Seifendose stapelbar, 1 St"
+    },
+    "trackingData": {
+     "brand": "ebelin",
+     "categories": [
+      "Seifenspender, Zahnputzbecher & Co."
+     ],
+     "currency": "EUR",
+     "isPharmacy": false,
+     "price": 1.95
+    }
+   }
+  },
+  {
+   "gtin": 4070765056297,
+   "dan": 3123770,
+   "brandName": "Denkmit",
+   "title": "Colorwaschmittel Pulver Glamorous Touch, 20 Wl",
+   "tileData": {
+    "brand": {
+     "name": "Denkmit"
+    },
+    "dan": 3123770,
+    "eyecatchers": [
+     {
+      "alt": "Ausverkauf Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782815050/assets/mp/highlight-graphics/media_highlight_graphic_sale_de_de/media_highlight_graphic_sale_de_de"
+     },
+     {
+      "alt": "Marke von dm Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782977607/assets/mp/highlight-graphics/media_highlight_graphic_dm_brand_de_de/media_highlight_graphic_dm_brand_de_de"
+     }
+    ],
+    "gtin": 4070765056297,
+    "images": [
+     {
+      "alt": "Colorwaschmittel Pulver Glamorous Touch Denkmit",
+      "tileSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_320,w_320/v1781687541/assets/pas/images/99646533-aae1-4e3f-9eba-af6b437f0b95/denkmit-colorwaschmittel-pulver-glamorous-touch"
+     }
+    ],
+    "isPharmacy": false,
+    "netPrice": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "2,48 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "2,90 €"
+      }
+     },
+     "tileInfos": [
+      "20 Wl (0,13 € je 1 Wl)"
+     ]
+    },
+    "price": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "2,95 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "3,45 €"
+      }
+     },
+     "tileInfos": [
+      "20 Wl (0,15 € je 1 Wl)"
+     ]
+    },
+    "self": "/p/d/3123770/denkmit-colorwaschmittel-pulver-glamorous-touch",
+    "title": {
+     "tileHeadline": "Colorwaschmittel Pulver Glamorous Touch, 20 Wl"
+    },
+    "trackingData": {
+     "brand": "Denkmit",
+     "categories": [
+      "Waschmittel"
+     ],
+     "currency": "EUR",
+     "isPharmacy": false,
+     "price": 2.95
+    }
+   }
+  },
+  {
+   "gtin": 4067796287912,
+   "dan": 3089272,
+   "brandName": "ALANA",
+   "title": "Kleid mit Waffel-Struktur, lila, Gr. 110, 1 St",
+   "tileData": {
+    "brand": {
+     "name": "ALANA"
+    },
+    "dan": 3089272,
+    "eyecatchers": [
+     {
+      "alt": "Ausverkauf Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782815050/assets/mp/highlight-graphics/media_highlight_graphic_sale_de_de/media_highlight_graphic_sale_de_de"
+     },
+     {
+      "alt": "Marke von dm Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782977607/assets/mp/highlight-graphics/media_highlight_graphic_dm_brand_de_de/media_highlight_graphic_dm_brand_de_de"
+     }
+    ],
+    "gtin": 4067796287912,
+    "images": [
+     {
+      "alt": "Kleid mit Waffel-Struktur, lila, Gr. 110 ALANA",
+      "tileSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_320,w_320/v1769098750/assets/pas/images/7f40934c-06d9-41c8-9fea-ea5716465ac9/alana-kleid-mit-waffel-struktur-lila-gr-110"
+     }
+    ],
+    "isPharmacy": false,
+    "netPrice": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "5,80 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "7,48 €"
+      }
+     }
+    },
+    "price": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "6,90 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "8,90 €"
+      }
+     }
+    },
+    "self": "/p/d/3089272/alana-kleid-mit-waffel-struktur-lila-gr-110",
+    "title": {
+     "tileHeadline": "Kleid mit Waffel-Struktur, lila, Gr. 110, 1 St"
+    },
+    "trackingData": {
+     "brand": "ALANA",
+     "categories": [
+      "Röcke & Kleider"
+     ],
+     "currency": "EUR",
+     "isPharmacy": false,
+     "price": 6.9
+    }
+   }
+  },
+  {
+   "gtin": 4059729514912,
+   "dan": 3041009,
+   "brandName": "CATRICE",
+   "title": "Blush Stick Blushin' Charm 020 Coral Cutie, 5,5 g",
+   "tileData": {
+    "brand": {
+     "name": "CATRICE"
+    },
+    "dan": 3041009,
+    "eyecatchers": [
+     {
+      "alt": "Ausverkauf Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782815050/assets/mp/highlight-graphics/media_highlight_graphic_sale_de_de/media_highlight_graphic_sale_de_de"
+     }
+    ],
+    "gtin": 4059729514912,
+    "images": [
+     {
+      "alt": "Blush Stick Blushin' Charm 020 Coral Cutie CATRICE",
+      "tileSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_320,w_320/v1747471287/assets/pas/images/5946cfc1-ad9f-48be-bf7f-795825d66c7f/catrice-blush-stick-blushin-charm-020-coral-cutie"
+     }
+    ],
+    "isPharmacy": false,
+    "netPrice": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "2,06 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "4,16 €"
+      }
+     }
+    },
+    "price": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "2,45 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "4,95 €"
+      }
+     }
+    },
+    "self": "/p/d/3041009/catrice-blush-stick-blushin-charm-020-coral-cutie",
+    "title": {
+     "tileHeadline": "Blush Stick Blushin' Charm 020 Coral Cutie, 5,5 g"
+    },
+    "trackingData": {
+     "brand": "CATRICE",
+     "categories": [
+      "Blush"
+     ],
+     "currency": "EUR",
+     "isPharmacy": false,
+     "price": 2.45
+    }
+   }
+  },
+  {
+   "gtin": 4012346225203,
+   "dan": 3084571,
+   "brandName": "LEBENSBAUM",
+   "title": "Früchtetee \"Zeit für Dankbarkeit\" (20 Beutel), 40 g",
+   "tileData": {
+    "brand": {
+     "name": "LEBENSBAUM"
+    },
+    "dan": 3084571,
+    "eyecatchers": [
+     {
+      "alt": "Ausverkauf Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782815050/assets/mp/highlight-graphics/media_highlight_graphic_sale_de_de/media_highlight_graphic_sale_de_de"
+     }
+    ],
+    "gtin": 4012346225203,
+    "images": [
+     {
+      "alt": "Früchtetee \"Zeit für Dankbarkeit\" (20 Beutel) LEBENSBAUM",
+      "tileSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_320,w_320/v1757640695/assets/pas/images/706811ca-e5f5-4137-b300-cb5ea64046c2/lebensbaum-fruechtetee-zeit-fuer-dankbarkeit-20-beutel"
+     }
+    ],
+    "isPharmacy": false,
+    "netPrice": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "2,57 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "3,04 €"
+      }
+     },
+     "tileInfos": [
+      "0,04 kg (64,25 € je 1 kg)"
+     ]
+    },
+    "price": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "2,75 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "3,25 €"
+      }
+     },
+     "tileInfos": [
+      "0,04 kg (68,75 € je 1 kg)"
+     ]
+    },
+    "self": "/p/d/3084571/lebensbaum-fruechtetee-zeit-fuer-dankbarkeit-20-beutel",
+    "title": {
+     "tileHeadline": "Früchtetee \"Zeit für Dankbarkeit\" (20 Beutel), 40 g"
+    },
+    "trackingData": {
+     "brand": "LEBENSBAUM",
+     "categories": [
+      "Tee"
+     ],
+     "currency": "EUR",
+     "isPharmacy": false,
+     "price": 2.75
+    }
+   }
+  },
+  {
+   "gtin": 4260467420384,
+   "dan": 1631811,
+   "brandName": "Stadt Land blüht",
+   "title": "Saaten, Tomate (San Marzano), 1 St",
+   "tileData": {
+    "brand": {
+     "name": "Stadt Land blüht"
+    },
+    "dan": 1631811,
+    "eyecatchers": [
+     {
+      "alt": "Ausverkauf Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782815050/assets/mp/highlight-graphics/media_highlight_graphic_sale_de_de/media_highlight_graphic_sale_de_de"
+     },
+     {
+      "alt": "Nur Online Grafik",
+      "src": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,w_150/v1782814967/assets/mp/highlight-graphics/media_highlight_graphic_os_exclusive_de_de/media_highlight_graphic_os_exclusive_de_de"
+     }
+    ],
+    "gtin": 4260467420384,
+    "images": [
+     {
+      "alt": "Saaten, Tomate (San Marzano) Stadt Land blüht",
+      "tileSrc": "https://products.dm-static.com/images/f_auto,q_auto,c_fit,h_320,w_320/v1747492403/assets/pas/images/dca66648-4c75-4a6a-a62c-563645e42e3b/stadt-land-blueht-saaten-tomate-san-marzano"
+     }
+    ],
+    "isPharmacy": false,
+    "netPrice": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "1,17 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "1,82 €"
+      }
+     },
+     "tileInfos": [
+      "1 St (1,17 € je 1 St)"
+     ]
+    },
+    "price": {
+     "prefix": "Einzelpreis",
+     "price": {
+      "current": {
+       "a11yLabel": "Aktueller Preis:",
+       "value": "1,25 €"
+      },
+      "previous": {
+       "a11yLabel": "Vorheriger Preis:",
+       "value": "1,95 €"
+      }
+     },
+     "tileInfos": [
+      "1 St (1,25 € je 1 St)"
+     ]
+    },
+    "self": "/p/d/1631811/stadt-land-blueht-saaten-tomate-san-marzano",
+    "title": {
+     "tileHeadline": "Saaten, Tomate (San Marzano), 1 St"
+    },
+    "trackingData": {
+     "brand": "Stadt Land blüht",
+     "categories": [
+      "Saaten & Körner"
+     ],
+     "currency": "EUR",
+     "isPharmacy": false,
+     "price": 1.25
+    }
+   }
+  }
+ ]
+}

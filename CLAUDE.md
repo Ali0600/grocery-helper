@@ -60,8 +60,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   props, `{ vertical, onHome }`. The vertical is **not persisted**: the app always opens on Home
   (the user framed it as *the homepage*, and either side is one tap away — one line to change).
   **The split is load-bearing, not navigation sugar.** `/api/offers` caps at 2000 and the app loads
-  the whole set; measured for one Berlin PLZ, grocery is **1630** and Rossmann adds **283** → 1913
-  with 87 headroom. Scoping each vertical to its own query is what keeps both clear of the cap.
+  the whole set; measured for one Berlin PLZ, grocery is **1674**, Rossmann adds **282** and dm
+  **213** → **2169 as one query, i.e. past the cap**. Scoping each vertical to its own query is the
+  only reason both fit (grocery 1674, drugstore 495).
   - **Backend**: `app/verticals.py` (`VerticalSpec`, `VERTICALS`, `CHAIN_VERTICAL`) — a frozen
     constant, **no DB column**: a chain's vertical is a fact about the chain, not about a `Store`
     row, so there's no migration and it can't drift per-row. A leaf module with no app imports, so
@@ -71,10 +72,14 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     unknown value **422s** rather than silently widening to every chain. The two bulk endpoints
     take it because they promise to mirror `/api/offers` — without it a drugstore session
     downloads every grocery payload and that contract quietly stops holding.
-  - **Omitting it = NO filter**, i.e. exactly today's behaviour, so an already-installed pre-OTA
-    build keeps working. **Measured with Rossmann live: unfiltered is 1956 of 2000 — 44 headroom.**
-    That is now the thinnest margin in the app. **The dm plan (21k catalog products) must revisit
-    this default rather than inherit it**, and any further chain needs server-side `q` search first.
+  - **Omitting it = GROCERY** (changed 2026-07-30 when dm landed; it used to mean *no filter*).
+    All chains together is now **2169**, so an unfiltered read would silently truncate at 2000.
+    Grocery is the right default rather than a bigger cap because the only clients that omit the
+    param are builds older than the vertical release — they predate Drugstore entirely, have no UI
+    for it, and were being served Rossmann rows inside a grocery list. Every vertical-aware
+    endpoint applies the default through the single `_vertical_chains()` helper in `api/offers.py`,
+    so `/categories` chips can't advertise a vertical `/offers` won't serve. **A further chain
+    still needs server-side `q` search** — the per-vertical queries are what bought the headroom.
 - **Rossmann is the drugstore vertical's chain** (`bonial.py` `RossmannScraper`, publisher
   **`DE-1064`**, page `/rossmann-de`). The shipped `MeinprospektScraper` parses it with **zero
   parser changes**: measured 282 served offers for a Berlin PLZ, 100% images, 58% €/kg-sortable.
@@ -85,18 +90,15 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   - Its offers carry a **per-offer `publicationProfiles` window** that starts a day AFTER the
     brochure's own `validFrom` (Mon vs Sun), so the parser's per-offer validity is load-bearing
     here: taking the brochure dates would advertise the whole flyer a day early.
-  - **dm is NOT a flyer chain and never can be.** Its publisher `DE-909` (`/dm-de`) exists and
-    lists a brochure, but that brochure's `/pages` returns **`{"contents": []}`** — zero offers.
-    dm has only an online catalog (`product-search.services.dmtech.com`, ~21k products, national
-    everyday prices, no validity window, 1000-result cap per query so it must be sliced by the
-    `categoryNames` facet, and it rate-limits). That's a different data model and its own plan.
-    **Don't re-probe meinprospekt for dm.** Rossmann's own web shop is bot-walled (a Fastly JS
-    challenge on every path), so the two chains are exact mirror images of each other.
+  - **dm is NOT a flyer chain and never can be** — but it IS a deals chain, via its clearance
+    API (see the dm note below). Its publisher `DE-909` (`/dm-de`) exists and lists a brochure,
+    but that brochure's `/pages` returns **`{"contents": []}`** — zero offers, ever. **Don't
+    re-probe meinprospekt for dm.** Rossmann is the mirror image: its flyer works perfectly while
+    its own web shop is bot-walled (a Fastly JS challenge on every path).
   - **OSM tags a Drogerie `shop=chemist`, not `shop=supermarket`.** `_overpass_query` takes a
     `tags` argument (default unchanged **byte-for-byte**, pinned by a test) and the real callers
     pass `ALL_OSM_TAGS`, the union across verticals — without it the store directory silently
-    lists no drugstore at all, whatever `CHAINS` says. `dm` is in `CHAINS` but NOT
-    `ACTIVE_CHAINS`: it appears in the directory, but we serve no dm deals.
+    lists no drugstore at all, whatever `CHAINS` says.
   - **Drugstore categories are resolved INSIDE the layer-1 non-food branch** (2026-07-30):
     `_DRUGSTORE_PATH_MAP` (source node → slug) then `_DRUGSTORE_RULES` (name/brand tokens),
     via `_drugstore_hit`, running after `_FOOD_RESCUE` and before the fall to `household`.
@@ -154,6 +156,36 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   - **The header is FULL.** Measured at 375pt: chevron 17–43, pin 55–93, six actions 105–373 — the
     header is exactly **373 of 375** wide, i.e. **2px of slack** in Grocery (Drugstore ends at 358).
     Anything added here overflows. Measure rects, don't eyeball.
+- **dm is the drugstore vertical's 2nd chain, from its CLEARANCE API — not a flyer**
+  (2026-07-30, `app/scrapers/dm.py`). `GET product-search.services.dmtech.com/de/search/crawl
+  ?isSellout=true&pageSize=1000&currentPage=0` is the site's own "Ausverkauf" page: **the whole
+  feed in ONE request** (measured `count: 251`, `totalPages: 1`), of which **213–214 are in-store**.
+  This does not contradict "dm's catalog isn't a deals source" — the *catalog* (21k products,
+  everyday prices, no validity) still isn't. The **sellout facet** of it is.
+  - **Best discount coverage of any chain we scrape: 100% carry a struck `previous` price**
+    (median 48%, range 9–62%, 0 inverted) — REWE and ALDI mostly carry none. Also 100% image,
+    100% category, 100% `gtin`/`dan`; 35% €/kg-sortable after unit conversion.
+  - **`netPrice` is NET OF VAT — never read it as the price.** Every product carries both
+    `price` (7,95 €) and `netPrice` (6,68 €), at a rate that varies by product class (19%
+    cosmetics, 7% food). A test pins the gross value; reading `netPrice` fails it.
+  - **The Grundpreis' leading number is the PACK SIZE**: `"0,036 kg (81,94 € je 1 kg)"`. The
+    per-unit price is the *parenthesised* one, and `je 1 kg` matches none of `unit_price.py`'s
+    patterns, so the scraper emits the canonical `"1 kg = 81.94"` itself. `g`/`ml` fold onto the
+    kg/l axis so they sort; `St`/`Wl`/`m` keep the source's casing and stay unsortable.
+  - **"Nur Online" items are skipped** — 37 of 251, flagged per-product on `eyecatchers`. They
+    aren't stocked in a branch, and the app is about deals you can walk in and buy.
+  - **It runs OUTSIDE `run_scrapers`' `if store.lat is not None` guard**, unlike every flyer
+    chain. dm's prices are **national** (verified identical with and without `storeId`), so it
+    needs no coordinates — and gating it there would delete the whole chain, with no error, on
+    exactly the runs where Lidl already degraded to samples. Pinned by a test.
+  - **New `Offer.source = "clearance"`** (a third value beside coupon/flyer); `/api/offers`'
+    `source` query pattern had to be widened or filtering on it 422s.
+  - **`valid_from`/`valid_to` are NULL** — dm publishes no end date; an item runs until sold out.
+    NULL passes every serve-time validity filter, so the **weekly Sunday `/api/reset` is what
+    clears sold-out items**; between resets `/api/scrape` only upserts, so the set can only grow.
+  - **The clearance list is volatile** (251 → 250 within an hour of probing), so
+    `verify_deals.py`'s drugstore profile leans on **`chains >= 2`**, not a tight offers floor:
+    a size swing is normal, a chain dropping to 1 is not. Only one week has been observed.
 - **Local API port is 8001**, not 8000 (8000 is usually already taken on the dev
   machine). `mobile/.env` → `EXPO_PUBLIC_API_URL=http://localhost:8001`. The iOS
   simulator reaches the Mac via `localhost`; a physical phone needs the LAN IP.

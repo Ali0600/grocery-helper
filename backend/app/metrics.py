@@ -51,6 +51,8 @@ def _source(host: str) -> str:
         return "Lidl Plus (coupons)"
     if "meinprospekt.de" in h:
         return "meinprospekt (flyer)"
+    if "dmtech.com" in h:
+        return "dm (clearance)"
     if "overpass" in h or "maps.mail.ru" in h:
         return "OpenStreetMap Overpass (stores)"
     if "nominatim" in h:

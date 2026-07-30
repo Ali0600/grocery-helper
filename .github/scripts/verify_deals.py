@@ -66,9 +66,14 @@ PROFILES: dict[str, dict] = {
     # Measured 2026-07-15, prod AND local agreeing: 1650-1663 offers, 5 chains, ~71% €/kg,
     # ~7.4% "other". Unchanged by the split — this is still the same population.
     "grocery": {"chains": 5, "offers": 800, "unit_price_pct": 50.0, "other_pct": 15.0},
-    # Measured 2026-07-30: Rossmann alone, 283 offers. The floor is ~half that so normal
-    # weekly variance can't flap it, while a fallback-to-samples collapse still trips it.
-    "drugstore": {"chains": 1, "offers": 150, "unit_price_pct": None, "other_pct": 15.0},
+    # Measured 2026-07-30: Rossmann 283 + dm 214 = ~497.
+    #
+    # `chains` is the load-bearing check here, NOT the offer floor. dm's feed is a
+    # clearance list whose size genuinely swings week to week (one observation so far),
+    # so a tight offers floor would flap on healthy weeks; but if either chain falls back
+    # to samples or stops parsing, the chain count drops to 1 and that is unambiguous.
+    # The offers floor stays deliberately loose — it only has to catch a total collapse.
+    "drugstore": {"chains": 2, "offers": 250, "unit_price_pct": None, "other_pct": 15.0},
 }
 
 
