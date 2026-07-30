@@ -48,6 +48,7 @@ import {
   filterDeals,
   MineSection,
   presentChains as derivePresentChains,
+  shouldLandOnMine,
 } from '../dealFilters';
 import { dealsCacheStale, dealsStale, refreshDeltaMessage } from '../format';
 import { resolveSortMode, sortLabel } from '../sort';
@@ -103,12 +104,20 @@ import {
 } from '../storage';
 import { colors, radius, space } from '../theme';
 import { BasketItem, CategoryCount, HistoryItem, MyStore, Offer, RecipePrefs } from '../types';
+import { hasRecipes, Vertical } from '../verticals';
 
 // Override via mobile/.env (EXPO_PUBLIC_DEFAULT_PLZ) so a personal postal code isn't
 // committed; falls back to a neutral central-Berlin default for the public bundle.
 const DEFAULT_PLZ = process.env.EXPO_PUBLIC_DEFAULT_PLZ ?? '10115';
 
-export default function DealsScreen() {
+type Props = {
+  /** Which section of the app this is: scopes every fetch, cache and chip. */
+  vertical: Vertical;
+  /** Back to the two-button home screen. */
+  onHome: () => void;
+};
+
+export default function DealsScreen({ vertical, onHome }: Props) {
   const [plz, setPlz] = useState(DEFAULT_PLZ);
   const [ready, setReady] = useState(false);
   const [plzModal, setPlzModal] = useState(false);
@@ -227,19 +236,19 @@ export default function DealsScreen() {
     };
     await Promise.all([
       run('payload', async () => {
-        if (isPrefetchFresh(await getPayloadCache(), targetPlz, count)) return;
-        const byId = await api.offerPayloads(targetPlz);
+        if (isPrefetchFresh(await getPayloadCache(vertical), targetPlz, count)) return;
+        const byId = await api.offerPayloads(targetPlz, vertical);
         if (plzRef.current !== targetPlz) return; // user switched PLZ mid-fetch
-        await setPayloadCache({ plz: targetPlz, byId, count, cachedAt: Date.now() });
+        await setPayloadCache(vertical, { plz: targetPlz, byId, count, cachedAt: Date.now() });
       }),
       run('category trace', async () => {
-        if (isPrefetchFresh(await getTraceCache(), targetPlz, count)) return;
-        const byId = await api.offerCategoryTraces(targetPlz);
+        if (isPrefetchFresh(await getTraceCache(vertical), targetPlz, count)) return;
+        const byId = await api.offerCategoryTraces(targetPlz, vertical);
         if (plzRef.current !== targetPlz) return;
-        await setTraceCache({ plz: targetPlz, byId, count, cachedAt: Date.now() });
+        await setTraceCache(vertical, { plz: targetPlz, byId, count, cachedAt: Date.now() });
       }),
     ]);
-  }, []);
+  }, [vertical]);
 
   // Hydrate saved prefs once on mount, then let `load` run.
   useEffect(() => {
@@ -254,6 +263,8 @@ export default function DealsScreen() {
       setStoreLens(await getStoredStoreLens());
       // Land on the personalized home when the user has picked categories, else on All (a fresh
       // install has none → never a blank Mine screen). `mine` is otherwise a session view toggle.
+      // This is provisional: the categories aren't loaded yet, so `landOnMine` below re-decides
+      // once they are — a grocery-only pick set must not land Drugstore on an empty Mine.
       const mc = await getStoredMyCategories();
       setMyCategories(mc);
       setMine(mc.length > 0);
@@ -270,6 +281,22 @@ export default function DealsScreen() {
 
   // Fetch fresh deals, update the view + re-cache. `hadData` = something is already on
   // screen (cache hit or a prior load), so a failure stays silent (no error screen).
+  // Which view to land on is decided ONCE, as soon as real categories arrive (from the cache
+  // or the network) — never on a later refresh, which would yank the user out of a view they
+  // chose. It can't be decided at mount: `myCategories` is shared across verticals, so "do I
+  // have categories?" isn't answerable until we know which ones exist HERE. Read via a ref so
+  // editing your categories doesn't re-trigger the load effect.
+  const landedRef = useRef(false);
+  const myCategoriesRef = useRef(myCategories);
+  useEffect(() => {
+    myCategoriesRef.current = myCategories;
+  }, [myCategories]);
+  const landOnMine = useCallback((served: CategoryCount[]) => {
+    if (landedRef.current || served.length === 0) return;
+    landedRef.current = true;
+    setMine(shouldLandOnMine(myCategoriesRef.current, served));
+  }, []);
+
   const revalidate = useCallback(
     async (hadData: boolean, announce = false) => {
       const target = plz; // the PLZ this run fetches for; bail if the user switches away
@@ -278,7 +305,11 @@ export default function DealsScreen() {
       if (!hadData) setError(null);
 
       const fetchAll = () =>
-        Promise.all([api.offers({ plz: target }), api.categories(target), api.stores()]);
+        Promise.all([
+          api.offers({ plz: target, vertical }),
+          api.categories(target, vertical),
+          api.stores(),
+        ]);
 
       try {
         // Plain read first. On a sleepy free-tier cold start this can fail (timeout) or come
@@ -305,11 +336,18 @@ export default function DealsScreen() {
         const prevCount = offersCountRef.current;
         setOffers(o);
         setCats(c);
+        landOnMine(c);
         const now = Date.now();
         setUpdatedAt(now);
         setError(null);
         if (o.length > 0) {
-          setDealsCache({ plz: target, offers: o, cats: c, storeName: name, cachedAt: now });
+          setDealsCache(vertical, {
+            plz: target,
+            offers: o,
+            cats: c,
+            storeName: name,
+            cachedAt: now,
+          });
           // Prefetch this PLZ's payloads in the background (Render is warm from the fetch
           // above) so the deal detail's "View payload" is instant + offline.
           void prefetchDetailData(target, o.length);
@@ -335,7 +373,7 @@ export default function DealsScreen() {
         }
       }
     },
-    [plz, showToast, prefetchDetailData],
+    [plz, vertical, showToast, prefetchDetailData, landOnMine],
   );
 
   // On launch / PLZ change: show the cached deals for this PLZ instantly (no spinner),
@@ -344,7 +382,7 @@ export default function DealsScreen() {
     if (!ready) return;
     let cancelled = false;
     (async () => {
-      const cached = await getDealsCache();
+      const cached = await getDealsCache(vertical);
       if (cancelled) return;
       const hit = !!cached && cached.plz === plz;
       // Flyers are weekly, so a cache from the current flyer week is still current: serve
@@ -356,6 +394,7 @@ export default function DealsScreen() {
       if (hit && cached) {
         setOffers(cached.offers);
         setCats(cached.cats);
+        landOnMine(cached.cats);
         setUpdatedAt(cached.cachedAt);
         setError(null);
         setLoading(false);
@@ -374,7 +413,7 @@ export default function DealsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [plz, ready, revalidate, prefetchDetailData]);
+  }, [plz, vertical, ready, revalidate, prefetchDetailData, landOnMine]);
 
   // If the true cold-start spinner drags on (a sleepy free-tier boot), surface a "waking" hint.
   useEffect(() => {
@@ -820,6 +859,7 @@ export default function DealsScreen() {
   const detail = (
     <FlyerModal
       offer={active}
+      vertical={vertical}
       onClose={() => setActive(null)}
       onAddToBasket={onAddToBasket}
       onToggleHidden={onToggleHidden}
@@ -963,6 +1003,23 @@ export default function DealsScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
+          {/* Back to the two-button home. It shares the LEFT slot with the pin because the
+              right-hand row is full: a 7th icon there computes to ~396px and overflows 375pt
+              (that's why Compare moved into the browser).
+              MEASURED at 375pt: chevron 17–43, pin 55–93, the six actions 105–373 — the header
+              is exactly 373 of 375 wide with no overflow, i.e. **2px of slack** in Grocery
+              (Drugstore ends at 358, since hiding Recipes frees a slot). Anything added here
+              overflows. Re-measure rects, don't eyeball — that's how "PLZ 10715" became "P…". */}
+          <Pressable
+            style={styles.homeBtn}
+            onPress={onHome}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Back to home"
+            testID="home-button"
+          >
+            <Icon name="chevron-back" size={22} color={colors.text} />
+          </Pressable>
           {/* Pin only. Six icon actions + a text block don't fit a phone: the 6th icon
               squeezed "PLZ 10713" to "P…" at 375/390pt (the control collapsed 122px → 76px).
               The code isn't lost — the pin opens PlzModal, and it stays ANNOUNCED to screen
@@ -977,11 +1034,15 @@ export default function DealsScreen() {
             <Icon name="location-outline" size={22} color={colors.accent} />
           </Pressable>
           <View style={styles.headerActions}>
-            <IconButton
-              name="restaurant-outline"
-              accessibilityLabel="Recipes"
-              onPress={() => setRecipesModal(true)}
-            />
+            {/* Recipes are authored from grocery ingredients, so the surface would be empty
+                in Drugstore — and hiding it is also what frees a slot for the Home button. */}
+            {hasRecipes(vertical) && (
+              <IconButton
+                name="restaurant-outline"
+                accessibilityLabel="Recipes"
+                onPress={() => setRecipesModal(true)}
+              />
+            )}
             <IconButton
               name="cart-outline"
               accessibilityLabel="Basket"
@@ -1334,6 +1395,9 @@ const styles = StyleSheet.create({
     paddingBottom: space.sm,
   },
   // Pin-only: a 38px target matching the icon row, so the header is one even row.
+  // Narrower than the 38px action buttons: it shares the left slot with the pin, and the
+  // header has no spare width (see the comment at the Home button).
+  homeBtn: { width: 26, height: 38, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   location: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm, flexShrink: 0 },
   listFill: { flex: 1 },

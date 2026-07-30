@@ -14,6 +14,7 @@ import React from 'react';
 
 import { DEALS_CACHE_VERSION } from '../format';
 import DealsScreen from '../screens/DealsScreen';
+import { Vertical } from '../verticals';
 import { makeOffer } from './fixtures';
 
 jest.mock('../api', () => ({
@@ -47,10 +48,15 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-async function seedCache(over: Partial<Record<string, unknown>> = {}) {
+async function seedCache(
+  over: Partial<Record<string, unknown>> = {},
+  vertical: Vertical = 'grocery',
+) {
   await AsyncStorage.setItem('plz', '10115');
   await AsyncStorage.setItem(
-    'dealsCache',
+    // Per-vertical key: Grocery and Drugstore each keep their own cached week, so
+    // switching between them doesn't cost a cold-start round trip.
+    `dealsCache:${vertical}`,
     JSON.stringify({
       plz: '10115',
       offers: [CACHED_OFFER],
@@ -62,6 +68,10 @@ async function seedCache(over: Partial<Record<string, unknown>> = {}) {
     }),
   );
 }
+
+/** DealsScreen now takes props; every test renders it through here. RNTL v14: `render` is async. */
+const renderScreen = (props: Partial<React.ComponentProps<typeof DealsScreen>> = {}) =>
+  render(<DealsScreen vertical="grocery" onHome={() => {}} {...props} />);
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -80,7 +90,7 @@ afterEach(() => {
 describe('DealsScreen — the weekly-authoritative cache contract', () => {
   it('serves a fresh current-version cache with ZERO backend calls', async () => {
     await seedCache();
-    await render(<DealsScreen />);
+    await renderScreen();
 
     expect(await screen.findByText('Cached Bergkäse')).toBeTruthy();
     // The whole point of the weekly cache: a mid-week open never touches the
@@ -97,7 +107,7 @@ describe('DealsScreen — the weekly-authoritative cache contract', () => {
     const fetch = deferred<(typeof FRESH_OFFER)[]>();
     api.offers.mockReturnValue(fetch.promise);
 
-    await render(<DealsScreen />);
+    await renderScreen();
 
     // Stale ≠ absent: the old deals must be on screen while the refresh is in flight
     // (no spinner, no cold-start block)...
@@ -114,12 +124,12 @@ describe('DealsScreen — the weekly-authoritative cache contract', () => {
     await seedCache({ version: DEALS_CACHE_VERSION - 1 });
     api.offers.mockResolvedValue([FRESH_OFFER]);
 
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Frisches ALDI Angebot');
 
     await waitFor(() => {
       const writes = (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
-        ([k]) => k === 'dealsCache',
+        ([k]) => k === 'dealsCache:grocery',
       );
       expect(writes.length).toBeGreaterThan(0);
       const latest = JSON.parse(writes[writes.length - 1][1]);
@@ -135,7 +145,7 @@ describe('DealsScreen — an empty refresh must never destroy good data', () => 
     // boot-scrapes the default PLZ); that emptiness must not wipe the view or the cache.
     await seedCache({ version: DEALS_CACHE_VERSION - 1 }); // force a refresh attempt
     api.offers.mockResolvedValue([]); // backend stays empty, even after the scrape
-    await render(<DealsScreen />);
+    await renderScreen();
 
     expect(await screen.findByText('Cached Bergkäse')).toBeTruthy();
     // The empty read triggers the on-demand scrape, then a refetch — still empty.
@@ -144,7 +154,7 @@ describe('DealsScreen — an empty refresh must never destroy good data', () => 
     expect(screen.getByText('Cached Bergkäse')).toBeTruthy();
     // ...and no empty offer list was ever persisted over the good cache.
     const writes = (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
-      ([k]) => k === 'dealsCache',
+      ([k]) => k === 'dealsCache:grocery',
     );
     for (const [, payload] of writes) {
       expect(JSON.parse(payload).offers.length).toBeGreaterThan(0);
@@ -157,7 +167,7 @@ describe('DealsScreen — cold start on an unscraped PLZ', () => {
     await AsyncStorage.setItem('plz', '10115'); // no deals cache at all
     api.offers.mockResolvedValueOnce([]).mockResolvedValue([FRESH_OFFER]);
 
-    await render(<DealsScreen />);
+    await renderScreen();
 
     expect(await screen.findByText('Frisches ALDI Angebot')).toBeTruthy();
     expect(api.scrape).toHaveBeenCalledTimes(1);
@@ -190,7 +200,7 @@ describe('DealsScreen — the History badge', () => {
   it('shows the on-sale count when a recorded product is in the current deals', async () => {
     await seedCache();
     await seedHistory();
-    await render(<DealsScreen />);
+    await renderScreen();
 
     await screen.findByText('Cached Bergkäse');
     expect(within(screen.getByLabelText('History')).getByText('1')).toBeTruthy();
@@ -199,7 +209,7 @@ describe('DealsScreen — the History badge', () => {
   it('stays badge-less when no recorded product is on sale', async () => {
     await seedCache();
     await seedHistory({ key: 'nicht im angebot', name: 'Nicht im Angebot' });
-    await render(<DealsScreen />);
+    await renderScreen();
 
     await screen.findByText('Cached Bergkäse');
     expect(within(screen.getByLabelText('History')).queryByText(/\d/)).toBeNull();
@@ -218,7 +228,7 @@ describe('DealsScreen — the History badge', () => {
     // level up in DealsScreen silently reintroduces the bug — so assert containment.
     await seedCache();
     await seedHistory();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Cached Bergkäse');
 
     fireEvent.press(screen.getByLabelText('History'));
@@ -241,7 +251,7 @@ describe('DealsScreen — the History badge', () => {
     // press handler, so "I tap it and nothing happens" had two independent causes.
     await seedCache();
     await seedHistory();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Cached Bergkäse');
     fireEvent.press(screen.getByLabelText('History'));
 
@@ -258,7 +268,7 @@ describe('DealsScreen — the History badge', () => {
     // sheet to the screen root — a remount that races a dismissal against a present.
     await seedCache();
     await seedHistory();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Cached Bergkäse');
 
     fireEvent.press(screen.getByLabelText('History'));
@@ -276,7 +286,7 @@ describe('DealsScreen — the header is pin-only', () => {
     // Six icon actions + a text block don't fit a phone: the 6th icon squeezed "PLZ 10713"
     // to "P…" at 375/390pt. The pin stays; the code moves into the label.
     await seedCache();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Cached Bergkäse');
 
     expect(screen.queryByText('PLZ 10715')).toBeNull();
@@ -304,7 +314,7 @@ describe('DealsScreen — the "My Categories" home', () => {
   it('lands on the Mine home when categories are chosen, showing category shelves', async () => {
     await fruitCache();
     await seedMine(['fruits']);
-    await render(<DealsScreen />);
+    await renderScreen();
 
     // "Per category" (the FilterBar summary) + a "See all" shelf header prove the Mine view is
     // showing — not All (which would read "Biggest discount" with no shelf headers).
@@ -315,7 +325,7 @@ describe('DealsScreen — the "My Categories" home', () => {
 
   it('lands on All when no categories are chosen — and shows no Mine chip', async () => {
     await fruitCache(); // offers + cats present, but myCategories is unset
-    await render(<DealsScreen />);
+    await renderScreen();
 
     expect(await screen.findByText('Biggest discount')).toBeTruthy(); // the All default sort
     expect(screen.queryByText('Mine')).toBeNull();
@@ -325,7 +335,7 @@ describe('DealsScreen — the "My Categories" home', () => {
   it('"See all" drills into the category’s full view, and the Mine chip returns', async () => {
     await fruitCache();
     await seedMine(['fruits']);
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Per category');
 
     await fireEvent.press(screen.getByLabelText('See all 2 in Fruits'));
@@ -340,7 +350,7 @@ describe('DealsScreen — the "My Categories" home', () => {
   it('the pencil editor toggles a category and persists it', async () => {
     await fruitCache();
     await seedMine(['fruits']);
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Per category');
 
     await fireEvent.press(screen.getByLabelText('Edit my categories'));
@@ -399,7 +409,7 @@ describe('DealsScreen — opening a deal from the Basket picker', () => {
     // Tap was already taken by "use this offer in my plan", so viewing the deal needs its own
     // control — and the card must stop claiming it opens the deal.
     await seedBasketWithMilk();
-    await render(<DealsScreen />);
+    await renderScreen();
     const basket = await openPicker();
 
     expect(await within(basket).findByLabelText('Use Frische Vollmilch in your plan')).toBeTruthy();
@@ -410,7 +420,7 @@ describe('DealsScreen — opening a deal from the Basket picker', () => {
     // The PR #81 nesting rule: a sibling modal is refused by iOS and the refusal latches for the
     // whole session. Assert containment — moving the element up a level silently reintroduces it.
     await seedBasketWithMilk();
-    await render(<DealsScreen />);
+    await renderScreen();
     const basket = await openPicker();
 
     await fireEvent.press(within(basket).getByLabelText('Open deal for Frische Vollmilch'));
@@ -423,7 +433,7 @@ describe('DealsScreen — opening a deal from the Basket picker', () => {
     // The two targets must not bleed into each other: viewing a flyer shouldn't silently commit
     // that offer to the plan (picking closes the picker, so a leak is observable).
     await seedBasketWithMilk();
-    await render(<DealsScreen />);
+    await renderScreen();
     const basket = await openPicker();
 
     await fireEvent.press(within(basket).getByLabelText('Open deal for Frische Vollmilch'));
@@ -435,7 +445,7 @@ describe('DealsScreen — opening a deal from the Basket picker', () => {
 
   it('drops the detail when the Basket closes, so it cannot change host mid-flight', async () => {
     await seedBasketWithMilk();
-    await render(<DealsScreen />);
+    await renderScreen();
     const basket = await openPicker();
     await fireEvent.press(within(basket).getByLabelText('Open deal for Frische Vollmilch'));
     await screen.findByText('View payload');
@@ -467,7 +477,7 @@ describe('DealsScreen — opening a deal from a Recipes ingredient', () => {
     // session. Assert containment, not mere presence — moving the element up one level in
     // DealsScreen silently reintroduces the bug.
     await seedCache({ offers: [GOUDA], cats: [{ category: 'cheese', label: 'Cheese', count: 1 }] });
-    await render(<DealsScreen />);
+    await renderScreen();
     const recipes = await openRecipes();
 
     await fireEvent.press(await within(recipes).findByLabelText('Open deal for Gouda jung'));
@@ -480,7 +490,7 @@ describe('DealsScreen — opening a deal from a Recipes ingredient', () => {
     // The Likes row had this exact defect: only the ~45pt price block was pressable, so tapping
     // the product name did nothing (fixed in #81). The row's pressable must wrap the label too.
     await seedCache({ offers: [GOUDA], cats: [] });
-    await render(<DealsScreen />);
+    await renderScreen();
     const recipes = await openRecipes();
 
     const row = await within(recipes).findByLabelText('Open deal for Gouda jung');
@@ -493,7 +503,7 @@ describe('DealsScreen — opening a deal from a Recipes ingredient', () => {
 
   it('leaves "have" / "buy" ingredients inert — they have no deal to open', async () => {
     await seedCache({ offers: [GOUDA], cats: [] });
-    await render(<DealsScreen />);
+    await renderScreen();
     const recipes = await openRecipes();
     await within(recipes).findByLabelText('Open deal for Gouda jung');
 
@@ -506,7 +516,7 @@ describe('DealsScreen — opening a deal from a Recipes ingredient', () => {
 
   it('drops the detail when Recipes closes, so it cannot change host mid-flight', async () => {
     await seedCache({ offers: [GOUDA], cats: [] });
-    await render(<DealsScreen />);
+    await renderScreen();
     const recipes = await openRecipes();
     await fireEvent.press(await within(recipes).findByLabelText('Open deal for Gouda jung'));
     await screen.findByText('View payload');
@@ -554,7 +564,7 @@ describe('DealsScreen — the "My Categories" browser', () => {
 
   it('replaces the Compare header icon (a 7th action overflows 375pt)', async () => {
     await browserCache();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Filters');
 
     expect(screen.getByLabelText('My Categories')).toBeTruthy();
@@ -564,7 +574,7 @@ describe('DealsScreen — the "My Categories" browser', () => {
 
   it('lists every category as a card with its deal count and headline deals', async () => {
     await browserCache();
-    await render(<DealsScreen />);
+    await renderScreen();
     const browser = await openBrowser();
 
     expect(within(browser).getByLabelText('Open Fruits, 2 deals')).toBeTruthy();
@@ -576,7 +586,7 @@ describe('DealsScreen — the "My Categories" browser', () => {
 
   it('tapping a card opens that category in the deals list', async () => {
     await browserCache();
-    await render(<DealsScreen />);
+    await renderScreen();
     const browser = await openBrowser();
 
     await fireEvent.press(within(browser).getByLabelText('Open Fruits, 2 deals'));
@@ -592,7 +602,7 @@ describe('DealsScreen — the "My Categories" browser', () => {
     // latches for the whole session. Moving the element up a level silently reintroduces it, so
     // assert containment rather than mere presence.
     await browserCache();
-    await render(<DealsScreen />);
+    await renderScreen();
     const browser = await openBrowser();
 
     await fireEvent.press(within(browser).getByLabelText('Edit my categories'));
@@ -608,7 +618,7 @@ describe('DealsScreen — the "My Categories" browser', () => {
     // left `categoriesModal` true — so the editor re-mounted at the ROOT branch and sat on top of
     // the next screen. Same class as the Likes closers dropping the deal detail.
     await browserCache();
-    await render(<DealsScreen />);
+    await renderScreen();
     const browser = await openBrowser();
     await fireEvent.press(within(browser).getByLabelText('Edit my categories'));
     await screen.findByTestId('categories-modal');
@@ -623,7 +633,7 @@ describe('DealsScreen — the "My Categories" browser', () => {
     // Both announced "Close my categories" — ambiguous for a screen reader when one is inside
     // the other, and it made the two indistinguishable to any label-based query.
     await browserCache();
-    await render(<DealsScreen />);
+    await renderScreen();
     const browser = await openBrowser();
     await fireEvent.press(within(browser).getByLabelText('Edit my categories'));
     await screen.findByTestId('categories-modal');
@@ -635,7 +645,7 @@ describe('DealsScreen — the "My Categories" browser', () => {
   it('the Mine/All toggle switches which categories are listed', async () => {
     await browserCache();
     await AsyncStorage.setItem('myCategories', JSON.stringify(['cheese']));
-    await render(<DealsScreen />);
+    await renderScreen();
     const browser = await openBrowser();
 
     // Opens on Mine (categories are chosen), so only Cheese has a card.
@@ -663,7 +673,7 @@ describe('DealsScreen — per-category sort', () => {
 
   it('switches to €/kg when a food category is selected, and back to discount in All', async () => {
     await seedFruitCache();
-    await render(<DealsScreen />);
+    await renderScreen();
 
     // "All" keeps the deal-hunting default — the app's headline.
     await waitFor(() => expect(screen.getByText('Biggest discount')).toBeTruthy());
@@ -679,7 +689,7 @@ describe('DealsScreen — per-category sort', () => {
     await seedFruitCache();
     await AsyncStorage.setItem('sortByCategory', JSON.stringify({ fruits: 'price' }));
 
-    await render(<DealsScreen />);
+    await renderScreen();
     fireEvent.press(screen.getByText('Fruits (2)'));
 
     // The user's pick for Fruits wins over the €/kg default.
@@ -715,7 +725,7 @@ describe('DealsScreen — Hide / Un-Hide a deal', () => {
 
   it('Hide closes the detail and drops the deal from the list, in one press', async () => {
     await seedCache();
-    await render(<DealsScreen />);
+    await renderScreen();
     await openDetail();
 
     await fireEvent.press(screen.getByLabelText('Hide Cached Bergkäse'));
@@ -728,7 +738,7 @@ describe('DealsScreen — Hide / Un-Hide a deal', () => {
 
   it('persists the hide keyed on chain+name, never the churning offer id', async () => {
     await seedCache();
-    await render(<DealsScreen />);
+    await renderScreen();
     await openDetail();
     await fireEvent.press(screen.getByLabelText('Hide Cached Bergkäse'));
 
@@ -747,7 +757,7 @@ describe('DealsScreen — Hide / Un-Hide a deal', () => {
   it('keeps a hidden deal out of the list', async () => {
     await seedCache();
     await seedHidden();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Filters'); // the screen is up...
     expect(screen.queryByText('Cached Bergkäse')).toBeNull(); // ...but the deal is gone
   });
@@ -755,7 +765,7 @@ describe('DealsScreen — Hide / Un-Hide a deal', () => {
   it('Filters → "Show hidden" is the route back: it reveals the deal so it can be un-hidden', async () => {
     await seedCache();
     await seedHidden();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Filters');
     await revealHidden();
 
@@ -769,7 +779,7 @@ describe('DealsScreen — Hide / Un-Hide a deal', () => {
 
   it('offers no Hidden section until something is actually hidden', async () => {
     await seedCache();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Cached Bergkäse');
     await fireEvent.press(screen.getByText('Filters'));
     await screen.findByText('Sort by');
@@ -779,7 +789,7 @@ describe('DealsScreen — Hide / Un-Hide a deal', () => {
   it('Reset clears the lens but NOT the hidden set — hiding is a persisted choice', async () => {
     await seedCache();
     await seedHidden();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Filters');
     await revealHidden();
     expect(await screen.findByText('Cached Bergkäse')).toBeTruthy(); // lens on
@@ -800,7 +810,7 @@ describe('DealsScreen — the basket marker on the card', () => {
   async function seedCacheWith(offer: typeof CHEESE) {
     await AsyncStorage.setItem('plz', '10115');
     await AsyncStorage.setItem(
-      'dealsCache',
+      'dealsCache:grocery',
       JSON.stringify({
         plz: '10115',
         offers: [offer],
@@ -817,13 +827,13 @@ describe('DealsScreen — the basket marker on the card', () => {
     // 'milk' is the key resolveBasketItem() derives for "Frische Vollmilch" (catalog reverse-match),
     // so the exact-key check matches — the same identity the flyer detail uses.
     await AsyncStorage.setItem('basket', JSON.stringify([{ key: 'milk', label: 'Milk', keywords: ['milch'] }]));
-    await render(<DealsScreen />);
+    await renderScreen();
     expect(await screen.findByLabelText('Open deal for Frische Vollmilch, in your basket')).toBeTruthy();
   });
 
   it('shows no marker when the product is not in the basket', async () => {
     await seedCacheWith(CHEESE);
-    await render(<DealsScreen />);
+    await renderScreen();
     expect(await screen.findByLabelText('Open deal for Cached Bergkäse')).toBeTruthy();
   });
 
@@ -837,7 +847,7 @@ describe('DealsScreen — the basket marker on the card', () => {
         { key: 'cached bergkäse', name: 'Cached Bergkäse', chain: 'lidl', addedPriceCents: 299, addedAt: 1 },
       ]),
     );
-    await render(<DealsScreen />);
+    await renderScreen();
     expect(await screen.findByLabelText('Open deal for Cached Bergkäse')).toBeTruthy();
     expect(screen.queryByLabelText(/Cached Bergkäse, in your basket/)).toBeNull();
   });
@@ -848,7 +858,7 @@ describe('DealsScreen — the basket marker on the card', () => {
     // virtualize cells, so removing extraData still passes here (verified). extraData is the
     // documented NATIVE mechanism; its necessity is confirmed by web/native QA, not this test.
     await seedCacheWith(MILK);
-    await render(<DealsScreen />);
+    await renderScreen();
 
     await fireEvent.press(await screen.findByLabelText('Open deal for Frische Vollmilch'));
     await fireEvent.press(await screen.findByLabelText('Add Frische Vollmilch to basket'));
@@ -875,7 +885,7 @@ describe('DealsScreen — adding to the basket records History', () => {
 
   it('records the product — with what you paid — when you add it to the basket', async () => {
     await seed();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Frische Vollmilch');
     await addFromDetail();
 
@@ -886,7 +896,7 @@ describe('DealsScreen — adding to the basket records History', () => {
 
   it('keeps the entry after the product leaves the basket — History is append-only', async () => {
     await seed();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Frische Vollmilch');
     await addFromDetail();
 
@@ -921,7 +931,7 @@ describe('DealsScreen — adding to the basket records History', () => {
         },
       ]),
     );
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Frische Vollmilch');
     await addFromDetail();
 
@@ -932,7 +942,7 @@ describe('DealsScreen — adding to the basket records History', () => {
 
   it('records nothing until you actually add something', async () => {
     await seed();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Frische Vollmilch');
     await fireEvent.press(screen.getByLabelText('History'));
     expect(await screen.findByText(/Add a deal to your basket/)).toBeTruthy();
@@ -960,14 +970,14 @@ describe('DealsScreen — the "Only show" store lens', () => {
     // The `[]`-is-truthy trap: with `activeLens ? …` instead of `activeLens.length ? …` a chip
     // renders for an EMPTY lens on every launch. TypeScript is completely silent about it.
     await seedStores();
-    await render(<DealsScreen />);
+    await renderScreen();
     expect(await screen.findByText('Lidl Butter')).toBeTruthy();
     expect(screen.queryByLabelText(/^Remove Only /)).toBeNull();
   });
 
   it('shows SEVERAL stores at once, and names them on the chip', async () => {
     await seedStores();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Lidl Butter');
 
     await openFilters();
@@ -983,7 +993,7 @@ describe('DealsScreen — the "Only show" store lens', () => {
 
   it('deselecting one store keeps the other — the whole point of multi-select', async () => {
     await seedStores(['lidl', 'rewe']);
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Lidl Butter');
 
     await openFilters();
@@ -997,7 +1007,7 @@ describe('DealsScreen — the "Only show" store lens', () => {
   it('restores the selection from storage on launch', async () => {
     // The persistence pin: the user asked for the choice to survive a restart.
     await seedStores(['edeka']);
-    await render(<DealsScreen />);
+    await renderScreen();
     expect(await screen.findByText('Edeka Butter')).toBeTruthy();
     expect(screen.queryByText('Lidl Butter')).toBeNull();
     expect(screen.getByText('Only Edeka')).toBeTruthy();
@@ -1005,7 +1015,7 @@ describe('DealsScreen — the "Only show" store lens', () => {
 
   it('selecting EVERY store is just "All" — no chip, nothing filtered', async () => {
     await seedStores(['lidl', 'rewe', 'edeka']);
-    await render(<DealsScreen />);
+    await renderScreen();
     expect(await screen.findByText('Lidl Butter')).toBeTruthy();
     expect(screen.getByText('REWE Butter')).toBeTruthy();
     expect(screen.getByText('Edeka Butter')).toBeTruthy();
@@ -1014,7 +1024,7 @@ describe('DealsScreen — the "Only show" store lens', () => {
 
   it('the chip’s ✕ brings every store back', async () => {
     await seedStores(['lidl']);
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Lidl Butter');
     expect(screen.queryByText('Edeka Butter')).toBeNull();
 
@@ -1024,7 +1034,7 @@ describe('DealsScreen — the "Only show" store lens', () => {
 
   it('Reset clears it — it lives in the sheet and carries a chip, so it reads as a filter', async () => {
     await seedStores(['lidl']);
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Lidl Butter');
 
     await openFilters();
@@ -1054,7 +1064,7 @@ describe('DealsScreen — the sheet\'s pill counts', () => {
     // Whole-set Lidl is 3; the list shows 2 because non-food is hidden. The pill must say 2 —
     // this is the wiring, and reverting it to the whole-set counts passes every other test.
     await seedMixed();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Lidl Apfel');
 
     await fireEvent.press(await screen.findByText('Filters'));
@@ -1065,7 +1075,7 @@ describe('DealsScreen — the sheet\'s pill counts', () => {
 
   it('re-counts when another filter changes', async () => {
     await seedMixed();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Lidl Apfel');
 
     await fireEvent.press(await screen.findByText('Filters'));
@@ -1077,12 +1087,78 @@ describe('DealsScreen — the sheet\'s pill counts', () => {
   it('does not zero the other stores once one is picked', async () => {
     // The count answers "what would I get if I picked this", so it must ignore the lens.
     await seedMixed();
-    await render(<DealsScreen />);
+    await renderScreen();
     await screen.findByText('Lidl Apfel');
 
     await fireEvent.press(await screen.findByText('Filters'));
     await fireEvent.press(await screen.findByLabelText('Only Lidl'));
     expect(await screen.findByText('REWE (1)')).toBeTruthy();
     expect(screen.queryByText('REWE (0)')).toBeNull();
+  });
+});
+
+describe('DealsScreen — the vertical it was opened in', () => {
+  it('scopes every fetch to its vertical', async () => {
+    // Without this the drugstore view would load grocery deals on top of its own — 1913
+    // offers against the 2000 cap, which is the constraint the split exists to fix.
+    await AsyncStorage.setItem('plz', '10115');
+    api.offers.mockResolvedValue([FRESH_OFFER]);
+    await renderScreen({ vertical: 'drugstore' });
+
+    await waitFor(() => expect(api.offers).toHaveBeenCalled());
+    expect(api.offers).toHaveBeenCalledWith(expect.objectContaining({ vertical: 'drugstore' }));
+    expect(api.categories).toHaveBeenCalledWith('10115', 'drugstore');
+  });
+
+  it('reads the cache for its OWN vertical only', async () => {
+    await seedCache({}, 'grocery'); // grocery has a warm week; drugstore has nothing
+    api.offers.mockResolvedValue([FRESH_OFFER]);
+    await renderScreen({ vertical: 'drugstore' });
+
+    // It must NOT render the grocery cache, and must go fetch its own.
+    await waitFor(() => expect(api.offers).toHaveBeenCalled());
+    expect(screen.queryByText('Cached Bergkäse')).toBeNull();
+  });
+
+  it('goes back to the home screen', async () => {
+    const onHome = jest.fn();
+    await seedCache();
+    await renderScreen({ onHome });
+    await fireEvent.press(await screen.findByLabelText('Back to home'));
+    expect(onHome).toHaveBeenCalled();
+  });
+
+  it('hides Recipes in Drugstore and keeps it in Grocery', async () => {
+    // Recipes are authored from grocery ingredients, so the surface would be empty there —
+    // and hiding it is also what frees the header slot the Home button now occupies.
+    await seedCache({}, 'drugstore');
+    await renderScreen({ vertical: 'drugstore' });
+    expect(await screen.findByLabelText('Back to home')).toBeTruthy();
+    expect(screen.queryByLabelText('Recipes')).toBeNull();
+
+    screen.unmount();
+    await seedCache();
+    await renderScreen({ vertical: 'grocery' });
+    expect(await screen.findByLabelText('Recipes')).toBeTruthy();
+  });
+
+  it('does not land on an empty Mine when the chosen categories belong to the other vertical', async () => {
+    // `myCategories` is shared across verticals. A user whose picks are all grocery would
+    // otherwise open Drugstore straight into "None of your categories have deals this week".
+    await AsyncStorage.setItem('myCategories', JSON.stringify(['fruits', 'cheese']));
+    await seedCache({ cats: [{ category: 'hair', label: 'Hair Care', count: 4 }] }, 'drugstore');
+    await renderScreen({ vertical: 'drugstore' });
+
+    expect(await screen.findByText('Cached Bergkäse')).toBeTruthy();
+    expect(screen.queryByText('None of your categories have deals this week.')).toBeNull();
+  });
+
+  it('still lands on Mine when a chosen category IS served here', async () => {
+    await AsyncStorage.setItem('myCategories', JSON.stringify(['fruits']));
+    await seedCache({ cats: [{ category: 'fruits', label: 'Fruits', count: 2 }] });
+    await renderScreen();
+
+    // The Mine shelves render a category header rather than the flat list.
+    expect(await screen.findByText(/Fruits/)).toBeTruthy();
   });
 });

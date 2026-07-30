@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   clearAllData,
+  clearDealsCache,
+  getDealsCache,
   getStoredHistory,
   getStoredMyCategories,
   getStoredSortByCategory,
@@ -9,9 +11,11 @@ import {
   setStoredHistory,
   setStoredMyCategories,
   setStoredSortByCategory,
+  setDealsCache,
   setStoredStoreLens,
 } from '../storage';
 import { HistoryItem } from '../types';
+import { makeOffer } from './fixtures';
 
 describe('myCategories persistence', () => {
   it('returns [] when nothing is stored (so the home falls back to All)', async () => {
@@ -222,5 +226,52 @@ describe('history persistence — the Likes-era migration', () => {
       JSON.stringify([{ ...legacy, likedAt: null }, { ...legacy, chain: undefined }]),
     );
     expect(await getStoredHistory()).toEqual([]);
+  });
+});
+
+describe('per-vertical caches', () => {
+  const cached = (name: string) => ({
+    plz: '10115',
+    offers: [makeOffer({ name })],
+    cats: [],
+    storeName: 'Test',
+    cachedAt: Date.now(),
+  });
+
+  it('keeps each vertical’s week separately, so switching costs no round trip', async () => {
+    await setDealsCache('grocery', cached('Bergkäse'));
+    await setDealsCache('drugstore', cached('Schauma Shampoo'));
+
+    expect((await getDealsCache('grocery'))?.offers[0].name).toBe('Bergkäse');
+    expect((await getDealsCache('drugstore'))?.offers[0].name).toBe('Schauma Shampoo');
+  });
+
+  it('writes under a scoped key, never the bare one', async () => {
+    await setDealsCache('drugstore', cached('Schauma Shampoo'));
+    expect(await AsyncStorage.getItem('dealsCache:drugstore')).toBeTruthy();
+    expect(await AsyncStorage.getItem('dealsCache')).toBeNull();
+  });
+
+  it('one vertical’s cache is invisible to the other', async () => {
+    await setDealsCache('grocery', cached('Bergkäse'));
+    expect(await getDealsCache('drugstore')).toBeNull();
+  });
+
+  it('"Clear cached deals" clears EVERY vertical, not just the current one', async () => {
+    // "deals won't update" is a whole-app complaint; leaving the other vertical's stale
+    // week behind reproduces the very bug the button exists to fix, one tap later.
+    await setDealsCache('grocery', cached('Bergkäse'));
+    await setDealsCache('drugstore', cached('Schauma Shampoo'));
+    await clearDealsCache();
+    expect(await getDealsCache('grocery')).toBeNull();
+    expect(await getDealsCache('drugstore')).toBeNull();
+  });
+
+  it('"Reset all app data" clears every vertical too', async () => {
+    await setDealsCache('grocery', cached('Bergkäse'));
+    await setDealsCache('drugstore', cached('Schauma Shampoo'));
+    await clearAllData();
+    expect(await getDealsCache('grocery')).toBeNull();
+    expect(await getDealsCache('drugstore')).toBeNull();
   });
 });

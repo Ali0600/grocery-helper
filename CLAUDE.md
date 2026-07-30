@@ -53,6 +53,47 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   web; the backend already sends permissive CORS, so it talks to the local API.
 
 ## Important notes / gotchas
+- **The app has TWO VERTICALS and opens on a home screen** (2026-07-30): `HomeScreen` renders one
+  big button per vertical, and `App.tsx` holds `vertical: Vertical | null` (`null` = home). There
+  is still **no navigation library** — adding one is a native dep (a new build, not an OTA), and
+  the app already navigates by rendering modals over one screen. `DealsScreen` takes its first-ever
+  props, `{ vertical, onHome }`. The vertical is **not persisted**: the app always opens on Home
+  (the user framed it as *the homepage*, and either side is one tap away — one line to change).
+  **The split is load-bearing, not navigation sugar.** `/api/offers` caps at 2000 and the app loads
+  the whole set; measured for one Berlin PLZ, grocery is **1630** and Rossmann adds **283** → 1913
+  with 87 headroom. Scoping each vertical to its own query is what keeps both clear of the cap.
+  - **Backend**: `app/verticals.py` (`VerticalSpec`, `VERTICALS`, `CHAIN_VERTICAL`) — a frozen
+    constant, **no DB column**: a chain's vertical is a fact about the chain, not about a `Store`
+    row, so there's no migration and it can't drift per-row. A leaf module with no app imports, so
+    `api/offers.py`, `store_locator.py` and `scrapers/run.py` can all use it without a cycle.
+  - **`vertical` is a query param** on `/api/offers`, `/api/categories`, `/api/offers/payloads`
+    and `/api/offers/category-traces`. Built as a `Query(pattern=…)` from `VERTICALS`, so an
+    unknown value **422s** rather than silently widening to every chain. The two bulk endpoints
+    take it because they promise to mirror `/api/offers` — without it a drugstore session
+    downloads every grocery payload and that contract quietly stops holding.
+  - **Omitting it = NO filter**, i.e. exactly today's behaviour, so an already-installed pre-OTA
+    build keeps working. Unfiltered is 1913 < 2000 today — thin. **The dm plan (21k catalog
+    products) must revisit this default rather than inherit it.**
+  - **The three caches are keyed PER VERTICAL** (`dealsCache:grocery`, `dealsCache:drugstore`, same
+    for `payloadCache`/`traceCache`). Sharing one key would make every switch a cache miss — a
+    cold-start round trip on the free tier, for a control the user taps constantly. `clearDealsCache`
+    and `clearAllData` build their `multiRemove` lists from the vertical list so they can't miss one.
+    Verified live: switching Drugstore → Grocery makes **zero** network calls.
+  - **Persisted prefs stay SHARED and that's correct**: `hiddenStores`/`storeLens` hold chain slugs,
+    `myCategories`/`sortByCategory` hold category slugs, and the two verticals' slugs never collide.
+    The existing only-when-present guards (`activeStoreLens` intersects with available chains,
+    `buildMineSections` skips slugs with no offers) already make a cross-vertical value **inert**.
+    **The one place inertness isn't enough is the LANDING rule** — a user whose picks are all
+    grocery would open Drugstore straight into "None of your categories have deals this week". So
+    `dealFilters.shouldLandOnMine(myCategories, cats)` gates it on a category actually served here,
+    and it is decided **once**, when categories first arrive (a later refresh must not yank the user
+    out of a view they chose). Basket/History/hidden are shared deliberately — one basket spanning
+    both shops is one shopping trip.
+  - **Recipes is grocery-only** (`verticals.hasRecipes`): they're authored from grocery ingredients,
+    so the surface would be empty — and hiding it is what frees the header slot Home now occupies.
+  - **The header is FULL.** Measured at 375pt: chevron 17–43, pin 55–93, six actions 105–373 — the
+    header is exactly **373 of 375** wide, i.e. **2px of slack** in Grocery (Drugstore ends at 358).
+    Anything added here overflows. Measure rects, don't eyeball.
 - **Local API port is 8001**, not 8000 (8000 is usually already taken on the dev
   machine). `mobile/.env` → `EXPO_PUBLIC_API_URL=http://localhost:8001`. The iOS
   simulator reaches the Mac via `localhost`; a physical phone needs the LAN IP.
@@ -1021,7 +1062,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   the Render URL) + `mobile/app.json` (`ios.bundleIdentifier` `com.groceryhelper.berlin`,
   EAS project `@mhassan0600/grocery-helper`, `extra.eas.projectId`). `eas
   login`/`build`/`submit` are **user-run** (their Apple/Expo creds + build credits).
-- **Deals are cached client-side** (`mobile/src/storage.ts` `dealsCache` **single key** +
+- **Deals are cached client-side** (`mobile/src/storage.ts` `dealsCache` — **one key per vertical**
+  since 2026-07-30, see the verticals note above; still one PLZ each +
   `DealsScreen`): the app shows the last good offers/cats/storeName for the PLZ
   **instantly**. **Flyers are weekly, so the cache is authoritative for the week**: a fresh
   cache (not past the cached week's Sunday) is served with **no backend call at all** — the

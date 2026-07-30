@@ -26,6 +26,7 @@ import { getPayloadCache, getTraceCache } from '../storage';
 import { colors, tint } from '../theme';
 import { Icon } from './Icon';
 import { Offer, OfferCategoryTrace, OfferPayload } from '../types';
+import { Vertical } from '../verticals';
 
 /** "Why this category?" — the winning rule, then every layer's verdict.
  *
@@ -104,6 +105,7 @@ const FLYER_LINKS: Record<string, { label: string; url: string }> = {
 
 export function FlyerModal({
   offer,
+  vertical,
   onClose,
   onAddToBasket,
   onToggleHidden,
@@ -111,6 +113,8 @@ export function FlyerModal({
   hidden = false,
 }: {
   offer: Offer | null;
+  /** Which vertical's prefetched payload/trace caches to read — they're keyed per vertical. */
+  vertical: Vertical;
   onClose: () => void;
   onAddToBasket?: (offer: Offer) => void;
   /** Dismiss this deal from the list (and from Basket/Recipes/Compare) for this flyer week.
@@ -160,7 +164,7 @@ export function FlyerModal({
       // identical to the payload path. `undefined` is the never-fetched sentinel.
       (async () => {
         try {
-          const cache = await getTraceCache();
+          const cache = await getTraceCache(vertical);
           const key = String(offer.id);
           setTrace(
             cache && key in cache.byId ? cache.byId[key] : await api.offerCategoryTrace(offer.id),
@@ -172,7 +176,7 @@ export function FlyerModal({
         }
       })();
     }
-  }, [showTrace, trace, offer]);
+  }, [showTrace, trace, offer, vertical]);
 
   const togglePayload = useCallback(() => {
     if (showPayload) {
@@ -188,7 +192,7 @@ export function FlyerModal({
       // older cache from before the prefetch ran).
       (async () => {
         try {
-          const cache = await getPayloadCache();
+          const cache = await getPayloadCache(vertical);
           const key = String(offer.id);
           if (cache && key in cache.byId) {
             setPayload({ id: offer.id, source: offer.source, payload: cache.byId[key] });
@@ -202,7 +206,7 @@ export function FlyerModal({
         }
       })();
     }
-  }, [showPayload, payload, offer]);
+  }, [showPayload, payload, offer, vertical]);
 
   return (
     <AppModal visible={!!offer} transparent animationType="fade" onRequestClose={onClose}>
