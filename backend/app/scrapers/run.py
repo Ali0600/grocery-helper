@@ -1,13 +1,18 @@
 """Scrape -> normalize -> persist orchestration.
 
-Two sources tagged by ``Offer.source`` feed the Lidl store:
-  - "coupon": Lidl Plus app coupons (clean, exact discounts; smaller set)
-  - "flyer":  the weekly Aktionsprospekt via Bonial/meinprospekt (full breadth)
+Three sources, tagged by ``Offer.source``:
+  - "coupon":    Lidl Plus app coupons (clean, exact discounts; smaller set)
+  - "flyer":     the weekly Aktionsprospekt via Bonial/meinprospekt (full breadth)
+  - "clearance": dm's Ausverkauf, from its product-search API (see ``dm.py``)
 
-REWE, EDEKA and E center (EDEKA Center) are added as further chains (each its own
-store) from the same meinprospekt "flyer" pipeline. The Lidl Plus lookup resolves the
-postal code's coordinates, which all flyer scrapers need (their offers are
-location-gated); the others reuse them, since a Berlin PLZ resolves to one brochure region.
+REWE, EDEKA, E center, ALDI and Rossmann are further chains (each its own store) from the
+same meinprospekt "flyer" pipeline. The Lidl Plus lookup resolves the postal code's
+coordinates, which every flyer scraper needs (their offers are location-gated); the others
+reuse them, since a Berlin PLZ resolves to one brochure region.
+
+**dm is the exception and runs before that guard**: its prices are national, so it needs
+no coordinates, and gating it on the Lidl lookup would make a whole chain disappear
+without error whenever Lidl degrades to samples.
 """
 from __future__ import annotations
 
@@ -32,6 +37,7 @@ from .bonial import (
     ReweScraper,
     RossmannScraper,
 )
+from .dm import DmScraper
 from .lidl import LidlScraper
 
 logger = logging.getLogger(__name__)
@@ -116,30 +122,40 @@ def run_scrapers(session: Session, plz: str) -> int:
     store = _get_or_create_store(session, result)
     total += _upsert(session, store, result.offers, source=lidl.source)
 
-    # 2. Weekly Aktionsprospekt via meinprospekt, using the resolved coordinates.
+    # 2. dm's Ausverkauf (clearance) — the DRUGSTORE vertical's catalog-sourced chain.
+    #    Deliberately OUTSIDE the coordinate guard below: dm's prices are national, so it
+    #    needs no lat/lng, and putting it inside would silently drop dm on any run where
+    #    the Lidl Plus lookup fell back to samples (no coordinates) — a whole chain
+    #    vanishing with no error, exactly the failure mode the ALDI skip had.
+    dm_scraper = DmScraper()
+    dm_result = dm_scraper.fetch(plz)
+    dm_store = _get_or_create_store(session, dm_result)
+    total += _upsert(session, dm_store, dm_result.offers, source=dm_scraper.source)
+
+    # 3. Weekly Aktionsprospekt via meinprospekt, using the resolved coordinates.
     if store.lat is not None and store.lng is not None:
         flyer = BonialScraper().fetch(plz, store.lat, store.lng)
         total += _upsert(session, store, flyer.offers, source="flyer")
 
-        # 3. REWE's weekly flyer (same pipeline, second chain + store).
+        # 4. REWE's weekly flyer (same pipeline, second chain + store).
         rewe_scraper = ReweScraper()
         rewe = rewe_scraper.fetch(plz, store.lat, store.lng)
         rewe_store = _get_or_create_store(session, rewe)
         total += _upsert(session, rewe_store, rewe.offers, source=rewe_scraper.source)
 
-        # 4. EDEKA's weekly flyer (same pipeline, third chain + store).
+        # 5. EDEKA's weekly flyer (same pipeline, third chain + store).
         edeka_scraper = EdekaScraper()
         edeka = edeka_scraper.fetch(plz, store.lat, store.lng)
         edeka_store = _get_or_create_store(session, edeka)
         total += _upsert(session, edeka_store, edeka.offers, source=edeka_scraper.source)
 
-        # 5. E center (EDEKA's hypermarket format) — a separate publisher, chain + store.
+        # 6. E center (EDEKA's hypermarket format) — a separate publisher, chain + store.
         ecenter_scraper = EdekaCenterScraper()
         ecenter = ecenter_scraper.fetch(plz, store.lat, store.lng)
         ecenter_store = _get_or_create_store(session, ecenter)
         total += _upsert(session, ecenter_store, ecenter.offers, source=ecenter_scraper.source)
 
-        # 6. ALDI — two independent companies with disjoint territories, and BOTH their
+        # 7. ALDI — two independent companies with disjoint territories, and BOTH their
         #    publishers are national, so the feed can't tell us which one applies here.
         #    Ask OSM which division actually operates at these coordinates; if that can't
         #    be answered, skip ALDI rather than guess — a missing chain is visible, whereas
@@ -155,7 +171,7 @@ def run_scrapers(session: Session, plz: str) -> int:
             aldi_store = _get_or_create_store(session, aldi)
             total += _upsert(session, aldi_store, aldi.offers, source=aldi_scraper.source)
 
-        # 7. Rossmann — the DRUGSTORE vertical. Scraped in the same run as the grocery
+        # 8. Rossmann — the DRUGSTORE vertical. Scraped in the same run as the grocery
         #    chains (one scrape fills both verticals); which vertical it lands in is decided
         #    at serve time by `app/verticals.py`, from its chain slug.
         rossmann_scraper = RossmannScraper()

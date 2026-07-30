@@ -106,8 +106,12 @@ export const dealsStale = (cachedAt: number | null): boolean =>
  * became per-vertical (`dealsCache:grocery`). A v3 cache sits under the OLD unscoped key,
  * so it is simply never read again — the bump is belt-and-braces for anything that does
  * find one, and marks the release that changed what a cached week can represent.
+ *
+ * v5 (2026-07-30): dm joined the drugstore vertical (its Ausverkauf feed). A fresh weekly
+ * cache makes ZERO backend calls, so without this bump dm would be invisible to everyone
+ * who already has one until Sunday — the exact trap that hid E center and then ALDI.
  */
-export const DEALS_CACHE_VERSION = 4;
+export const DEALS_CACHE_VERSION = 5;
 
 /**
  * True when the cached deals must be refetched: absent, written by an older app version,

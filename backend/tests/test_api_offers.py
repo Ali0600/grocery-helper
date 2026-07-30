@@ -133,11 +133,26 @@ def test_vertical_scopes_offers_to_its_chains(client):
     assert [o["name"] for o in drugstore.json()] == ["Schauma Shampoo"]
 
 
-def test_vertical_omitted_returns_every_chain(client):
-    """An already-installed app build predates this param and sends nothing — it must keep
-    seeing what it saw before, so "omitted" is NO filter rather than a defaulted vertical."""
-    chains = {o["chain"] for o in client.get("/api/offers?limit=100").json()}
-    assert {"lidl", "edeka", "rewe", "rossmann"} <= chains
+def test_vertical_omitted_defaults_to_grocery(client):
+    """Omitting the param means GROCERY, not "every chain".
+
+    Only app builds older than the vertical release omit it, and they predate Drugstore
+    entirely — no home screen, no drugstore chips, no way to reach that section. Serving
+    them drugstore rows mixed into a grocery list was both wrong for them and, once dm
+    landed (all chains = 2127), over the 2000 cap, which truncates silently.
+    """
+    chains = {o["chain"] for o in client.get("/api/offers?limit=2000").json()}
+    assert {"lidl", "edeka", "rewe"} <= chains
+    assert "rossmann" not in chains
+    assert "dm" not in chains
+
+
+def test_omitted_vertical_scopes_categories_the_same_way_as_offers(client):
+    """The chips must not advertise a vertical the list won't serve. Both endpoints route
+    through one `_vertical_chains`, so this pins that they can't drift apart."""
+    listed = {o["category"] for o in client.get("/api/offers?limit=2000").json()}
+    chips = {c["category"] for c in client.get("/api/categories").json()}
+    assert chips <= listed
 
 
 def test_unknown_vertical_is_rejected_not_ignored(client):

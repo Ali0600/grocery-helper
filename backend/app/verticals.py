@@ -12,9 +12,14 @@ keeps that free of import cycles.
 
 **Why the split is load-bearing, not just navigation.** ``/api/offers`` caps at 2000 and
 the app loads the whole set. Measured 2026-07-30 for one Berlin PLZ, deduped: grocery is
-**1630** (rewe 434, lidl 397, aldi 287, edeka_center 278, edeka 234) and Rossmann adds
-**283** — 1913 against the cap, 87 headroom. Scoping each vertical to its own query is
-what keeps both comfortably under it.
+**1630** (rewe 434, lidl 397, aldi 287, edeka_center 278, edeka 234), Rossmann adds
+**283** and dm **214** — 2127, i.e. **past the cap if it were one query**. Scoping each
+vertical to its own query is the only reason both fit: grocery ~1630, drugstore ~497.
+
+That is also why ``/api/offers`` now defaults to **grocery** when no ``vertical`` is
+given, instead of returning every chain (see ``api/offers.py``). Only app builds older
+than the vertical release omit it, and those predate Drugstore entirely — they have no UI
+for it, so serving them a truncated all-chains list was both over the cap and wrong.
 """
 from __future__ import annotations
 
@@ -38,13 +43,14 @@ VERTICALS: Dict[str, VerticalSpec] = {
         chains=("lidl", "rewe", "edeka", "edeka_center", "aldi"),
         osm_tags=("shop=supermarket",),
     ),
-    # dm is NOT here yet: its meinprospekt brochure exists but serves `{"contents": []}`,
-    # so the flyer engine can never produce a dm offer. dm only has an online catalog
-    # (21k products, everyday prices, no validity window) — a different data model, and
-    # its own plan. See CLAUDE.md before re-probing.
+    # dm is here via its **clearance** feed, not a flyer. Its meinprospekt brochure serves
+    # `{"contents": []}` and always will (don't re-probe), and its 21k-product catalog is
+    # everyday pricing with no discount or validity — still not a deals source. But the
+    # catalog's `isSellout=true` facet is: 214 in-store items, every one with a struck
+    # price. See `scrapers/dm.py`.
     "drugstore": VerticalSpec(
         label="Drugstore",
-        chains=("rossmann",),
+        chains=("rossmann", "dm"),
         osm_tags=("shop=chemist",),
     ),
 }

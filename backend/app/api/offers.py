@@ -41,11 +41,30 @@ router = APIRouter(tags=["offers"])
 # unknown value is a 422 rather than silently returning EVERY chain (a typo that quietly
 # widens a filter is the "gate evaluating less than it claims" trap).
 #
-# Omitting it means NO filter, i.e. exactly today's behaviour: an already-installed app
-# build predates this param, and must keep working. Unfiltered is 1913 offers against the
-# 2000 cap — fine now, but the margin is thin, so the dm plan (21k catalog products) has
-# to revisit this default rather than inherit it.
+# **Omitting it now means GROCERY, not "every chain."** It used to mean no filter, which
+# was fine at 1913/2000 but stopped being so when dm landed: measured 2026-07-30, all
+# chains together is 2127, so an unfiltered read would silently truncate — the "gate looks
+# green while evaluating less than it claims" trap, in data form.
+#
+# Grocery is the right default rather than a raised cap because the ONLY clients that omit
+# the param are app builds older than the vertical release. Those predate Drugstore
+# entirely: they have no home screen, no drugstore chips and no way to reach that section,
+# yet they were being served Rossmann (and would now be served dm) mixed into a grocery
+# list. Defaulting to grocery gives them exactly what they were built for and permanently
+# removes the cap pressure. Post-vertical clients always send the param explicitly.
 _VERTICAL_PATTERN = "^(" + "|".join(VERTICALS) + ")$"
+DEFAULT_VERTICAL = "grocery"
+
+
+def _vertical_chains(vertical: Optional[str]) -> tuple:
+    """The chains a request is scoped to, applying the default when omitted.
+
+    Every vertical-aware endpoint goes through this one function on purpose: the bulk
+    payload/trace endpoints promise to mirror `/offers`, and `/categories` renders the
+    chips that filter it. If they defaulted differently the chips would advertise a
+    vertical the list doesn't serve — so there is exactly one place the default lives.
+    """
+    return chains_for(vertical or DEFAULT_VERTICAL)
 
 
 def _require_admin(
@@ -93,7 +112,7 @@ def list_offers(
     category: Optional[str] = None,
     chain: Optional[str] = None,
     plz: Optional[str] = None,
-    source: Optional[str] = Query(None, pattern="^(coupon|flyer)$"),
+    source: Optional[str] = Query(None, pattern="^(coupon|flyer|clearance)$"),
     min_discount: Optional[float] = Query(None, ge=0, le=100),
     sort: str = Query("discount", pattern="^(discount|price)$"),
     limit: int = Query(200, ge=1, le=2000),
@@ -106,8 +125,7 @@ def list_offers(
     stmt = select(Offer).options(selectinload(Offer.store)).join(Store)
     if category:
         stmt = stmt.where(Offer.category == category)
-    if vertical:
-        stmt = stmt.where(Store.chain.in_(chains_for(vertical)))
+    stmt = stmt.where(Store.chain.in_(_vertical_chains(vertical)))
     if chain:
         stmt = stmt.where(Store.chain == chain)
     if plz:
@@ -160,8 +178,7 @@ def offer_payloads(
     stmt = select(Offer).options(selectinload(Offer.store)).join(Store)
     if plz:
         stmt = stmt.where(Store.plz == plz)
-    if vertical:
-        stmt = stmt.where(Store.chain.in_(chains_for(vertical)))
+    stmt = stmt.where(Store.chain.in_(_vertical_chains(vertical)))
     stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today()))
     rows = dedup_offers(session.scalars(stmt).all())
     return {str(o.id): (json.loads(o.raw_payload) if o.raw_payload else None) for o in rows}
@@ -261,8 +278,7 @@ def offer_category_traces(
     stmt = select(Offer).options(selectinload(Offer.store)).join(Store)
     if plz:
         stmt = stmt.where(Store.plz == plz)
-    if vertical:
-        stmt = stmt.where(Store.chain.in_(chains_for(vertical)))
+    stmt = stmt.where(Store.chain.in_(_vertical_chains(vertical)))
     stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today()))
     rows = dedup_offers(session.scalars(stmt).all())
     out = {}
@@ -291,8 +307,7 @@ def list_categories(
     )
     if plz:
         stmt = stmt.where(Store.plz == plz)
-    if vertical:
-        stmt = stmt.where(Store.chain.in_(chains_for(vertical)))
+    stmt = stmt.where(Store.chain.in_(_vertical_chains(vertical)))
     counts = Counter(o.category for o in dedup_offers(session.scalars(stmt).all()))
     return [
         CategoryCount(category=slug, label=lbl, count=counts[slug])

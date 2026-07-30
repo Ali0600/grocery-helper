@@ -12,6 +12,7 @@ export const CHAIN_LABELS: Record<string, string> = {
   // Which division it is shows in the store name, not the chip.
   aldi: 'Aldi',
   rossmann: 'Rossmann', // drugstore vertical
+  dm: 'dm', // drugstore vertical — lowercase is the brand's own styling
 };
 
 export const CHAIN_COLORS: Record<string, { bg: string; fg: string }> = {
@@ -26,6 +27,9 @@ export const CHAIN_COLORS: Record<string, { bg: string; fg: string }> = {
   // everywhere else in the app — so its pill uses a distinct magenta instead. It only ever
   // shares a screen with other drugstore chains, so it needn't dodge the grocery palette.
   rossmann: { bg: 'rgba(214,51,132,0.18)', fg: '#f472b6' },
+  // dm's own blue — must not read as Lidl's royal blue, and must stay clear of
+  // Rossmann's pink since the two sit side by side in the drugstore vertical.
+  dm: { bg: 'rgba(0,150,214,0.18)', fg: '#38bdf8' },
 };
 
 export function chainLabel(chain: string): string {

@@ -40,8 +40,10 @@ def test_one_entry_per_known_chain():
 def test_drugstores_are_found_and_rossmann_is_active():
     by_chain = {s.chain: s for s in _stores()}
     assert by_chain["rossmann"].label == "Rossmann"
-    assert by_chain["rossmann"].active is True  # we scrape its deals
-    assert by_chain["dm"].active is False  # listed only — its flyer serves no offers
+    assert by_chain["rossmann"].active is True  # we scrape its weekly flyer
+    # dm became active when its Ausverkauf (clearance) feed landed. Its meinprospekt
+    # *flyer* is still permanently empty — the deals come from the product-search API.
+    assert by_chain["dm"].active is True
 
 
 def test_overpass_query_default_is_unchanged_but_tags_are_selectable():
