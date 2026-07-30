@@ -33,6 +33,36 @@ jest.mock('../api', () => ({
   },
 }));
 
+// The bundled recipes are REGENERATED WEEKLY by scripts/regenerate-recipes.sh, authored
+// from whatever happens to be on sale. The Recipes tests below assert a structural
+// invariant (where the deal detail is mounted), so pinning them to a real bundled
+// ingredient couples a modal-nesting test to a data file that changes every Sunday —
+// which is exactly how the 2026-07-30 regen turned `main` red. Mock the data with a
+// fixed one-recipe fixture so the invariant is tested deterministically.
+jest.mock('../data/recipes', () => ({
+  RECIPES: {
+    generatedFor: '10115',
+    generatedAt: '2026-06-24',
+    recipes: [
+      {
+        id: 'test-cheese-toast',
+        title: 'Test Cheese Toast',
+        summary: 'A fixture recipe, so this file never depends on the weekly regen.',
+        servings: 2,
+        timeMinutes: 10,
+        tags: ['vegetarian', 'german', 'lunch'],
+        ingredients: [
+          // on_sale once a Gouda offer is seeded -> the row becomes pressable
+          { label: 'Gouda', qty: '150 g', keywords: ['gouda'] },
+          // a staple -> role "have", so it must stay INERT (no deal to open)
+          { label: 'Salz', qty: '1 Prise', keywords: ['salz'], staple: true },
+        ],
+        steps: ['Toast the bread.', 'Add the cheese.'],
+      },
+    ],
+  },
+}));
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { api } = require('../api');
 
