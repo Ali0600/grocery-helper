@@ -1327,3 +1327,39 @@ fell through to `Wasser`, which is also mapped to soft drinks.
 **Takeaway:** when a lookup walks a hierarchy, removing one bad key just promotes the next one.
 Before deleting a node, check what its ancestors map to — and if the whole branch is wrong for
 this product, the fix belongs at a layer that runs *before* the hierarchy is consulted at all.
+
+## A taxonomy node that names a BRAND is not a category, however deep it sits
+
+Adding drugstore categories, the source's own taxonomy looked like the safest possible signal —
+far better than guessing keywords. Mapping `Marken Parfum` → fragrance and `Marken für Tiere` →
+pet read as obviously correct. Both are **brand containers**, not product kinds: `Marken Parfum`
+holds Axe, which also makes shower gel, so `Axe Duschgel` became a fragrance; `Marken für Tiere`
+holds whatever a promo groups there, so an `EDEKA Feine Pastete` and a `REWE to go Salatschale`
+became cat food. Two more failed for adjacent reasons — `Hautpflege` spans face *and* body (a
+"Pflegedusche" is a shower gel), and `Textilreinigung` covers drying racks as well as detergent.
+
+The tell is the node's *name*: a container ("Marken …", "Produkte", "Sonstige") groups by who made
+it or where it sits in a catalogue, while a category names what the thing **is**.
+
+**Why it came up:** six of six rejected rules in this pass came from the full-corpus diff, none
+from reading — the same score as the earlier image audit. Depth was no protection: the bad nodes
+were at level 3–4, exactly where the good ones live.
+
+**Takeaway:** when mapping an external hierarchy onto your own categories, only accept nodes that
+name a PRODUCT KIND. Treat any node whose label is a brand, a vendor grouping, or a shelf as
+unmappable, and treat a node that spans two of your categories as unmappable too — a node you
+can't answer "what IS this" from will confidently mis-file the products it happens to hold.
+
+## A guard that fires before the thing it guards must run before it in the code, too
+
+A drugstore-resolution step was placed after a `_RESCUE_VETO` check whose whole job is stopping
+FOOD rescues (so a Kaffeevollautomat isn't filed as coffee). The veto word `maschine` is a
+substring of "Finish Spül**maschinen**-caps", which really is Cleaning — so a guard aimed at one
+layer silently suppressed a different, unrelated one. Separately, a product veto written to keep a
+cooking cream out of Body & Shower had no effect at all, because the path map was consulted first
+and had already decided.
+
+**Takeaway:** a guard only guards what runs after it. When adding a step to an ordered pipeline,
+write down which existing guards it now sits behind and which it sits in front of, and test one
+case for each — "does the veto still stop the thing it was for?" and "does it stop anything it
+shouldn't?" are two different questions, and the second is the one nobody asks.
