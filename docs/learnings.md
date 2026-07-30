@@ -1363,3 +1363,63 @@ and had already decided.
 write down which existing guards it now sits behind and which it sits in front of, and test one
 case for each — "does the veto still stop the thing it was for?" and "does it stop anything it
 shouldn't?" are two different questions, and the second is the one nobody asks.
+
+## A rule placed after the layer that already answers is dead code, not a fix
+
+In a first-hit-wins pipeline, a new rule only does something if it sits *before* whatever
+currently decides. Layer 1 here runs food-rescue → drugstore → veto → household, so adding
+`Saaten & Körner → household` to the drugstore path map changed **nothing**: dm's garden
+seed packets ("Saaten, Zucchini (Zuboda)") are caught by the `zucchini` food-rescue token
+one step earlier and never reach the map. The entry read as obviously correct and moved
+zero rows.
+
+**Why it came up:** dm's seed packets were being served inside the Vegetables chip — you
+were being offered a packet of seeds as fresh produce. The obvious fix was a category-map
+entry; the full-DB diff showed zero movement, which is the only reason it was caught. The
+real fix had to go into `_RESCUE_VETO`, the one thing that runs *before* the rescue.
+
+**Takeaway:** when a new rule moves zero rows, that is a finding, not a formality — trace
+which layer is actually answering before assuming your rule is merely redundant.
+
+## A "0 rows moved" diff and a "no rows to move" corpus look identical
+
+The seed-packet veto above measures 0 rows against today's database — not because it
+doesn't work, but because dm's clearance list rotated between the probe and the scrape, so
+the specific products it guards aren't currently stocked. A diff alone could not tell that
+apart from a broken rule.
+
+**Why it came up:** dm's Ausverkauf feed changed from 251 to 250 products within an hour of
+being probed, and again before the scrape landed.
+
+**Takeaway:** on a volatile source, prove a rule with a test over the real product *names*
+you observed, and treat the row count in today's diff as a separate, weaker signal. Say
+which one you have.
+
+## A source that returns two prices will hand you the wrong one by default
+
+dm's API returns `price` (7,95 €) and `netPrice` (6,68 €) on every product. `netPrice` is
+net of VAT, at a rate that varies by product class — 19% for cosmetics, 7% for food. Both
+are well-formed, both look like a price, and nothing in the field name says "this one is
+missing the tax". Reading the wrong one under-reports every price by 7–16% and would have
+looked entirely plausible on the card.
+
+**Why it came up:** adding dm's clearance feed. The tell was arithmetic: 7.95 / 1.19 = 6.68.
+
+**Takeaway:** when a payload offers more than one number for the same quantity, work out the
+ratio between them before choosing — and pin the choice with a test that asserts the
+*rejected* value too, so a later "cleanup" can't silently swap them.
+
+## Don't gate a component on a dependency it doesn't have
+
+Every flyer scraper in this project sits inside `if store.lat is not None`, because flyer
+offers are location-gated and only the Lidl lookup produces coordinates. dm's prices are
+national, so it needs none — but the obvious place to add it was inside that block with the
+others. There it would have vanished, silently and with no error, on exactly the runs where
+Lidl had already degraded to samples.
+
+**Why it came up:** placing the dm scraper in `run_scrapers`. It reads as a harmless
+grouping choice and is really an availability coupling.
+
+**Takeaway:** inherited guards are invisible at the point you add code under them. Ask what
+the enclosing condition is actually protecting against, and whether your case needs it —
+then pin the answer with a test that runs the degraded path.
