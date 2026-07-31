@@ -466,6 +466,28 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   product arrives with a correct path from another chain — so the **self-disagreement check is
   a detector, not just a CI gate**. Run `classify(name, brand, None, unit)` vs
   `classify(..., path, ...)` and look at the disagreements.
+  **Sharpen that detector by keeping only the CONFIDENT contradictions** (2026-07-31): raw, it
+  returns ~1220 groups, almost all of them the path correctly improving on a nameless product
+  (a T-shirt `other`→`household`). Drop every pair where either side is `other`/`household` and
+  it collapses to **148 groups / 370 rows**, where one of the two answers must be wrong — that
+  is the reviewable list.
+  **A path node that names a CUT or a FORM instead of a product kind is the same bug as a
+  brand-container node.** User-reported: "Schweine-Nackensteaks" served as **Beef**, because
+  `_PATH_MAP["steak"] = beef` (L3) beats the `schwein`/`nackensteak` keywords (L6) — but a
+  steak is a cut, and pork/turkey/salmon all come as steaks. Same for `Knabberzeug > Sticks`,
+  which holds coffee sticks, cheese sticks AND ice sticks. **The fix is the SPECIES (or the
+  real kind) at layer 2, not deleting the node**: deleting `steak` drops "Scotland Hills Cowboy
+  Steak" onto its parent `Fleischzubereitungen` → pork, trading one wrong answer for another,
+  and deleting `sticks` is a measured **no-op** (its parent answers `snacks` identically).
+  Both are pinned by tests. Also watch for a leaf that isn't in `_PATH_MAP` at all —
+  `Alpenmilch` (Milka chocolate → dairy) and `Lichtenauer` (Zespri kiwi → soft_drinks) inherit
+  from a mapped PARENT, so only L2 can reach them; and `puten-` with a hyphen missed the
+  source's un-hyphenated `Putenhackfleisch` leaf.
+  **Order is part of these rules**: the new `schwein` entry sits AFTER the pet guard, or a
+  Meer**schwein**chen food becomes pork. **`bananen` was simulated and REJECTED** (pinned):
+  it fixes bananas mis-filed under `Milchprodukte > Milch` but drags a
+  "Bananen-Kirsch-Getränk" out of soft_drinks — it needs a negative guard the L2 table can't
+  express.
   **Preserved produce leaves the FRESH chips** (user's convention): jarred/canned → pantry,
   frozen → frozen, at layer 2 (canned is a definitive *form* and must beat the produce path
   and brand — `Bonduelle` is mapped to vegetables, so a layer-5 override never gets a turn).

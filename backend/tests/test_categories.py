@@ -1596,3 +1596,88 @@ def test_every_drugstore_slug_is_a_real_category():
     for node, slug in _DRUGSTORE_PATH_MAP.items():
         assert slug in CATEGORIES, node
         assert slug in DRUGSTORE_CATEGORIES | non_aisle, node
+
+
+# --- 2026-07-31 audit: a path node naming a CUT or a FORM must not beat the species ------
+#
+# Reported: "Schweine-Nackensteaks" served as Beef. Each case below is a product that MOVED
+# plus the sibling that must NOT move — the sibling is the point, since every one of these
+# tokens is a substring risk or an override of a path that is usually right.
+
+STEAK_PATH = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Fleisch",
+              "Fleischzubereitungen", "Steak"]
+
+
+@pytest.mark.parametrize(
+    "name,path,expected,why",
+    [
+        # The report. `_PATH_MAP["steak"]` is beef and beats the `schwein` keyword at L6.
+        ("Schweine-Nackensteaks XXL", STEAK_PATH, "pork", "a pork neck steak is pork"),
+        ("Bauerngut Schinkensteaks gewürzt", STEAK_PATH, "pork", "a ham steak is pork"),
+        # THE COUNTER-EXAMPLE that decides the fix: the `steak` node must survive, because
+        # deleting it drops this onto `Fleischzubereitungen` -> pork. Beef has no keyword here.
+        ("Scotland Hills Cowboy Steak", STEAK_PATH, "beef", "a cowboy steak really is beef"),
+        # The source's `Putenhackfleisch` leaf is unmapped, so it inherited pork from
+        # `Fleischzubereitungen` two levels up. The pre-existing L2 entry had only `puten-`.
+        ("FAIR & GUT Putenhackfleisch XXL",
+         ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Fleisch",
+          "Fleischzubereitungen", "Hackfleisch", "Putenhackfleisch"],
+         "poultry", "turkey mince is poultry, not pork"),
+    ],
+)
+def test_species_beats_a_cut_node(name, path, expected, why):
+    assert classify(name, None, path) == expected, why
+
+
+def test_schwein_does_not_claim_guinea_pig_food():
+    """ORDER is the rule here: `schwein` is a substring of `Meerschweinchen`, so the new L2
+    entry sits AFTER the pet guard. Move it above and a guinea-pig food becomes pork."""
+    assert classify("Meerschweinchen Trockenfutter", None, None) == "household"
+
+
+def test_milka_is_chocolate_but_milkana_is_still_cheese():
+    """`Alpenmilch` is not in `_PATH_MAP` — its parent milk node is — so no node deletion can
+    fix this, and the brand map (L4) is below the path (L3). The trailing space in "milka "
+    is what keeps Milkana out, exactly as it does at L4."""
+    alpen = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Milch", "Alpenmilch"]
+    assert classify("Milka Tafel", None, alpen) == "sweets"
+    assert classify("Milkana Tolle Rolle", None, None) == "cheese"
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        # `Knabberzeug > Sticks` is a FORM node. Dropping it is a no-op (its parent answers
+        # `snacks` identically — measured over the whole DB), so name the real kinds instead.
+        ("Nescafé Sticks 2in1 & 3in1", "coffee"),
+        ("GUT&GÜNSTIG Kaffeesticks 2in1", "coffee"),
+        ("Mucci Raketeneis", "ice_cream"),
+        ("RIO D'ORO Icesticks", "ice_cream"),
+        # ...but a genuine crisp under the same node stays a snack.
+        ("funny frisch Brezli", "snacks"),
+    ],
+)
+def test_sticks_node_holds_more_than_snacks(name, expected):
+    sticks = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Knabberzeug", "Sticks"]
+    assert classify(name, None, sticks) == expected
+
+
+def test_zespri_kiwi_is_fruit_not_a_soft_drink():
+    """A brand-container node again: Zespri sat under a mineral-water brand leaf."""
+    water = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Wasser", "Lichtenauer"]
+    assert classify("Zespri Kiwi SunGold", None, water) == "fruits"
+
+
+def test_bananen_was_rejected_as_a_form_word():
+    """REJECTED, and pinned so it isn't re-"found": one chain files "Bananen, Fairtrade"
+    under `Milchprodukte > Milch`, so it serves as dairy. An L2 `bananen` fixes that one row
+    but also drags "RIO D'ORO Bananen-Kirsch-Getränk" out of soft_drinks — a drink is not
+    fruit. One row gained, one lost, so it does not meet the 0-regression bar. It needs a
+    negative guard (not `…getränk`/`…saft`) that the L2 table has no way to express."""
+    milch = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Milchprodukte", "Milch"]
+    saft = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Saft", "Saftmarken",
+            "Rio D'oro"]
+    assert classify("Bananen, Fairtrade", None, milch) == "dairy"
+    # Its juice PATH is what holds this at soft_drinks today, and an L2 token would outrank
+    # it — so the counter-example only bites with the real path, not pathless.
+    assert classify("RIO D'ORO Bananen-Kirsch-Getränk", None, saft) == "soft_drinks"
