@@ -1681,3 +1681,83 @@ def test_bananen_was_rejected_as_a_form_word():
     # Its juice PATH is what holds this at soft_drinks today, and an L2 token would outrank
     # it — so the counter-example only bites with the real path, not pathless.
     assert classify("RIO D'ORO Bananen-Kirsch-Getränk", None, saft) == "soft_drinks"
+
+
+# --- 2026-07-31 image audit: what the product PHOTO settles ------------------------------
+#
+# Read from contact sheets of every served product image — the only channel that catches a
+# product whose name, brand, path AND caption all read plausibly for the wrong category.
+
+@pytest.mark.parametrize(
+    "name,expected,why",
+    [
+        # Photo: bags of gummy sweets. The fruit words in the names took them to Fruits.
+        ("Sweet Corner Apfelringe/Saure Würmer", "sweets", "gummy sweets, not apple rings"),
+        ("Sweet Corner Süße Kirschen", "sweets", "a bag of gummy cherries"),
+        # ...while a real cherry is untouched.
+        ("Süßkirschen Klasse I", "fruits", "actual cherries stay fruit"),
+        # Crisps that sat in VEGETABLES, claimed by the paprika keyword.
+        ("funny-frisch Jumpys Paprika", "snacks", "crisps, not a vegetable"),
+        ("funny-frisch Ringli, Frit-Sticks, Paprika-Ecken", "snacks", "crisps"),
+        # ...and a real pepper is untouched.
+        ("Spitzpaprika rot", "vegetables", "a real pepper stays a vegetable"),
+        # The `other` bucket: real food the house brands leave unnamed.
+        ("Weihenstephan Die Extrazarte", "butter", "butter"),
+        ("Bauer Der Große Bauer", "dairy", "a yoghurt cup"),
+        ("Zetti Knusperflocken", "sweets", "chocolate — 'zetti' alone clashes with Mazzetti"),
+        ("EDEKA Herzstücke Khidri-Datteln", "fruits", "dates"),
+        ("Massari Rosa L'Aperitivo Spritz", "alcoholic", "an aperitif"),
+        ("PRIMADONNA Würzöl", "pantry", "seasoned olive oil"),
+        ("Speisezeit Gulaschsuppentopf", "pantry", "tinned soup"),
+        # ORDER inside the audit block: a nut CREAM is a spread, so it must be matched before
+        # the nut-kernel entry claims it for snacks. Swap the two entries and this flips.
+        ("ITALIAMO Pistaziencreme", "pantry", "a spread, not a snack"),
+        ("EDEKA Herzstücke Pistazienkerne", "snacks", "the kernels really are a snack"),
+    ],
+)
+def test_photo_audit_moves(name, expected, why):
+    assert classify(name, None, None) == expected, why
+
+
+def test_species_leaf_beats_the_cut_its_parent_names():
+    """The source's own leaf names the species while the parent names only the cut, and the
+    leaf→root scan threw that away whenever the leaf was unmapped."""
+    loin = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Fleisch",
+            "Fleischzubereitungen", "Steak", "Schweinerückensteak"]
+    roast = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Fleisch",
+             "Fleischzubereitungen", "Braten", "Rinderbraten"]
+    assert classify("BBQ Rückensteaks", None, loin) == "pork"
+    assert classify("Black Premium Irischer Rinder-Braten", None, roast) == "beef"
+
+
+def test_grill_season_turkey_is_rescued_but_grill_hardware_is_not():
+    """`Saison und Events` is a non-food root, so layer 1 decides and never falls through —
+    only a _FOOD_RESCUE token can reach the meat. The hardware must stay household."""
+    grill = ["Saison und Events", "Produkte", "Saison", "Grillsaison", "Grillen", "Grillgut",
+             "Grillfleisch", "Grillsteak", "Putensteak"]
+    assert classify("BBQ Puten-Ministeaks", None, grill) == "poultry"
+    hardware = ["Saison und Events", "Produkte", "Saison", "Grillsaison", "Grillen", "Grill"]
+    assert classify("Black Torch Tankstellengrill", None, hardware) == "household"
+
+
+def test_no_duplicate_keys_in_the_rule_tables():
+    """A repeated key in a dict LITERAL silently keeps the last one — this bit while writing
+    the audit above (a second `poultry` entry further down ate the first, with no error)."""
+    import ast
+    import collections
+
+    import app.categories
+
+    tree = ast.parse(open(app.categories.__file__).read())
+    for node in ast.walk(tree):
+        target = None
+        if isinstance(node, ast.AnnAssign):
+            target = getattr(node.target, "id", None)
+        elif isinstance(node, ast.Assign) and node.targets:
+            target = getattr(node.targets[0], "id", None)
+        if target in {"_FOOD_RESCUE", "_PATH_MAP", "BRAND_CATEGORY"} and isinstance(
+            node.value, ast.Dict
+        ):
+            keys = [k.value for k in node.value.keys if isinstance(k, ast.Constant)]
+            dupes = [k for k, n in collections.Counter(keys).items() if n > 1]
+            assert not dupes, f"{target} defines {dupes} twice — the later one silently wins"

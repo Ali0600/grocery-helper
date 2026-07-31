@@ -113,6 +113,12 @@ _PATH_MAP: dict[str, str] = {
     "schinken": "pork", "fleischzubereitungen": "pork", "bacon": "pork",
     # specific meats (more specific than the path's generic "Fleisch")
     "rind": "beef", "rindfleisch": "beef", "steak": "beef",
+    # The source's own leaf often names the SPECIES while the parent names only the cut, and
+    # the leaf→root scan drops that information when the leaf isn't mapped: a
+    # `… > Steak > Schweinerückensteak` fell through to `Steak` -> beef (an ALDI pork loin
+    # steak served as Beef, caught from its photo), and `… > Braten > Rinderbraten` fell
+    # through to `Fleischzubereitungen` -> pork (an Irish BEEF roast served as Pork).
+    "schweinerückensteak": "pork", "rinderbraten": "beef",
     "geflügel": "poultry", "pute": "poultry", "hähnchen": "poultry", "huhn": "poultry",
     # fish
     "fisch": "fish", "lachs": "fish", "meeresfrüchte": "fish", "thunfisch": "fish",
@@ -166,6 +172,28 @@ _PATH_MAP: dict[str, str] = {
 
 # (slug, [German keywords]); first matching rule wins.
 _RULES: list[tuple[str, list[str]]] = [
+    # --- 2026-07-31 image audit -------------------------------------------------------------
+    # Found by reading contact sheets of every served product photo, which is the only thing
+    # that settles a product whose name, brand, path AND caption all read plausibly for the
+    # wrong category. These sit at the FRONT of the table, and the two nut entries are ordered:
+    # a Pistazien/Erdnuss *creme* is a spread (pantry), so it has to be matched before the
+    # nut-kernel entry claims it for snacks.
+    ("pantry", ["pistaziencreme", "nusscreme"]),
+    ("snacks", ["nuss-variation", "mandelkerne", "pistazien"]),
+    # "Sweet Corner" is a gummy-sweets brand whose product names are fruit words — its
+    # "Apfelringe/Saure Würmer" and "Süße Kirschen" (a bag of gummy cherries, confirmed from
+    # the photo) were being served in Fruits. "zetti" was dropped by an earlier audit for
+    # clashing with Mazzetti; "knusperflocken" is the collision-free half of it.
+    ("sweets", ["sweet corner", "knusperflocken"]),
+    # funny-frisch crisps: three sat in `other`, and "Ringli/Paprika-Ecken" plus "Jumpys
+    # Paprika" were in VEGETABLES, claimed by the paprika keyword.
+    ("snacks", ["funny-frisch"]),
+    ("fruits", ["datteln"]),
+    ("pantry", ["würzöl", "suppentopf", "grießbrei"]),
+    ("alcoholic", ["aperitivo"]),
+    ("butter", ["die extrazarte"]),
+    ("dairy", ["der große bauer"]),
+    # --- end image-audit block --------------------------------------------------------------
     # Lamb / rabbit / game — the meats that aren't beef/pork/poultry. BEFORE fish (so "Lammlachs",
     # a lamb LOIN the source files under "Fleisch > Lamm", isn't caught by the "lachs" fish rule)
     # and BEFORE pork (which used to own " lamm"/"kaninchen"). " lamm"/"reh " keep a leading/padded
@@ -738,8 +766,12 @@ _FOOD_RESCUE: dict[str, list[str]] = {
                    "zucchini", "rucola", "feldsalat", "wildkräuter salat"],
     "fish": ["deutsche see", "lachsfilet", "pangasius", "räucher-garnele",
              "heringsstipp", "tiger-garnele"],
+    # "putensteak"/"puten-ministeak": grill meat filed under the `Saison und Events > … >
+    # Grillsaison` root. Layer 1 decides on a non-food path and never falls through, so a
+    # rescue token is the only thing that can reach it — without one a turkey steak lands in
+    # household, i.e. invisible behind the Non-food toggle.
     "poultry": ["maishähnchen", "geflügelsalat", "geflügel-fleischsalat", "hähnchen-grillplatte",
-                "knusperdino"],
+                "knusperdino", "putensteak", "puten-ministeak"],
     "snacks": ["jumbo erdnüsse", "erdnusskerne", "erdnuss-flip", "cashew", "walnusskern", "reiswaffel"],
     "bakery": ["roggenmischbrot", "vollkornbrot", "mehrkornbrot", "kernbrot"],
     "pantry": ["guacamole", "tomatenketchup", "agavendicksaft", "quinoa"],
