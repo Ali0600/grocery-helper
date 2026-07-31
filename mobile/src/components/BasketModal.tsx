@@ -26,8 +26,8 @@ type Props = {
   basket: BasketItem[];
   onChangeBasket: (next: BasketItem[]) => void;
   onClose: () => void;
-  /** Open a deal's flyer from the picker. Tapping a picker card PICKS that offer for the plan, so
-   * viewing it needs its own control — hence the chevron rather than the card itself. */
+  /** Open a deal's flyer from the picker. Tapping a picker card opens the deal — the same thing a
+   * card press does everywhere else in the app — so picking gets its own ✓ button beside it. */
   onOpenOffer?: (o: Offer) => void;
   /** The deal detail, rendered INSIDE this sheet's AppModal so it presents from THIS sheet's view
    * controller, not the shared root VC (a sibling modal is refused by iOS and the refusal latches
@@ -333,32 +333,28 @@ export function BasketModal({
                 <Text style={styles.pickHint}>
                   {pickerOffers.length}
                   {bioOnly ? ' Bio' : ''} deal{pickerOffers.length === 1 ? '' : 's'} — tap one to
-                  use it in your plan.
+                  see it, or ✓ to use it in your plan.
                 </Text>
                 {pickerOffers.map((o) => (
                   <View key={o.id} style={styles.pickRow}>
                     <View style={styles.pickCard}>
-                      <OfferCard
-                        offer={o}
-                        onPress={() => pickOffer(viewing, o)}
-                        // The card PICKS here; it doesn't open the deal. The default label
-                        // ("Open deal for …") announced the wrong action to a screen reader.
-                        accessibilityLabel={`Use ${o.name} in your plan`}
-                      />
+                      {/* The card opens the deal, exactly as a card press does on every other
+                          surface — so it keeps OfferCard's default "Open deal for …" label.
+                          Without onOpenOffer there is nothing to open, and OfferCard drops its
+                          button role rather than announcing an action it can't perform. */}
+                      <OfferCard offer={o} onPress={onOpenOffer ? () => onOpenOffer(o) : undefined} />
                     </View>
-                    {onOpenOffer ? (
-                      // Viewing the flyer needs its own target because tap is already taken by
-                      // "pick". A separate chevron keeps both actions reachable and discoverable.
-                      <Pressable
-                        onPress={() => onOpenOffer(o)}
-                        hitSlop={10}
-                        style={({ pressed }) => [styles.pickChevron, pressed && styles.pressedDim]}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Open deal for ${o.name}`}
-                      >
-                        <Icon name="chevron-forward" size={20} color={colors.muted} />
-                      </Pressable>
-                    ) : null}
+                    {/* Picking gets its own target since tap now opens. A ✓ (not a chevron —
+                        a forward-chevron reads as "go there", not "choose this"). */}
+                    <Pressable
+                      onPress={() => pickOffer(viewing, o)}
+                      hitSlop={10}
+                      style={({ pressed }) => [styles.pickBtn, pressed && styles.pressedDim]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Use ${o.name} in your plan`}
+                    >
+                      <Icon name="checkmark-circle-outline" size={22} color={colors.accent} />
+                    </Pressable>
                   </View>
                 ))}
               </ScrollView>
@@ -463,11 +459,11 @@ export function BasketModal({
 }
 
 const styles = StyleSheet.create({
-  // Picker row: the card keeps its own margins and flexes; the chevron sits beside it as a
-  // second, independent tap target (tap the card = pick, tap the chevron = view the flyer).
+  // Picker row: the card keeps its own margins and flexes; the ✓ sits beside it as a second,
+  // independent tap target (tap the card = view the flyer, tap the ✓ = pick it for the plan).
   pickRow: { flexDirection: 'row', alignItems: 'center' },
   pickCard: { flex: 1 },
-  pickChevron: {
+  pickBtn: {
     width: 32,
     height: 44,
     alignItems: 'center',

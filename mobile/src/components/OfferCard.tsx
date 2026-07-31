@@ -19,9 +19,9 @@ export function OfferCard({
 }: {
   offer: Offer;
   onPress?: () => void;
-  /** Override the announced action. Defaults to "Open deal for …", which is right everywhere the
-   * card opens the detail — but NOT in the Basket's picker, where pressing it picks the offer for
-   * your plan. A screen reader was being told the wrong action there. */
+  /** Override the announced action. Defaults to "Open deal for …", which is right on every
+   * surface today — every card press opens the detail. Kept for a caller whose card does
+   * something else, so the announced action can follow the real one. */
   accessibilityLabel?: string;
   /** Show a cart marker in the tag row when the product is already in the basket, so you don't
    * have to open the flyer to check. The status is also folded into the spoken label (the marker

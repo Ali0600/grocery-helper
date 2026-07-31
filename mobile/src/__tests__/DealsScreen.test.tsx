@@ -418,8 +418,17 @@ describe('DealsScreen — opening a deal from the Basket picker', () => {
     price_cents: 119,
   });
 
+  // A second, pricier match. buildPlan defaults to the cheapest, so picking THIS one is
+  // observable: the basket row's shown deal changes from Frische Vollmilch to Weidemilch.
+  const MILK_PRICIER = makeOffer({
+    name: 'Weidemilch Frisch',
+    category: 'dairy',
+    category_label: 'Milk & Dairy',
+    price_cents: 189,
+  });
+
   async function seedBasketWithMilk() {
-    await seedCache({ offers: [MILK], cats: [] });
+    await seedCache({ offers: [MILK, MILK_PRICIER], cats: [] });
     await AsyncStorage.setItem(
       'basket',
       JSON.stringify([{ key: 'milk', label: 'Milk', keywords: ['milch'] }]),
@@ -435,15 +444,25 @@ describe('DealsScreen — opening a deal from the Basket picker', () => {
     return basket;
   };
 
-  it('separates the two actions: the card PICKS, a chevron opens the flyer', async () => {
-    // Tap was already taken by "use this offer in my plan", so viewing the deal needs its own
-    // control — and the card must stop claiming it opens the deal.
+  it('the ✓ button — not the card — commits that offer to the plan', async () => {
+    // The card press is spent on opening the deal (the app-wide meaning), so picking has its own
+    // control. Prove it reaches setPicks by picking the offer that ISN'T the default: buildPlan
+    // falls back to the cheapest, so a no-op pick would leave the row on Frische Vollmilch.
     await seedBasketWithMilk();
     await renderScreen();
-    const basket = await openPicker();
+    await screen.findByText('Filters');
+    await fireEvent.press(screen.getByLabelText('Basket'));
+    const basket = await screen.findByTestId('basket-modal');
+    expect(await within(basket).findByText(/Frische Vollmilch/)).toBeTruthy();
 
-    expect(await within(basket).findByLabelText('Use Frische Vollmilch in your plan')).toBeTruthy();
-    expect(within(basket).getByLabelText('Open deal for Frische Vollmilch')).toBeTruthy();
+    await fireEvent.press(within(basket).getByText('Milk'));
+    await fireEvent.press(
+      await within(basket).findByLabelText('Use Weidemilch Frisch in your plan'),
+    );
+
+    // Picking closes the picker and the row now shows the deal we chose.
+    await waitFor(() => expect(within(basket).getByText(/Weidemilch Frisch/)).toBeTruthy());
+    expect(within(basket).queryByLabelText('Use Weidemilch Frisch in your plan')).toBeNull();
   });
 
   it('renders the deal detail INSIDE the Basket sheet, never as a sibling of it', async () => {
@@ -459,7 +478,7 @@ describe('DealsScreen — opening a deal from the Basket picker', () => {
     await waitFor(() => expect(within(stillBasket).getByText('View payload')).toBeTruthy());
   });
 
-  it('tapping the chevron does NOT pick the offer — the picker stays open', async () => {
+  it('tapping the card does NOT pick the offer — the picker stays open', async () => {
     // The two targets must not bleed into each other: viewing a flyer shouldn't silently commit
     // that offer to the plan (picking closes the picker, so a leak is observable).
     await seedBasketWithMilk();
