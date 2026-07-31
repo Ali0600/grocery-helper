@@ -1455,3 +1455,32 @@ file — which reads exactly like a flaky test and is actually cross-test state.
 **Takeaway:** don't call `unmount()` by hand to test two states — write two tests and let
 RNTL's own cleanup run. And when a test passes in isolation but fails in its file, suspect
 shared state from an earlier test before you suspect the code.
+
+## A taxonomy node that names a *form* is as wrong as one that names the wrong thing
+
+A hierarchical classifier is usually audited by asking "does this node point at the right
+category?". The failure that survives that question is a node that shouldn't map to any
+category at all, because it doesn't describe *what a thing is* — it describes what shape it
+comes in. `Steak` is a cut: pork, turkey and salmon all come as steaks. `Sticks` held coffee
+sticks, cheese sticks and ice lollies. Both look like perfectly reasonable entries.
+
+Two things made the obvious fix wrong:
+
+- **Deleting the node traded one wrong answer for another.** Dropping `Steak` sends the
+  leaf→root scan to its parent, `Fleischzubereitungen` → pork — so a genuine beef steak with
+  no beef keyword becomes pork. The node has to *stay*; the species has to outrank it.
+- **Deleting the other node moved zero rows.** Its parent answered `snacks` identically, so
+  the edit read as decisive and was measurably a no-op — the same shape as the `Saaten &
+  Körner` entry from the dm work.
+
+Half the products in this audit had a leaf that wasn't in the map at all: `Alpenmilch` (Milka
+chocolate served as Dairy) and `Lichtenauer` (Zespri kiwi as a soft drink) inherit from a
+mapped *parent*, so no edit to the leaf could ever reach them.
+
+**Why it came up:** a user reported "Schweine-Nackensteaks" showing under Beef.
+
+**Takeaway:** audit the hierarchy for nodes answering "what shape is it?" rather than "what is
+it?", and fix them at the one layer that outranks the hierarchy — not by deleting the node.
+Before editing any node, check whether the offending leaf is even *in* your map; if a parent
+is doing the work, the leaf edit is a no-op. And measure every deletion, because "removed the
+bad rule" feels like progress even when the diff is empty.
