@@ -572,7 +572,11 @@ Engineering practices demonstrated while building and operating this project:
 - [x] **Basket** — a shopping list you build from common items (bilingual quick-add:
       type "Strawberry" or "Erdbeere"); each item shows its cheapest current deal plus
       a store-by-store shopping plan with the savings vs. one store (matched
-      per-product against the live deals, client-side). An **"In this week's flyers"**
+      per-product against the live deals, client-side). The plan **lists each item under
+      its store** with the product you'd actually pick up, so it reads as a shopping list —
+      and it **follows the "Only show" store lens**: narrow the deals to Lidl and Aldi and
+      the plan is built from those two, while what you can *add* stays the full week.
+      An **"In this week's flyers"**
       section lists every product sub-category actually on offer — grouped by aisle, so
       Kohlrabi or Pfifferling can be added even though no curated catalogue lists them.
       Adding from there and swiping a deal card produce the same basket entry

@@ -440,7 +440,9 @@ describe('DealsScreen — opening a deal from the Basket picker', () => {
     await screen.findByText('Filters');
     await fireEvent.press(screen.getByLabelText('Basket'));
     const basket = await screen.findByTestId('basket-modal');
-    await fireEvent.press(await within(basket).findByText('Milk'));
+    // By the row's accessible name, not its text: the plan card below lists the same item
+    // label, so plain text matches two elements.
+    await fireEvent.press(await within(basket).findByLabelText('Choose a deal for Milk'));
     return basket;
   };
 
@@ -453,15 +455,18 @@ describe('DealsScreen — opening a deal from the Basket picker', () => {
     await screen.findByText('Filters');
     await fireEvent.press(screen.getByLabelText('Basket'));
     const basket = await screen.findByTestId('basket-modal');
-    expect(await within(basket).findByText(/Frische Vollmilch/)).toBeTruthy();
+    // Assert against the PLAN, which is what a pick actually changes.
+    expect(within(await screen.findByTestId('plan-card')).getByText(/Frische Vollmilch/)).toBeTruthy();
 
-    await fireEvent.press(within(basket).getByText('Milk'));
+    await fireEvent.press(within(basket).getByLabelText('Choose a deal for Milk'));
     await fireEvent.press(
       await within(basket).findByLabelText('Use Weidemilch Frisch in your plan'),
     );
 
-    // Picking closes the picker and the row now shows the deal we chose.
-    await waitFor(() => expect(within(basket).getByText(/Weidemilch Frisch/)).toBeTruthy());
+    // Picking closes the picker and the plan now uses the deal we chose.
+    await waitFor(() =>
+      expect(within(screen.getByTestId('plan-card')).getByText(/Weidemilch Frisch/)).toBeTruthy(),
+    );
     expect(within(basket).queryByLabelText('Use Weidemilch Frisch in your plan')).toBeNull();
   });
 
@@ -1092,6 +1097,25 @@ describe('DealsScreen — the "Only show" store lens', () => {
 
     expect(await screen.findByText('Edeka Butter')).toBeTruthy();
     expect(screen.queryByLabelText(/^Remove Only /)).toBeNull();
+  });
+
+  it('scopes the Basket’s shopping plan too, not just the deals list', async () => {
+    // End-to-end wiring: the lens must reach BasketModal. All three offers match the "butter"
+    // catalog item, and Lidl's is the CHEAPEST — so pick a lens where the cheapest is excluded
+    // and assert the plan takes the pricier in-lens one. A missing prop leaves it on Lidl.
+    await seedStores(['edeka']);
+    await AsyncStorage.setItem(
+      'basket',
+      JSON.stringify([{ key: 'butter', label: 'Butter', keywords: ['butter'] }]),
+    );
+    await renderScreen();
+    await screen.findByText('Edeka Butter');
+
+    await fireEvent.press(screen.getByLabelText('Basket'));
+    const plan = await screen.findByTestId('plan-card');
+    expect(within(plan).getByText('Edeka Butter')).toBeTruthy();
+    expect(within(plan).queryByText('Lidl Butter')).toBeNull();
+    expect(within(plan).getByText('Only Edeka')).toBeTruthy();
   });
 });
 

@@ -15,6 +15,7 @@ import { subGroupItem, toItem } from '../basketResolve';
 import { CatalogItem, GROCERY_CATALOG, POPULAR_KEYS } from '../catalog';
 import { chainColors, chainLabel } from '../chains';
 import { euro, fmtPricePerUnit } from '../format';
+import { filterByStoreLens, storeLensLabel } from '../stores';
 import { colors, space, tint } from '../theme';
 import { BasketItem, Offer } from '../types';
 import { Icon } from './Icon';
@@ -26,6 +27,10 @@ type Props = {
   basket: BasketItem[];
   onChangeBasket: (next: BasketItem[]) => void;
   onClose: () => void;
+  /** The deals screen's "Only show" lens, already narrowed by `activeStoreLens` (so empty,
+   * stale and full-coverage selections all arrive as `[]`). It scopes what the plan and the
+   * per-item picker MATCH against — not what you can add. See `lensedFood` below. */
+  storeLens?: string[];
   /** Open a deal's flyer from the picker. Tapping a picker card opens the deal — the same thing a
    * card press does everywhere else in the app — so picking gets its own ✓ button beside it. */
   onOpenOffer?: (o: Offer) => void;
@@ -63,6 +68,10 @@ function BasketRow({ line, onOpen, onRemove }: { line: PlanLine; onOpen: () => v
         style={styles.rowMain}
         onPress={matchCount > 0 ? onOpen : undefined}
         disabled={matchCount === 0}
+        // The row is a button that opens this item's deals, but it announced only its
+        // concatenated text — a screen reader got the price with no hint anything opens.
+        accessibilityRole={matchCount > 0 ? 'button' : undefined}
+        accessibilityLabel={matchCount > 0 ? `Choose a deal for ${item.label}` : undefined}
       >
         <Text style={styles.itemName} numberOfLines={1}>
           {item.label}
@@ -91,19 +100,42 @@ function BasketRow({ line, onOpen, onRemove }: { line: PlanLine; onOpen: () => v
 }
 
 // The cross-store shopping plan: picks grouped by store, totals, and the savings line.
-function PlanCard({ plan }: { plan: Plan }) {
+// Each store lists the actual items under it — what you'd read off in the aisle — with the
+// matched product under each one, so the card stands alone as a shopping list.
+function PlanCard({ plan, storeLens }: { plan: Plan; storeLens: string[] }) {
   return (
-    <View style={styles.planCard}>
-      <Text style={styles.planTitle}>Shopping plan</Text>
+    <View style={styles.planCard} testID="plan-card">
+      <View style={styles.planHead}>
+        <Text style={styles.planTitle}>Shopping plan</Text>
+        {/* Say so when the plan is narrowed, or a lens that hides a cheaper store elsewhere
+            reads as us simply missing the deal. */}
+        {storeLens.length ? (
+          <Text style={styles.planLensNote}>{storeLensLabel(storeLens)}</Text>
+        ) : null}
+      </View>
       {plan.byStore.map((g) => (
-        <View key={g.chain} style={styles.planRow}>
-          <View style={styles.planLeft}>
-            <Pill chain={g.chain} />
-            <Text style={styles.planItems}>
-              {g.lines.length} item{g.lines.length > 1 ? 's' : ''}
-            </Text>
+        <View key={g.chain}>
+          <View style={styles.planRow}>
+            <View style={styles.planLeft}>
+              <Pill chain={g.chain} />
+            </View>
+            <Text style={styles.planSub}>{euro(g.subtotalCents)}</Text>
           </View>
-          <Text style={styles.planSub}>{euro(g.subtotalCents)}</Text>
+          {g.lines.map((l) => (
+            <View key={l.item.key} style={styles.planLine}>
+              <View style={styles.planLineTop}>
+                <Text style={styles.planLineName} numberOfLines={1}>
+                  {l.item.label}
+                </Text>
+                <Text style={styles.planLinePrice}>{euro(l.offer?.price_cents ?? 0)}</Text>
+              </View>
+              {l.offer ? (
+                <Text style={styles.planLineProduct} numberOfLines={1}>
+                  {l.offer.name}
+                </Text>
+              ) : null}
+            </View>
+          ))}
         </View>
       ))}
       <View style={[styles.planRow, styles.planTotalRow]}>
@@ -131,6 +163,7 @@ export function BasketModal({
   basket,
   onChangeBasket,
   onClose,
+  storeLens = [],
   onOpenOffer,
   detail,
 }: Props) {
@@ -157,7 +190,25 @@ export function BasketModal({
   // The basket is a grocery list — match against food only (drop household/non-food,
   // which the deals screen also hides by default). Kills traps like Birne→Glühbirne.
   const foodOffers = useMemo(() => offers.filter((o) => o.category !== 'household'), [offers]);
-  const plan = useMemo(() => buildPlan(basket, foodOffers, picks), [basket, foodOffers, picks]);
+
+  // The store lens scopes MATCHING, not the add vocabulary. `lensedFood` feeds the plan and
+  // the per-item picker — the two surfaces that answer "where do I buy this?" — while the
+  // chips and typed adds below stay on the full `foodOffers`. A basket item is store-agnostic
+  // ("I want kohlrabi"); the lens only says where you're shopping, so an item with no in-lens
+  // deal honestly reads "No deal this week" rather than becoming unaddable. It also protects
+  // an invariant: `addFromText` falls through `liveShown` before minting a `free:` key, so
+  // lensing that path would make a typed add and a swipe-add of the same product mint
+  // DIFFERENT keys and sit in the basket twice.
+  const lensedFood = useMemo(
+    () => filterByStoreLens(foodOffers, storeLens),
+    [foodOffers, storeLens],
+  );
+  // buildPlan derives its single-store comparison from the array it's handed, so lensing the
+  // input also scopes "vs Lidl alone" to the lens — which is what you want when you've said
+  // those are the stores you're visiting. A pick made before the lens narrowed is silently
+  // ignored (its offer id isn't in the pool) and falls back to the cheapest in-lens match;
+  // it returns as soon as the lens clears. That's the honest behaviour, not a bug to fix.
+  const plan = useMemo(() => buildPlan(basket, lensedFood, picks), [basket, lensedFood, picks]);
 
   // Every product sub-group actually in this week's flyers ("Kohlrabi", "Pfifferling"),
   // so the add list is not limited to the ~80 hand-curated catalog items. Resolved
@@ -269,9 +320,12 @@ export function BasketModal({
 
   // The viewed item's matched deals (cheapest first), with an optional Bio-only lens.
   // The toggle only renders when the item has organic matches, so it can't empty the list.
+  // Scoped by the store lens along with the plan: picking a deal from a lensed-out store
+  // would record a pick the plan then ignores, silently reverting to the cheapest in-lens
+  // match — an offer you can't act on is worse than not offering it.
   const pickerMatches = useMemo(
-    () => (viewing ? matchOffers(foodOffers, viewing) : []),
-    [foodOffers, viewing],
+    () => (viewing ? matchOffers(lensedFood, viewing) : []),
+    [lensedFood, viewing],
   );
   const pickerBioCount = useMemo(
     () => pickerMatches.filter((o) => o.is_bio).length,
@@ -414,7 +468,7 @@ export function BasketModal({
                         onRemove={() => removeItem(line.item.key)}
                       />
                     ))}
-                    <PlanCard plan={plan} />
+                    <PlanCard plan={plan} storeLens={storeLens} />
                     <Pressable onPress={() => onChangeBasket([])} hitSlop={6} style={styles.clearAllBtn}>
                       <Text style={styles.clearAll}>Clear list</Text>
                     </Pressable>
@@ -563,11 +617,23 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: 14,
   },
-  planTitle: { color: colors.text, fontSize: 15, fontWeight: '700', marginBottom: 10 },
+  planHead: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  planTitle: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  planLensNote: { color: colors.muted, fontSize: 12 },
   planRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 5 },
   planLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  planItems: { color: colors.muted, fontSize: 13 },
   planSub: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  // Item lines sit indented under their store's pill, so the card reads as a shopping list.
+  planLine: { paddingLeft: 8, paddingBottom: 4 },
+  planLineTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  planLineName: { color: colors.text, fontSize: 13, flexShrink: 1 },
+  planLinePrice: { color: colors.muted, fontSize: 13 },
+  planLineProduct: { color: colors.muted, fontSize: 11, marginTop: 1 },
   planTotalRow: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
