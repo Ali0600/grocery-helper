@@ -1285,14 +1285,19 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   element can't change host mid-flight. `RecipesModal` must stay `animationType="fade"` — it now hosts
   a nested modal, and a nested slide never resolves its transform on react-native-web (PR #89). Its
   Close is labelled **"Close recipes"** because the nested detail carries its own "Close".
-  **The Basket's per-item picker got the same treatment via a CHEVRON, not the row** (2026-07-17):
-  there, tapping a card already means "use this offer in my plan", so reuse would collide — each
-  picker row is now `[OfferCard (flex 1, picks)] [› chevron (opens the flyer)]`, two non-overlapping
-  targets (measured: card ends x=318, chevron 32×44 at x=330). Same nesting rules as Recipes: a
+  **The Basket's per-item picker splits the row into two targets, and the CARD OPENS THE DEAL**
+  (inverted 2026-07-31, at the user's request): a card press means the same thing on every surface
+  in this app — show me this deal — so the picker no longer overloads it. Each row is
+  `[OfferCard (flex 1, opens the flyer)] [✓ button (picks it for the plan)]`, two non-overlapping
+  targets (measured at 375pt: card ends x=318, button 32×44 at x=330–362). The icon is
+  `checkmark-circle-outline`, **not** a `chevron-forward`: a forward-chevron reads as "go there",
+  which is exactly the mislabel this swap fixes. `OfferCard`'s optional `accessibilityLabel` stays
+  (generic mechanism) but the picker no longer passes one — the default `"Open deal for …"` is now
+  the truth there; the ✓ carries `"Use X in your plan"`. **Picking still closes the picker**, which
+  is the only pick feedback (no ✓-selected state on the row) — and it's what makes a leak between
+  the two targets observable in a test. Same nesting rules as Recipes: a
   `detail` prop inside `BasketModal`'s `AppModal`, `basketModal` in `sheetOpen`, `closeBasket` clears
-  `active`, stays `fade`, Close labelled **"Close basket"**. It also fixed a real a11y bug —
-  `OfferCard` hardcoded `"Open deal for …"`, which is a **lie in the picker** (pressing it picks), so
-  the card now takes an optional `accessibilityLabel` and the picker passes `"Use X in your plan"`.
+  `active`, stays `fade`, Close labelled **"Close basket"**.
   Always-have is seeded
   from `catalog.ts` staples (`storage.ts` `defaultAlwaysHave` / `STAPLE_KEYS`), editable +
   persisted (`alwaysHave` key; `recipePrefs` for filters). **Regenerate weekly** when flyers
