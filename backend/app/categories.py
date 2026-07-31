@@ -587,6 +587,31 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # A "Viba Fruchtschnitte" is a fruit BAR; the source filed it under `Kaffee >
     # Kaffeevariationen > Cafe au lait`.
     ("sweets", ["fruchtschnitte"]),
+    # --- 2026-07-31 audit: a path node that names a CUT or a FORM, not a product kind ----
+    # Reported: "Schweine-Nackensteaks" served as Beef. The source files it under
+    # `Fleisch > Fleischzubereitungen > Steak`, and `_PATH_MAP["steak"] = beef` (L3) beats
+    # the `schwein`/`nackensteak` keywords (L6). But a steak is a CUT — pork, turkey and
+    # salmon all come as steaks — so the species has to win, and L2 is the only layer above
+    # the path. Removing the `steak` node instead would drop "Scotland Hills Cowboy Steak"
+    # onto its parent `Fleischzubereitungen` -> pork, trading one wrong answer for another.
+    # These sit AFTER the pet guard above, so a Meerschweinchen food stays household.
+    ("pork", ["schwein", "schinkensteak"]),
+    # `puten` where the existing L2 entry has only the hyphenated `puten-`: the source's
+    # `Hackfleisch > Putenhackfleisch` leaf isn't mapped, so it inherits pork from
+    # `Fleischzubereitungen` two levels up.
+    ("poultry", ["puten"]),
+    # A BRAND under a mis-filed parent. `Alpenmilch` isn't in _PATH_MAP — its parent milk
+    # node is — so deleting a node can't fix it (cf. the Thüringer Waldquell case), and the
+    # brand map is L4, below the path. Milka is chocolate; the trailing space keeps Milkana
+    # (a cheese) out, exactly as the L4 entry does.
+    ("sweets", ["milka "]),
+    # Zespri (kiwi) sat under a beverage brand node and served as a soft drink.
+    ("fruits", ["zespri"]),
+    # `Knabberzeug > Sticks` is a FORM node: coffee sticks, cheese sticks and ice sticks all
+    # hang off it. Dropping the node is a no-op (its parent answers `snacks` identically —
+    # measured), so the non-snack kinds are named here instead.
+    ("coffee", ["nescafé", "nescafe", "kaffeestick"]),
+    ("ice_cream", ["raketeneis", "icestick"]),
 ]
 
 # What the flyer CAPTION says the product is. Read from `Offer.unit`, which holds the source's
