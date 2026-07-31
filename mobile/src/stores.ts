@@ -68,6 +68,13 @@ export function filterByVisibleStores(offers: Offer[], hidden: string[]): Offer[
   return hidden.length ? offers.filter((o) => !hidden.includes(o.chain)) : offers;
 }
 
+// The positive counterpart: keep only the lensed chains. Empty lens = no lens = everything,
+// which is why this is safe to call unconditionally. Deliberately dumb — pass it the value
+// `activeStoreLens` derived, which is where the stale/partial/full-coverage guards live.
+export function filterByStoreLens(offers: Offer[], activeLens: string[]): Offer[] {
+  return activeLens.length ? offers.filter((o) => activeLens.includes(o.chain)) : offers;
+}
+
 // The present chains still shown, in present order — for the active-filter chip label.
 export function visibleStoreChains(presentChains: string[], hidden: string[]): string[] {
   return presentChains.filter((c) => !hidden.includes(c));

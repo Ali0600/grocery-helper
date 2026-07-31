@@ -1,5 +1,6 @@
 import {
   activeStoreLens,
+  filterByStoreLens,
   filterByVisibleStores,
   hasHiddenPresent,
   storeLensLabel,
@@ -43,6 +44,32 @@ describe('filterByVisibleStores', () => {
   it('returns every offer when nothing is hidden', () => {
     const offers = [makeOffer({ chain: 'lidl' }), makeOffer({ chain: 'rewe' })];
     expect(filterByVisibleStores(offers, [])).toHaveLength(2);
+  });
+});
+
+describe('filterByStoreLens', () => {
+  const offers = [
+    makeOffer({ chain: 'lidl' }),
+    makeOffer({ chain: 'rewe' }),
+    makeOffer({ chain: 'edeka' }),
+  ];
+
+  it('keeps only the lensed chains', () => {
+    expect(filterByStoreLens(offers, ['lidl', 'edeka']).map((o) => o.chain)).toEqual([
+      'lidl',
+      'edeka',
+    ]);
+  });
+
+  // Empty means "no lens", not "no stores" — the whole reason it can be called unconditionally.
+  it('returns every offer when the lens is empty', () => {
+    expect(filterByStoreLens(offers, [])).toHaveLength(3);
+  });
+
+  // Deliberately dumb: the stale/partial/full-coverage guards live in activeStoreLens, so a
+  // lens naming a chain with no offers really does yield nothing here.
+  it('yields nothing for a chain with no offers — guarding is the caller’s job', () => {
+    expect(filterByStoreLens(offers, ['aldi'])).toEqual([]);
   });
 });
 

@@ -1326,6 +1326,11 @@ export default function DealsScreen({ vertical, onHome }: Props) {
         basket={basket}
         onChangeBasket={onChangeBasket}
         onClose={closeBasket}
+        // The deals list's "Only show" lens scopes the plan too — if you've said you're only
+        // shopping Lidl and Aldi, a plan built from every chain isn't a plan you can act on.
+        // Deliberately NOT applied to `modalOffers` itself: RecipesModal shares that array and
+        // has its own persisted "Shop at" scope, which pre-lensing would silently override.
+        storeLens={activeLens}
         onOpenOffer={setActive}
         detail={basketModal ? detail : null}
       />

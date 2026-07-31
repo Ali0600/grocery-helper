@@ -885,7 +885,28 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   modal's Add/Added = *membership* (persistent, `hiddenStores`); the FilterSheet's **"Only show"**
   = a **MULTI-select, persisted lens** (`storeLens` in `DealsScreen`, `DealFilterOptions.storeLens`,
   storage key `storeLens`) over the stores you already keep — tap to add, tap again to remove,
-  **empty = All**. Deals list only; Basket/Recipes keep the full store list.
+  **empty = All**. It scopes the deals list **and the Basket's MATCHING** (2026-07-31) — the
+  shopping plan and the per-item deals picker both build from `filterByStoreLens(foodOffers,
+  storeLens)`, passed down as `BasketModal`'s `storeLens` prop. If you've said you're shopping
+  Lidl and Aldi, a plan drawn from every chain isn't a plan you can act on; measured live, the
+  same basket goes E center 1,49 € → Lidl 12,99 € for chicken when lensed. `buildPlan` derives
+  its single-store comparison from the array it's handed, so "vs X alone" scopes for free, and
+  a pick made before the lens narrowed is silently ignored (falls back to the cheapest in-lens
+  match) and returns when the lens clears.
+  **What the lens does NOT scope: the ADD vocabulary.** `liveGroups`/`liveShown`/`addFromText`
+  and the catalog chips stay on the unlensed `foodOffers`. A basket item is store-agnostic ("I
+  want kohlrabi") and an item with no in-lens deal honestly reads "No deal this week" — but the
+  load-bearing reason is an invariant: `addFromText` falls through `liveShown` before minting a
+  `free:` key, so lensing that path makes a typed add and a swipe-add of the SAME product mint
+  different keys and occupy two basket rows. Pinned by tests both ways.
+  **Recipes is deliberately untouched** — it has its own persisted "Shop at" (`RecipePrefs.stores`).
+  Pass the lens as a prop to `BasketModal`; never pre-lens `modalOffers`, which RecipesModal shares
+  (its chip row derives from that array, so narrowing it would silently drop chains).
+  **The plan card lists the items per store** (not "N items"): each line is the basket item + its
+  price with the matched product name under it, so the card works as a standalone shopping list,
+  plus a muted `storeLensLabel` note when the plan is narrowed (or a hidden cheaper store reads
+  as us missing the deal). `testID="plan-card"`; the basket row is labelled
+  `Choose a deal for <item>` (it had no accessible name at all before).
   **The pure core is in `stores.ts`**: `toggleStoreLens` (uncapped, and deliberately WITHOUT a
   never-empty guard — the mirror of `toggleHiddenStore`'s — since empty *means* All, so clearing
   the last pick is the way back), `activeStoreLens` (intersect with the visible chains) and
