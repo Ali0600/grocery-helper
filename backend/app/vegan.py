@@ -19,7 +19,12 @@ _VEGAN_RE = re.compile(
     # `vly` is a pea-protein dairy-alternative brand; its "Joghurt Alternative" was served as
     # Dairy because layer 2's `joghurt` form word fired. Layer 0 beats that. The lookbehind
     # keeps it from firing inside a longer word.
-    r"beyond meat|vivera|endori|veganz|alpro|taifun|planted|heura|simply v|oatly|vly)",
+    # `violife` and `myvay` are vegan-only too, and both were being claimed a layer or four
+    # later by what they IMITATE: Violife sat in the brand map as cheese, and a MYVAY
+    # "Chicken-Style" tub (soy) was served as poultry by the `chicken` keyword. Layer 0 is
+    # the only layer above both.
+    r"beyond meat|vivera|endori|veganz|alpro|taifun|planted|heura|simply v|oatly|vly|"
+    r"violife|myvay)",
     re.IGNORECASE,
 )
 

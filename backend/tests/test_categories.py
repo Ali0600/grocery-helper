@@ -1666,23 +1666,6 @@ def test_zespri_kiwi_is_fruit_not_a_soft_drink():
     """A brand-container node again: Zespri sat under a mineral-water brand leaf."""
     water = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Wasser", "Lichtenauer"]
     assert classify("Zespri Kiwi SunGold", None, water) == "fruits"
-
-
-def test_bananen_was_rejected_as_a_form_word():
-    """REJECTED, and pinned so it isn't re-"found": one chain files "Bananen, Fairtrade"
-    under `Milchprodukte > Milch`, so it serves as dairy. An L2 `bananen` fixes that one row
-    but also drags "RIO D'ORO Bananen-Kirsch-Getränk" out of soft_drinks — a drink is not
-    fruit. One row gained, one lost, so it does not meet the 0-regression bar. It needs a
-    negative guard (not `…getränk`/`…saft`) that the L2 table has no way to express."""
-    milch = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Milchprodukte", "Milch"]
-    saft = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Saft", "Saftmarken",
-            "Rio D'oro"]
-    assert classify("Bananen, Fairtrade", None, milch) == "dairy"
-    # Its juice PATH is what holds this at soft_drinks today, and an L2 token would outrank
-    # it — so the counter-example only bites with the real path, not pathless.
-    assert classify("RIO D'ORO Bananen-Kirsch-Getränk", None, saft) == "soft_drinks"
-
-
 # --- 2026-07-31 image audit: what the product PHOTO settles ------------------------------
 #
 # Read from contact sheets of every served product image — the only channel that catches a
@@ -1776,3 +1759,41 @@ def test_preserved_produce_leaves_the_fresh_chip_even_when_rescued():
     # And the redirect only touches the two fresh-produce slugs — a rescued fish stays fish
     # even when it is sold from a tin.
     assert classify("Deutsche See Thunfisch", None, promo, "Abtropfgewicht 112 g") == "fish"
+
+
+@pytest.mark.parametrize(
+    "name,brand,expected,why",
+    [
+        # Each of these is a GUARD sitting above a token that would otherwise claim it —
+        # layer 2 is first-hit-wins, so the pairs below are really ordering assertions.
+        ("Meine Küchenwelt Schweinsöhrchen", None, "bakery", "a palmier pastry, not pork"),
+        ("Grillmeister Schweine-Nackensteaks", None, "pork", "...and real pork still is pork"),
+        ("Geflügelfleischkäse", None, "poultry", "poultry loaf beats the pork `fleischkäse`"),
+        ("Bauerngut Fleischkäse", None, "pork", "...and a plain one stays pork"),
+        ("Deluxe Geflügelfond", None, "pantry", "stock in a jar, not poultry"),
+        ("HÄUSSLING Sommerdaunendecke", None, "household", "a duvet under a Geflügel node"),
+        ("Original Muh-Muhs Sahne-Toffees", None, "sweets", "toffees under a Butter node"),
+        ("Tigersnack Tomate Mozzarella", None, "bakery", "a topped bread roll"),
+        ("Dr. Oetker Die Ofenfrische Salami", None, "frozen", "a frozen pizza, not salami"),
+        ("Speisezeit Kohlrouladen", None, "ready_meals", "a chilled Fertiggericht"),
+        ("Bauerngut Rindfleischspieß", "Bauerngut", "beef", "the house-brand map said pork"),
+        ("Dr. Quendt Dinkelchen Vollmilch", None, "sweets", "chocolate biscuits, not milk"),
+        ("Zum Dorfkrug Rote Grütze", None, "pantry", "compote in a jar"),
+        # Vegan brands are layer 0, the only layer above what they IMITATE.
+        ("Violife Pizza Mix", "Violife", "vegan", "was in the brand map as cheese"),
+        ("MYVAY The Wonder Chunks Chicken-Style", "MYVAY", "vegan", "soy, not chicken"),
+    ],
+)
+def test_photo_audit_batch2(name, brand, expected, why):
+    assert classify(name, brand, None) == expected, why
+
+
+def test_bananen_now_ships_because_the_guard_expresses_what_the_flat_table_could_not():
+    """The previous audit REJECTED a bare `bananen` because it dragged a Bananen-Kirsch-Getränk
+    out of soft_drinks — the flat table can't say "not a drink". A guard entry ABOVE it can,
+    and layer 2 is first-hit-wins. Swap the two entries and the drink breaks."""
+    milch = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Milchprodukte", "Milch"]
+    saft = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Saft", "Saftmarken",
+            "Rio D'oro"]
+    assert classify("Bananen, Fairtrade", None, milch) == "fruits"
+    assert classify("RIO D'ORO Bananen-Kirsch-Getränk", None, saft) == "soft_drinks"

@@ -391,7 +391,7 @@ BRAND_CATEGORY: dict[str, str] = {
     "schogetten": "sweets", "berggold": "sweets", "häagen-dazs": "ice_cream",
     # REWE flyer brands (paths are often brand-only -> no taxonomy node to use)
     "mirée": "cheese", "miree": "cheese", "salakis": "cheese", "leerdammer": "cheese",
-    "bergader": "cheese", "violife": "cheese", "rotkäppchen": "alcoholic",
+    "bergader": "cheese", "rotkäppchen": "alcoholic",
     "deutsche see": "fish", "katjes": "sweets", "lay's": "snacks", "lorenz ": "snacks",
     "nuii": "ice_cream", "danone": "dairy",
     # EDEKA flyer brands (single-category; the house lines Gut&Günstig / EDEKA /
@@ -449,6 +449,26 @@ BRAND_CATEGORY: dict[str, str] = {
 # or an unambiguous brand, never a mere flavour — so a frozen "…Schoko" brand isn't dragged
 # here. Space-guarded where a fruit word is a superstring ("nektar " vs "Nektarine").
 _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
+    # --- 2026-07-31 image audit, batch 2 (meat / dairy / cheese sheets) ---------------------
+    # These are GUARDS and must stay at the top: layer 2 is first-hit-wins, and each one
+    # protects a token further down that would otherwise claim the product.
+    ("bakery", ["schweinsöhrchen", "schweineohr"]),   # a palmier pastry, not pork
+    ("poultry", ["geflügelfleischkäse"]),             # before the pork `fleischkäse`
+    ("pantry", ["geflügelfond", "rinderfond", "gemüsefond", "kalbsfond"]),  # stock, not meat
+    ("household", ["daunendecke", "daunenbett"]),     # a DUVET, filed under a `Geflügel` node
+    # `bananen` was rejected outright by the previous audit because it dragged a
+    # "Bananen-Kirsch-Getränk" out of soft_drinks. The drink is named, so a guard ABOVE the
+    # fruit token expresses what the flat table could not.
+    ("soft_drinks", ["bananen-kirsch", "bananensaft"]),
+    ("snacks", ["bananenchips"]),                     # a crisp, not fruit
+    ("fruits", ["bananen"]),                          # one chain files loose bananas under Milch
+    ("frozen", ["die ofenfrische"]),                  # a frozen pizza the `salami` keyword took
+    ("ready_meals", ["kohlroulade"]),
+    ("sweets", ["sahne-toffee", "dinkelchen"]),       # toffees under a Butter node; choc biscuits
+    ("pantry", ["spaghetti mit tomatensauce", "rote grütze"]),  # a pasta kit; compote in jars
+    ("bakery", ["tigersnack"]),                       # a topped bread roll, not mozzarella
+    ("beef", ["rindfleischspieß"]),                   # the house brand map said pork
+    # --- end batch 2 -------------------------------------------------------------------------
     # --- entries that must PRECEDE the generic drink forms below (first hit wins) ---
     # A "-dicksaft"/"Goldsaft" is a SYRUP, not a juice: the "saft " guard only pins the trailing
     # side, so "Agavendicksaft " / "Grafschafter Goldsaft " match it and land in soft_drinks.
