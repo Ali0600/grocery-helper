@@ -813,6 +813,20 @@ _FOOD_RESCUE: dict[str, list[str]] = {
 # a garden plant, a garment, cookware/DIY material, or pet food — the things that legitimately live
 # under the non-food roots and happen to share a word with a produce/meat noun ("Mango" the fashion
 # brand, "Kirschholz" furniture, "Tomatenpflanze", "Good Boy … Knabbermix" cat treats).
+# The caption words that mean "this produce is preserved, not fresh" — a drained weight or a
+# jar/tin. Consulted only inside layer 1's food rescue (see `_layers`), because that layer
+# decides and never falls through to the layer-2 form words that handle the same convention
+# for food-path products.
+_PRESERVED_CAPTION: tuple[str, ...] = ("abtropfgewicht", "-glas", " glas", "konserve", " dose")
+_FRESH_PRODUCE: frozenset[str] = frozenset({"fruits", "vegetables"})
+
+
+def _preserved_caption(unit: str) -> Optional[str]:
+    """The preserved-form word in this caption, if any (returned so the trace can name it)."""
+    low = unit.lower()
+    return next((t for t in _PRESERVED_CAPTION if t in low), None)
+
+
 _RESCUE_VETO: list[str] = [
     "pflanze", "hyazinth", "röschen", "strauch", "saatgut", " samen", "topfrose", "kunstblume",
     "schleierkraut", " beet", "kübel", "blumen", "baumschule",
@@ -1239,10 +1253,22 @@ def _layers(
         if rescue is not None and veto is None:
             # Real food buried under a non-food path — checked FIRST so a drugstore node
             # can't claim it (the source files spare ribs under `Waschmittel`).
-            yield LayerTrace.decided(
-                "1", "nonfood_path", rescue[1], table="_FOOD_RESCUE",
-                index=rescue[0], matched=rescue[2], where=_WHERE_TEXT,
-            )
+            slug = rescue[1]
+            # ...but preserved produce must not land in a FRESH chip just because the rescue
+            # is what found it. The rescue matches the NAME ("Mandarin-Orangen"), which can't
+            # tell a jar from loose fruit; the CAPTION states the form ("Abtropfgewicht",
+            # "1.062-ml-Glas"). Layer 2b would catch it, but layer 1 never falls through.
+            # Only the two fresh-produce slugs are redirected, so nothing else can shift.
+            if slug in _FRESH_PRODUCE and unit and _preserved_caption(unit):
+                yield LayerTrace.decided(
+                    "1", "nonfood_path", "pantry", table="_PRESERVED_CAPTION",
+                    matched=_preserved_caption(unit), where=_WHERE_CAPTION,
+                )
+            else:
+                yield LayerTrace.decided(
+                    "1", "nonfood_path", slug, table="_FOOD_RESCUE",
+                    index=rescue[0], matched=rescue[2], where=_WHERE_TEXT,
+                )
         elif drug is not None:
             # Not food — but a drugstore aisle rather than the undifferentiated "household"
             # bucket? Only reachable where the answer was ALREADY household, so every move

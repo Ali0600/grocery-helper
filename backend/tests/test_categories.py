@@ -1761,3 +1761,18 @@ def test_no_duplicate_keys_in_the_rule_tables():
             keys = [k.value for k in node.value.keys if isinstance(k, ast.Constant)]
             dupes = [k for k, n in collections.Counter(keys).items() if n > 1]
             assert not dupes, f"{target} defines {dupes} twice — the later one silently wins"
+
+
+def test_preserved_produce_leaves_the_fresh_chip_even_when_rescued():
+    """The user's convention (jarred/canned -> pantry) already holds for food-path products
+    via the layer-2 form words, but layer 1 DECIDES on a non-food path and never falls
+    through — so a jar the rescue found by name stayed in Fruits. The rescue matches the name
+    ("Mandarin-Orangen"), which cannot tell a jar from loose fruit; the caption states it."""
+    promo = ["Saison und Events", "Produkte", "Aktionen", "Vegan"]
+    jar = "Geschält; leicht gezuckert; Abtropfgewicht (ATG) = 560g; 1.062-ml-Glas"
+    assert classify("All Seasons Mandarin-Orangen XXL", "All Seasons", promo, jar) == "pantry"
+    # The counter-example: the SAME rescue path, fresh product, must stay in the fruit chip.
+    assert classify("Nektarinen", None, promo, "Klasse I 1 kg") == "fruits"
+    # And the redirect only touches the two fresh-produce slugs — a rescued fish stays fish
+    # even when it is sold from a tin.
+    assert classify("Deutsche See Thunfisch", None, promo, "Abtropfgewicht 112 g") == "fish"
