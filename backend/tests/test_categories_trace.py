@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from app import categories as C
-from app.categories import FOOD_ROOT, classify, explain
+from app.categories import _FORM_OVERRIDES, FOOD_ROOT, classify, explain
 from app.vegan import is_vegan, vegan_match
 
 LAYER_ORDER = ["0", "1", "2", "2b", "3", "4", "5", "6", "7"]
@@ -113,8 +113,11 @@ def test_a_losing_layer_reports_what_it_would_have_said():
     trace = explain("Radeberger Premium-Lachsschinken", None, [FOOD_ROOT, "Fisch", "Lachs"])
     assert trace.category == "pork"
     winner = trace.winner
+    lachsschinken_idx = next(
+        i for i, (_slug, toks) in enumerate(_FORM_OVERRIDES) if "lachsschinken" in toks
+    )
     assert (winner.layer, winner.table, winner.index, winner.matched) == (
-        "2", "_FORM_OVERRIDES", 10, "lachsschinken",
+        "2", "_FORM_OVERRIDES", lachsschinken_idx, "lachsschinken",
     )
     path_layer = next(s for s in trace.layers if s.layer == "3")
     assert (path_layer.status, path_layer.slug, path_layer.matched) == ("decided", "fish", "Lachs")
@@ -216,7 +219,14 @@ def test_repeated_slugs_are_disambiguated_by_index():
         for name in ("Benediktiner Hell oder alkoholfrei", "Weinschorle 0,5l", "Jägermeister 0,7l")
     }
     assert all(h.slug == "alcoholic" and h.table == "_FORM_OVERRIDES" for h in hits.values())
-    assert [h.index for h in hits.values()] == [1, 2, 5]
+    # The POINT is that one slug maps to three DISTINCT rules, so the index is what names a
+    # rule. Derived rather than hardcoded: absolute positions shift whenever an entry is
+    # inserted above, which made this fail for a reason that had nothing to do with its claim.
+    indices = [h.index for h in hits.values()]
+    assert len(set(indices)) == 3, "three alcoholic entries must be three distinct rules"
+    for name, h in hits.items():
+        assert h.matched in _FORM_OVERRIDES[h.index][1], name
+        assert _FORM_OVERRIDES[h.index][0] == "alcoholic", name
 
 
 def test_skipped_layers_say_why_they_could_not_run():
