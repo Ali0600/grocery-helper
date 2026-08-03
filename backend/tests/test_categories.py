@@ -1006,13 +1006,27 @@ def test_household_pathed_pork_is_rescued():
         ("Melitta BellaCrema", "coffee"),        # no-space spelling the "bella crema" keyword misses
         ("Melitta BellaCrema SPECIALE", "coffee"),
         ("RIVER Iso Light", "soft_drinks"),
-        ("MILSANI Activedrink XXL", "soft_drinks"),
+        # Activedrink moved to DAIRY on 2026-07-31 (user's call) — see
+        # test_drinking_yoghurt_is_dairy. The rest of this table is unchanged.
         ("Rotbäckchen", "soft_drinks"),
         ("Von Herzen Regional Scharfe Gemüsesäfte", "soft_drinks"),
     ],
 )
 def test_drinks_on_a_brand_leaf_path_land_right(name, expected):
     assert classify(name, None, None) == expected
+
+
+def test_drinking_yoghurt_is_dairy():
+    """User's call (2026-07-31), reversing PR #105 which had put MILSANI Activedrink in
+    soft_drinks. Listed with its sibling forms so the convention is consistent rather than a
+    one-product patch — `kefir` moved a second product the same way. A juice or an iced tea
+    must NOT come along."""
+    assert classify("MILSANI Activedrink XXL", None, None) == "dairy"
+    assert classify("QUARKI Kefir mild", None, None) == "dairy"
+    assert classify("Müller Trinkjoghurt Erdbeer", None, None) == "dairy"
+    # The counter-examples: a real soft drink stays a soft drink.
+    assert classify("Rotbäckchen", None, None) == "soft_drinks"
+    assert classify("RIVER Iso Light", None, None) == "soft_drinks"
 
 
 def test_beer_path_traps_are_rescued_to_the_real_product():

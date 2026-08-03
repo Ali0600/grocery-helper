@@ -455,10 +455,12 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # Rotkäppchen is the SEKT brand, so its chilled soft-cheese minis were served as Alcoholic.
     ("cheese", ["petrella", "rotkäppchen mini"]),
     ("vegan", ["falafel-bällchen", "pistazien-drink"]),
-    # `activedrink` deliberately NOT here: an earlier audit (PR #105) placed MILSANI
-    # Activedrink in soft_drinks on purpose, and a probiotic drinking yoghurt is a genuine
-    # judgement call, not a defect. Flagged for the user rather than flipped unilaterally.
-    ("dairy", ["yofrutta", "milchreis"]),              # yoghurt pots / rice pudding
+    # Drinking yoghurt is DAIRY (user's call, 2026-07-31, reversing PR #105's placement of
+    # MILSANI Activedrink in soft_drinks). The sibling forms are listed with it so the
+    # convention is consistent rather than a single-product patch — `kefir` moved a second
+    # product (QUARKI Kefir mild) the same way.
+    ("dairy", ["yofrutta", "milchreis", "activedrink", "trinkjoghurt", "joghurtdrink",
+               "drinkjoghurt", "kefir"]),
     ("ice_cream", ["gelato", "stieleis"]),
     ("pantry", ["tomatenmark"]),                       # tomato paste is not fresh produce
     ("frozen", ["edamame", "bistro baguette"]),        # both packs state tiefgefroren
