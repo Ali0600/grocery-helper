@@ -1515,3 +1515,33 @@ the rejection.
 order is a language. Before rejecting a candidate for a handful of false positives, check
 whether those false positives are *nameable*; if they are, guard them and ship the rule. And
 re-run the full diff afterwards, because a guard changes which rows the token still reaches.
+
+## `cancel-in-progress` on the branch that deploys turns a second merge into a lost deploy
+
+A GitHub Actions workflow that both tests *and* deploys had the usual optimisation:
+
+```yaml
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+```
+
+Two merges to `main` a minute apart, and the first one's run was cancelled — taking its deploy
+job with it. The fix was on `main`, absent from production, and nothing anywhere said so: the
+merge commit shows a green tick (from the *second* run), the cancelled run is grey rather than
+red, and the deploy job simply never existed to fail. It surfaced only because a later check of
+the live data disagreed with the merged code.
+
+Cancelling a superseded **PR** run is genuinely useful. Cancelling a superseded **main** run
+discards work that was supposed to ship. So gate it on the event:
+
+```yaml
+cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+```
+
+**Why it came up:** a merged classifier fix wasn't live, and prod was two commits behind.
+
+**Takeaway:** if a workflow contains a deploy/publish job, it must never cancel runs on the
+branch that deploys. More generally — a *cancelled* run is not a failure signal; it shows up
+grey and gets read as noise. Any pipeline where "did not run" and "ran and passed" look alike
+needs the outcome verified downstream (poll the deployed version), not inferred from the tick.
