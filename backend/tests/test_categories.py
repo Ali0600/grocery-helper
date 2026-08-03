@@ -1904,3 +1904,55 @@ def test_nutella_and_yogurette_were_rejected_as_broad_tokens():
     assert classify("Nutella", None, None) == "sweets"
     assert classify("Nutella Ice Cream", None, None) == "ice_cream"
     assert classify("Ferrero Yogurette", None, None) == "sweets"
+
+
+# --- 2026-08-03 new-week audit: the `other` bucket refilled to 6.4% on the new flyers -------
+
+@pytest.mark.parametrize(
+    "name,expected,why",
+    [
+        ("Altenburger Ziegenrolle", "cheese", "a goat-cheese roll"),
+        ("Aoste Stickado", "pork", "air-dried salami sticks"),
+        ("Bad Reichenhaller Alpen-Jodsalz XXL", "pantry", "salt"),
+        ("Dr. Oetker Ristorante", "frozen", "frozen pizza"),
+        ("Dovgan Taschki Pelmeni", "ready_meals", "filled dumplings — heat-and-eat"),
+        ("EDEKA Heimatliebe Zwetschen", "fruits", "plums"),
+        ("Kosmonaut Hell", "alcoholic", "a 0,5 l Dose with Pfand — beer"),
+        ("MALTESERS", "sweets", None),
+        ("TRADER JOE'S Macadamia", "snacks", "roasted salted nuts"),
+        ("GUT&GÜNSTIG Lieblings-Kaurollchen", "pet", "an Ergänzungsfuttermittel"),
+        ("House of Thêom Eau de Parfum", "fragrance", "was in the `other` bucket"),
+        ("Pakchoi", "vegetables", None),
+        # The GUARD: `macadamia` above would otherwise take this for snacks.
+        ("NUII Stieleis Salted Caramel & Australian Macadamia", "ice_cream", "an ice lolly"),
+    ],
+)
+def test_new_week_other_bucket(name, expected, why):
+    assert classify(name, None, None) == expected, why or name
+
+
+@pytest.mark.parametrize(
+    "name,caption,expected",
+    [
+        # These NAMES say nothing at all; only the caption carries the designation.
+        ("3 Glocken Genuss Pur", "Teigwaren aus Hartweizen 500 g", "pantry"),
+        ("Casa Modena Salame Gran Magro", "feine Salamispezialität 100 g", "pork"),
+        ("Heinrichsthaler Der Radeberger", "Käsescheiben, versch. Sorten 125-g", "cheese"),
+        ("Salz-Pfefferkrusti", "Weizenkleingebäck verfeinert mit Pfeffer", "bakery"),
+        ("Multi 12", "Fruchtsaftgetränk, versch. Sorten", "soft_drinks"),
+        ("Proviant", "Erfrischungsgetränke, teilweise koffeinhaltig", "soft_drinks"),
+        ("Choceur Peanuts XXL", "Geröstete Erdnüsse, umhüllt von Milchschokolade", "sweets"),
+    ],
+)
+def test_new_week_caption_only_products(name, caption, expected):
+    assert classify(name, None, None, caption) == expected
+
+
+def test_a_caption_signal_must_be_a_designation_not_an_ingredient():
+    """`gewürzgurken` correctly files a jar of gherkins as pantry — but "Dillhappen:
+    Heringsfilethappen mit Gewürzgurken" is HERRING *with* gherkins, and it was being served as
+    pantry until a fish entry went in front. The false positive was nameable, so it is guarded
+    rather than the whole signal being dropped."""
+    assert classify("Dillhappen", None, None,
+                    "Heringsfilethappen mit Gewürzgurken, in einer feinen Soße") == "fish"
+    assert classify("Hengstenberg Knax", None, None, "Gewürzgurken 720-ml-Glas") == "pantry"
