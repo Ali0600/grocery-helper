@@ -449,6 +449,26 @@ BRAND_CATEGORY: dict[str, str] = {
 # or an unambiguous brand, never a mere flavour — so a frozen "…Schoko" brand isn't dragged
 # here. Space-guarded where a fruit word is a superstring ("nektar " vs "Nektarine").
 _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
+    # --- 2026-07-31 image audit, batch 4 (pantry / drinks / produce sheets) ------------------
+    ("bakery", ["mohnhappen", "dinkelinge"]),          # a yeast pastry and spelt rolls
+    ("vegetables", ["petersilie"]),                    # a fresh bunch, sold je Bund
+    # Rotkäppchen is the SEKT brand, so its chilled soft-cheese minis were served as Alcoholic.
+    ("cheese", ["petrella", "rotkäppchen mini"]),
+    ("vegan", ["falafel-bällchen", "pistazien-drink"]),
+    # `activedrink` deliberately NOT here: an earlier audit (PR #105) placed MILSANI
+    # Activedrink in soft_drinks on purpose, and a probiotic drinking yoghurt is a genuine
+    # judgement call, not a defect. Flagged for the user rather than flipped unilaterally.
+    ("dairy", ["yofrutta", "milchreis"]),              # yoghurt pots / rice pudding
+    ("ice_cream", ["gelato", "stieleis"]),
+    ("pantry", ["tomatenmark"]),                       # tomato paste is not fresh produce
+    ("frozen", ["edamame", "bistro baguette"]),        # both packs state tiefgefroren
+    ("alcoholic", ["berliner perle"]),                 # a Helles that was in soft_drinks
+    ("soft_drinks", ["fassbrause"]),                   # alkoholfrei, was in alcoholic
+    # REJECTED here, and pinned: `nutella` drags Nutella ICE CREAM and Nutella Biscuits into
+    # pantry along with the jar, and `yogurette` would take the CHOCOLATE BAR with the
+    # Stieleis version. Neither exception is nameable the way `bananen-kirsch` was, so the
+    # broad token is dropped rather than guarded.
+    # --- end batch 4 --------------------------------------------------------------------------
     # --- 2026-07-31 image audit, batch 3 (household + drugstore sheets) ----------------------
     # Drugstore products stranded in `household`/`other`. None of these is a food word, so
     # they are safe at layer 2.
