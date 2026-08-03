@@ -510,6 +510,33 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   Mirabellen were served as **soft_drinks**. **Deleting the offending node from `_PATH_MAP` does
   NOT fix that** — the leaf→root scan falls through to the parent (`Wasser`, also mapped). Only
   layer 2 beats a path; removing a node helps only when its parent is unmapped.
+  **The 2026-07-31 PHOTO AUDIT re-ran the contact sheets over all 1403 served products** (PRs
+  #132–#134, ~102 products, 0 regressions) and found two whole blocks the earlier pass had
+  never looked at. **`household` is where food hides** — the app puts it behind the Non-food
+  toggle, so an edible product there is invisible: Babybel, a 5 l beer keg, Senseo pads, two
+  poultry bratwursts, fresh peppers, hummus. Each needs a `_FOOD_RESCUE` token, because layer 1
+  decides on a non-food path and never falls through (so a test for one MUST pass a non-food
+  path — a pathless call proves nothing).
+  **Pet food now resolves to the `pet` chip, not `household`** — measured, not assumed: `pet`
+  IS served in the grocery vertical, so the guard (written before that category existed) was
+  disagreeing with itself, some pet products reaching the chip while 16 sat behind the toggle.
+  `topfpflanze` and bare `dental` stay household so a houseplant and human dental care aren't
+  dragged along.
+  **Ready-meals convention (user's call): only heat-and-eat becomes `ready_meals`** — canned
+  Eintöpfe move, spreads and deli salads stay `pantry`, and a cake *mix* is an ingredient.
+  **A brand whose names are what it IMITATES needs layer 0 or 2**: Violife sat in the brand map
+  as cheese and a MYVAY "Chicken-Style" tub was poultry — both are vegan-only, so they belong in
+  `vegan.py` (layer 0), which also pulled 6 more MyVay products out of household.
+  **`bananen` ships now, and a blanket `brotaufstrich` still does not.** The flat table can't say
+  "not a drink" / "not margarine", but a GUARD ENTRY ABOVE the token can — that is how `bananen`
+  went from rejected to shipped. `brotaufstrich` was re-simulated and still drags Rama out of
+  butter and Brunch out of cheese, so the specific products are named instead.
+  **A repeated key in a dict literal silently keeps the LAST one** — a second
+  `_FOOD_RESCUE["poultry"]` ate the first with no error, and a redefined test function dropped a
+  previous audit's cases from the run. A test now parses the module and fails on duplicate keys
+  in `_FOOD_RESCUE`/`_PATH_MAP`/`BRAND_CATEGORY`; ruff's F811 covers the test-file half.
+  **Don't hardcode absolute `_FORM_OVERRIDES` indices in tests** — inserting a guard shifts them
+  all; derive the index instead (two trace tests were fixed this way).
   **`_FORM_OVERRIDES` is first-hit-wins, so ORDER is part of the fix.** Two guards had to be
   appended *before* the tokens they protect: `edelbrand`/`obstgeist` before `mirabelle` (a
   Mirabellen Edelbrand is a fruit BRANDY) and `matjes` before `senf` (a "Matjes Honig-Senf" is

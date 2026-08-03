@@ -1484,3 +1484,34 @@ it?", and fix them at the one layer that outranks the hierarchy — not by delet
 Before editing any node, check whether the offending leaf is even *in* your map; if a parent
 is doing the work, the leaf edit is a no-op. And measure every deletion, because "removed the
 bad rule" feels like progress even when the diff is empty.
+
+## A guard entry above a token expresses what a flat first-hit-wins table cannot
+
+An earlier audit rejected a `bananen` rule outright: it correctly fixed bananas the source
+files under `Milchprodukte > Milch`, but also dragged a "Bananen-Kirsch-Getränk" out of soft
+drinks. One row gained, one lost — so it was dropped and pinned as a rejection.
+
+That framing was too pessimistic. The table is first-hit-wins, so you *can* say "not a drink":
+put a narrower entry **above** the broad one.
+
+```python
+("soft_drinks", ["bananen-kirsch", "bananensaft"]),   # guard
+("fruits",      ["bananen"]),                          # the rule that was rejected
+```
+
+The suite then immediately caught a second victim the full-corpus diff had missed —
+`Bananenchips`, which are a crisp — needing its own guard above the same token. Both are now
+ordering assertions in the tests, not just value assertions.
+
+The inverse also holds: a blanket `brotaufstrich` was re-simulated and still regresses (Rama
+margarine out of butter, the Brunch spread out of cheese), so there the specific products are
+named. The rule isn't "broad tokens are bad" — it's that a rejected candidate deserves one
+attempt at a guard before it's abandoned.
+
+**Why it came up:** the photo audit re-found bananas independently, which prompted revisiting
+the rejection.
+
+**Takeaway:** in a first-hit-wins rule table, "this token has exceptions" is expressible —
+order is a language. Before rejecting a candidate for a handful of false positives, check
+whether those false positives are *nameable*; if they are, guard them and ship the rule. And
+re-run the full diff afterwards, because a guard changes which rows the token still reaches.
