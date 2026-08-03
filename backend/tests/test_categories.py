@@ -243,9 +243,9 @@ def test_classify_expanded_paths(path, expected):
         ("Essiggurken", None, "pantry"),
         ("Plattpfirsiche, lose", None, "fruits"),  # real peaches unaffected by the tomato/vinegar rules
         # prepared-deli + flavour traps that aren't raw produce
-        ("Popp Fleischsalat", "Popp", "pork"),  # sausage-based deli salad, not "salat"
+        ("Popp Fleischsalat", "Popp", "ready_meals"),  # sausage-based deli salad, not "salat"
         ("HEINZ Tomatenketchup", "HEINZ", "pantry"),  # ketchup, not "tomate"
-        ("Golßener Kartoffelsalat", "Golßener", "pantry"),  # prepared salad, not "kartoffel"
+        ("Golßener Kartoffelsalat", "Golßener", "ready_meals"),  # prepared salad, not "kartoffel"
         ("Popp Kartoffel-Salat", "Popp", "pantry"),
         ("BLOCK HOUSE Brot XXL Knoblauch", "BLOCK HOUSE", "bakery"),  # garlic bread, not "knoblauch"
         ("Kühne Knoblauch", "Kühne", "pantry"),  # condiment brand, not raw garlic
@@ -738,7 +738,7 @@ def test_other_meat(name, path, expected, why):
         ("Landei Frische Eier 10 Stück", "eggs", "the ' eier ' / 'eier 10' form"),
         # Guards — the "Eier…" compounds that are a different product entirely.
         ("Eckes Edler Eierlikör", "alcoholic", "egg liqueur, not eggs"),
-        ("Bauern Gut Eiersalat mit Schnittlauch", "pork", "a deli salad"),
+        ("Bauern Gut Eiersalat mit Schnittlauch", "ready_meals", "a deli salad"),
         ("Komet Eierkuchenmehl", "bakery", "pancake flour"),
     ],
 )
@@ -1199,8 +1199,13 @@ def test_brotaufstrich_is_rejected_as_a_caption_signal():
     """A spread's category comes from what it is MADE of, so "Brotaufstrich" (a USE, not an
     identity) must never be a caption signal — it moved Fleischsalat and Eiersalat out of pork
     and the Brunch spread out of cheese. Same class as the already-rejected "gebäck"."""
-    assert classify("POPP Fleischsalat", "POPP", None, "Brotaufstrich, 150-g-Becher") == "pork"
-    assert classify("Bauern Gut Eiersalat", "Bauern Gut", None, "Brotaufstrich 150 g") == "pork"
+    # 2026-08-03: deli SALADS became ready_meals (user's convention); the point of this
+    # test is unchanged — a blanket `brotaufstrich` caption signal would still drag them
+    # all to pantry, which is wrong wherever they end up.
+    assert classify("POPP Fleischsalat", "POPP", None,
+                    "Brotaufstrich, 150-g-Becher") == "ready_meals"
+    assert classify("Bauern Gut Eiersalat", "Bauern Gut", None,
+                    "Brotaufstrich 150 g") == "ready_meals"
 
 
 def test_vly_is_a_vegan_brand_not_dairy():
@@ -1443,8 +1448,9 @@ def test_other_final_sweep_moves():
                     ["Lebensmittel und Getränke", "Feinkostlebensmittel", "Feinkost",
                      "Pastete"]) == "pork"
     # The ALDI SPORTS powders were split across coffee and dairy by ` latte` and `sahne`.
+    # 2026-08-03: sports-FORMAT nutrition (powders/bars) -> health, per the user.
     assert classify("ALDI SPORTS High-Protein-Pulver Iced Matcha Latte", "ALDI SPORTS",
-                    None) == "pantry"
+                    None) == "health"
     assert classify("ALDI SPORTS High-Protein-Sahne", "ALDI SPORTS", None) == "pantry"
     # A fruit BAR the source filed under a coffee node.
     assert classify("Viba Fruchtschnitte", "Viba",
@@ -1956,3 +1962,90 @@ def test_a_caption_signal_must_be_a_designation_not_an_ingredient():
     assert classify("Dillhappen", None, None,
                     "Heringsfilethappen mit Gewürzgurken, in einer feinen Soße") == "fish"
     assert classify("Hengstenberg Knax", None, None, "Gewürzgurken 720-ml-Glas") == "pantry"
+
+
+# --- 2026-08-03 photo audit + four convention calls -----------------------------------------
+
+@pytest.mark.parametrize(
+    "name,expected,why",
+    [
+        # The CUT-vs-SPECIES class, this week as Rouladen/Braten/Gulasch.
+        ("BauernGut Burger-Patty", "beef", "the label reads 'bestes Rindfleisch'"),
+        ("Eigene Herstellung Lamm-Spieß »Despacito«", "other_meat", "lamb"),
+        ("Billie Green Frikadellen", "vegan", "VEGANE FRIKADELLEN on the pack"),
+        ("GUT&GÜNSTIG Paniermehl", "pantry", "breadcrumbs, not meat"),
+        ("Knorr Fix Air Fryer Hähnchen Döner Style", "pantry", "a 30 g seasoning sachet"),
+        ("Tischfertig Hühnerfrikassee", "ready_meals", "ready-to-serve"),
+        ("Rama Cremfine", "dairy", "pourable cooking cream, not a spread"),
+        ("Nestlé Nesquik", "pantry", "cocoa powder"),
+        ("Kilbeggan Irish Whiskey", "alcoholic", "was in soft_drinks"),
+        ("Starbucks Caffè Latte", "coffee", "chilled latte cups"),
+        ("EDEKA Bio Lassi Mango", "dairy", "a Joghurtdrink"),
+        ("NIXE Thunfisch Filets", "fish", "tinned tuna, was in soft_drinks"),
+        ("Jever Fun 0.0%", "soft_drinks", "alcohol-free pilsener"),
+        ("Frische Lauchterrine", "cheese", "Landfrischkäse with leek"),
+        ("Golßener Spreewälder Gurkensülze", "pork", "meat aspic"),
+        ("Chio Tortillas Wild Paprika", "snacks", "tortilla chips, were bakery"),
+        ("Loacker Thins", "sweets", "wafers"),
+        ("Kathi Tortenmehl", "pantry", "a Backmischung"),
+    ],
+)
+def test_photo_audit_2026_08_03(name, expected, why):
+    assert classify(name, None, None) == expected, why
+
+
+@pytest.mark.parametrize(
+    "name,leaf,expected",
+    [
+        # These need the real PATH: pathless the old `rind`/`kalb` keywords already answer beef,
+        # so a pathless test passes with the rule REMOVED and proves nothing. The bug is that
+        # `Rouladen` and `Schnitzel` are CUT nodes mapped to pork, and layer 3 beats layer 6.
+        ("BLACK PREMIUM Irische Rinder-Rouladen", "Rouladen", "beef"),
+        ("Black Morocco Irische Rinder-Rouladen", "Rouladen", "beef"),
+        ("Kalbs-Schnitzel", "Schnitzel", "beef"),
+        # ...and the sibling that must NOT move: a real pork schnitzel under the same node.
+        ("Bauerngut Schweineschnitzel", "Schnitzel", "pork"),
+    ],
+)
+def test_the_cut_node_must_not_outrank_the_species(name, leaf, expected):
+    path = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Fleisch",
+            "Fleischzubereitungen", leaf]
+    assert classify(name, None, path) == expected
+
+
+@pytest.mark.parametrize(
+    "name,expected,convention",
+    [
+        # Four calls the user made on 2026-08-03.
+        ("Kinder Milchschnitte", "sweets", "milk-cream snack cakes are sweets"),
+        ("Ferrero Kinder Maxi King", "sweets", "...and its sibling already was — the split is fixed"),
+        ("ALDI SPORTS High-Protein-Pulver", "health", "sports-FORMAT nutrition -> health"),
+        ("Schäfer´s High-Proteinbrot", "bakery", "...but an ordinary food keeps its category"),
+        ("Yfood Classic Choco", "soft_drinks", "a drinkable meal replacement is a drink"),
+        ("Bauerngut Eiersalat mit Schnittlauch", "ready_meals", "a deli salad is prepared food"),
+        ("Popp Feinster Fleischsalat", "ready_meals", "same"),
+    ],
+)
+def test_conventions_2026_08_03(name, expected, convention):
+    assert classify(name, None, None) == expected, convention
+
+
+def test_the_guards_that_the_full_diff_forced():
+    """Every one of these was a REAL regression in the first simulation, not a hypothetical.
+
+    `lassi` is a substring of "Classic"/"Classico"/"Klassik" and dragged Dallmayr, Red Bull and
+    Langnese into dairy; `müsli` claims a Müsli*riegel* (a bar) and a Joghurt topped with
+    muesli; `oreo`/`nutella` name ice cream as well as biscuits and spread.
+    """
+    assert classify("Dallmayr Classic", None, None) == "coffee"
+    assert classify("Red Bull Energydrink Classic", None, None) == "soft_drinks"
+    assert classify("Corny Müsliriegel Milch Classic", None, None) == "sweets"
+    assert classify("Kölln Schoko-Hafer-Müsli", None, None) == "pantry"
+    assert classify("bio Joghurt & Crispy Müsli", None, None) == "dairy"
+
+
+def test_a_bare_alkoholfrei_is_still_rejected():
+    """Re-confirmed on this week's data: ~30 real beers carry "oder alkoholfrei" as a VARIANT
+    note, so the bare word would empty the beer aisle. Only 0.0 products are named."""
+    assert classify("Paulaner Weißbier oder alkoholfrei", None, None) == "alcoholic"
+    assert classify("Jever Fun 0.0%", None, None) == "soft_drinks"

@@ -449,6 +449,47 @@ BRAND_CATEGORY: dict[str, str] = {
 # or an unambiguous brand, never a mere flavour — so a frozen "…Schoko" brand isn't dragged
 # here. Space-guarded where a fruit word is a superstring ("nektar " vs "Nektarine").
 _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
+    # --- 2026-08-03 photo audit + four convention calls --------------------------------------
+    # GUARDS FIRST — layer 2 is first-hit-wins and each of these protects a token below it.
+    # `oreo`/`nutella` name ice cream as well as biscuits/spread; `müsliriegel` is a BAR while
+    # `müsli` is cereal; a `joghurt` with a muesli topping is still a yoghurt.
+    ("ice_cream", ["nutella eis", "nutella ice", "nuii", "oreo eis", "oreo ice", "sandwich-eis"]),
+    ("sweets", ["müsliriegel", "müsli riegel"]),
+    ("dairy", ["joghurt"]),
+    # The CUT-vs-SPECIES class again, this week as Rouladen/Braten/Gulasch: the source files
+    # Irish BEEF roulades under a pork node, and a Kalbsschnitzel is veal (= beef here).
+    ("beef", ["rinder-roulade", "rinderroulade", "rinder-braten", "rinder-gulasch",
+              "kalbs-schnitzel", "kalbsschnitzel", "burger-patty"]),
+    ("other_meat", ["lamm-spieß"]),
+    ("vegan", ["billie green", "vegetarian butcher", "vivera"]),
+    ("pantry", ["paniermehl", "knorr fix", "air fryer hähnchen", "nesquik", "tortenmehl",
+                "müsli", "kaffeebecher", "müslischale"]),
+    # CONVENTION (user, 2026-08-03): a deli SALAD is heat-and-eat-adjacent prepared food ->
+    # ready_meals. This narrows last week's "spreads and deli salads stay pantry": the SPREADS
+    # still do (Brotaufstrich, nut creams), the salads no longer.
+    ("ready_meals", ["hühnerfrikassee", "prepmymeal", "eiersalat", "nudelsalat",
+                     "kartoffelsalat", "weisskrautsalat", "fleischsalat", "soljanka"]),
+    ("frozen", ["baniza", "teigröllchen"]),
+    # CONVENTION (user): a milk-cream snack cake is a SWEET — Milchschnitte joins Maxi King,
+    # which fixes a live split where one family sat in two categories.
+    ("sweets", ["milchschnitte", "mikado", "loacker", "napolitanke", "kalter hund"]),
+    # " lassi" keeps its LEADING SPACE: bare `lassi` is a substring of "Classic"/"Classico"/
+    # "Klassik" and dragged Dallmayr, Red Bull and Langnese into dairy when first simulated.
+    ("dairy", ["cremefine", "cremfine", " lassi", "lassi mango"]),
+    ("alcoholic", ["whiskey", "whisky"]),
+    ("fish", ["thunfisch filet"]),
+    ("coffee", ["caffè latte", "caffe latte", "der herzhafte"]),
+    # `0.0%` and the named 0.0 brands only. A bare `alkoholfrei` is a DOCUMENTED rejection —
+    # ~30 real beers carry "oder alkoholfrei" as a variant note and would empty the beer aisle.
+    ("soft_drinks", ["0.0%", "wonderleaf", "yfood"]),   # yfood = the meal-drink brand
+    # CONVENTION (user): sports-FORMAT nutrition (bars, powders, shakes) -> health; an ordinary
+    # food that happens to be high-protein keeps its own category (protein bread stays bakery).
+    ("health", ["proteinpulver", "protein-pulver", "eaa "]),
+    ("cheese", ["lauchterrine", "radieschentopf"]),
+    ("pork", ["gurkensülze", "paprikapastete"]),
+    ("household", ["topfcover"]),                      # a living blueberry PLANT in a pot
+    ("snacks", ["tortillas"]),
+    # --- end photo-audit block ------------------------------------------------------------------
     # --- 2026-08-03 new-week audit: the `other` bucket (92 products on arrival) --------------
     # GUARD FIRST: `macadamia` below would otherwise claim a Nuii Stieleis for snacks.
     ("ice_cream", ["ice cream", "stieleis", "eis am stiel"]),
