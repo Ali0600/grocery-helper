@@ -1545,3 +1545,28 @@ cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 branch that deploys. More generally — a *cancelled* run is not a failure signal; it shows up
 grey and gets read as noise. Any pipeline where "did not run" and "ran and passed" look alike
 needs the outcome verified downstream (poll the deployed version), not inferred from the tick.
+
+## The same token can be wrong at one layer and correct at another
+
+`nutella` was rejected twice as a classifier rule. As a layer-2 form word it fires on every
+product name containing it — the jar (a spread → pantry), *Nutella Ice Cream* (→ ice_cream) and
+*Nutella B-ready* (a biscuit) — so it traded one right answer for several wrong ones. Correctly
+dropped, twice, and pinned as a rejection.
+
+It shipped on the third attempt without changing a character, because it moved layers. As a
+`_FOOD_RESCUE` token it lives **inside the layer-1 non-food branch**, which only runs when the
+source filed the product under a non-food path. The ice cream and the biscuits arrive on food
+paths, so the rule is *structurally unable* to reach them; the only thing it can still see is a
+jar of Nutella that the source buried in Household.
+
+The general shape: in a layered classifier, "is this rule safe?" is not a property of the rule.
+It's a property of the rule **plus the gate above it**. A token that is hopelessly ambiguous in
+an ungated table can be exactly right in a gated one, because the gate has already removed the
+cases it would get wrong.
+
+**Why it came up:** hunting food hidden in `household`, where the whole point is that layer 1
+has already decided the path is non-food.
+
+**Takeaway:** before discarding an ambiguous rule, check whether some *narrower* layer would
+give it a population it handles correctly. And when you record a rejection, record the layer it
+was rejected AT — "`nutella` is unusable" was too strong, and would have kept a good fix out.

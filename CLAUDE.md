@@ -527,6 +527,16 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   **Drinking yoghurt and kefir are `dairy`** (user's call, reversing PR #105's placement of
   MILSANI Activedrink in soft_drinks) — listed with the sibling forms so it's a convention, not
   a one-product patch. A juice or an isotonic drink must still be `soft_drinks`; both pinned.
+  **A token rejected at one LAYER can be correct at another** (2026-08-03): `nutella` stays
+  rejected as an L2 form word (it claims the ice cream and the biscuit) but ships as a
+  `_FOOD_RESCUE` token, because that table only runs inside the layer-1 non-food branch — the
+  ice cream and biscuit arrive on FOOD paths, so the gated rule cannot reach them. Record the
+  layer a rejection applies to, not just the token.
+  **Grocery chains sell drugstore goods, and nothing was routing them** (2026-08-03 photo
+  audit, 86 products): ~60 cosmetics/cleaning/pet products sat in the GROCERY vertical's
+  `household` chip. `_DRUGSTORE_RULES` gained tokens for fragrance/hair/face/body/health/baby/
+  cleaning/laundry/pet, **appended not inserted** — at the front, a new `duschgel` token beat
+  the existing `shampoo` rule and sent a "2in1 Shampoo & Duschgel" to body.
   **A broad token is only shippable if its false positives are NAMEABLE**: `bananen` went from
   rejected to shipped because `bananen-kirsch` could be guarded above it, while `nutella` (jar
   vs ice cream vs biscuit) and `yogurette` (chocolate bar vs Stieleis) stay rejected because no
