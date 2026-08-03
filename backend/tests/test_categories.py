@@ -286,12 +286,12 @@ _GUG = [_FOOD, "Marken", "Marken Lebensmittel", "Gut & Günstig"]  # brand-only,
         ("Echter Nordhäuser Doppelkorn", "Echter Nordhäuser",
          [_FOOD, "Produkte", "Getränke", "Alkoholische Getränke", "Spirituosen", "Korn"], "alcoholic"),
         # non-snack "X Sticks" the source dumps into Knabberzeug>Sticks (L2 beats the path)
-        ("GUT&GÜNSTIG Dental-Sticks", "GUT&GÜNSTIG", _KNAB_STICKS, "household"),
+        ("GUT&GÜNSTIG Dental-Sticks", "GUT&GÜNSTIG", _KNAB_STICKS, "pet"),
         ("GUT&GÜNSTIG Chicken-Drumsticks", "GUT&GÜNSTIG", _KNAB_STICKS, "poultry"),
         # a real snack stick still classifies as snacks (the path node itself is unchanged)
         ("funny frisch Brezli", "funny frisch", _KNAB_STICKS, "snacks"),
         # Gut&Günstig house-brand lines: opaque names, no product node → pinned by keyword
-        ("GUT&GÜNSTIG Hello my cat Knuspermenü", "GUT&GÜNSTIG", _GUG, "household"),
+        ("GUT&GÜNSTIG Hello my cat Knuspermenü", "GUT&GÜNSTIG", _GUG, "pet"),
         ("GUT&GÜNSTIG Knusperdinos", "GUT&GÜNSTIG", _GUG, "poultry"),   # Hähnchen nuggets
         ("GUT&GÜNSTIG Knusperjungs", "GUT&GÜNSTIG", _GUG, "bakery"),    # Weizenbrötchen
         # "lorenz" brand key no longer swallows "Lorenzo" (trailing-space fix) → real category
@@ -340,7 +340,7 @@ def test_every_result_is_a_known_category():
         ("MILSANI Kasländer Würzig", "cheese"),
         ("Trader Joe's Walnusskerne", "snacks"),
         ("Tuc Original", "snacks"),
-        ("Pottkieker Beste Eintöpfe", "pantry"),
+        ("Pottkieker Beste Eintöpfe", "ready_meals"),
         ("SPEISEZEIT Leichte Suppe Gulasch-Suppe", "pantry"),
         ("Lasagne-blätter", "pantry"),
         ("Gigli", "pantry"),
@@ -889,8 +889,13 @@ def test_coffee_is_a_registered_category():
 # --- Pet food never lands in a food chip (2026-07-28, user-reported: "Orlando in Chicken is dog
 # food"). The pet-food veto only ran INSIDE the non-food-path rescue, so a pathless pet product with
 # a meat word ("Orlando Hundetrockennahrung Rind") sailed to the meat keyword and became beef. A
-# layer-2 household override now catches pet food before the meat/coffee/snacks keywords AND before a
-# mis-filed food path (Sheba cat food sits under a "Fisch" node). ---
+# layer-2 override now catches pet food before the meat/coffee/snacks keywords AND before a
+# mis-filed food path (Sheba cat food sits under a "Fisch" node).
+#
+# 2026-07-31: the target became `pet` rather than `household`. Measured that the `pet` chip IS
+# served in the grocery vertical, so the guard was disagreeing with itself — some pet products
+# reached the chip while these sat behind the Non-food toggle. The claim below is unchanged and
+# now stricter: a pet product must never be in a FOOD chip, and it must be findable. ---
 
 @pytest.mark.parametrize(
     "name, path, was",
@@ -904,8 +909,8 @@ def test_coffee_is_a_registered_category():
         ("Coshida Katzennassnahrung", None, "other"),
     ],
 )
-def test_pet_food_is_household_not_a_food_chip(name, path, was):
-    assert classify(name, None, path) == "household", f"was {was}"
+def test_pet_food_is_the_pet_chip_not_a_food_chip(name, path, was):
+    assert classify(name, None, path) == "pet", f"was {was}"
 
 
 def test_pet_guard_does_not_swallow_real_meat():
@@ -1326,7 +1331,7 @@ def test_the_new_rescues_still_only_fire_under_a_non_food_path():
         ("MILRAM Hotties", "cheese"),
         ("MEIN BESTES CroFranz", "bakery"),
         ("KOPPENRATH WIESE Unsere Goldstücke", "bakery"),
-        ("GUT&GÜNSTIG Hygienestreu", "household"),
+        ("GUT&GÜNSTIG Hygienestreu", "pet"),
     ],
 )
 def test_other_bucket_rescues(name, expected):
@@ -1630,9 +1635,9 @@ def test_species_beats_a_cut_node(name, path, expected, why):
 
 
 def test_schwein_does_not_claim_guinea_pig_food():
-    """ORDER is the rule here: `schwein` is a substring of `Meerschweinchen`, so the new L2
-    entry sits AFTER the pet guard. Move it above and a guinea-pig food becomes pork."""
-    assert classify("Meerschweinchen Trockenfutter", None, None) == "household"
+    """ORDER is the rule here: `schwein` is a substring of `Meerschweinchen`, so the L2 entry
+    sits AFTER the pet guard. Move it above and a guinea-pig food becomes pork."""
+    assert classify("Meerschweinchen Trockenfutter", None, None) == "pet"
 
 
 def test_milka_is_chocolate_but_milkana_is_still_cheese():
@@ -1797,3 +1802,60 @@ def test_bananen_now_ships_because_the_guard_expresses_what_the_flat_table_could
             "Rio D'oro"]
     assert classify("Bananen, Fairtrade", None, milch) == "fruits"
     assert classify("RIO D'ORO Bananen-Kirsch-Getränk", None, saft) == "soft_drinks"
+
+
+# The rescue cases need a NON-FOOD path — that is the whole reason they need a rescue token:
+# layer 1 only runs when the path is non-food, and it decides without falling through.
+NONFOOD_PATH = ["Saison und Events", "Produkte", "Saison", "Aktionen"]
+
+
+@pytest.mark.parametrize(
+    "name,expected,why",
+    [
+        # Real FOOD that was sitting in `household`, i.e. behind the Non-food toggle and
+        # effectively invisible to the user.
+        ("BABYBEL 9er-Netz", "cheese", "a net of Babybel"),
+        ("BauernGut Goldgriller", "poultry", "'100% Geflügel' bratwurst"),
+        ("Senseo Coffee Pads Classic", "coffee", "coffee pads"),
+        ("Krombacher Frische-Fass", "alcoholic", "a 5 l beer keg"),
+        ("AMICELLI Milchcreme", "sweets", "chocolate wafer rolls"),
+        ("EDEKA Regional Paprika", "vegetables", "fresh peppers"),
+        ("Berlin Like Home Baba Ganoush", "pantry", "a dip"),
+    ],
+)
+def test_photo_audit_batch3_food_rescued_from_household(name, expected, why):
+    assert classify(name, None, NONFOOD_PATH) == expected, why
+    # ...and a genuine non-food item under the same root must stay household.
+    assert classify("Black Torch Tankstellengrill", None, NONFOOD_PATH) == "household"
+
+
+@pytest.mark.parametrize(
+    "name,expected,why",
+    [
+        # Drugstore products stranded in household / the wrong chip (layer 2, so pathless).
+        ("Persil Waschmittel Gel", "laundry", "detergent"),
+        ("Listerine Advanced", "dental", "mouthwash — it was in the hair chip"),
+        ("WC FRISCH Kraft Aktiv", "cleaning", "toilet rim block"),
+        # The convention call: heat-and-eat -> ready_meals, spreads/salads stay pantry.
+        ("Erasco Eintopf", "ready_meals", "a canned stew is heat-and-eat"),
+        ("Popp Brotaufstrich", "pantry", "a spreadable salad stays pantry"),
+        ("Dr. Oetker Kuchenbackmischungen", "pantry", "a cake MIX is an ingredient"),
+    ],
+)
+def test_photo_audit_batch3(name, expected, why):
+    assert classify(name, None, None) == expected, why
+
+
+def test_a_blanket_brotaufstrich_is_still_rejected():
+    """The narrow spread tokens exist because the blanket one was re-simulated and STILL
+    regresses: it drags Rama (margarine) out of butter and the Brunch spread out of cheese."""
+    assert classify("Rama Brotaufstrich", None, None) == "butter"
+    assert classify("Brunch Brotaufstrich", None, None) == "cheese"
+
+
+def test_pet_guard_splits_pet_food_from_genuine_household():
+    """`topfpflanze` is a houseplant and bare `dental` is human dental care — neither may be
+    dragged into `pet` by the split, and the dog chew is named explicitly instead."""
+    assert classify("GUT&GÜNSTIG Dental-Sticks", None, None) == "pet"
+    assert classify("Colgate Total Zahnpasta", None, None) == "dental"
+    assert classify("Kunst-Topfpflanze Sukkulente", None, None) == "household"
