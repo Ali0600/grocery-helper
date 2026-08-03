@@ -524,6 +524,13 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   dragged along.
   **Ready-meals convention (user's call): only heat-and-eat becomes `ready_meals`** — canned
   Eintöpfe move, spreads and deli salads stay `pantry`, and a cake *mix* is an ingredient.
+  **Drinking yoghurt and kefir are `dairy`** (user's call, reversing PR #105's placement of
+  MILSANI Activedrink in soft_drinks) — listed with the sibling forms so it's a convention, not
+  a one-product patch. A juice or an isotonic drink must still be `soft_drinks`; both pinned.
+  **A broad token is only shippable if its false positives are NAMEABLE**: `bananen` went from
+  rejected to shipped because `bananen-kirsch` could be guarded above it, while `nutella` (jar
+  vs ice cream vs biscuit) and `yogurette` (chocolate bar vs Stieleis) stay rejected because no
+  substring separates their forms. All three are pinned with the reasoning.
   **A brand whose names are what it IMITATES needs layer 0 or 2**: Violife sat in the brand map
   as cheese and a MYVAY "Chicken-Style" tub was poultry — both are vegan-only, so they belong in
   `vegan.py` (layer 0), which also pulled 6 more MyVay products out of household.
