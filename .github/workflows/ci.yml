@@ -10,10 +10,14 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same ref cancels the in-flight run.
+# A newer push to a PR cancels the in-flight run — but NEVER on `main`, because the deploy job
+# lives in this workflow. On 2026-08-03 a docs commit pushed one minute after a backend merge
+# cancelled that merge's run, and the Render deploy died with it: the fix was on `main` and not
+# in production, with a green tick on the merge commit and no failure anywhere to notice.
+# Superseded PR runs are still worth cancelling; a superseded `main` run is a lost deploy.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   backend:
