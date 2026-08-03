@@ -449,6 +449,29 @@ BRAND_CATEGORY: dict[str, str] = {
 # or an unambiguous brand, never a mere flavour — so a frozen "…Schoko" brand isn't dragged
 # here. Space-guarded where a fruit word is a superstring ("nektar " vs "Nektarine").
 _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
+    # --- 2026-08-03 new-week audit: the `other` bucket (92 products on arrival) --------------
+    # GUARD FIRST: `macadamia` below would otherwise claim a Nuii Stieleis for snacks.
+    ("ice_cream", ["ice cream", "stieleis", "eis am stiel"]),
+    ("pet", ["ergänzungsfuttermittel", "kaurollchen"]),
+    ("cheese", ["ziegenrolle", "kiri", "cheese tiger"]),
+    ("pork", ["stickado", "doktorskaja", "stielkotelett", "sulzspezialität"]),
+    ("fish", ["feinmarinaden", "mowi"]),                       # Mowi is a salmon brand
+    ("pantry", ["buchweizen", "jodsalz", "couscous", "fruchtaufstrich", "spekulatiuscreme",
+                "beanz", "würzpulver", "soljanka", "letscho", "cereals", "cini-minis"]),
+    ("frozen", ["grid fries", "blinis", "ristorante", "margherita", "junge erbsen",
+                "lasagne bolognese"]),
+    ("ready_meals", ["pelmeni", "vareniki", "döner-box"]),     # filled dumplings, heat-and-eat
+    ("bakery", ["mini-eclairs", "kleingebäck", "napoleonky"]),
+    ("sweets", ["prinzenrolle", "eszet", "maltesers", "pick up", "sallos", "happz",
+                "kalter hund", "corny", "honey nuggets"]),
+    ("snacks", ["super mix", "macadamia", "vanilla-cashew"]),
+    ("soft_drinks", ["cold tea", "rabenhorst"]),
+    ("alcoholic", ["kosmonaut", "vieille ferme"]),
+    ("fruits", ["zwetsch"]),                                    # Zwetschen / the typo'd Zwetschlen
+    ("vegetables", ["pakchoi", "pak choi"]),
+    ("dairy", ["high protein pudding", "früchte trio"]),
+    ("fragrance", ["eau de parfum"]),
+    # --- end new-week block -------------------------------------------------------------------
     # --- 2026-07-31 image audit, batch 4 (pantry / drinks / produce sheets) ------------------
     ("bakery", ["mohnhappen", "dinkelinge"]),          # a yeast pastry and spelt rolls
     ("vegetables", ["petersilie"]),                    # a fresh bunch, sold je Bund
@@ -724,6 +747,22 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
 # contains some), "plunderteig" (a poultry-filled pastry roll is arguably not bakery), and
 # "gebäck"/"rindfleisch" (hit sweets and mixed Bratwurst respectively).
 _CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
+    # --- 2026-08-03: products whose only usable signal is the CAPTION ------------------------
+    # These names say nothing ("3 Glocken Genuss Pur", "Proviant", "Protein") while the caption
+    # states the designation. REJECTED here and worth stating: `eingelegt` (it catches pickled
+    # HERRING, which is fish) and `pizzateig` (it drags a frozen Pizza-Burger into bakery) —
+    # both are forms that span categories, so neither is guardable the way a brand is.
+    # GUARD above `gewürzgurken`: a caption signal must be a DESIGNATION, not an INGREDIENT,
+    # and "Heringsfilethappen mit Gewürzgurken" is herring WITH gherkins — it was being served
+    # as pantry until this entry went in front.
+    ("fish", ["heringsfilet", "brathering", "räuchmatjes"]),
+    ("pantry", ["teigwaren", "gewürzgurken"]),
+    ("pork", ["salamispezialität"]),
+    ("cheese", ["käsescheiben", "körnigem frischkäse"]),
+    ("bakery", ["weizenkleingebäck"]),
+    ("soft_drinks", ["fruchtsaftgetränk", "erfrischungsgetränke"]),
+    ("sweets", ["umhüllt von milchschokolade"]),
+    # --- end caption block --------------------------------------------------------------------
     # "45% Fett i. Tr." is a legal fat-in-dry-matter declaration; only cheese carries it.
     ("cheese", ["fett i. tr", "fett i.tr", "schnittkäse", "weichkäse", "hartkäse", "brühkäse",
                 "reibekäse", "frischkäsezubereitung", "schmelzkäsezubereitung", "käse-frischpack"]),
