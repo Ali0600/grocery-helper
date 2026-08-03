@@ -1859,3 +1859,34 @@ def test_pet_guard_splits_pet_food_from_genuine_household():
     assert classify("GUT&GÜNSTIG Dental-Sticks", None, None) == "pet"
     assert classify("Colgate Total Zahnpasta", None, None) == "dental"
     assert classify("Kunst-Topfpflanze Sukkulente", None, None) == "household"
+
+
+@pytest.mark.parametrize(
+    "name,expected,why",
+    [
+        ("Rotkäppchen Minis/Sticks & Dip", "cheese", "Rotkäppchen is the SEKT brand — this is soft cheese"),
+        ("Petrella Schnittlauch", "cheese", "a cream-cheese tub, was pork"),
+        ("Berliner Perle Helles", "alcoholic", "a beer that was in soft_drinks"),
+        ("Krombacher's Fassbrause Maracuja", "soft_drinks", "alkoholfrei, was alcoholic"),
+        ("Bruno Gelato Eis", "ice_cream", "gelato tubs, were soft_drinks"),
+        ("Dr. Oetker Milchreis", "dairy", "rice pudding pots"),
+        ("Milbona Yofrutta mit Schokobits", "dairy", "yoghurt pots, were sweets"),
+        ("REWE Bio Tomatenmark", "pantry", "tomato paste is not fresh produce"),
+        ("REWE Bio Edamame", "frozen", "the pack states tiefgefroren"),
+        ("Dr. Oetker Bistro Baguette", "frozen", "a frozen pizza baguette, was bakery"),
+        ("Mohnhappen", "bakery", "a yeast pastry"),
+        ("Petersilie", "vegetables", "a fresh bunch"),
+        ("REWE Bio Falafel-Bällchen", "vegan", "REWE Bio pflanzlich"),
+    ],
+)
+def test_photo_audit_batch4(name, expected, why):
+    assert classify(name, None, None) == expected, why
+
+
+def test_nutella_and_yogurette_were_rejected_as_broad_tokens():
+    """Pinned so they aren't re-"found": unlike `bananen`, whose one false positive was
+    NAMEABLE (`bananen-kirsch`), these brands span forms that a substring can't separate —
+    the jar vs the ice cream vs the biscuit, the chocolate bar vs the Stieleis."""
+    assert classify("Nutella", None, None) == "sweets"
+    assert classify("Nutella Ice Cream", None, None) == "ice_cream"
+    assert classify("Ferrero Yogurette", None, None) == "sweets"
