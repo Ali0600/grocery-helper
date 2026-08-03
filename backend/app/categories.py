@@ -449,6 +449,24 @@ BRAND_CATEGORY: dict[str, str] = {
 # or an unambiguous brand, never a mere flavour — so a frozen "…Schoko" brand isn't dragged
 # here. Space-guarded where a fruit word is a superstring ("nektar " vs "Nektarine").
 _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
+    # --- 2026-07-31 image audit, batch 3 (household + drugstore sheets) ----------------------
+    # Drugstore products stranded in `household`/`other`. None of these is a food word, so
+    # they are safe at layer 2.
+    ("dental", ["blend-a-dent", "listerine", "mundspülung", "zahnpasta", "colgate"]),
+    ("laundry", ["persil"]),
+    ("cleaning", ["allzwecktücher", "wc frisch", "wc-spüler"]),
+    ("body", ["bodycream", "carefree"]),
+    ("hair", ["strong power"]),
+    ("household", ["guthabenkarte", "toilettenpapier", "taschentücher", "zewa"]),
+    # A canned Eintopf is heat-and-eat, which is what `ready_meals` means (user's convention:
+    # only heat-and-eat meals -> ready_meals; spreads and deli salads stay pantry).
+    ("ready_meals", ["eintopf", "eintöpfe"]),
+    # A cake MIX is an ingredient, not a baked good. The spread tokens are deliberately NARROW:
+    # a blanket `brotaufstrich` is a documented REJECTED signal, and re-simulating it here
+    # confirmed it still drags Rama (margarine) out of butter and the Brunch spread out of
+    # cheese, so the specific products are named instead.
+    ("pantry", ["backmischung", "popp brot", "abendbrotaufstrich", "nougat-brotaufstrich"]),
+    # --- end batch 3 --------------------------------------------------------------------------
     # --- 2026-07-31 image audit, batch 2 (meat / dairy / cheese sheets) ---------------------
     # These are GUARDS and must stay at the top: layer 2 is first-hit-wins, and each one
     # protects a token further down that would otherwise claim the product.
@@ -504,10 +522,18 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # Every token verified pet-only over the DB — the "-nahrung"/"-futter" stems are animal-only
     # (baby food is Anfangs-/Säuglings-/Trink-nahrung, none of which match), and `coshida`/`sheba`
     # are single-category pet brands (unlike Orlando, which also sells human Mexican food).
-    ("household", ["dental", "hello my cat", "topfpflanze",
-                   "trockennahrung", "nassnahrung", "nassfutter", "trockenfutter", "hundefutter",
-                   "hundenahrung", "tierfutter", "tiernahrung", "vogelfutter", "katzenstreu",
-                   "kausnack", "kaurollen", "kauknochen", "kaustange", "coshida", "sheba"]),
+    # 2026-07-31: pet food goes to the `pet` CHIP, not household. `pet` is served in the
+    # grocery vertical too (measured: 5 offers), and this guard predates that category — so a
+    # Coshida sat behind the Non-food toggle while other pet products reached the chip, i.e.
+    # the rule disagreed with itself. `topfpflanze` is a genuine houseplant and stays
+    # household, and bare `dental` stays there because human dental care is its own chip and
+    # must never become pet — the dog chew is named explicitly instead.
+    ("pet", ["hello my cat", "dental-stick",
+             "trockennahrung", "nassnahrung", "nassfutter", "trockenfutter", "hundefutter",
+             "hundenahrung", "tierfutter", "tiernahrung", "vogelfutter", "katzenstreu",
+             "hygienestreu", "katzensticks", "lieblingsmenü", "beef stick",
+             "kausnack", "kaurollen", "kauknochen", "kaustange", "coshida", "sheba"]),
+    ("household", ["dental", "topfpflanze"]),
     # Breaded chicken drumsticks the source dumps into Knabberzeug>Sticks (a snacks node); no
     # ice-cream "Drumstick" is in the feed, so this is unambiguous poultry.
     ("poultry", ["drumstick"]),
@@ -782,7 +808,7 @@ _FOOD_RESCUE: dict[str, list[str]] = {
                "pflaume", "wassermelone", "honigmelone", "kirsche", "heidelbeere", "blaubeere",
                "stachelbeere", "johannisbeere", " mango", "papaya", "weintraube",
                "tafeltraube", "mandarin-orange"],
-    "vegetables": ["rispentomate", "romatomate", "cherrytomate", "kulturchampignon", "champignon",
+    "vegetables": ["regional paprika", "rispentomate", "romatomate", "cherrytomate", "kulturchampignon", "champignon",
                    "zucchini", "rucola", "feldsalat", "wildkräuter salat"],
     "fish": ["deutsche see", "lachsfilet", "pangasius", "räucher-garnele",
              "heringsstipp", "tiger-garnele"],
@@ -790,11 +816,11 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     # Grillsaison` root. Layer 1 decides on a non-food path and never falls through, so a
     # rescue token is the only thing that can reach it — without one a turkey steak lands in
     # household, i.e. invisible behind the Non-food toggle.
-    "poultry": ["maishähnchen", "geflügelsalat", "geflügel-fleischsalat", "hähnchen-grillplatte",
+    "poultry": ["goldgriller", "bruzzlkracher", "maishähnchen", "geflügelsalat", "geflügel-fleischsalat", "hähnchen-grillplatte",
                 "knusperdino", "putensteak", "puten-ministeak"],
-    "snacks": ["jumbo erdnüsse", "erdnusskerne", "erdnuss-flip", "cashew", "walnusskern", "reiswaffel"],
-    "bakery": ["roggenmischbrot", "vollkornbrot", "mehrkornbrot", "kernbrot"],
-    "pantry": ["guacamole", "tomatenketchup", "agavendicksaft", "quinoa"],
+    "snacks": ["nic nac", "linsenwaffel", "jumbo erdnüsse", "erdnusskerne", "erdnuss-flip", "cashew", "walnusskern", "reiswaffel"],
+    "bakery": ["vitalgebäck", "roggenmischbrot", "vollkornbrot", "mehrkornbrot", "kernbrot"],
+    "pantry": ["baba ganoush", "hummus", "guacamole", "tomatenketchup", "agavendicksaft", "quinoa"],
     "beef": ["ochsen-bäckchen", "ochsenbäckchen"],
     # Pork the source files under a non-food "Grillfleisch"/promo node → household ("Hausmarke
     # Schweine-Nackensteaks"). `nackensteak` is already a pork keyword, but the path wins first, so
@@ -809,13 +835,13 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     # way back for these; the same product arrives with a correct path from another chain,
     # which is how the self-disagreement check found them.
     "dairy": ["monte mega", "fruchtjoghurt"],
-    "soft_drinks": ["capri sun", "capri-sun", "fruchtsäfte"],
-    "alcoholic": [" weine"],  # LEADING SPACE: bare "weine" is a substring of "Schweine-"
+    "soft_drinks": ["ingwer shot", "capri sun", "capri-sun", "fruchtsäfte"],
+    "alcoholic": ["frische-fass", " weine"],  # LEADING SPACE: bare "weine" is a substring of "Schweine-"
     # (a Schweinebraten under a pet path classified as ALCOHOLIC before this guard).
     # Grated cheese the source mis-files under a PET-brand node ("Milsani Reibekäse XXL" under
     # "Marken für Tiere"). Real cheese, not pet food, so it's a rescue — the pet guard's tokens
     # don't match "reibekäse", and no pet product carries the word.
-    "cheese": ["reibekäse", "reibekase"],
+    "cheese": ["babybel", "reibekäse", "reibekase"],
     # Drinkable coffee filed under a non-food node (Senseo pads and a REWE Bio Caffè Crema sit
     # there). The APPLIANCES that share these words — Kaffeevollautomat, Espressomaschine,
     # Filterkaffeemaschine, "Melitta Barista" — are genuinely household and are held there by
@@ -826,7 +852,8 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     # is load-bearing and measurable: removing it leaks 7 machines (Kaffeevollautomat x3,
     # Filterkaffeemaschine x2, DeLonghi x2) into Coffee. "espresso" is deliberately NOT here —
     # it would drag in a "CROFTON Espressokocher" (a moka pot).
-    "coffee": ["kaffee", "caffè crema", "ganze bohnen"],
+    "sweets": ["amicelli", "fruchtkaramell"],
+    "coffee": ["senseo", "kaffeepad", "kaffee", "caffè crema", "ganze bohnen"],
 }
 
 # If any of these appear in the name, the food noun is a coincidence and the non-food path stands:

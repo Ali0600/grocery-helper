@@ -126,7 +126,7 @@ def test_a_losing_layer_reports_what_it_would_have_said():
 def test_the_users_dog_food_case_shows_the_guard_beating_the_meat_keyword():
     """The report that started this: "Orlando in Chicken is dog food"."""
     trace = explain("Orlando Hundetrockennahrung Rind & Gemüse")
-    assert trace.category == "household"
+    assert trace.category == "pet"
     assert (trace.winner.layer, trace.winner.matched) == ("2", "trockennahrung")
     keywords = next(s for s in trace.layers if s.layer == "6")
     assert (keywords.slug, keywords.matched) == ("beef", "rind")
