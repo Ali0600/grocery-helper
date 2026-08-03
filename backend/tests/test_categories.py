@@ -1508,8 +1508,12 @@ def test_drugstore_aisles(name, path, expected):
          "`Marken Parfum` is a BRAND CONTAINER — Axe also makes shower gel"),
         ("EDEKA Herzstücke Feine Pastete", ["Tierbedarf und Tierfutter", "Marken für Tiere"],
          "household", "`Marken für Tiere` is a brand container holding human food too"),
-        ("NIVEA Pflegedusche", _DRUG + ["Hautpflege", "Hautpflegeprodukte", "Creme"], "household",
-         "`Hautpflege` spans face AND body, and the source hangs unrelated products off it"),
+        # 2026-08-03: now resolves to `body`, and correctly — a Pflegedusche IS a shower
+        # product, caught by the new `dusche` TOKEN rather than by the path. The rejection this
+        # case documents is unchanged: the `Hautpflege` NODE stays out of the map because it
+        # spans face AND body (a RAMA Cremefine hangs off it too).
+        ("NIVEA Pflegedusche", _DRUG + ["Hautpflege", "Hautpflegeprodukte", "Creme"], "body",
+         "a Pflegedusche is a shower product; the `Hautpflege` NODE is still unmapped"),
         ("Huel Trinkmahlzeit Banana", ["Baby und Kinder", "Baby", "Babynahrung"], "household",
          "`Babynahrung` is a FOOD node; an adult meal drink must not become a drugstore aisle"),
         ("Gillette Fusion5", _DRUG + ["Körperpflege", "Haarentfernung"], "body",
@@ -2049,3 +2053,68 @@ def test_a_bare_alkoholfrei_is_still_rejected():
     note, so the bare word would empty the beer aisle. Only 0.0 products are named."""
     assert classify("Paulaner Weißbier oder alkoholfrei", None, None) == "alcoholic"
     assert classify("Jever Fun 0.0%", None, None) == "soft_drinks"
+
+
+# --- 2026-08-03 photo audit: the household + drugstore sheets -------------------------------
+#
+# Both fixes live INSIDE layer 1, which only runs when the path is non-food — so they are safe
+# by construction and every test below must pass a non-food path. A pathless call proves nothing.
+
+NONFOOD = ["Saison und Events", "Produkte", "Saison", "Aktionen"]
+
+
+@pytest.mark.parametrize(
+    "name,expected,why",
+    [
+        # Real FOOD hidden behind the Non-food toggle, where the user cannot see it.
+        ("Backfisch", "fish", "breaded pollock fillets"),
+        ("BBQ Nackensteaks XXL", "pork", "raw marinated neck steaks"),
+        ("EDEKA Bio Hähnchenflügel", "poultry", "raw chicken wings"),
+        ("EDEKA Herzstücke Laugen-Burger-Buns", "bakery", "pretzel burger buns"),
+        ("Gazi Grill- und Pfannenkäse", "cheese", "grilling cheese"),
+        ("Kölln Blütenzarte Haferflocken", "pantry", "rolled oats"),
+        ("REWE Beste Wahl Speisekartoffeln", "vegetables", "loose potatoes"),
+        ("REWE to go Sweet Ananas", "fruits", "fresh pineapple chunks"),
+        ("Tchibo Feine Milde", "coffee", "1 kg of whole beans"),
+        # `nutella` was REJECTED as a broad layer-2 token (it claims the ice cream and the
+        # biscuits). As a GATED rescue token it cannot reach either, so it ships here.
+        ("Ferrero Nutella", "sweets", "a jar, and the gate makes the token safe"),
+    ],
+)
+def test_food_rescued_from_household(name, expected, why):
+    assert classify(name, None, NONFOOD) == expected, why
+    # ...and genuine non-food under the same root must stay household.
+    assert classify("Black Torch Tankstellengrill", None, NONFOOD) == "household"
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("BETTY BARCLAY Woman Eau de Parfum", "fragrance"),
+        ("Garnier Nutrisse Ultra Crème Color", "hair"),
+        ("L'Oréal Paris Anti-Falten Experte", "face"),
+        ("Alterra Aromadusche Glücksgefühl", "body"),
+        ("Bullrich Heilerde Kapseln", "health"),
+        ("Bübchen Baby Wundschutzcreme", "baby"),
+        ("Dan Klorix Hygiene-Reiniger", "cleaning"),
+        ("Calgon Wasserenthärter 4-in-1", "laundry"),
+        ("Beneful Hund Trockennahrung", "pet"),
+        ("CACHET Katzentoilette", "pet"),
+    ],
+)
+def test_drugstore_products_leave_the_grocery_household_chip(name, expected):
+    assert classify(name, None, NONFOOD) == expected
+
+
+def test_the_drugstore_additions_are_APPENDED_so_existing_rules_win():
+    """Order is the rule here. Inserted at the FRONT, the new `duschgel` token made a Cien Kids
+    "2in1 Shampoo & Duschgel" resolve to body; appended, the existing `shampoo` rule still wins."""
+    assert classify("Cien Kids 2in1 Shampoo & Duschgel", None, NONFOOD) == "hair"
+
+
+def test_olia_is_qualified_because_it_is_a_substring_of_angustifolia():
+    """The full-corpus diff missed this and the SUITE caught it: a bare `olia` (the Garnier
+    hair-colour line) fires inside "Lavendel angustifolia" and turned a garden plant into a
+    hair product."""
+    assert classify("Lavendel angustifolia", None, ["Heimwerken und Garten", "Marken"]) == "household"
+    assert classify("Garnier Olia Coloration", None, NONFOOD) == "hair"

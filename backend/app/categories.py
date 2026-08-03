@@ -906,23 +906,24 @@ _OVERRIDES: list[tuple[str, list[str]]] = [
 # pflanze). A rescue only fires when the path is non-food AND no `_RESCUE_VETO` word is present, so a
 # food-path item (an Erdbeer-Joghurt) is never pulled into fruits.
 _FOOD_RESCUE: dict[str, list[str]] = {
-    "fruits": ["nektarine", "plattpfirsich", "aprikose", "brombeere", "himbeere", "erdbeere",
+    "fruits": ["sweet ananas", "nektarine", "plattpfirsich", "aprikose", "brombeere", "himbeere", "erdbeere",
                "pflaume", "wassermelone", "honigmelone", "kirsche", "heidelbeere", "blaubeere",
                "stachelbeere", "johannisbeere", " mango", "papaya", "weintraube",
                "tafeltraube", "mandarin-orange"],
-    "vegetables": ["regional paprika", "rispentomate", "romatomate", "cherrytomate", "kulturchampignon", "champignon",
+    "vegetables": ["frische minze", "speisekartoffeln", "regional paprika", "rispentomate", "romatomate", "cherrytomate", "kulturchampignon", "champignon",
                    "zucchini", "rucola", "feldsalat", "wildkräuter salat"],
-    "fish": ["deutsche see", "lachsfilet", "pangasius", "räucher-garnele",
+    "frozen": ["burek"],
+    "fish": ["backfisch", "seelachs", "deutsche see", "lachsfilet", "pangasius", "räucher-garnele",
              "heringsstipp", "tiger-garnele"],
     # "putensteak"/"puten-ministeak": grill meat filed under the `Saison und Events > … >
     # Grillsaison` root. Layer 1 decides on a non-food path and never falls through, so a
     # rescue token is the only thing that can reach it — without one a turkey steak lands in
     # household, i.e. invisible behind the Non-food toggle.
-    "poultry": ["goldgriller", "bruzzlkracher", "maishähnchen", "geflügelsalat", "geflügel-fleischsalat", "hähnchen-grillplatte",
+    "poultry": ["hähnchenflügel", "goldgriller", "bruzzlkracher", "maishähnchen", "geflügelsalat", "geflügel-fleischsalat", "hähnchen-grillplatte",
                 "knusperdino", "putensteak", "puten-ministeak"],
-    "snacks": ["nic nac", "linsenwaffel", "jumbo erdnüsse", "erdnusskerne", "erdnuss-flip", "cashew", "walnusskern", "reiswaffel"],
-    "bakery": ["vitalgebäck", "roggenmischbrot", "vollkornbrot", "mehrkornbrot", "kernbrot"],
-    "pantry": ["baba ganoush", "hummus", "guacamole", "tomatenketchup", "agavendicksaft", "quinoa"],
+    "snacks": ["sonnenblumenkerne", "nic nac", "linsenwaffel", "jumbo erdnüsse", "erdnusskerne", "erdnuss-flip", "cashew", "walnusskern", "reiswaffel"],
+    "bakery": ["burger-buns", "laugen-burger", "fertigteig", "croissant", "nusshappen", "meggle brot", "vitalgebäck", "roggenmischbrot", "vollkornbrot", "mehrkornbrot", "kernbrot"],
+    "pantry": ["haferflocken", "baba ganoush", "hummus", "guacamole", "tomatenketchup", "agavendicksaft", "quinoa"],
     "beef": ["ochsen-bäckchen", "ochsenbäckchen"],
     # Pork the source files under a non-food "Grillfleisch"/promo node → household ("Hausmarke
     # Schweine-Nackensteaks"). `nackensteak` is already a pork keyword, but the path wins first, so
@@ -930,7 +931,7 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     # "ASIA GREEN GARDEN Spare Ribs" is filed under `Textilreinigung > Waschmittel` — the
     # unrelated-domain mis-file. Its caption says "Koteletrippe vom Schwein", but layer 1
     # reads only name+brand, so the noun has to be here.
-    "pork": ["schweinenacken", "schweine-nacken", "grillnackensteak", "spare ribs", "spareribs"],
+    "pork": ["nackensteak", "schweinenacken", "schweine-nacken", "grillnackensteak", "spare ribs", "spareribs"],
     # 2026-07-29: the source sometimes attaches a path from an ENTIRELY UNRELATED domain --
     # a Zott Monte under "Hautpflege > Creme", Capri-Sun syrup under "Reinigungsmittel >
     # Spülmittel". Layer 1 always decides on a non-food path, so a rescue noun is the ONLY
@@ -943,7 +944,7 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     # Grated cheese the source mis-files under a PET-brand node ("Milsani Reibekäse XXL" under
     # "Marken für Tiere"). Real cheese, not pet food, so it's a rescue — the pet guard's tokens
     # don't match "reibekäse", and no pet product carries the word.
-    "cheese": ["babybel", "reibekäse", "reibekase"],
+    "cheese": ["pfannenkäse", "grill & ofen", "grillkäse", "babybel", "reibekäse", "reibekase"],
     # Drinkable coffee filed under a non-food node (Senseo pads and a REWE Bio Caffè Crema sit
     # there). The APPLIANCES that share these words — Kaffeevollautomat, Espressomaschine,
     # Filterkaffeemaschine, "Melitta Barista" — are genuinely household and are held there by
@@ -954,8 +955,8 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     # is load-bearing and measurable: removing it leaks 7 machines (Kaffeevollautomat x3,
     # Filterkaffeemaschine x2, DeLonghi x2) into Coffee. "espresso" is deliberately NOT here —
     # it would drag in a "CROFTON Espressokocher" (a moka pot).
-    "sweets": ["amicelli", "fruchtkaramell"],
-    "coffee": ["senseo", "kaffeepad", "kaffee", "caffè crema", "ganze bohnen"],
+    "sweets": ["nutella", "amicelli", "fruchtkaramell"],
+    "coffee": ["feine milde", "senseo", "kaffeepad", "kaffee", "caffè crema", "ganze bohnen"],
 }
 
 # If any of these appear in the name, the food noun is a coincidence and the non-food path stands:
@@ -1175,6 +1176,22 @@ _DRUGSTORE_RULES: list[tuple[str, list[str]]] = [
         "katzenfutter", "hundefutter", "katzennassfutter", "hundetrockennahrung", "katzenstreu",
         "perfect fit", "sheba", "whiskas", "felix katze", "pedigree", "purina", "kauknochen",
     ]),
+    # --- 2026-08-03 photo audit: drugstore products stranded in the grocery `household` chip.
+    # APPENDED on purpose — the existing, more specific rules above must keep priority. Putting
+    # these first made a Cien Kids "2in1 Shampoo & Duschgel" resolve to body instead of hair.
+    ("fragrance", ["eau de parfum", "eau de toilette", "body splash", "after shave", "aftershave"]),
+    ("hair", ["coloration", "intensiv-color", "creme color", "nutrisse", "garnier olia", "palette intensiv"]),
+    ("face", ["anti-falten", "tuchmaske", "hydro boost", "gesichtsserum", "reinigungstücher"]),
+    ("body", ["dusche", "duschgel", "sonnenfluid", "sonnenmilch", "badekugel", "schaumbad",
+              "hidrofugal"]),
+    ("health", ["heilerde", "nahrungsergänzung", "trink gel", "mumijo", "kontaktlinsen",
+                "all-in-one lösung"]),
+    ("baby", ["wundschutzcreme", "babytücher", "pampers", "magic cup", "action cup", "babydream"]),
+    ("cleaning", ["wc-frisch", "wc frisch", "bodentücher", "geschirr-reiniger",
+                  "hygiene-reiniger", "klorix"]),
+    ("laundry", ["calgon", "vanish", "wasserenthärter"]),
+    ("pet", ["katzentoilette", "kratzbaum", "kratzmöbel", "katzenkratz", "hundesnack",
+             "beneful", "vitakraft", "winston katze", "katzenkorb"]),
 ]
 
 
