@@ -1465,7 +1465,18 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   because flyers are Mon–Sat so they're spent by then and next week's are already discoverable,
   refreshing before the app's weekly cache expires past Sunday — retries 3× and opens/comments a
   `scrape-failure` issue on total failure; passes the `ADMIN_TOKEN` secret as an **`X-Admin-Token`
-  header**, enforced once that env is also set on Render). **All workflow actions are pinned to
+  header**, enforced once that env is also set on Render).
+  **`ci.yml` must NEVER cancel an in-flight run on `main`** (2026-08-03, cost a week): the
+  deploy job lives in this workflow, and `concurrency.cancel-in-progress: true` applies to
+  pushes as well as PRs — so a docs commit pushed a minute after a backend merge **cancelled
+  that merge's run and its deploy**. Nothing reported it: the merge commit carries a green tick
+  from the SECOND run, a cancelled run renders grey rather than red, and the deploy job never
+  existed to fail. It was found only by checking live data against merged code. Now gated:
+  `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`, pinned by
+  `backend/tests/test_workflows.py` (which also re-asserts the deploy job's `needs`). There is
+  **no `workflow_dispatch` on ci.yml**, so a lost deploy can only be recovered by another push
+  to a runtime `backend/**` path — check `/health`'s commit against `main` when in doubt.
+  **All workflow actions are pinned to
   commit SHAs** (tag as trailing comment; Dependabot updates SHA pins) and `eas-version` is pinned
   (no `latest`) — bump deliberately, don't revert to floating tags. The committed launchd plist
   (`scripts/com.groceryhelper.recipes.plist`) is a **`/Users/CHANGE_ME` template** (install via the
