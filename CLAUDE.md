@@ -1518,11 +1518,18 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   commit SHAs** (tag as trailing comment; Dependabot updates SHA pins) and `eas-version` is pinned
   (no `latest`) — bump deliberately, don't revert to floating tags. The committed launchd plist
   (`scripts/com.groceryhelper.recipes.plist`) is a **`/Users/CHANGE_ME` template** (install via the
-  sed line in `docs/recipes.md`) — never commit a real home path. `dependabot.yml` auto-bumps
-  **pip + actions** weekly (minor+patch grouped); **no npm/mobile version-updates** — the app is
-  Expo SDK-pinned (react/react-native/expo-*/jest-expo lockstep), so per-package bumps break
-  `npm ci` (react-native 0.86 vs jest-expo@56's RN 0.85 peer); bump mobile deps via `npx expo
-  install`. **Dependabot alerts + security updates are enabled**, so npm CVEs still get PRs — and
+  sed line in `docs/recipes.md`) — never commit a real home path.
+  **Dependabot raises PRs for SECURITY updates ONLY** (2026-08-04, user's call): every entry in
+  `dependabot.yml` carries `open-pull-requests-limit: 0`, which is GitHub's documented way to
+  switch off version updates while leaving security updates untouched (they come from the repo's
+  alerts + dependency graph, not from that file — proven by the npm CVE PRs that arrive with no
+  npm entry present at all). **So a Dependabot PR now means "there is a CVE", nothing else.**
+  Two traps, both pinned by `test_workflows.py`: re-raising the limit turns routine bumps back on,
+  and adding **`target-branch`** to an entry *silently disables security updates* for that
+  ecosystem. Actions stay listed because the `actions` ecosystem does carry advisories, so a
+  vulnerable action still gets its SHA pin bumped. Mobile deps move via `npx expo install` during
+  an SDK upgrade — the app is Expo SDK-pinned (react/react-native/expo-*/jest-expo lockstep) and
+  per-package bumps break `npm ci` (react-native 0.86 vs jest-expo@56's RN 0.85 peer). And
   **`mobile/.npmrc` pins the public registry** so that security fetch doesn't abort on an
   auto-injected `npm.pkg.github.com` (don't delete it). Deploy + OTA + **Codecov upload**
   **skip gracefully** until their secrets exist (`RENDER_DEPLOY_HOOK_URL`, `EXPO_TOKEN`,

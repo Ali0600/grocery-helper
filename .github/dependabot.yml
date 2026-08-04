@@ -1,25 +1,38 @@
-# Automated dependency updates. Minor/patch bumps are grouped into one PR per
-# ecosystem to limit noise; majors still arrive as individual PRs for review.
+# Dependabot: SECURITY UPDATES ONLY — no routine version bumps.
+#
+# `open-pull-requests-limit: 0` is GitHub's documented way to say "never raise a version-update
+# PR for this ecosystem, but keep raising security ones". Security updates are driven by the
+# repo's Dependabot alerts + dependency graph, NOT by this file, so they are unaffected: a CVE
+# still opens a PR, and nothing else does.
+#
+# Two traps to leave alone:
+#   * do NOT add `target-branch` to an entry — that silently disables SECURITY updates for that
+#     ecosystem, which is the exact opposite of this file's purpose;
+#   * `groups:` without `applies-to` only ever groups VERSION updates, so it would be dead config
+#     here. Grouping security PRs is `groups: {<name>: {applies-to: security-updates}}` — left off
+#     deliberately, so each CVE arrives as its own reviewable PR.
+#
+# The entries are kept rather than deleting the file, so the intent stays written down and so
+# labels/registries have somewhere to live if a security PR ever needs them.
 version: 2
 updates:
   - package-ecosystem: pip
     directory: /backend
     schedule:
       interval: weekly
-    groups:
-      backend-minor-patch:
-        patterns: ['*']
-        update-types: ['minor', 'patch']
+    open-pull-requests-limit: 0
 
-  # No npm/mobile *version* updates on purpose: the app is Expo SDK-managed — react,
-  # react-native, expo-*, jest-expo, etc. are a pinned lockstep set, so per-package bumps
-  # break `npm ci` (e.g. react-native 0.86 vs jest-expo@56's RN 0.85 peer). Bump those
-  # together via `npx expo install` during an SDK upgrade. Dependabot *security* updates
-  # (CVE-driven, independent of this file) still cover npm — see mobile/.npmrc.
+  # No npm/mobile entry at all — deliberate, not an omission. The app is Expo SDK-managed: react,
+  # react-native, expo-*, jest-expo are a pinned lockstep set, so per-package bumps break `npm ci`
+  # (react-native 0.86 vs jest-expo@56's RN 0.85 peer). Move those together with `npx expo install`
+  # during an SDK upgrade. npm CVEs still reach us as security updates regardless — that is exactly
+  # how the postcss and brace-expansion PRs arrived with no npm entry present.
+  # (mobile/.npmrc pins the public registry so that security fetch can't abort — don't delete it.)
+
+  # Actions stay listed because the `actions` ecosystem does carry advisories, so a vulnerable
+  # action still raises a security PR that bumps its SHA pin. Routine tag-chasing is what stops.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    groups:
-      actions:
-        patterns: ['*']
+    open-pull-requests-limit: 0
