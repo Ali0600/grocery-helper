@@ -2253,3 +2253,36 @@ def test_every_rice_cake_stays_in_snacks():
     assert classify("Reiswaffeln mit Vollmilchschokolade", None, None) == "snacks"
     # The sibling that proves the override is doing work: a plain wafer is still sweets.
     assert classify("Amicelli Waffelröllchen", None, None) == "sweets"
+
+
+# --- 2026-08-04: two defects the sub-group work surfaced -------------------------------------
+
+KOERPER = ["Drogerie und Haushalt", "Produkte", "Drogerie", "Körperpflege"]
+
+
+def test_mundspuelung_is_dental_not_hair():
+    """`_DRUGSTORE_RULES` is first-hit-wins and the hair rule's bare `spülung` sat ABOVE the
+    dental block that already listed `mundspülung` — so five Listerine/meridol mouthwashes were
+    served in the HAIR aisle. Found by tallying tokens per category, not by reading the table.
+
+    (The `mundspülung` entry in `_FORM_OVERRIDES` cannot help here: that is layer 2, and layer 1
+    decides a non-food path without ever falling through — so this test MUST pass a path.)
+    """
+    assert classify("Listerine Mundspülung", None, NONFOOD) == "dental"
+    assert classify("meridol Mundspülung Zahnfleischschutz", None, NONFOOD) == "dental"
+    # ...and a real hair conditioner still resolves to hair, which is what `spülung` is for.
+    assert classify("Gliss Kur Spülung", None, NONFOOD) == "hair"
+    assert classify("Haarspülung Repair", None, NONFOOD) == "hair"
+
+
+def test_paper_goods_are_household_not_body_care():
+    """The source files toilet roll and tissues under `Körperpflege`, so the drugstore PATH MAP
+    was serving them as Body & Shower. They were also SPLIT — 23 rows household vs 22 body for
+    `toilettenpapier` alone — so leaving them was not a stable answer either. `_DRUGSTORE_VETO`
+    runs before the path map, so it is the only lever that reaches them."""
+    for name in ("Zewa Toilettenpapier", "GUT&GÜNSTIG Taschentücher",
+                 "Renova Textilpapier-Küchenrolle", "Cottonelle Feuchtes Toilettenpapier"):
+        assert classify(name, None, KOERPER) == "household", name
+    # The sibling that must NOT move: genuine body care under the same node.
+    assert classify("Nivea Duschgel", None, KOERPER) == "body"
+    assert classify("Dove Deospray", None, KOERPER) == "body"
