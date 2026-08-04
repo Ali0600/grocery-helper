@@ -1615,6 +1615,13 @@ It's a property of the rule **plus the gate above it**. A token that is hopeless
 an ungated table can be exactly right in a gated one, because the gate has already removed the
 cases it would get wrong.
 
+The same insight arrived from the other direction when sub-grouping the drugstore aisles. That
+table is keyed by *category*, so a bare `reiniger` or `deo` is only ever tested against names in
+one aisle — generic tokens that would be reckless in the food maps are the right answer there,
+and they are what absorbs the spelling zoo the source ships (`WC-Reiniger`, `WC Reiniger`,
+`Glas- oder Bad-Reiniger`). Gating and keying are two ways of buying the same thing: a smaller
+population for the rule to be wrong about.
+
 **Why it came up:** hunting food hidden in `household`, where the whole point is that layer 1
 has already decided the path is non-food.
 
