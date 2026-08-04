@@ -265,6 +265,11 @@ _RULES: list[tuple[str, list[str]]] = [
                 "aprikose", "physalis", "pflaume", "kirsche", "grapefruit"]),
     # Bakery before vegetables so a veg-named *bread* (Knoblauchbrot, Zwiebelkuchen) is
     # bakery, not vegetables — the product word ("brot") should beat the flavour ("knoblauch").
+    # ORDER: `tortellini` must precede the bakery block — "Tortellini" CONTAINS "torte", so a
+    # brandless, pathless Tortellini resolved to BAKERY and the `tortellini` entry further down
+    # in the pantry block could never fire. The real-world rows are saved earlier (a `Nudeln`
+    # path node, or the `barilla` brand), which is why this stayed invisible.
+    ("pantry", ["tortellini"]),
     ("bakery", ["brot", "brötchen", "broetchen", "baguette", "croissant", "toast", "kuchen", "gebäck", "brezel",
                 "ciabatta",  # a taxonomy node already, but the keyword layer had no entry
                 "crusti", "donut", "törtchen", "nata", "magdalena", "muffin", "torte", "linzeraugen", "nusshappen",
@@ -502,7 +507,10 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     ("pork", ["stickado", "doktorskaja", "stielkotelett", "sulzspezialität"]),
     ("fish", ["feinmarinaden", "mowi"]),                       # Mowi is a salmon brand
     ("pantry", ["buchweizen", "jodsalz", "couscous", "fruchtaufstrich", "spekulatiuscreme",
-                "beanz", "würzpulver", "soljanka", "letscho", "cereals", "cini-minis"]),
+                # (`soljanka` removed 2026-08-04: an earlier ready_meals entry already carries
+                # it, so this copy could never fire. Dead, not wrong — a canned Soljanka is a
+                # ready meal by the standing convention.)
+                "beanz", "würzpulver", "letscho", "cereals", "cini-minis"]),
     ("frozen", ["grid fries", "blinis", "ristorante", "margherita", "junge erbsen",
                 "lasagne bolognese"]),
     ("ready_meals", ["pelmeni", "vareniki", "döner-box"]),     # filled dumplings, heat-and-eat
@@ -753,7 +761,11 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # and fresh Mirabellen were all served as Soft Drinks. Removing the `wassermarken` node
     # does not help: the scan falls through to the parent `Wasser`, which also maps to
     # soft_drinks. Only layer 2 beats a path.
-    ("pantry", ["senf", "high-protein-pulver", "high-protein-sahne", "protein-pulver"]),
+    # (`protein-pulver` and `high-protein-pulver` removed 2026-08-04: the health entry higher up
+    # carries `protein-pulver`, and it is a SUBSTRING of the "high-" form, so both copies here
+    # were unreachable. Dead, not wrong — sports-format nutrition is `health` by convention, and
+    # `high-protein-sahne` stays because no earlier token is a substring of it.)
+    ("pantry", ["senf", "high-protein-sahne"]),
     ("pork", ["leberwurst", "rostbratwurst", "holzfällerscheibe", "filetpastete",
               "fleischpastete", "leberpastete", "schwarzwälder schinken"]),
     ("fruits", ["mirabelle"]),
@@ -1179,6 +1191,14 @@ _DRUGSTORE_RULES: list[tuple[str, list[str]]] = [
     # served in the HAIR aisle. (The `mundspülung` entry in `_FORM_OVERRIDES` cannot help: that
     # is layer 2, and layer 1 decides a non-food path without falling through.)
     ("dental", ["mundspülung", "mundwasser"]),
+    # ORDER, same shape: `babyshampoo` CONTAINS "shampoo" and `feuchttücher baby` contains
+    # `feuchttücher`, so the baby block further down could never claim either — a baby shampoo
+    # resolved to hair and baby wipes to body care. Nothing in the corpus exercises these yet,
+    # which is exactly why they sat unreachable.
+    # `babydream` is named explicitly rather than left to luck: the haystack is name+brand, so
+    # "Feuchttücher" + brand "Babydream" happens to contain `feuchttücher baby` across the join.
+    # That lands the right answer (Babydream is Rossmann's BABY line) for the wrong reason.
+    ("baby", ["babyshampoo", "feuchttücher baby", "babybad", "babydream"]),
     # A Kinder-Spülbecken is a toy sink and a Spülmaschinen-tab is cleaning, but neither is
     # a Spülmittel; and "Spülung" (conditioner) is hair, not washing-up.
     ("hair", ["spülung", "haarspülung"]),
