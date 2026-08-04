@@ -49,6 +49,31 @@ def test_the_deploy_job_still_depends_on_the_test_jobs():
     assert deploy.get("needs"), "the deploy job must wait for the test jobs, not run beside them"
 
 
+def test_dependabot_raises_prs_only_for_security_updates():
+    """Version updates are OFF by choice: a PR should mean "there is a CVE", nothing else.
+
+    `open-pull-requests-limit: 0` is GitHub's documented way to disable version updates while
+    leaving security updates (which come from the repo's alerts, not this file) untouched. Both
+    assertions below guard a trap rather than a preference:
+      * a missing/raised limit quietly turns routine bumps back on;
+      * `target-branch` on an entry silently disables SECURITY updates for that ecosystem — the
+        one setting that would defeat the whole point while looking like a harmless tweak.
+    """
+    path = WORKFLOWS.parent / "dependabot.yml"
+    if not path.exists():  # pragma: no cover - depends on checkout layout
+        pytest.skip("no dependabot.yml")
+    cfg = yaml.safe_load(path.read_text())
+    assert cfg["updates"], "expected at least one ecosystem entry"
+    for entry in cfg["updates"]:
+        eco = entry.get("package-ecosystem")
+        assert entry.get("open-pull-requests-limit") == 0, (
+            f"{eco}: version updates are back on — a PR should only ever mean a CVE"
+        )
+        assert "target-branch" not in entry, (
+            f"{eco}: target-branch disables SECURITY updates for this ecosystem"
+        )
+
+
 def test_ci_keeps_a_manual_recovery_hatch_for_a_lost_deploy():
     """The deploy job only fires on a push touching a runtime backend file — and a fix to the
     pipeline itself (a workflow or `tests/` change) is excluded by that filter. Without a manual
