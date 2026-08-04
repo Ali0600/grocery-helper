@@ -5,6 +5,16 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Recovery hatch. The deploy job lives in this workflow and only fires on a push that touched a
+  # runtime backend file, so a deploy that was cancelled, timed out, or failed on Render could
+  # previously only be re-run by inventing another backend commit — the fix itself (a workflow or
+  # tests/ change) is excluded by that very filter. Hit this instead.
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Deploy even if this commit touched no runtime backend file (recovers a lost or failed deploy)'
+        type: boolean
+        default: false
 
 # Least privilege: jobs only read the repo; the deploy step uses a secret webhook.
 permissions:
@@ -107,7 +117,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25 # the verify steps poll a slow free-tier build+swap
     needs: [backend, docker-build] # gate on the backend artifact's checks
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -122,7 +134,15 @@ jobs:
       # (e.g. app/ + tests/) still deploys because the app/ line survives the filter.
       - name: Detect runtime-affecting backend changes
         id: detect
+        env:
+          # Via env, never interpolated into the script: workflow inputs are attacker-shaped text.
+          FORCE_DEPLOY: ${{ inputs.force_deploy }}
         run: |
+          if [ "$FORCE_DEPLOY" = "true" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "force_deploy requested — deploying regardless of the path filter."
+            exit 0
+          fi
           CHANGED=$(git diff --name-only HEAD~1 HEAD \
             | grep -E '^(backend/|render\.yaml$)' \
             | grep -vE '^backend/(ruff\.toml$|pytest\.ini$|\.env\.example$|tests/)' \
@@ -179,18 +199,24 @@ jobs:
             fi
             sleep 20
           done
+          # "Superseded by a newer deploy" is the ONLY benign reason our commit never went live,
+          # so it must be PROVEN, never inferred from `live != want`. A newer deploy means our
+          # commit is an ANCESTOR of whatever is live; a failed build leaves an ancestor of ours
+          # live instead. Anything else fails closed.
+          #
+          # This previously compared `live` against the pre-deploy commit, which fails open the
+          # moment that probe doesn't answer: on 2026-08-04 the free tier was asleep, the 30s
+          # curl timed out, `before` was empty, the equality could not fire, and a Render build
+          # that never landed was reported GREEN — with the next step then counting offers
+          # served by the OLD code. Ancestry needs no pre-deploy reading at all.
           before="${{ steps.trigger.outputs.before }}"
-          if [ -n "$live" ] && [ "$live" = "$before" ]; then
-            # Fail CLOSED: still serving the pre-deploy commit after ~15 min means Render
-            # never swapped — most likely its build failed. "Superseded" must not swallow this.
-            echo "::error::prod still serves the pre-deploy commit (${live}) — the Render build likely failed"
-            exit 1
-          fi
-          if [ -n "$live" ] && [ "$live" != "$want" ]; then
-            echo "::warning::a different commit (${live}) is live — superseded by a newer deploy; standing down."
+          echo "commit live before this deploy: '${before:-unknown}'; live now: '${live:-none}'"
+          git fetch --quiet --depth=100 origin main || true
+          if [ -n "$live" ] && git merge-base --is-ancestor "$want" "$live" 2>/dev/null; then
+            echo "::warning::a strictly newer commit (${live}) is live — superseded; standing down."
             exit 0
           fi
-          echo "::error::deploy never became live within ~15 min (last seen commit: '${live:-none}')"
+          echo "::error::deploy never became live within ~15 min (live='${live:-none}', wanted ${want}) — the Render build likely failed"
           exit 1
 
       - name: Verify the served deals (the feature, not the deploy)
