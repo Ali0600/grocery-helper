@@ -1499,9 +1499,21 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   from the SECOND run, a cancelled run renders grey rather than red, and the deploy job never
   existed to fail. It was found only by checking live data against merged code. Now gated:
   `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`, pinned by
-  `backend/tests/test_workflows.py` (which also re-asserts the deploy job's `needs`). There is
-  **no `workflow_dispatch` on ci.yml**, so a lost deploy can only be recovered by another push
-  to a runtime `backend/**` path — check `/health`'s commit against `main` when in doubt.
+  `backend/tests/test_workflows.py` (which also re-asserts the deploy job's `needs`).
+  **`ci.yml` now carries a `workflow_dispatch` recovery hatch** (2026-08-04) with a
+  `force_deploy` input that bypasses the path filter — needed because the *fix* for a broken
+  deploy is normally a workflow or `tests/` change, both of which that filter excludes, so
+  recovery otherwise meant inventing a backend commit. Passed via `env:`, never interpolated
+  into the `run:` block. **Always check `/health`'s commit against `main`** after a backend
+  merge; the check colour is not evidence (see below).
+  **The deploy gate's "superseded by a newer deploy" branch must PROVE ancestry** (2026-08-04,
+  cost a second lost deploy): it used to infer it from `live != want`, guarded only by a
+  comparison against the pre-deploy commit. That probe is a 30s curl against a free tier that is
+  usually **asleep** — it timed out, `before` was empty, the guard could not fire, and a Render
+  build that never landed reported **green**, after which "verify the served deals" happily
+  counted 1445 offers served by the *old* code. Now: `git merge-base --is-ancestor "$want"
+  "$live"` — a genuinely newer deploy makes our commit an ancestor, a failed build does not.
+  Needs no pre-deploy reading, and fails closed. Pinned by `test_workflows.py`.
   **All workflow actions are pinned to
   commit SHAs** (tag as trailing comment; Dependabot updates SHA pins) and `eas-version` is pinned
   (no `latest`) — bump deliberately, don't revert to floating tags. The committed launchd plist
