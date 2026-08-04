@@ -578,6 +578,22 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `_FOOD_RESCUE["poultry"]` ate the first with no error, and a redefined test function dropped a
   previous audit's cases from the run. A test now parses the module and fails on duplicate keys
   in `_FOOD_RESCUE`/`_PATH_MAP`/`BRAND_CATEGORY`; ruff's F811 covers the test-file half.
+  **An ordered table can hide a rule that CANNOT FIRE, and two tests now catch it** (2026-08-04,
+  after the class showed up three times in one day — the potted blueberry bush, a porcelain mug,
+  and toilet roll). Both live in `test_categories.py`:
+  - **`test_no_rule_is_shadowed_by_an_earlier_one_with_a_different_slug`** — these tables match
+    `token in text`, so a later token is unreachable when an EARLIER token is a **substring** of
+    it. Substring, not equality: `torte` swallowed `tortellini` (a brandless, pathless Tortellini
+    served as **bakery**), `shampoo` swallowed `babyshampoo`, `feuchttücher` swallowed
+    `feuchttücher baby`, and `protein-pulver` swallowed `high-protein-pulver`. A **same-slug**
+    repeat stays legal — that's the guard-restated-in-its-semantic-block idiom used throughout.
+  - **`test_the_two_drugstore_tables_do_not_drift_further`** — a RATCHET. A drugstore product
+    reaches layer 1 only by arriving on a non-food path, and layer 1 never falls through, so a
+    drugstore token that lives only in `_FORM_OVERRIDES` is unreachable **by construction** (it
+    still fires for a pathless copy, which is why the drift is silent). 31 of 40 were in that
+    state; the allowlist names them, a 32nd fails, and a **stale** entry fails too. Mirroring one
+    into `_DRUGSTORE_RULES` needs the usual full-corpus simulation — `vogelfutter` would turn a
+    "Vogelfutterhaus" (a bird feeder) into pet food.
   **Don't hardcode absolute `_FORM_OVERRIDES` indices in tests** — inserting a guard shifts them
   all; derive the index instead (two trace tests were fixed this way).
   **`_FORM_OVERRIDES` is first-hit-wins, so ORDER is part of the fix.** Two guards had to be

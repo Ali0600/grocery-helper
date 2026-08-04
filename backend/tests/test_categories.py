@@ -2286,3 +2286,93 @@ def test_paper_goods_are_household_not_body_care():
     # The sibling that must NOT move: genuine body care under the same node.
     assert classify("Nivea Duschgel", None, KOERPER) == "body"
     assert classify("Dove Deospray", None, KOERPER) == "body"
+
+
+# --- Structural guards on the ordered rule tables (2026-08-04) --------------------------------
+# Three times in one day a rule was written for a product it could never reach. These two tests
+# make that class fail at review time instead of being discovered by accident months later.
+
+_ORDERED_TABLES = ("_FORM_OVERRIDES", "_CAPTION_SIGNALS", "_OVERRIDES", "_RULES",
+                   "_DRUGSTORE_RULES")
+
+
+def _shadowed_tokens(table_name):
+    """Entries that can never fire, with the entry that eats them.
+
+    These tables are scanned in order and match with `token in text`, so a later token T is
+    unreachable when an EARLIER token is a SUBSTRING of it — everything matching T matched the
+    earlier one first. Substring, not equality: `protein-pulver` swallows `high-protein-pulver`,
+    and `torte` swallows `tortellini`. Only a differing SLUG is a defect; a same-slug repeat is
+    the ordering idiom used all over this file (a guard restated inside its semantic block).
+    """
+    import app.categories as mod
+    table = getattr(mod, table_name)
+    flat = [(i, slug, tok) for i, (slug, toks) in enumerate(table) for tok in toks]
+    out = []
+    for j, (idx, slug, tok) in enumerate(flat):
+        winner = next((e for e in flat[:j] if e[2] in tok), None)
+        if winner and winner[1] != slug:
+            out.append((table_name, winner, (idx, slug, tok)))
+    return out
+
+
+def test_no_rule_is_shadowed_by_an_earlier_one_with_a_different_slug():
+    """A shadowed entry is worse than dead code: it *looks* like the answer while a different
+    one is being served, which is exactly how "Tortellini" resolved to BAKERY (via `torte`) and
+    a baby shampoo to HAIR (via `shampoo`) — both entries existed and neither could fire.
+    """
+    found = [f for name in _ORDERED_TABLES for f in _shadowed_tokens(name)]
+    assert not found, "unreachable rules:\n" + "\n".join(
+        f"  {t}: [{w[0]}]{w[1]} {w[2]!r} always wins over [{d[0]}]{d[1]} {d[2]!r}"
+        for t, w, d in found
+    )
+
+
+# Drugstore-slug tokens that live in `_FORM_OVERRIDES` (layer 2) but NOT in `_DRUGSTORE_RULES`
+# (layer 1). A drugstore product reaches the drugstore step only by arriving on a non-food path,
+# and layer 1 decides such a path without ever falling through — so for those products the
+# layer-2 entry is unreachable BY CONSTRUCTION. They still fire for a pathless copy, which is why
+# the drift is silent. Empty this list by mirroring a token into `_DRUGSTORE_RULES`, each one
+# simulated over the full corpus first: `vogelfutter` would turn a "Vogelfutterhaus" (a bird
+# feeder, household) into pet food. It is a RATCHET — it may shrink, never grow.
+_UNMIRRORED_DRUGSTORE_TOKENS = {
+    "body": {"bodycream", "carefree"},
+    "cleaning": {"allzwecktücher", "wc-spüler"},
+    "dental": {"blend-a-dent", "colgate", "listerine"},
+    "hair": {"strong power"},
+    "health": {"eaa ", "protein-pulver", "proteinpulver"},
+    "pet": {"beef stick", "coshida", "dental-stick", "ergänzungsfuttermittel", "hello my cat",
+            "hundenahrung", "hygienestreu", "katzensticks", "kaurollchen", "kaurollen",
+            "kausnack", "kaustange", "lieblingsmenü", "nassfutter", "nassnahrung", "tierfutter",
+            "tiernahrung", "trockenfutter", "trockennahrung", "vogelfutter"},
+}
+
+
+def test_the_two_drugstore_tables_do_not_drift_further():
+    """Measured 2026-08-04: 31 of the 40 drugstore tokens in `_FORM_OVERRIDES` were unreachable
+    for any product carrying a path — which is why "Hundetrockenfutter" resolves to `pet`
+    pathless but `household` with a real non-food path, half-breaking the pet convention.
+
+    Fixing them was deferred (no served offer is affected this week). This pins the baseline so
+    a NEW one fails immediately, at the moment the mistake is made.
+    """
+    from app.categories import _DRUGSTORE_RULES, _FORM_OVERRIDES
+    drugstore_slugs = {"hair", "face", "body", "dental", "makeup", "fragrance", "baby",
+                       "health", "cleaning", "laundry", "pet"}
+    reachable = {tok for _slug, toks in _DRUGSTORE_RULES for tok in toks}
+    missing = {}
+    for slug, toks in _FORM_OVERRIDES:
+        if slug in drugstore_slugs:
+            gap = {t for t in toks if t not in reachable}
+            if gap:
+                missing.setdefault(slug, set()).update(gap)
+    new = {s: sorted(t - _UNMIRRORED_DRUGSTORE_TOKENS.get(s, set())) for s, t in missing.items()}
+    new = {s: t for s, t in new.items() if t}
+    assert not new, (
+        f"new unreachable drugstore rule(s): {new}. A layer-2 drugstore token only fires for a "
+        "PATHLESS product — mirror it into _DRUGSTORE_RULES (simulate over the corpus first)."
+    )
+    # ...and the ratchet may only tighten: a token that got mirrored must leave the allowlist.
+    stale = {s: sorted(t - missing.get(s, set())) for s, t in _UNMIRRORED_DRUGSTORE_TOKENS.items()}
+    stale = {s: t for s, t in stale.items() if t}
+    assert not stale, f"allowlist is stale — these are reachable now, drop them: {stale}"
