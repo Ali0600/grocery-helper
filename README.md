@@ -124,10 +124,11 @@ build the cheapest basket across one or two stores.
   to Render via deploy hooks, over-the-air mobile delivery through EAS Update, and a
   scheduled weekly data-refresh cron that **retries and opens a GitHub issue on
   failure** — with least-privilege permissions, dependency caching, concurrency
-  control, and **Dependabot** automated dependency updates.
-- **Automated test suite** — ~300 backend tests (pytest) covering the scrapers,
+  control, and **Dependabot raising pull requests for security advisories only** — routine
+  version bumps are switched off, so a dependency PR always means there is a CVE.
+- **Automated test suite** — ~1,100 backend tests (pytest) covering the scrapers,
   classifier, dedup, unit-price/validity logic, and HTTP-level API behavior
-  (filters, auth guards, throttling), plus a React Native **Jest** suite (~80 tests)
+  (filters, auth guards, throttling), plus a React Native **Jest** suite (~440 tests)
   for the app's pure business logic (basket matching, the deals filter pipeline,
   recipe filtering, store comparison, catalog trap-guards); a model-vs-migration
   **drift check** (`alembic check`) fails CI if the ORM and schema diverge.
@@ -509,10 +510,11 @@ Engineering practices demonstrated while building and operating this project:
 - **Keyless AI automation** — A weekly content-generation pipeline that runs a headless
   LLM step under local auth (macOS launchd → `claude -p`), gated on a typecheck/lint build
   check before it commits and ships over-the-air — no managed API key anywhere, in CI or at runtime.
-- **Dependency & supply-chain management** — Dependabot scoped to independently
-  versioned packages with security updates enabled, avoiding framework-lockstep
-  breakage in an Expo SDK-pinned app; all GitHub Actions pinned to commit SHAs and
-  release-tooling versions pinned, so no third-party tag move can alter the pipeline.
+- **Dependency & supply-chain management** — Dependabot reduced to security advisories only,
+  so a dependency pull request always signals a CVE rather than routine churn; this also
+  avoids framework-lockstep breakage in an Expo SDK-pinned app, where per-package bumps break
+  the install. All GitHub Actions pinned to commit SHAs and release-tooling versions pinned,
+  so no third-party tag move can alter the pipeline.
 - **API security hardening** — Token-guarded destructive endpoints (header-based,
   timing-safe comparison, audit-logged failures), abuse throttling on the public
   scrape trigger, and a non-root container image — applied after a structured
