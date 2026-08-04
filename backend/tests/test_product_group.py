@@ -254,3 +254,106 @@ def test_a_specific_coffee_form_beats_the_generic_ground_bucket():
 def test_coffee_grouping_does_not_leak_into_other_categories():
     # The map is keyed by category, so a cheese named "Bohne" can't become Ganze Bohnen.
     assert product_group("Bohnen-Käse", None, "cheese")[1] != "Ganze Bohnen"
+
+
+# --- Drugstore aisles (2026-08-04) -----------------------------------------------------------
+# Every name below is a real product from the corpus, not an invented one.
+
+@pytest.mark.parametrize(
+    "category,name,expected",
+    [
+        ("body", "Dove Deospray", "Deo"),
+        ("body", "Fa Deo", "Deo"),
+        ("body", "Axe Duschgel", "Duschgel"),
+        ("body", "Gillette Fusion5 Rasierklingen", "Rasur"),
+        ("body", "Cerruti 1881 Homme After Shave", "Rasur"),
+        ("body", "Cien Sun kids Sonnenspray", "Sonnenschutz"),
+        ("body", "Isana Bodylotion", "Bodylotion"),
+        ("body", "Always Slipeinlagen", "Damenhygiene"),
+        ("body", "Jean&Len Handseife", "Seife"),
+        ("hair", "Garnier Fructis Shampoo", "Shampoo"),
+        ("hair", "Batiste Trockenshampoo", "Trockenshampoo"),
+        ("hair", "Garnier Nutrisse Ultra Crème Coloration", "Coloration"),
+        ("dental", "Oral-B Zahncreme", "Zahncreme"),
+        ("dental", "Curaprox Zahnbürste Ultra Soft", "Zahnbürste"),
+        ("dental", "Oral-B Aufsteckzahnbürste iO", "Aufsteckbürsten"),
+        ("dental", "Philips Elektrische Zahnbürste Sonicare 5500", "Elektrische Zahnbürste"),
+        ("dental", "CB12 Mundspülung", "Mundspülung"),
+        ("makeup", "Blush Stick Blushin' Charm 020 Coral Cutie, 5,5 g", "Blush"),
+        ("makeup", "Concealer Cream Ultimate 010 N Ivory, 3 g", "Concealer"),
+        ("makeup", "Eyeliner Calligraph Art Matte 070 Snow White, 1,1 ml", "Eyeliner"),
+        ("fragrance", "AIGNER Pour Homme Eau de Toilette", "Eau de Toilette"),
+        ("fragrance", "Burberry Woman Eau de Parfum", "Eau de Parfum"),
+        ("laundry", "Lenor Weichspüler", "Weichspüler"),
+        ("laundry", "Burti Feinwaschmittel Flüssig", "Feinwaschmittel"),
+        ("cleaning", "Fairy Spülmittel", "Spülmittel"),
+        ("cleaning", "Frosch Spülmaschinentabs", "Spülmaschine"),
+        ("cleaning", "Frosch WC Reiniger", "Reiniger"),
+        ("baby", "Pampers Big Pack", "Windeln"),
+        ("baby", "Bübchen Baby Wundschutzcreme sensitiv", "Babypflege"),
+        ("health", "Doppelherz Magnesium", "Vitamine"),
+        ("health", "ALDI SPORTS High-Protein-Pulver Iced Matcha Latte", "Sportnahrung"),
+        ("health", "Dr. Scholl's Hühneraugenpflaster", "Pflaster"),
+        ("pet", "Sheba Katze Filet", "Katzenfutter"),
+        ("pet", "Vitakraft Hundesnacks", "Tiersnacks"),
+        ("pet", "Beneful Hund Trockennahrung", "Hundefutter"),
+    ],
+)
+def test_drugstore_products_get_a_sub_group(category, name, expected):
+    assert product_group(name, None, category)[1] == expected
+
+
+@pytest.mark.parametrize(
+    "category,name,expected,beats",
+    [
+        # Each of these ALSO contains a keyword of the group named in `beats`, so it only lands
+        # correctly because the specific entry is scanned first. Reorder and the test fails.
+        ("pet", "CACHET Katzentoilette", "Tierzubehör", "Katzenfutter"),
+        ("pet", "CACHET Katzenkratzspielzeug", "Tierzubehör", "Katzenfutter"),
+        ("pet", "ZOOROYAL Katzenstreu", "Katzenstreu", "Katzenfutter"),
+        ("pet", "GUT&GÜNSTIG Lieblings-Kaurollchen", "Tiersnacks", "Hundefutter"),
+        ("dental", "Oral-B Aufsteckzahnbürste iO", "Aufsteckbürsten", "Zahnbürste"),
+        ("dental", "Oral-B Elektrische Zahnbürste iO Series 5", "Elektrische Zahnbürste",
+         "Zahnbürste"),
+        ("hair", "Batiste Trockenshampoo", "Trockenshampoo", "Shampoo"),
+        ("laundry", "Domol Feinwaschmittel Black", "Feinwaschmittel", "Waschmittel"),
+        ("laundry", "Colorwaschmittel Pulver Glamorous Touch, 20 Wl", "Colorwaschmittel",
+         "Waschmittel"),
+        ("laundry", "Perwoll Wollwaschmittel", "Feinwaschmittel", "Waschmittel"),
+        ("cleaning", "Domol Geschirr-Reiniger Tabs 12-fach Power", "Spülmaschine", "Reiniger"),
+        ("body", "LACURA SUN After Sun Lotion", "Sonnenschutz", "Bodylotion"),
+        ("health", "Max Balance Whey Proteinpulver", "Sportnahrung", "Nahrungsergänzung"),
+    ],
+)
+def test_a_specific_drugstore_group_beats_the_generic_one(category, name, expected, beats):
+    got = product_group(name, None, category)[1]
+    assert got == expected, f"{name!r} -> {got!r}, expected {expected!r} (not {beats!r})"
+
+
+def test_the_drugstore_maps_do_not_overwrite_a_grocery_one():
+    """`_GROUPS.update(_DRUGSTORE_GROUPS)` would SILENTLY replace a grocery mapping if a slug
+    were ever repeated — no error, just a category that stops grouping the way it did."""
+    from app.product_group import _DRUGSTORE_GROUPS, _GROUPS
+    grocery = {"fruits", "vegetables", "beef", "poultry", "pork", "fish", "cheese", "dairy",
+               "bakery", "coffee", "soft_drinks", "snacks"}
+    assert not (set(_DRUGSTORE_GROUPS) & grocery), "a drugstore key shadows a grocery map"
+    assert grocery <= set(_GROUPS), "a grocery map went missing from _GROUPS"
+
+
+def test_an_either_variant_name_picks_one_group_and_that_is_fine():
+    """The source sells one offer covering two variants ("Color- oder Vollwaschmittel"). Only
+    the second compound is spelled out, so it lands in Vollwaschmittel. Pinned deliberately:
+    either label is defensible for a combined offer, and the point is that it lands SOMEWHERE
+    rather than falling out of the aisle entirely."""
+    assert product_group("Domol Color- oder Vollwaschmittel Flüssig", None,
+                         "laundry")[1] == "Vollwaschmittel"
+
+
+def test_food_mis_filed_into_a_drugstore_aisle_stays_ungrouped():
+    """`body` still holds a few mis-filed FOODS whose names end in "Creme". A bare `creme`
+    keyword would file a cooking cream and a chocolate as body care; leaving them ungrouped is
+    the honest answer for a product that is in the wrong aisle to begin with."""
+    assert product_group("Bioland Feine Creme zum Kochen", None, "body") == (None, None)
+    assert product_group("Choceur Milchmäuse-Duo-Creme", None, "body") == (None, None)
+    # ...while a genuine body cream still groups.
+    assert product_group("ISANA Softcreme", None, "body")[1] == "Hautcreme"

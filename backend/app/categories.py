@@ -1154,7 +1154,17 @@ _DRUGSTORE_PATH_MAP: dict[str, str] = {
 # the honest "we can't tell" bucket, rather than becoming a confidently wrong Body & Shower.
 # Not `_FOOD_RESCUE` entries because that would need a per-product food category; this just
 # declines to guess. Add here when the diff shows a food product entering a drugstore aisle.
-_DRUGSTORE_VETO: list[str] = ["cremefine", "amicelli"]
+# Paper goods ride along here for the same reason, one step further: the source files them under
+# `Körperpflege`, so the path map was serving toilet roll and tissues as BODY CARE. They were also
+# SPLIT — 23 rows household vs 22 body for `toilettenpapier` alone — so leaving them alone was not
+# a stable answer either. Declining to guess lands them in `household`, which is where the other
+# half already sat and what the (unreachable, layer-2) `_FORM_OVERRIDES` entry always intended.
+# `feuchttücher` is deliberately NOT here: those genuinely split body vs baby, which is a real
+# question rather than a filing error.
+_DRUGSTORE_VETO: list[str] = [
+    "cremefine", "amicelli",
+    "toilettenpapier", "taschentücher", "küchenrolle",
+]
 
 # name/brand tokens, for the products whose path dead-ends at a brand container. Ordered,
 # first hit wins — so a token that is a substring of another kind's word must come after the
@@ -1163,6 +1173,12 @@ _DRUGSTORE_RULES: list[tuple[str, list[str]]] = [
     # Guards FIRST — each protects a token further down.
     # "Mundharmonika" is a HARMONICA; without this it is dental via `mund`.
     ("household", ["mundharmonika", "mundstück"]),
+    # ORDER: `mundspülung` must precede the bare `spülung` below. It is listed again in the
+    # dental block, but that block sits AFTER the hair rule and this table is first-hit-wins —
+    # so `spülung` was claiming every Mundspülung and five Listerine/meridol mouthwashes were
+    # served in the HAIR aisle. (The `mundspülung` entry in `_FORM_OVERRIDES` cannot help: that
+    # is layer 2, and layer 1 decides a non-food path without falling through.)
+    ("dental", ["mundspülung", "mundwasser"]),
     # A Kinder-Spülbecken is a toy sink and a Spülmaschinen-tab is cleaning, but neither is
     # a Spülmittel; and "Spülung" (conditioner) is hair, not washing-up.
     ("hair", ["spülung", "haarspülung"]),

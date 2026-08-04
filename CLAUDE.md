@@ -731,6 +731,26 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   misses the flyer's **`Mini-Pak-Choi`** (hyphens), and `romatom` exists only because the feed
   ships a typo'd "Romatomen". Still ungrouped on purpose: Sauerkraut/Kimchi/Passata (preserved,
   not fresh produce) — they land in the list's trailing bucket, which is honest.
+  **The DRUGSTORE aisles are sub-grouped too** (2026-08-04, `_DRUGSTORE_GROUPS`, merged into
+  `_GROUPS` at import): 11 categories (body/face/hair/dental/makeup/fragrance/laundry/cleaning/
+  baby/health/pet), **73 sub-groups, 2% → 86% coverage, 1173 rows newly grouped, 0 regressions**.
+  This is load-bearing, not cosmetic: `BasketModal` only drops `household`, so the other
+  drugstore categories DO reach the Basket — and it keys on `offer.group`, so before this a
+  shampoo could not be added to a basket at all.
+  - **A generic token is far safer here than in the food maps**, because `_GROUPS` is keyed by
+    CATEGORY: a bare `reiniger` (cleaning) or `deo` (body) is only ever tested against names in
+    that one aisle. `deo` must NOT be space-guarded — "Fa Deo" ends the string.
+  - **Order is the rule, as always.** `katzentoilette`/`kratzspielzeug` sit in *Tierzubehör*
+    ABOVE Katzenfutter — they contain "katze", so a litter box and a cat toy were being served
+    as cat FOOD (caught by auditing what each group swallowed, not by reading). Same shape for
+    Trockenshampoo before Shampoo, Aufsteckbürsten before Zahnbürste, Sonnenschutz before
+    Bodylotion, and the Fein/Color/Voll-waschmittel trio before the generic Waschmittel.
+  - **`_GROUPS.update(_DRUGSTORE_GROUPS)` would silently REPLACE a grocery map** on a key
+    collision — no error, just a category that quietly stops grouping. Pinned by a test.
+  - **A bare `creme` is deliberately absent from `body`**: that chip still holds a few mis-filed
+    FOODS ending in it (a cooking cream, a chocolate). Ungrouped is the honest answer there.
+  - `household` is deliberately NOT mapped — it is the "can't tell" bucket (lamps, cutlery,
+    clothing) and the Basket excludes it anyway.
   Computed in the serializer → `OfferOut.group`/`group_label`
   (**no DB column / migration**, like `unit_price_cents`). The app renders a
   `SectionList` **only in a selected category** (not All/search): **every** sub-group gets a
