@@ -522,8 +522,12 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   disagreeing with itself, some pet products reaching the chip while 16 sat behind the toggle.
   `topfpflanze` and bare `dental` stay household so a houseplant and human dental care aren't
   dragged along.
-  **Ready-meals convention (user's call): only heat-and-eat becomes `ready_meals`** — canned
-  Eintöpfe move, spreads and deli salads stay `pantry`, and a cake *mix* is an ingredient.
+  **Ready-meals convention (user's call, widened twice): `ready_meals` is anything served as a
+  finished single serving** — canned Eintöpfe, deli salads (Eiersalat/Fleischsalat, 2026-08-03),
+  and a counter **`fischbrötchen`** (2026-08-03). A *spread* stays `pantry` and a cake **mix** is
+  an ingredient. `fischbrötchen` must sit **above** the `matjes` guard in `_FORM_OVERRIDES`, or
+  "Fischbrötchen Rauchmatjes" is claimed by it and the same product lands in two chips — the diff
+  caught that, reading the table did not.
   **Drinking yoghurt and kefir are `dairy`** (user's call, reversing PR #105's placement of
   MILSANI Activedrink in soft_drinks) — listed with the sibling forms so it's a convention, not
   a one-product patch. A juice or an isotonic drink must still be `soft_drinks`; both pinned.
@@ -532,6 +536,28 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `_FOOD_RESCUE` token, because that table only runs inside the layer-1 non-food branch — the
   ice cream and biscuit arrive on FOOD paths, so the gated rule cannot reach them. Record the
   layer a rejection applies to, not just the token.
+  **The last four conventions (user's calls, 2026-08-03)**: **breaded cheese is `frozen`**
+  (Mozzarella-Sticks / Back-Camembert / Mini-Backkäse — it was split, served as `cheese` at one
+  chain and `snacks` at another, so leaving it alone was not a stable answer; plain *baked*
+  cheese is not breaded and stays `cheese` — Ofenkäse, Grillkäse, Pfannenkäse). **Industrially
+  packaged, individually-portioned cake is `sweets`** — only the FORMATS are named (`muffin`,
+  `donut`, `kuchenriegel`, `mini-kuchen`; baklava already resolved there) because *shelf-stable*
+  has no signal in the feed: the fresh ones say "Gekühlt" and the packaged ones say nothing, and
+  **absence of a word is not evidence**. A bare `kuchen`/`torte` was simulated and REJECTED — it
+  drags the savoury Flammkuchen, the chilled Schichttorte/Frischkuchen and the in-store-bakery
+  Kuchenglück out of `bakery`. The `donut` token needs a **`pizza-donut` guard above it** (a
+  savoury cheese-filled snack whose `Hartkäse` path L2 would otherwise beat). **Every rice cake
+  stays in `snacks`, chocolate-coated included** — one product line in one chip; pinned so a
+  later audit doesn't "fix" it.
+  **A living plant named after its fruit is not produce — and the guard must be a `_RESCUE_VETO`
+  token** (2026-08-03). "Heidelbeere im Topfcover", a 50 cm blueberry BUSH, was served in the
+  **Fruits** chip: `heidelbeere` is a rescue token, the plant arrives on a garden path, and layer 1
+  decides and never falls through — so the `topfcover` → household entry added at layer 2 by an
+  earlier audit **could never reach the product it was written for**. Pathless it worked, which is
+  exactly why a pathless test would have passed. Same probe found a porcelain **`Kaffeebecher`** in
+  the Coffee chip (the deliberately-bare `kaffee` rescue token). A bare `becher` is unusable —
+  Becherovka is a liqueur, Knorr Snackbecher is pantry, Jacobs Instant-Becherportionen is real
+  coffee — and `im topf` was rejected as too broad for future "X im Topf" meal names.
   **Grocery chains sell drugstore goods, and nothing was routing them** (2026-08-03 photo
   audit, 86 products): ~60 cosmetics/cleaning/pet products sat in the GROCERY vertical's
   `household` chip. `_DRUGSTORE_RULES` gained tokens for fragrance/hair/face/body/health/baby/

@@ -487,7 +487,11 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     ("health", ["proteinpulver", "protein-pulver", "eaa "]),
     ("cheese", ["lauchterrine", "radieschentopf"]),
     ("pork", ["gurkensülze", "paprikapastete"]),
-    ("household", ["topfcover"]),                      # a living blueberry PLANT in a pot
+    # Living plants sold in a pot. These reach layer 2 only when the source ships them WITHOUT
+    # its garden path (it ships the basil both ways) — with the path, layer 1's veto decides.
+    # `basilikum` alone is unusable: it is in Zottarella Basilikum and Patros Tomate & Basilikum,
+    # both cheese.
+    ("household", ["topfcover", "basilikum im topf"]),
     ("snacks", ["tortillas"]),
     # --- end photo-audit block ------------------------------------------------------------------
     # --- 2026-08-03 new-week audit: the `other` bucket (92 products on arrival) --------------
@@ -723,7 +727,12 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # relying on the `ganze bohnen`/`iced coffee` rescue, which does not fire for "Der
     # Himmlische", plain "Kaffee" or "Kaffeekapseln" -- all three were served as ICE CREAM.
     ("coffee", ["kaffeekapsel", "kaffeepad", "der himmlische", "mövenpick kaffee"]),
-    ("bakery", ["muffin"]),          # "Baileys Muffins" are muffins, not a liqueur
+    # "Baileys Muffins" are muffins, not a liqueur — this entry exists to beat the `baileys`
+    # brand at layer 4. The SLUG became `sweets` on 2026-08-03 with the packaged-cake convention
+    # (see the block at the bottom of this table); the token stays HERE because appending a
+    # second `muffin` lower down is dead code — this one wins, and the full-corpus diff showed
+    # exactly that: not one muffin moved until the slug was changed in place.
+    ("sweets", ["muffin"]),
     # German "Lachs" is a LOIN CUT as well as salmon: "Greußener Lachsfleisch mit
     # Edelschimmel" is cured PORK. Same trap as the documented `lachsschinken`.
     ("pork", ["lachsfleisch"]),
@@ -734,6 +743,10 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # precede the tokens below that would otherwise swallow them. ---
     ("alcoholic", ["edelbrand", "obstgeist", "obstbrand"]),  # guards `mirabelle`: a Mirabellen
     #   Edelbrand is a fruit BRANDY, not fruit.
+    # ORDER: `fischbrötchen` must precede `matjes`, or "Fischbrötchen Rauchmatjes" is claimed by
+    # the guard below and the same product sits in two chips. See the ready_meals note at the
+    # bottom of this table for why a filled roll is a ready meal.
+    ("ready_meals", ["fischbrötchen"]),
     ("fish", ["matjes"]),  # guards `senf`: a "Matjes Honig-Senf" is herring, not mustard.
     # The source files regional Thüringen FOOD under `Wasser > Wassermarken > Thüringer
     # Waldquell` -- a mineral-WATER brand node -- so mustard, Leberwurst, Rostbratwurst, ham
@@ -772,6 +785,33 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # measured), so the non-snack kinds are named here instead.
     ("coffee", ["nescafé", "nescafe", "kaffeestick"]),
     ("ice_cream", ["raketeneis", "icestick"]),
+    # --- Conventions the user set on 2026-08-03. Appended, not inserted: everything above keeps
+    # --- priority, and each block names the sibling that must NOT move.
+    #
+    # BREADED cheese is a freezer/convenience product, not cheese you buy to eat as cheese. It was
+    # split across two chips — Mozzarella-Sticks served as `cheese` at Lidl and as `snacks` at
+    # Alpenhain — so this also settles a self-disagreement. Layer 2 because the source files these
+    # under a Käse path, which would otherwise win at L3. Plain baked cheese is NOT breaded and
+    # stays put: Rougette Ofenkäse, Halloumi Grillkäse, Patros Grill & Ofen, Galbani Mozzarella.
+    # Both spellings are needed — the source ships "Mozzarella-Sticks" and "Mozzarella Sticks".
+    ("frozen", ["backkäse", "back-camembert", "mozzarella-stick", "mozzarella stick"]),
+    # (`fischbrötchen` -> ready_meals lives higher up, above the `matjes` guard it collides with:
+    # a filled roll from the counter is one serving you eat as it is, like the deli salads. It
+    # beats the source's `Fisch > Fischzubereitung` path, while the fillings on their own stay
+    # fish — Rauchmatjes, Matjesfilet, Backfisch, Seelachsschnitzel.)
+    #
+    # Industrially packaged, individually-portioned cake is confectionery; cake sold as cake stays
+    # in Bakery. Only the FORMATS are named, because "shelf-stable" has no signal in the feed: the
+    # fresh ones say "Gekühlt" and the packaged ones say nothing, and absence of a word is not
+    # evidence. A bare `kuchen`/`torte` token was simulated and REJECTED — it drags Flammkuchen
+    # (savoury), Frischkuchen and Schichttorte ("Gekühlt"), Zupfstreuselkuchen and Kuchenglück
+    # (fresh from the in-store bakery) out of Bakery with them. Baklava already resolves to sweets.
+    # The guard above the block is load-bearing: `MEIN BESTES Filled-Pizza-Donut` is a savoury
+    # cheese-filled pizza snack, and layer 2 outranks the `Hartkäse` path node that gets it right.
+    # (`muffin` is NOT repeated here — an existing entry higher up already carries it and wins;
+    # its slug was changed in place instead. A duplicate token below the first hit is dead code.)
+    ("cheese", ["pizza-donut"]),
+    ("sweets", ["donut", "kuchenriegel", "mini-kuchen"]),
 ]
 
 # What the flyer CAPTION says the product is. Read from `Offer.unit`, which holds the source's
@@ -988,6 +1028,18 @@ _RESCUE_VETO: list[str] = [
     # veto would not reach them, but the bakery rescue above exists precisely to pull
     # breads out of a non-food path, and "saaten" would then veto the rescue it needs.
     "stadt land blüht",
+    # A LIVING PLANT sold in a pot, named after the fruit it will one day bear. "Heidelbeere im
+    # Topfcover" (a 50 cm blueberry bush) was served in the FRUITS chip: `heidelbeere` is a rescue
+    # token, the path is `Heimwerken und Garten > … > Beerensträucher`, and layer 1 decides and
+    # never falls through — so the `topfcover` -> household entry in `_FORM_OVERRIDES` could not
+    # reach it. That L2 entry still earns its place (the same product also ships pathless), but the
+    # veto is what fixes the real row. `im topf` was rejected as the token: German food marketing
+    # uses it too ("Gulasch im Topf"), and this needs no width.
+    "topfcover",
+    # A ceramic MUG, rescued into Coffee by the bare `kaffee` token (`GUT&GÜNSTIG Kaffeebecher`,
+    # `Kaffeebecher aus Steingut`). A bare `becher` is NOT usable — it is inside Becherovka (a
+    # liqueur), Knorr Snackbecher and Jacobs Instant-Becherportionen, which is real coffee.
+    "kaffeebecher",
     " hose", "shirt", "jacke", "socken", "kleid", "pulli", "pullover", "jeans", "leggings",
     " holz", "möbel", " lack",
     "knabbermix", "katzen", "hunde", "für tiere", " napf", "tierfutter", "vogelfutter",

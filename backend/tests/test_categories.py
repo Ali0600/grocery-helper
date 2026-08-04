@@ -1381,8 +1381,11 @@ def test_moevenpick_coffees_are_not_ice_cream():
     assert classify("MÖVENPICK Eis", "Mövenpick", None, "Tiefgefroren") == "ice_cream"
 
 
-def test_baileys_muffins_are_bakery():
-    assert classify("Baileys Muffins", "Baileys", None) == "bakery"
+def test_baileys_muffins_are_not_a_liqueur():
+    """The point of this rule is that the `baileys` BRAND at layer 4 must not claim a muffin.
+    The slug moved bakery -> sweets on 2026-08-03 (packaged cake is confectionery, user's call);
+    what the entry guards against is unchanged."""
+    assert classify("Baileys Muffins", "Baileys", None) == "sweets"
     assert classify("BAILEY'S The Original Irish Cream Likör", "Baileys", None) == "alcoholic"
 
 
@@ -2118,3 +2121,135 @@ def test_olia_is_qualified_because_it_is_a_substring_of_angustifolia():
     hair product."""
     assert classify("Lavendel angustifolia", None, ["Heimwerken und Garten", "Marken"]) == "household"
     assert classify("Garnier Olia Coloration", None, NONFOOD) == "hair"
+
+
+# --- 2026-08-03, part 2: the last five conventions + two rescue leaks -----------------------
+
+# The source's real garden path for a potted plant. It matters that this is the WHOLE path:
+# layer 1 decides on it and never falls through, so a pathless call exercises a different rule.
+GARDEN = ["Heimwerken und Garten", "Produkte", "Garten", "Pflanzen ", "Gartenbepflanzung",
+          "Gartenpflanzen", "Pflanzen", "Bäume", "Sträucher", "Obststräucher",
+          "Beerensträucher", "Heidelbeerstrauch", "Heidelbeere"]
+KAESE = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Milchprodukte", "Käse"]
+FISCH = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Fisch", "Fischzubereitung",
+         "Fischbrötchen"]
+
+
+def test_a_living_plant_named_after_its_fruit_is_not_produce():
+    """Served LIVE in the Fruits chip: a 50 cm blueberry BUSH at 4,99 EUR. `heidelbeere` is a
+    `_FOOD_RESCUE` token and the plant arrives on a garden path, so layer 1 rescued it — and the
+    `topfcover` -> household entry in `_FORM_OVERRIDES` sits at layer 2, which layer 1 never
+    reaches. The veto is the only thing that can fix the real row, so this test MUST pass the
+    real path; pathless it passes with the veto removed and proves nothing.
+    """
+    assert classify("Heidelbeere im Topfcover", None, GARDEN) == "household"
+    # ...while a real punnet of blueberries under a promo/pet node still gets rescued. That is
+    # the whole point of the rescue and the veto must not cost it.
+    assert classify("REWE Regional Heidelbeeren", None, PET) == "fruits"
+    assert classify("ALL SEASONS Kulturheidelbeeren", None, NONFOOD) == "fruits"
+
+
+def test_the_layer_2_potted_plant_entry_covers_the_pathless_copy():
+    """The source ships the same plants without a path too, where layer 1 is skipped entirely.
+    Both layers earn their place; neither alone covers both shapes."""
+    assert classify("Heidelbeere im Topfcover", None, None) == "household"
+    assert classify("XXL-Basilikum im Topf", None, None) == "household"
+    assert classify("XXL-Basilikum im Topf", None, GARDEN) == "household"
+    # `basilikum` alone would take this, which is why the token carries "im topf".
+    assert classify("ZOTT Zottarella-Minis Classic oder Basilikum", None, None) == "cheese"
+
+
+def test_a_coffee_mug_is_not_coffee():
+    """`_FOOD_RESCUE` carries a bare `kaffee` on purpose (the narrow `kaffeepad` form made the
+    veto dead code), and it was rescuing porcelain: two `Kaffeebecher` were served in the Coffee
+    chip. A bare `becher` is NOT usable as the veto — Becherovka is a liqueur, Knorr Snackbecher
+    is pantry, and Jacobs Instant-Becherportionen is genuinely coffee."""
+    assert classify("GUT&GÜNSTIG Kaffeebecher", None, ["Möbel und Wohnen", "Kaffeebecher"]) == "household"
+    # Real rows, with the paths the source actually sends them on.
+    assert classify("Jacobs Instant-Becherportionen", "Jacobs",
+                    ["Lebensmittel und Getränke", "Produkte", "Getränke", "Heißgetränk",
+                     "Kaffee"]) == "coffee"
+    assert classify("Becherovka Kräuterlikör", None, None) == "alcoholic"
+    assert classify("Knorr Snackbecher", None, None) == "pantry"
+    # ...and the rescue the veto must not cost: real coffee under a non-food path.
+    assert classify("Senseo Classic", None, ["Elektronik und Technik", "Senseo"]) == "coffee"
+
+
+@pytest.mark.parametrize(
+    "name,expected,why",
+    [
+        # BREADED cheese is a freezer product (user's call). It was split across two chips —
+        # proof that leaving it alone was not a stable answer.
+        ("CHEF SELECT Mozzarella-Sticks", "frozen", "Tiefgefroren 750 g; was cheese"),
+        ("Alpenhain Mozzarella Sticks", "frozen", "same product, was snacks — the split"),
+        ("EDEKA Herzstücke Mini-Backkäse", "frozen", "knusprig paniert, vorgebacken"),
+        ("GUT&GÜNSTIG Back-Camembert", "frozen", "fertig paniert und knusprig vorgebacken"),
+        # ...and plain baked/grilled cheese is NOT breaded and must stay put.
+        ("Rougette Ofenkäse", "cheese", "cheese for the oven, no coating"),
+        ("EDEKA Herzstücke Halloumi Grillkäse", "cheese", "grilling cheese"),
+        ("Galbani Mozzarella", "cheese", "just mozzarella"),
+        ("Gazi Grill- und Pfannenkäse", "cheese", "same"),
+    ],
+)
+def test_breaded_cheese_is_frozen_but_baked_cheese_is_cheese(name, expected, why):
+    # The Käse PATH is what makes this a layer-2 job: at layer 6 the path would win first.
+    assert classify(name, None, KAESE) == expected, why
+
+
+def test_a_filled_fish_roll_is_a_ready_meal():
+    """User's call: one serving you eat as it is, like the deli salads. It has to beat the
+    source's own `Fisch > Fischzubereitung` path, hence layer 2."""
+    assert classify("Fischbrötchen", None, FISCH) == "ready_meals"
+    # ORDER: this entry sits ABOVE the `matjes` guard. Appended after it, the full-corpus diff
+    # showed "Fischbrötchen Rauchmatjes" staying in fish — the same product in two chips.
+    assert classify("Fischbrötchen Rauchmatjes", None, FISCH) == "ready_meals"
+    # The fillings on their own are still fish, and `matjes` still guards `senf`.
+    assert classify("Matjes Honig-Senf", None, None) == "fish"
+    assert classify("Backfisch", None, None) == "fish"
+    assert classify("Seelachsschnitzel", None, None) == "fish"
+
+
+@pytest.mark.parametrize(
+    "name,expected,why",
+    [
+        # User's call: industrially packaged, individually-portioned cake is confectionery.
+        ("GUT&GÜNSTIG Mini-Muffins", "sweets", "225 g Beutel"),
+        ("KUCHENZAUBER Muffins XXL", "sweets", "packaged muffins"),
+        ("Baileys Muffins", "sweets", "the row the `muffin` entry was originally written for"),
+        ("Schoko Donut mit Schokostreusel", "sweets", "3 Stück, packaged"),
+        ("DUNKIN' Donuts Kakao Haselnuss", "sweets", "2er-Pack"),
+        ("NESTLÉ Yes Kuchenriegel", "sweets", "3 x 10,67 g cake BARS"),
+        ("FINEST BAKERY Mini-Kuchen", "sweets", "packaged Zitronen-/Marmorkuchen"),
+        ("Deluxe Baklava Pistazie", "sweets", "already resolved this way — pinned"),
+        # ...and cake sold as cake stays in Bakery. A bare `kuchen`/`torte` token was simulated
+        # and rejected because it drags every one of these along with it.
+        ("Flammkuchen", "bakery", "SAVOURY — the reason a bare `kuchen` is unusable"),
+        ("Medovnik Schichttorte", "bakery", "Gekühlt"),
+        ("NOSTJA Frischkuchen", "bakery", "Gekühlt"),
+        ("Schäfer's Kuchenglück Apfel", "bakery", "fresh from the in-store bakery"),
+        ("Zupfstreuselkuchen", "bakery", "fresh tray bake"),
+    ],
+)
+def test_packaged_cake_formats_are_sweets_but_cake_stays_bakery(name, expected, why):
+    assert classify(name, None, None) == expected, why
+
+
+def test_the_savoury_donut_guard():
+    """`MEIN BESTES Filled-Pizza-Donut` is a cheese-filled pizza snack. Layer 2 outranks the
+    `Hartkäse` path node that gets it right, so the sweets block needs a guard above it."""
+    hartkaese = ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Milchprodukte",
+                 "Käse", "Hartkäse"]
+    assert classify("MEIN BESTES Filled-Pizza-Donut", None, hartkaese) == "cheese"
+    assert classify("MEIN BESTES Filled-Pizza-Donut", None, None) == "cheese"
+
+
+def test_every_rice_cake_stays_in_snacks():
+    """User's call, recorded so a later audit does not "fix" it: the rice cake is the product
+    and the chocolate is a variant of it, so the line lives in ONE chip. `_OVERRIDES` already
+    puts `reiswaffel` ahead of the `waffel` -> sweets rule; this pins that it stays that way
+    even when the name says Schoko."""
+    assert classify("EDEKA Bio Reiswaffeln", None, None) == "snacks"
+    assert classify("Schoko-Reiswaffeln", None, None) == "snacks"
+    assert classify("Reiswaffeln mit Vollmilchschokolade", None, None) == "snacks"
+    # The sibling that proves the override is doing work: a plain wafer is still sweets.
+    assert classify("Amicelli Waffelröllchen", None, None) == "sweets"

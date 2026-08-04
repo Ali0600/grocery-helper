@@ -1546,6 +1546,57 @@ branch that deploys. More generally — a *cancelled* run is not a failure signa
 grey and gets read as noise. Any pipeline where "did not run" and "ran and passed" look alike
 needs the outcome verified downstream (poll the deployed version), not inferred from the tick.
 
+## A sabotage harness that edits a file in a loop can end up testing stale bytecode
+
+Proving ten classifier rules "bite" meant a loop: break the rule, run its test, restore, check
+the file hash. Two of the ten reported **passing while broken** — which reads as "this test is
+decoration" and would normally mean deleting or rewriting the test. Both were wrong.
+
+CPython validates a cached `.pyc` against the source's `(mtime_seconds, size)`. Several of these
+sabotages replaced a string with one of *exactly the same length* — `("sweets", …)` →
+`("bakery", …)` — and the whole loop ran inside one second. So the source looked unchanged to the
+import machinery, and pytest re-imported the **previous** cycle's compiled module. The sabotage
+was on disk; the code under test was not.
+
+The tell was that the file hash *did* change (so the edit applied) and a hand-run of the same
+sabotage *did* fail. The harness was the only thing disagreeing.
+
+**Why it came up:** two rules looked like they had untested guards, right after a session spent
+finding rules that genuinely were dead code — so the false alarm was maximally believable.
+
+**Takeaway:** any harness that rewrites a source file between runs must clear `__pycache__` and
+run the child with `-B` / `PYTHONDONTWRITEBYTECODE=1`. Same-length edits inside the same second
+are invisible to `.pyc` invalidation. More generally: when a verification loop disagrees with a
+hand-run of the same step, suspect the loop's caching before you believe its verdict — and make
+the harness fail loudly on unexpected exit codes (pytest's 5 = "no tests collected" reads as
+success to a naive `!= 0` check).
+
+## A guard written for a specific row is worthless until you re-run that row through it
+
+An earlier audit saw a potted blueberry bush being served as fresh fruit and added the obvious
+fix — a `topfcover → household` entry in the layer-2 override table, with a comment naming the
+product. It shipped. It did nothing. The bush was still in the Fruits chip days later.
+
+The reason is structural: that product arrives with a garden path, layer 1 owns non-food paths,
+and layer 1 **decides and never falls through**. Its food-rescue table matched `heidelbeere`
+first, so the layer-2 entry could not run. The entry wasn't wrong — it was unreachable for the
+one row it was written for. It does fire on a *pathless* copy of the same product, which is the
+nastiest part: any quick check that skipped the path would have shown it working.
+
+Adding a rule to a table feels like the work is done, because the table is the thing you can
+see. Whether the rule *executes* for your row is a property of everything above it, which is
+invisible at the point you type it.
+
+**Why it came up:** re-running the audit probe found the bush still mis-filed, and the trace
+named a different layer than the fix lived on.
+
+**Takeaway:** after adding a rule for a row you actually observed, re-run **that row, with its
+real inputs**, and assert the answer changed. The one-line version — `classify(name, brand,
+path)` before and after — is cheaper than the comment you wrote next to the rule, and it is the
+only thing that distinguishes a fix from a plausible edit. Corollary for layered pipelines: when
+a rule targets a row whose route is decided upstream, the test must carry the upstream input
+(here: the real path), or it passes on a route the bug never takes.
+
 ## The same token can be wrong at one layer and correct at another
 
 `nutella` was rejected twice as a classifier rule. As a layer-2 form word it fires on every
