@@ -82,11 +82,17 @@ jobs:
       # gate asserts the served OUTCOME against measured floors; a violation fails this
       # job, which flows into the exact same alert-issue + close-on-recovery machinery
       # below — no new plumbing. Prints counts only (the PLZ secret never echoes).
+      #
+      # --post-reset arms the per-chain floor, and it is only honest HERE: a chain empties
+      # legitimately between brochures (Rossmann's week ends Friday, so on a Saturday it
+      # really does serve ~2 offers), but this step runs immediately after the wipe-and-
+      # re-scrape above, where every chain is supposed to have a fresh brochure. A thin one
+      # at this point is an incident. Keep this step AFTER the reset or the flag is a lie.
       - name: Data-quality gate on the served deals
         env:
           PLZ: ${{ github.event.inputs.plz || secrets.SCRAPE_PLZ || '10115' }}
         run: |
-          python3 .github/scripts/verify_deals.py \
+          python3 .github/scripts/verify_deals.py --post-reset \
             --url "https://grocery-helper-sw6c.onrender.com/api/offers" --plz "${PLZ}"
 
       # A silent weekly failure is invisible; surface it as a (deduplicated) issue.

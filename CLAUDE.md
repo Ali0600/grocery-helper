@@ -133,9 +133,37 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   - **`verify_deals.py` is now PER VERTICAL** (`PROFILES`). One global gate would be wrong both
     ways: `chains >= 5` goes red the moment the set is scoped, and a floor loose enough for a
     one-chain drugstore couldn't detect a grocery collapse. Grocery keeps its measured thresholds;
-    drugstore is chains ≥1 / offers ≥150, with **no €/kg floor** — Rossmann measures 48–58%,
-    straddling grocery's 50% floor, and €/kg means little for cosmetics. Every vertical runs even
-    after one fails, so a red grocery can't hide a collapsed drugstore.
+    drugstore is **chains ≥2 / offers ≥250** (this line said "≥1 / ≥150" until 2026-08-08 — it had
+    drifted from the script and cost a wrong diagnosis; read `PROFILES`, not this file), with
+    **no €/kg floor** — Rossmann measures 48–58%, straddling grocery's 50% floor, and €/kg means
+    little for cosmetics. Every vertical runs even after one fails, so a red grocery can't hide a
+    collapsed drugstore.
+  - **`chains >= N` counts PRESENCE, so a nearly-empty chain reads as a healthy one** — hence
+    `min_chain_offers` (100, both verticals), added 2026-08-08 after the drugstore vertical served
+    `rossmann=2` against 287 the week before and grocery served `aldi=4` (its literal `_sample()`
+    size) on the same day. Neither registered: the total floor is carried by the survivors, so at
+    the measured counts **three of five grocery chains could fall back to samples and still clear
+    800** (1562−247−234−274+4+5+5 = 821). Sample sizes are tiny and per-scraper: lidl/aldi 4,
+    rewe/edeka/edeka_center/rossmann 5, dm 6.
+    - **Gated behind `--post-reset`, which `scrape.yml` passes**, because a chain empties
+      legitimately between brochures (Rossmann's week ends Friday, so on a Saturday it really does
+      serve ~2). Right after the weekly wipe-and-re-scrape every chain should be full, so a thin
+      one there is an incident. The flag **defaults off**, so `test_workflows.py` pins that the
+      workflow passes it AND that the gate step runs after the reset — otherwise the gate silently
+      goes blind again with every `test_verify_deals.py` case still green.
+    - **An ABSENT chain can never appear here** (it has no key to count), so the two checks
+      partition cleanly: absent → `chains`, present-but-thin → `min_chain_offers`. That's why this
+      check can't print a `0` — a property, not a gap.
+    - **Calibrate on SUNDAY POST-RESET counts only.** `/api/offers` filters `valid_to >= today`
+      with **no `valid_from <=` clause**, so a chain's day-limited windows all serve from day one;
+      measuring with a `valid_from` clause reads ALDI as 150 instead of its real 247 and sets the
+      floor far too high. Healthy min is 213 (dm) / 234 (edeka); the worst observed failure is 38
+      (Lidl's partial parse on 2026-07-19). The binding constraint is **dm**, not ALDI.
+    - **Everything printed is keyed on `chain`, never `store_name`** — `bonial.py` builds
+      `f"{store_label} {plz}"`, so store names embed the PLZ secret. Pinned by a test.
+    - A response of exactly the 2000 serve cap now **fails**: truncation happens after a sort by
+      `discount_pct` with nulls last, which is disproportionately REWE and ALDI — the chains
+      nearest the floor — so at the cap the per-chain numbers would be the first thing to lie.
   - **The three caches are keyed PER VERTICAL** (`dealsCache:grocery`, `dealsCache:drugstore`, same
     for `payloadCache`/`traceCache`). Sharing one key would make every switch a cache miss — a
     cold-start round trip on the free tier, for a control the user taps constantly. `clearDealsCache`
