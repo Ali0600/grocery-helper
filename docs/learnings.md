@@ -1628,3 +1628,28 @@ has already decided the path is non-food.
 **Takeaway:** before discarding an ambiguous rule, check whether some *narrower* layer would
 give it a population it handles correctly. And when you record a rejection, record the layer it
 was rejected AT — "`nutella` is unusable" was too strong, and would have kept a good fix out.
+
+## A filter written against one category does not cover the fallback bucket
+
+A view that hides a category by naming it — `offers.filter(o => o.category !== 'household')` —
+hides exactly that category. It does not hide the *fallback* bucket that a classifier drops
+things into when no rule matched, even though the fallback is precisely where the products
+nobody wrote a rule for accumulate. So the two ideas drift: the taxonomy grows a notion of
+"non-food" that the filter's single hardcoded slug never learns about.
+
+In this repo the deals list hides `household` behind a Non-food toggle, and `other` is the
+classifier's fallback. A third of the `other` chip turned out to be toys, children's books, a
+deck chair and a mobile-phone plan — all rendering between the yoghurt and the bread, because
+`other` is not `household` and the filter only knew the one word.
+
+The second-order lesson is about the metric. The `other` **rate** was 1.7% and completely
+unchanged from the previous audit, which read as "clean" and is why nobody looked. But the rate
+answers "how often do we fail to classify?", while the user's complaint was "what is in this
+chip?" — and those come apart completely when the bucket is small. A small bucket full of wrong
+things is still a bad chip.
+
+**Why it came up:** the user reported "a lot of miscategorizations in Others" at a moment when
+every dashboard number for `other` looked healthy.
+
+**Takeaway:** whenever a view excludes a category by name, ask what the *fallback* category
+contains — and audit a catch-all bucket by reading its contents, never by watching its rate.

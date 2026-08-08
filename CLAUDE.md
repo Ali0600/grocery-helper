@@ -594,6 +594,40 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     state; the allowlist names them, a 32nd fails, and a **stale** entry fails too. Mirroring one
     into `_DRUGSTORE_RULES` needs the usual full-corpus simulation — `vogelfutter` would turn a
     "Vogelfutterhaus" (a bird feeder) into pet food.
+  **`other` is NOT hidden by the app's Non-food toggle — only `household` is** (2026-08-08, the
+  finding behind that week's audit). `dealFilters.ts` filters exactly one slug
+  (`o.category !== 'household'`), so any non-food product that lands in the `other` FALLBACK
+  renders in the middle of the grocery list. Of the 25 served `other` offers that week, **8 were
+  non-food** — two Pokémon toys, a deck chair, two children's books, a craft set, a set of plastic
+  boxes and a **mobile-phone plan**. So the `other` chip is worth auditing even when its *rate* is
+  healthy (it was 1.7%, unchanged from the previous audit): the number says nothing about whether
+  the contents belong. Audit it by contents, not by rate. **Non-food fixes go in the LAST `_RULES`
+  tuple (`household`)**, where a token can only ever catch a product that would otherwise fall
+  through to `other` — zero-regression by construction, the same argument as the drugstore step
+  inside layer 1. 25 → **2** served, 0 regressions over 8,310 stored products.
+  - **A food-root path can hide a non-food product from layer 1 entirely**: the source files Lidl's
+    SIM under `Lebensmittel und Getränke > … > LIDL Connect Classic`, so the non-food branch never
+    sees it and only a name rule can reach it. A pathless test would pass without proving that.
+  - **The caption can be the ONLY handle**, because the source truncates titles: "EDEKA
+    Genussmomente" is the entire stored name — the flyer's "Teigwaren" line is dropped — and
+    `versch. Ausformungen` (pasta SHAPES) resolves it. 21 of the 22 stored offers carrying that
+    word were already pantry, which is about as strong as caption evidence gets.
+  - **Rejected, each pinned with its counter-example**: `kohl` (fires inside Holz**kohl**e, and
+    household runs LAST so charcoal would land in produce); `kräuter` (54 rows across **13**
+    categories — Kräuter*likör*, Bresso, Kräuterbaguette); a `saucen` CAPTION (matches "Chicken
+    Nuggets **mit Pommes und Saucen**" — the sauce is an accompaniment, the standing
+    designation-not-ingredient rule); `pizzateig` (spans four categories, rejected before too).
+  - **Two mechanism claims I wrote were wrong and the sabotage harness caught both** — worth
+    knowing because each *reads* as obviously right: the Alesto pecans are protected from a
+    `pekannuss` rule by the **brand map at layer 4**, not by bakery-before-snacks ordering (an
+    UNBRANDED pack has nothing above layer 6 and is the real discriminator); and the Florette goat
+    cheese is held by **two** independent cheese captions, so no single-token sabotage can prove
+    that test bites — it takes dropping the caption block.
+  - **Deliberately left in `other`, both real judgement calls**: "CHEF SELECT Mini Schnitte"
+    (photo: breaded chicken — but the source truncated "…/Schnitzel Hähnchen" out of the name, so
+    the only evidence is one flyer image, and `schnitte` spans 8 categories incl. Milch*schnitte*);
+    and "Süßes Frühstück", an in-store café breakfast set whose siblings are split household/other
+    in the stored data, so there is no stable answer to copy.
   **Don't hardcode absolute `_FORM_OVERRIDES` indices in tests** — inserting a guard shifts them
   all; derive the index instead (two trace tests were fixed this way).
   **`_FORM_OVERRIDES` is first-hit-wins, so ORDER is part of the fix.** Two guards had to be

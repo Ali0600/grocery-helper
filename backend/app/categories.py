@@ -281,7 +281,14 @@ _RULES: list[tuple[str, list[str]]] = [
                 "limonaie", "colombine",
                 # 2026-07-28 audit: breads/pastries the house brands leave in Other.
                 "bagel", "simit", "streuseltaler", "zwieback", "croutons",
-                "focaccia"]),
+                "focaccia",
+                # 2026-08-08 "other" audit. Both are photo-confirmed in-store bakery goods.
+                # `nuss-tasche`, NOT `pekannuss`: a bare nut word claims the nut itself. Today's
+                # "Alesto Pekannusskerne" happens to survive — `alesto` is in the brand map, which
+                # is layer 4 and outranks these rules — but an UNBRANDED pack of pecans has no
+                # such protection and would be served as a pastry. Pinned both ways.
+                # `caprese-snack` in full, NOT a bare `caprese`: a Caprese SALAD is vegetables.
+                "nuss-tasche", "caprese-snack"]),
     ("vegetables", ["tomate", "gurke", "salat", "kartoffel", "zwiebel", "paprika", "möhre", "moehre", "karotte",
                     "brokkoli", "blumenkohl", "spinat", "zucchini", "champignon", "pilz", "knoblauch", "lauch",
                     "sellerie", "kürbis", "rucola", "spargel", "kohlrabi", "coleslaw", "kresse",
@@ -290,7 +297,18 @@ _RULES: list[tuple[str, list[str]]] = [
                     # "Bio-Cracker mit Ackerbohnen" — vegetables runs before snacks/pantry.
                     "buschbohnen", "brechbohnen", "prinzessbohnen", "stangenbohnen", "grüne bohnen",
                     # Mushrooms the source leaves in Other (the "pilz"/"champignon" words don't reach them).
-                    "pfifferling", "portobello"]),
+                    "pfifferling", "portobello",
+                    # 2026-08-08 "other" audit: loose cabbage the source ships with no path at all.
+                    # Named cabbages, NOT a bare `kohl` — that fires inside Holz*kohl*e (charcoal),
+                    # which household would otherwise lose to vegetables (household runs last).
+                    "spitzkohl", "chinakohl",
+                    # Florette is a bagged-salad house; its "Sommergenuss" says nothing else.
+                    # The unrelated cheese "Fromager d'Affinois Florette" arrives on a `Florette`
+                    # brand-leaf path and is saved by the CHEESE CAPTIONS at layer 2b (`fett i. tr`
+                    # wins; `weichkäse` would too). That is four layers above this one and it is
+                    # the only thing standing between this keyword and a goat cheese in the
+                    # vegetable chip, so it is pinned by a test.
+                    "florette"]),
     # Trailing spaces are load-bearing: "milka" fires inside Milkana (a cheese) and "fritt" inside
     # Heißluftfritteuse (an appliance) — today only a non-food path hides the latter.
     ("sweets", ["schokolade", "schoko", "praline", "keks", "bonbon", "gummibär", "riegel", "waffel", "nutella",
@@ -349,7 +367,14 @@ _RULES: list[tuple[str, list[str]]] = [
                 # but not Suppengrün (vegetables) or Suppenhuhn/-fleisch, which would
                 # otherwise reach pantry — it sits second-to-last, so it can't be outranked.
                 "fleischalternativ", "like meat", "likemeat", "nesquik",
-                "suppe ", "eintopf", "eintöpf", "lasagne-blätter", "lasagneblätter", "gigli "]),
+                "suppe ", "eintopf", "eintöpf", "lasagne-blätter", "lasagneblätter", "gigli ",
+                # 2026-08-08 "other" audit. Preserved produce is pantry by the standing convention
+                # (jarred/canned leaves the fresh chips), so pickled baby corn belongs here.
+                # `bio kräuter` is deliberately the two-word form: a bare `kräuter` spans 13
+                # categories in the stored set (Kräuter*likör*, Bresso Feine Kräuter, Kräuter-
+                # baguette, Kräuterbutter) and is unguardable. Culinary herbs sit with the
+                # spices — "Petersilie" already resolves to pantry.
+                "maiskölbchen", "bio kräuter"]),
     ("household", ["spülmittel", "spuelmittel", "spülmaschinen", "waschmittel", "toilettenpapier", "küchenrolle", "reiniger",
                    "windel", "müllbeutel", "weichspüler", "oleander", "pflanze", "blume", "kleid", "jacke", "schuhe",
                    "garten", "werkzeug", "kissen", "bettdecke", "matratze", "wäschest", "haushaltshelfer",
@@ -360,8 +385,21 @@ _RULES: list[tuple[str, list[str]]] = [
                    # "chrysanthem" (not the plural) also catches the singular "Chrysantheme".
                    "fahrradanhänger", "wanduhr", "kühltasche", "chrysanthem", "lavendel", "palme", "kreuzfahrt", "hotel",
                    "holzkohle", "grillkohle", "brikett", "grillmatte", "haushaltstuch", "müllbeutel", "papierbeutel",
-                   "hortensie", "floristen", "blumenstrauß", "keramikgrill", "hundespielzeug", "plüschtier",
-                   "spielzeug", "prospekthülle", "auto laden"]),
+                   "hortensie", "floristen", "blumenstrauß", "keramikgrill", "hundespielzeug",
+                   # `plüsch` widened from `plüschtier`: the flyers also sell a bare "Pokémon Plüsch".
+                   "plüsch",
+                   "spielzeug", "prospekthülle", "auto laden",
+                   # --- 2026-08-08 "other" audit: NON-FOOD that was rendering in the food list ---
+                   # `other` is NOT gated by the app's Non-food toggle (only `household` is), so a
+                   # toy, a book, a deck chair and a mobile plan were all being served among the
+                   # groceries. This tuple runs LAST, so every token here can only ever catch a
+                   # product that would otherwise fall through to "other" — zero regression by
+                   # construction, the same argument as the drugstore step inside layer 1.
+                   # "Lidl Connect" needs a rule at all because the source files the SIM under
+                   # `Lebensmittel und Getränke > ... > LIDL Connect Classic` — a FOOD root, so
+                   # layer 1's non-food branch can never see it.
+                   "frischhaltedose", "lidl connect", "kreativspiel", "spinner",
+                   "lernblock", "leselernbuch", "liegestuhl"]),
 ]
 
 # Unambiguous brand -> category. Multi-category house brands (Milbona, Metzgerfrisch,
@@ -445,6 +483,17 @@ BRAND_CATEGORY: dict[str, str] = {
     "halloren": "sweets", "storck": "sweets", "ahoj": "sweets", "philadelphia": "cheese",
     "eberswalder": "pork", "pottkieker": "pantry", "tuc ": "snacks",
     "workzone": "household", "joie ": "household",
+    # 2026-08-08 "other" audit: single-category brands whose products carry no category word at
+    # all in the name the source stores ("Ya'ummi Classic Samurai", "Remia Yildriz", "Hellmann's
+    # Chili", "Zörbiger Überrübe"). Each was verified against every stored row of that brand:
+    # nothing outside the mapped category, so none of these is a brand CONTAINER.
+    # The caption would be the obvious alternative for the three sauces, but a `saucen` caption
+    # signal was measured and REJECTED — it also matches "Chicken Nuggets mit ... Saucen", where
+    # the sauce is an ACCOMPANIMENT, not the product (designation-not-ingredient, as ever).
+    "hellmann": "pantry", "remia": "pantry", "zörbiger": "pantry",
+    # Both apostrophes: the feed ships the straight one today, but its siblings use the curly.
+    "ya'ummi": "pantry", "ya’ummi": "pantry",
+    "capico": "sweets", "frikoni": "dairy",
 }
 
 # Definitive *form* words (and single-category product brands): a product literally called a
@@ -849,7 +898,11 @@ _CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
     # and "Heringsfilethappen mit Gewürzgurken" is herring WITH gherkins — it was being served
     # as pantry until this entry went in front.
     ("fish", ["heringsfilet", "brathering", "räuchmatjes"]),
-    ("pantry", ["teigwaren", "gewürzgurken"]),
+    # `ausformungen` ("versch. Ausformungen") is the flyers' own word for PASTA SHAPES: 21 of the
+    # 22 stored offers carrying it are already pantry (Barilla, Delverde, 3 Glocken, GUT&GÜNSTIG
+    # Teigwaren). The 22nd is "EDEKA Genussmomente", whose name says nothing at all — the source
+    # drops the "Teigwaren" line from the title, so the caption is the only handle.
+    ("pantry", ["teigwaren", "gewürzgurken", "ausformungen"]),
     ("pork", ["salamispezialität"]),
     ("cheese", ["käsescheiben", "körnigem frischkäse"]),
     ("bakery", ["weizenkleingebäck"]),
