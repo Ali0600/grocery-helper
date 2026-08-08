@@ -118,3 +118,32 @@ def test_superseded_is_proven_by_ancestry_not_inferred_from_inequality():
     assert 'if [ -n "$live" ] && [ "$live" != "$want" ]; then' not in run, (
         "the naive superseded check is back — a failed build would report green again"
     )
+
+
+def test_the_weekly_gate_enforces_the_per_chain_floor_after_the_reset():
+    """2026-08-08: the drugstore vertical served rossmann=2 (against 287 the week before) and
+    the same day grocery served aldi=4 — its literal `_sample()` size. Neither showed up as a
+    chain outage, because `chains >= N` counts presence with no cardinality behind it and the
+    total-offers floor is carried by the healthy chains.
+
+    `verify_deals.py` grew a per-chain floor for that, but it DEFAULTS OFF — a chain empties
+    legitimately between brochures, so the floor is only honest right after the weekly wipe-
+    and-re-scrape. That makes this assertion the compensating control: drop `--post-reset`
+    from the workflow and the gate silently returns to being blind, with every test in
+    test_verify_deals.py still green, because they call verify() directly.
+    """
+    wf = _load("scrape.yml")
+    steps = wf["jobs"]["refresh"]["steps"]
+    gate = next((s for s in steps if "quality" in (s.get("name") or "").lower()), None)
+    assert gate is not None, "expected a data-quality gate step in the weekly refresh"
+    assert "--post-reset" in gate["run"], (
+        "without --post-reset the per-chain floor never runs and a dark chain reads as green"
+    )
+    assert "${{" not in gate["run"], (
+        "workflow inputs belong in env:, never interpolated into a run: block"
+    )
+    # The flag asserts "a re-scrape just finished", so it is a lie if the gate outruns the reset.
+    reset = next(s for s in steps if "reset" in (s.get("name") or "").lower())
+    assert steps.index(gate) > steps.index(reset), (
+        "the gate must run AFTER /api/reset, or --post-reset claims something that isn't true"
+    )
