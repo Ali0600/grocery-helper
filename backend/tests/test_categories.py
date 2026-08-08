@@ -2376,3 +2376,145 @@ def test_the_two_drugstore_tables_do_not_drift_further():
     stale = {s: sorted(t - missing.get(s, set())) for s, t in _UNMIRRORED_DRUGSTORE_TOKENS.items()}
     stale = {s: t for s, t in stale.items() if t}
     assert not stale, f"allowlist is stale — these are reachable now, drop them: {stale}"
+
+
+# --- 2026-08-08: the "other" bucket audit -------------------------------------------------
+# `other` is the fallback, so nothing REACHES these rules except a product that no layer could
+# answer. Every product below fell all seven layers through to `other`, verified with explain().
+#
+# The finding that made this urgent: the app's Non-food toggle filters `household` and ONLY
+# `household` (`dealFilters.ts`: `offers.filter((o) => o.category !== 'household')`), so a
+# non-food product sitting in `other` renders in the middle of the grocery list. A deck chair,
+# two Pokémon toys, two children's books and a mobile-phone plan were doing exactly that.
+
+# The brand-leaf food path these products carry: a food ROOT that dead-ends on a brand, so
+# layer 1 never fires (it is not non-food) and layer 3 finds no category node.
+BRAND_LEAF = ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "EDEKA"]
+
+
+@pytest.mark.parametrize(
+    "name, brand, expected, why",
+    [
+        ("Lock&Lock Frischhaltedosen", "Lock&Lock", "household", "plastic storage boxes"),
+        ("CRAZE Kreativspiel", "CRAZE", "household", "a children's craft toy"),
+        ("SANSIBAR Liegestuhl", "SANSIBAR", "household", "a deck chair"),
+        ("Pokémon Plüsch", "Pokémon", "household", "a plush toy"),
+        ("Pokémon Battle Spinner", "Pokémon", "household", "a toy"),
+        ("Leselöwen Leselernbuch", None, "household", "children's reading books"),
+        ("Lernblock/Kompaktwissen & Vorschul-/Schulanfänger-Buch", None, "household", "books"),
+    ],
+)
+def test_non_food_in_other_is_moved_to_household_so_the_toggle_can_hide_it(
+    name, brand, expected, why
+):
+    """These are pathless, so only the name can decide. They live in the LAST `_RULES` tuple,
+    which is what makes them safe: a token there can only ever catch a product that would
+    otherwise fall through to `other`."""
+    assert classify(name, brand) == expected, why
+
+
+def test_a_sim_card_filed_under_the_food_root_still_reaches_household():
+    """The structural case. The source files Lidl's mobile plan under
+    `Lebensmittel und Getränke > ... > LIDL Connect Classic` — a FOOD root — so layer 1's
+    non-food branch can never see it and no amount of path work would help. A pathless test
+    would pass without proving that, so this one MUST pass the real path."""
+    sim_path = [
+        "Lebensmittel und Getränke", "Marken", "Marken Lidl Lebensmittel", "LIDL Connect Classic",
+    ]
+    assert classify("Lidl Connect Unlimited on Demand S", "Lidl Connect", sim_path) == "household"
+
+
+@pytest.mark.parametrize(
+    "name, brand, expected, why",
+    [
+        ("Deutscher Spitzkohl, lose", None, "vegetables", "loose cabbage, no path at all"),
+        ("Deutscher Chinakohl", None, "vegetables", "same"),
+        ("Florette Sommergenuss", "Florette", "vegetables", "a bagged salad"),
+        ("Mein bestes Pekannuss-Tasche", "Mein bestes", "bakery", "a filled Plunderteig pastry"),
+        ("Caprese-Snack", None, "bakery", "photo: baked at the in-store SB-Marktbäckerei"),
+        ("ASIA GREEN GARDEN Maiskölbchen", "ASIA GREEN GARDEN", "pantry", "pickled, in a jar"),
+        ("EDEKA Bio Kräuter", "EDEKA Bio", "pantry", "culinary herbs, like Petersilie"),
+        ("Hellmann's Chili", "Hellmann's", "pantry", "a sauce"),
+        ("Remia Yildriz", "Remia", "pantry", "a kebab sauce"),
+        ("Ya'ummi Classic Samurai", "Ya'ummi", "pantry", "a sauce"),
+        ("Zörbiger Überrübe", "Zörbiger", "pantry", "a sweet spread; spreads stay pantry"),
+        ("Original Zörbiger Über Rübe", "Zörbiger", "pantry", "same product, spelled apart"),
+        ("Capico Knusper Röllchen", "Capico", "sweets", "filled wafer rolls"),
+        ("Frikoni High Protein Dessert", "Frikoni", "dairy", "a pudding, like Ehrmann's"),
+    ],
+)
+def test_food_rescued_from_the_other_bucket(name, brand, expected, why):
+    assert classify(name, brand) == expected, why
+
+
+def test_a_pasta_bag_is_recognised_from_its_caption_alone():
+    """"EDEKA Genussmomente" is the whole stored name — the source drops the "Teigwaren" line
+    from the title. `versch. Ausformungen` (pasta SHAPES) is the flyers' own designation: 21 of
+    the 22 stored offers carrying it were already pantry."""
+    assert classify(
+        "EDEKA Genussmomente", None, BRAND_LEAF,
+        "traditionelle Herstellung, versch. Ausformungen 500g Beutel",
+    ) == "pantry"
+
+
+def test_berief_oat_drink_matches_the_other_oat_drinks():
+    """Oatly/Alpro/MYVAY oat drinks all resolve to `vegan` at layer 0, so Berief's falling to
+    `other` split one product across two chips on brand alone."""
+    assert classify("Berief Bio Haferdrink", "Berief", BRAND_LEAF) == "vegan"
+    assert classify("Oatly Haferdrink", "Oatly") == "vegan"
+
+
+@pytest.mark.parametrize(
+    "name, brand, unit, path, expected, why",
+    [
+        # `kohl` (rejected): fires inside Holzkohle. household is the LAST tuple, so a `kohl`
+        # token in vegetables would take charcoal off the grill and into the produce chip.
+        ("Grillmeister Holzkohle", "Grillmeister", "zum Grillen 3 kg", BRAND_LEAF,
+         "household", "charcoal is not a cabbage"),
+        # `pekannuss` (rejected) — see test_a_bare_nut_word_would_claim_the_nut below for the
+        # case that actually discriminates. The branded pack is snacks via the brand map.
+        ("Alesto Pekannusskerne", "Alesto", "Naturbelassen. 200 g", BRAND_LEAF,
+         "snacks", "actual nuts, not a nut pastry"),
+        # `kräuter` (rejected): 54 stored rows across 13 categories. Three of them:
+        ("Bresso Feine Kräuter", "Bresso", "8 x 15-g-Pckg.", None, "cheese", "a cream cheese"),
+        ("Jägermeister Kräuterlikör", "Jägermeister", "35% Vol. 0,7-l-Fl.", None,
+         "alcoholic", "a herbal liqueur"),
+        ("GUT&GÜNSTIG Kräuterbaguette", "GUT&GÜNSTIG", "vorgebacken", None, "bakery", "bread"),
+        # `saucen` as a CAPTION signal (rejected): designation, not ingredient — the sauce here
+        # is what the nuggets come WITH. This is why the three sauces got brand entries instead.
+        ("GUT&GÜNSTIG Chicken Nuggets", "GUT&GÜNSTIG", "mit Pommes und Saucen 300/350 g Schale",
+         BRAND_LEAF, "poultry", "chicken served with sauces is still chicken"),
+    ],
+)
+def test_the_tokens_the_corpus_diff_rejected(name, brand, unit, path, expected, why):
+    """Each of these looked obviously right while being typed and was killed by simulating it
+    over all 8,310 stored products. They are pinned so the next audit does not re-add them."""
+    assert classify(name, brand, path, unit) == expected, why
+
+
+def test_the_florette_cheese_is_saved_by_its_caption_not_by_luck():
+    """`florette` -> vegetables is only safe because "Fromager d'Affinois Florette" — which
+    arrives on a `Florette` BRAND-LEAF path, so the path cannot help — is caught by the CHEESE
+    CAPTIONS at layer 2b, four layers above the keyword. Two of them cover it independently
+    (`fett i. tr` wins, `weichkäse` would), so removing either alone changes nothing; it takes
+    dropping the caption block to put a goat cheese in the vegetable chip. Worth stating,
+    because it means no single-token sabotage can prove this test bites."""
+    assert classify(
+        "Fromager d’Affinois Florette", None,
+        ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "Florette"],
+        "franz. Weichkäse aus Ziegenmilch, mild-cremiger Geschmack, 45% Fett i. Tr. 125 g",
+    ) == "cheese"
+
+
+def test_a_bare_nut_word_would_claim_the_nut_itself():
+    """Why the bakery rule is `nuss-tasche` and not `pekannuss`.
+
+    The obvious counter-example — "Alesto Pekannusskerne" — does NOT discriminate: `alesto` sits
+    in the brand map at layer 4, which outranks these keywords whatever they say. The case that
+    does is an unbranded pack, which has nothing above layer 6 to save it. It has no readable
+    signal at all today, and `other` is the honest answer for it; what it must never be is a
+    pastry."""
+    assert classify("Alesto Pekannusskerne", "Alesto") == "snacks"  # saved by the brand map
+    assert classify("Pekannusskerne", None) != "bakery"
+    # ...while the pastry the rule was written for still resolves.
+    assert classify("Mein bestes Pekannuss-Tasche", "Mein bestes") == "bakery"

@@ -23,8 +23,11 @@ _VEGAN_RE = re.compile(
     # later by what they IMITATE: Violife sat in the brand map as cheese, and a MYVAY
     # "Chicken-Style" tub (soy) was served as poultry by the `chicken` keyword. Layer 0 is
     # the only layer above both.
+    # `berief` is an organic soy/oat house — every stored row is a plant drink. Without it its
+    # Haferdrink fell to "other" while the identical Oatly/Alpro/MYVAY ones resolve here, so the
+    # same product was split across two chips purely by brand.
     r"beyond meat|vivera|endori|veganz|alpro|taifun|planted|heura|simply v|oatly|vly|"
-    r"violife|myvay)",
+    r"violife|myvay|berief)",
     re.IGNORECASE,
 )
 
