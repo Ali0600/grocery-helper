@@ -85,8 +85,17 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   parser changes**: measured 282 served offers for a Berlin PLZ, 100% images, 58% €/kg-sortable.
   It runs in the same `run_scrapers` pass as the grocery chains — one scrape fills both verticals;
   the vertical is decided at serve time from the chain slug.
-  - It publishes **two** brochures: the weekly "Mein Drogeriemarkt" (23 pages) and a ~2-month
-    "Schulaktion" (18 pages). `MAX_FLYER_DAYS` correctly keeps the weekly one — verified live.
+  - It publishes **up to THREE** brochures at once, and this line said "two" until 2026-08-09,
+    when the third cost the chain a week: the weekly "Mein Drogeriemarkt" (23–26 pages), a
+    ~2-month "Schulaktion" (18 pages, dropped by `MAX_FLYER_DAYS`), and — intermittently — a
+    **small multi-week supplement** ("Mein Drogeriemarkt" too, 6 pages, 11-day span, 2 offers).
+    **`MAX_FLYER_DAYS` cannot separate the last two from the weekly**: 11 days is under the
+    limit, because span is the wrong discriminator. `_select_brochures` used to early-return on
+    *any* active brochure, so the supplement shadowed the 26-page weekly starting that evening
+    and Rossmann served **2 offers of 302** — for the whole week, since the Sunday reset is the
+    only scheduled scrape. It now unions the active set with brochures starting **today or
+    tomorrow (Berlin)**; see that function's docstring for why the two sets can never overlap.
+    Only the new per-chain floor in `verify_deals.py` made it visible — `chains >= 2` passed.
   - Its offers carry a **per-offer `publicationProfiles` window** that starts a day AFTER the
     brochure's own `validFrom` (Mon vs Sun), so the parser's per-offer validity is load-bearing
     here: taking the brochure dates would advertise the whole flyer a day early.

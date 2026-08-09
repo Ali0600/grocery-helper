@@ -74,6 +74,36 @@ def test_weekly_brochure_wins_over_the_long_campaign():
     assert [c["id"] for c in chosen] == ["1"]
 
 
+def test_the_three_brochure_shape_that_took_the_chain_down_on_2026_08_09():
+    """The real windows from the failed 2026-08-09 06:00 UTC refresh, which served
+    **rossmann=2**. Rossmann ran three brochures at once and each needs a different
+    verdict, which is why this is pinned as a whole shape rather than three unit cases:
+
+      * ``schulaktion`` — 18 pages, 57 days: dropped, it is not a weekly flyer.
+      * ``supplement``  — 6 pages, 11 days, mid-life: valid, and worth 2 offers. Kept,
+        but it must not be mistaken for the week's flyer.
+      * ``weekly``      — 26 pages, starts 22:00 UTC that evening: **300 offers**.
+
+    Only the third is the week. Selecting on validity alone picked the supplement and
+    left the chain looking dark until the next Sunday.
+    """
+    now = datetime(2026, 8, 9, 7, tzinfo=timezone.utc)  # when the weekly refresh runs
+    weekly = {"validFrom": "2026-08-09T22:00:00.000+0000",
+              "validUntil": "2026-08-14T20:00:00.000+0000"}
+    supplement = {"validFrom": "2026-08-02T22:00:00.000+0000",
+                  "validUntil": "2026-08-14T20:00:00.000+0000"}
+    schulaktion = {"validFrom": "2026-07-05T22:00:00.000+0000",
+                   "validUntil": "2026-09-01T20:00:00.000+0000"}
+    chosen = _select_brochures(
+        {"weekly": weekly, "supplement": supplement, "schulaktion": schulaktion},
+        now, "rossmann",
+    )
+    assert sorted(c["id"] for c in chosen) == ["supplement", "weekly"], (
+        "the 26-page weekly carries 300 of the chain's 302 offers — losing it empties the "
+        "drugstore vertical for a week"
+    )
+
+
 def test_collect_brochures_filters_to_rossmanns_publisher():
     """The page embeds competitors' brochures (dm, Müller, budni) — only DE-1064 counts."""
     out: dict = {}
