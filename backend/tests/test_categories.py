@@ -2518,3 +2518,169 @@ def test_a_bare_nut_word_would_claim_the_nut_itself():
     assert classify("Pekannusskerne", None) != "bakery"
     # ...while the pastry the rule was written for still resolves.
     assert classify("Mein bestes Pekannuss-Tasche", "Mein bestes") == "bakery"
+
+
+# --- 2026-08-09 flyer-week audit ------------------------------------------------------------
+# The `other` chip refilled to 63 products (4.3%) on the new week. Almost all of them sit on a
+# BRAND-LEAF path (`… > Marken > Marken Lebensmittel > <brand>`), which carries no category, so
+# the path layer correctly declines and only name/caption rules can reach them.
+
+
+@pytest.mark.parametrize(
+    "name, brand, expected, why",
+    [
+        ("Lily & Dan Jogginganzug", "Lily & Dan", "household", "a tracksuit"),
+        ("COOX Gugelhupfform", "COOX", "household", "a baking tin, not a cake"),
+        ("Feigenkaktus „Hands up«", None, "household", "a living cactus"),
+    ],
+)
+def test_the_new_weeks_non_food_reaches_household(name, brand, expected, why):
+    """Same argument as the previous audit: only `household` is hidden by the app's Non-food
+    toggle, so a non-food product that falls through to `other` renders among the groceries.
+    These live in the LAST `_RULES` tuple, so they can only catch what was already `other`."""
+    assert classify(name, brand) == expected, why
+
+
+def test_the_cactus_rule_is_the_species_not_the_pot():
+    """A `topfcover` token already existed for exactly this class of product, and it could not
+    fire: the flyer wrote the caption as "in dekorativem **Pot**cover". Keying on `kaktus`
+    instead makes the rule independent of how the pot is spelled — and it must leave the plain
+    potted cactus, which was already correct, exactly where it is."""
+    assert classify("Feigenkaktus „Hands up«", None, None, "in dekorativem Potcover") == "household"
+    assert classify("Kaktus", None, None, "Für drinnen, Versch. Sorten. ca. 15-20 cm") == "household"
+
+
+@pytest.mark.parametrize(
+    "name, brand, unit, expected",
+    [
+        ("BBQ Oktopus-Arme", None, "Vorgekocht; zum Braten", "fish"),
+        ("Pulpo", None, "Aus dem Ostatlantik, fertig gegart", "fish"),
+        ("Osso Buco", None, "vom Kalb, in der Bratfolie", "beef"),
+        ("Best Burger Hamburger Pattys", "Best Burger", "vom Rind", "beef"),
+        ("Deluxe Barbarie Entenbrustfilet", "Deluxe", "Ca. 293-450 g", "poultry"),
+        ("Gut Drei Eichen Sülzkotelett", "Gut Drei Eichen", "Mit Ei und Gurke", "pork"),
+        ("Rasting Magerer Aspikaufschnitt", "Rasting", "mit Gemüse", "pork"),
+        ("MILSANI Prima Donna Maturo", "MILSANI", "Käsespezialität in Scheiben", "cheese"),
+        ("PRÉSIDENT Carré Gourmet/Snack", "PRÉSIDENT", "Snack in versch. Sorten", "cheese"),
+        ("Ergüllü Weißer Grieche", "Ergüllü", "mediterrane Spezialitäten", "cheese"),
+        ("Mein Bestes Börekstange Gyros-Style", "Mein Bestes", "Teigstange, gefüllt", "bakery"),
+        ("GUT&GÜNSTIG Bienenstich", "GUT&GÜNSTIG", "nach traditionellen Rezepten", "bakery"),
+        ("Brandt Minis", "Brandt", "versch. Sorten 120-g-Btl.", "bakery"),
+        ("Dr. Oetker La Mia Grabde oder Famillia", "Dr. Oetker", "Pizza, versch. Sorten", "frozen"),
+        ("Double Cheeseburger", None, "Je 1,05 kg, 6er-Pack", "frozen"),
+        ("Block House Block Burger", "Block House", "tiefgefroren", "frozen"),
+        ("Sol & Mar Teigtaschen", "Sol & Mar", "Versch. Sorten, tiefgefroren", "ready_meals"),
+        ("Ben's Original Street Food", "Ben's Original", "versch. Sorten, 250 g", "ready_meals"),
+        ("Pringles", None, "Stapelchips, versch. Sorten", "snacks"),
+        ("Kellogg's Cheez-it", "Kellogg's", "versch. Sorten 120g Beutel", "snacks"),
+        ("TRADER JOE'S Cashew-kerne", "TRADER JOE'S", "Naturbelassen 200-g-Beutel", "snacks"),
+        ("Balisto", None, "Versch. Sorten, z. B. Korn", "sweets"),
+        ("Kinder Country", "Kinder", "Je 376 g Standardpackung", "sweets"),
+        ("Aseli Riesenmäuse", "Aseli", "Schaumzucker 155g Packung", "sweets"),
+        ("Dr Pepper Classic", "Dr Pepper", "Cola, Koffeinhaltig 0,33-L-Dose", "soft_drinks"),
+        ("Oberbräu Hell", "Oberbräu", "20 x 0,5-l-Fl.-Kasten", "alcoholic"),
+        ("EDEKA Bio Ahornsirup", "EDEKA Bio", "aus Kanada Grad A", "pantry"),
+        ("Henglein Eierspätzle", "Henglein", "pfannenfertig 400-g-Btl.", "pantry"),
+        ("REWE Beste Wahl Suppengrün", "REWE Beste Wahl", "Deutschland 500-g-Pckg.", "vegetables"),
+        ("Tchibo Feine Milde", "Tchibo", "Natur-Mild, gemahlen 4x 250g", "coffee"),
+    ],
+)
+def test_the_new_weeks_other_bucket_is_routed(name, brand, unit, expected):
+    """Every one of these arrives on a brand-leaf path, so the path is passed for realism but
+    cannot decide — pass it, because a pathless test would prove less than the real row does."""
+    assert classify(name, brand, BRAND_LEAF, unit) == expected
+
+
+def test_oreo_is_safe_in_sweets_only_because_a_layer_2_form_word_takes_the_ice_cream():
+    """`oreo` is a multi-category brand — the biscuit AND a Stieleis — which is normally
+    disqualifying. It ships anyway because the two are separated by LAYER: `stieleis` sits in
+    `_FORM_OVERRIDES` at layer 2 and claims the ice cream before this keyword table is ever
+    reached.
+
+    The first version of this docstring said the separation came from the `ice_cream` tuple
+    running before `sweets` within `_RULES`. That was wrong — explain() shows layer 2 deciding,
+    so those tuples never get a turn — and it matters, because it points a future editor at the
+    wrong guard when they go to change one.
+
+    Like the Florette cheese below, NO SINGLE-TOKEN SABOTAGE CAN PROVE THIS TEST BITES:
+    `stieleis` appears five times (`_PATH_MAP`, two `_FORM_OVERRIDES` entries, a caption signal
+    and the `ice_cream` keyword tuple), so removing any one leaves the other four holding. It
+    takes disabling all five to turn the ice cream into a biscuit — which is how it was
+    verified, and is worth stating so a future audit does not read a green single-token break
+    as "this test is decoration"."""
+    assert classify("Oreo", None, BRAND_LEAF, "kakaohaltiger Doppelkeks") == "sweets"
+    assert classify("Oreo Stieleis XXL", None, BRAND_LEAF, "Versch. Sorten, Tiefgefroren") == "ice_cream"
+
+
+def test_a_hundred_percent_juice_caption_beats_the_flavour_word_in_the_name():
+    """The caption layer earns its place here: "Tabaluga Pausen-Drink Mehrfrucht-Karotte" was
+    served in **Vegetables**, because `karotte` fires at layer 6 and only a signal above it can
+    win. It is a designation ("100% Saft"), not an ingredient, which is the bar for this table."""
+    assert classify(
+        "Tabaluga Pausen-Drink Mehrfrucht-Karotte", "Tabaluga", BRAND_LEAF,
+        "100% Saft, versch. Sorten 0,3 l PET",
+    ) == "soft_drinks"
+
+
+@pytest.mark.parametrize(
+    "name, brand, unit, rejected_slug, why",
+    [
+        ("Corsaire Réserve du Président", "Corsaire", "Frankreich trocken 0,75-l-Fl.", "cheese",
+         "a bare `président` files a French dry wine as cheese — it has NO path at all"),
+        ("FIN CARRÉ Tafelschokolade", "FIN CARRÉ", "Versch. Sorten 100 g", "cheese",
+         "a bare `carré` takes Lidl's pathless chocolate — cheese runs before sweets"),
+        ("LYTTOS Natives Olivenöl extra", "LYTTOS", "Griechenland 0,75 l", "snacks",
+         "`lyttos` is a brand-leaf range spanning 8 categories with no path to save it"),
+        ("GUT&GÜNSTIG Erdnussflips", "GUT&GÜNSTIG", "mit 33% gemahlenen Erdnüssen 200g", "coffee",
+         "a `gemahlen` caption is an INGREDIENT note, not a designation"),
+        ("Herta Finesse Hähnchenbrust", "Herta", "versch. Sorten", "pork",
+         "`herta finesse` spans pork and poultry, so the bare flyer name stays in `other`"),
+    ],
+)
+def test_the_tokens_this_weeks_corpus_diff_rejected(name, brand, unit, rejected_slug, why):
+    """Candidates that read as obviously correct while being typed, killed by simulating them
+    over all 9,582 distinct stored products.
+
+    These five are the ones whose rejection is LOAD-BEARING — each product carries no path, or
+    a brand-leaf path, so nothing above layer 6 would have saved it. Three further candidates
+    (`paula`, `cashew`, `beren`) were also rejected but measured PRECAUTIONARY: Paulaner,
+    Cashewmus and Berentzen are each held by a real layer-3 path today, so the narrower tokens
+    that shipped buy independence from that path rather than fixing a live collision. Saying so
+    matters — a comment claiming a guard is what holds the line, when the path is, is the kind
+    of wrong mechanism claim that gets a good rule deleted later.
+
+    `président` is the one the corpus diff alone would have missed: the wine it steals was
+    sitting in `other`, so it counted as a RESCUE rather than as a conflict. Only reading what
+    actually moved caught it.
+    """
+    assert classify(name, brand, None, unit) != rejected_slug, why
+
+
+@pytest.mark.parametrize(
+    "name, leaf, expected",
+    [
+        ("Serum Kollagen, 30 ml", "Serum & Kur", "face"),
+        ("Serum Sensitive, 30 ml", "Gesichtspflege für Männer", "face"),
+        ("Babyflasche aus Glas First Choice weiß", "Babyflaschen & Kinderflaschen", "baby"),
+    ],
+)
+def test_dm_leaves_that_read_like_a_mapped_one_but_share_no_key(name, leaf, expected):
+    """`_DRUGSTORE_PATH_MAP` is an EXACT per-node lookup, so "Gesichtspflege für Männer" gets
+    nothing from the "gesichtspflege" entry sitting right above it. dm sends a single flat leaf,
+    so there is no parent to fall back to and these blobbed into `household`."""
+    assert classify(name, None, ["Drogerie und Haushalt", "Produkte", "Drogerie", leaf]) == expected
+
+
+def test_the_drugstore_household_blob_is_mostly_honest():
+    """Guards against over-eager 'fixing' of a number that is not a bug. On 2026-08-09 the
+    drugstore vertical read 63% household and that was CORRECT — dm was clearing children's
+    clothing (102 of 131 rows). A T-shirt belongs in household; only a handful were real
+    misses. Pinned so a future audit does not chase the percentage."""
+    for name, leaf in [
+        ("T-Shirt mit Nilpferd-Muster, beige", "Kinderpullover & -shirts"),
+        ("Shorts aus Denim, blau, Gr. 98", "Kinderhosen"),
+        ("Mütze aus Strick mit Fuchs-Muster", "Kinderhandschuhe, -mützen & -schals"),
+        ("Duftkerze im Glas mit Blumen, 1 St", "Duftkerzen"),
+    ]:
+        assert classify(name, None, ["Drogerie und Haushalt", "Produkte", "Drogerie", leaf]) \
+            == "household", f"{leaf} is not a miscategorisation"

@@ -665,6 +665,32 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     the only evidence is one flyer image, and `schnitte` spans 8 categories incl. Milch*schnitte*);
     and "Süßes Frühstück", an in-store café breakfast set whose siblings are split household/other
     in the stored data, so there is no stable answer to copy.
+  **The 2026-08-09 week refilled `other` to 63 (4.3%) and one pass emptied it to ~1** (86 distinct
+  products moved over a 9,582-product corpus, **0 regressions**). Nearly every row sat on a
+  brand-leaf path, so only name/caption rules could reach them. Three durable lessons:
+  - **A "rescue" out of `other` is NOT automatically a right answer, and the simulation scores it
+    as a free win.** A candidate `président` → cheese read CLEAN against the corpus — no product
+    left a real category — because the product it was about to break, **"Corsaire Réserve du
+    Président" (`Frankreich trocken 0,75-l-Fl.`, a WINE)**, was already sitting in `other`. It
+    only surfaced from reading the list of what actually MOVED. Shipped as `président carré`.
+    So: read the moves, don't just count the conflicts.
+  - **Check which layer really holds a product before writing the reason down.** The comment for
+    `oreo` → sweets first claimed the Oreo *Stieleis* was protected by `ice_cream` being an
+    earlier `_RULES` tuple. `explain()` says layer **2** decides (`stieleis` in
+    `_FORM_OVERRIDES`), so those tuples never get a turn. `stieleis` also appears **five** times,
+    so — like the Florette cheese — no single-token sabotage can prove that test bites.
+  - **Distinguish a load-bearing rejection from a precautionary one.** `carré`, `président` and
+    `lyttos` genuinely collide (their products carry no usable path). `paula`, `cashew` and
+    `beren` are each held by a real layer-3 path today, so the narrower tokens that shipped buy
+    independence from that path rather than fixing a live collision — say which is which.
+  **Drugstore `household` at 63% was CORRECT, not a mapping gap** (same week; corrects a note in
+  this file that guessed "dm's leaves rotated"). Broken down by source leaf, **102 of 131** rows
+  were children's clothing (`Kinderpullover & -shirts` 45, `Kinderhosen` 32, …) — dm was running a
+  clothing clear-out, and household is the right answer for a T-shirt. Only 4 rows were real
+  misses, all from `_DRUGSTORE_PATH_MAP` being an **exact per-node lookup**: dm sends ONE flat
+  leaf, so `Gesichtspflege für Männer` shares no key with the `gesichtspflege` entry sitting right
+  above it and has no parent to fall back to. A test now pins the clothing as correct, so a future
+  audit doesn't chase the percentage.
   **Don't hardcode absolute `_FORM_OVERRIDES` indices in tests** — inserting a guard shifts them
   all; derive the index instead (two trace tests were fixed this way).
   **`_FORM_OVERRIDES` is first-hit-wins, so ORDER is part of the fix.** Two guards had to be
