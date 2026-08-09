@@ -683,6 +683,32 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     `lyttos` genuinely collide (their products carry no usable path). `paula`, `cashew` and
     `beren` are each held by a real layer-3 path today, so the narrower tokens that shipped buy
     independence from that path rather than fixing a live collision — say which is which.
+  **The 2026-08-09 PHOTO SWEEP over all 1,843 served products** (4 reviewers, 109 contact
+  sheets) found ~150 candidates; the shipped subset moved **146 distinct products, 0 unintended
+  regressions**. Three structural results worth more than the rows:
+  - **`household` is still where food hides, and it is decided at LAYER 1.** 26 edible products
+    were sitting there — raw pork chops, chicken legs, prawns, plums, grapefruit, coffee pads,
+    an iced tea — because the source hangs them off absurd non-food nodes (chicken legs under
+    `Elektronik und Technik > Marken > Samsung`, prawns and plums under `Tierbedarf > Marken für
+    Tiere`). Layer 1 never falls through, so **only `_FOOD_RESCUE` can reach them** and a
+    pathless test proves nothing. Same for pet food on a `Tierbedarf` path: it needs
+    `_DRUGSTORE_RULES`, not the layer-2 pet guard, which never gets a turn.
+  - **The counter sandwich was ONE CLASS scattered over five categories** — a filled roll sold
+    by the Stück read `fish` / `pork` / `poultry` / `cheese` depending on which filling word
+    won. One `ready_meals` entry fixes the class, extending the existing `fischbrötchen` call.
+    It must sit in the TOP guard block: appended at the end of `_FORM_OVERRIDES` it was dead
+    code for every product it was written for.
+  - **Two rules I appended were dead on arrival and the RATCHETS caught both**: `joghurt
+    dressing` (shadowed by `joghurt` above it) and a layer-2 `pet` token that needed mirroring
+    into `_DRUGSTORE_RULES`. Write guards ABOVE the token they protect, and re-read the two
+    ratchet tests before appending anything.
+  **What a photo CANNOT settle, and must not be guessed**: Carlsberg 0.0 and Peroni 0.0 show
+  "0.0" only on the image — the stored name is "Carlsberg BEER", and both brands also sell real
+  beer, so there is no text signal and they stay as they are. `clausthaler` shipped because that
+  brand makes nothing else. Deferred with findings recorded but not yet shipped: Sol & Mar's
+  Spanish range (cured meats/paella/croquettes scattered across pantry and bakery), five
+  in-store bakery breads sitting in `pantry`, preserved produce in the fresh chips, and ~29
+  drugstore-aisle products still in `household`.
   **Drugstore `household` at 63% was CORRECT, not a mapping gap** (same week; corrects a note in
   this file that guessed "dm's leaves rotated"). Broken down by source leaf, **102 of 131** rows
   were children's clothing (`Kinderpullover & -shirts` 45, `Kinderhosen` 32, …) — dm was running a

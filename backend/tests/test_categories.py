@@ -601,7 +601,11 @@ def test_fassbrause_caption_beats_a_beer_brand_path():
         # Found by the self-disagreement detector: the same product NAME served in two categories
         # is >=1 wrong row by construction, and needs no ground truth to find.
         # A Fleischkäse is a meat loaf; "käse" claimed it whenever the source gave it no meat path.
-        ("Fleischkäse im Brötchen", None, "pork", "a meat loaf, not cheese"),
+        # Was pinned as `pork` ("a meat loaf, not cheese") until the 2026-08-09 photo sweep
+        # showed it is a filled roll from the counter, i.e. the same class as `fischbrötchen`.
+        # The original intent — that `käse` inside "Fleischkäse" must not make it cheese — is
+        # unchanged and still asserted; only the positive answer moved.
+        ("Fleischkäse im Brötchen", None, "ready_meals", "a filled roll, and never cheese"),
         # Beef mince the source files under Fleischzubereitungen (-> pork).
         ("Rinder-Hackfleisch", ["Fleisch", "Fleischzubereitungen"], "beef", "beef mince"),
         ("Hackfleisch gemischt", ["Fleisch", "Fleischzubereitungen"], "pork", "genuinely mixed"),
@@ -795,11 +799,18 @@ def test_rama_prefix_does_not_swallow_ramazzotti():
     assert classify("Ramazzotti Amaro", None, None) != "butter"
 
 
-def test_rama_cremefine_stays_out_of_butter():
-    """A cooking cream, not a spread. Its Drogerie (non-food) path catches it at layer 1, before the
-    'rama ' butter override at layer 2 — so the override can't sweep it in."""
+def test_rama_cremefine_is_rescued_to_dairy_not_swept_into_butter():
+    """A cooking cream, not a spread. Its Drogerie (non-food) path catches it at layer 1, before
+    the `rama ` butter override at layer 2 — so that override can never sweep it in.
+
+    It used to stop there, at `household`. The 2026-08-09 photo sweep showed why that was only
+    half an answer: the app hides `household` behind the Non-food toggle, so "honest can't tell"
+    and "invisible to the user" are the same outcome. `cremefine` is now a `_FOOD_RESCUE` token,
+    which runs FIRST inside layer 1 — earlier than the drugstore step that would have said Body
+    & Shower, so the original reason for the veto still holds."""
     path = ["Drogerie und Haushalt", "Produkte", "Drogerie", "Körperpflege", "Creme"]
-    assert classify("RAMA Cremefine", "RAMA", path) == "household"
+    assert classify("RAMA Cremefine", "RAMA", path) == "dairy"
+    assert classify("RAMA Cremefine", "RAMA", path) != "butter", "the `rama ` override must not win"
 
 
 def test_valess_is_cheese_not_meat():
@@ -2684,3 +2695,107 @@ def test_the_drugstore_household_blob_is_mostly_honest():
     ]:
         assert classify(name, None, ["Drogerie und Haushalt", "Produkte", "Drogerie", leaf]) \
             == "household", f"{leaf} is not a miscategorisation"
+
+
+# --- 2026-08-09 photo sweep -----------------------------------------------------------------
+# 1,843 served products as contact sheets, reviewed against the category each was assigned.
+# This is the class a keyword audit structurally cannot find: the name, brand, path AND caption
+# all read plausibly for the wrong answer, and only the picture settles it.
+
+NONFOOD_PATH = ["Tierbedarf und Tierfutter", "Marken für Tiere"]
+
+
+@pytest.mark.parametrize(
+    "name, brand, expected, why",
+    [
+        ("Bauerngut Grillkotelett", "Bauerngut", "pork", "raw pork chops"),
+        ("Bauerngut Hähnchenschenkel", "Bauerngut", "poultry", "raw chicken legs"),
+        ("Frische Schweine Schälrippe", None, "pork", "raw pork spare ribs"),
+        ("GOLDEN SEAFOOD Garnelen", "GOLDEN SEAFOOD", "fish", "raw peeled prawns"),
+        ("LYTTOS Kritharaki", "LYTTOS", "pantry", "Greek orzo pasta"),
+        ("EDEKA Bio Dinkelkrusti", "EDEKA Bio", "bakery", "bake-off bread rolls"),
+        ("Melitta Café Pads", "Melitta", "coffee", "coffee pads — the flyer writes 'Café'"),
+        ("Zwetschgen", None, "fruits", "fresh plums"),
+        ("summerstar ruby Grapefruit", "summerstar", "fruits", "fresh grapefruit"),
+        ("Durstlöscher Eistee Pfirsich-Geschmack", None, "soft_drinks", "iced tea cartons"),
+        ("REWE Bio Sonnenmais", "REWE Bio", "vegetables", "a tin of sweetcorn"),
+    ],
+)
+def test_food_hiding_in_the_household_bucket_is_rescued(name, brand, expected, why):
+    """The highest-value class in the sweep: the app hides `household` behind its Non-food
+    toggle, so an edible product here is invisible to the user entirely.
+
+    **The non-food path is mandatory in this test.** Layer 1 decides on it and never falls
+    through, so `_FOOD_RESCUE` is the only table that can reach these — a rule written at layer
+    2 or 6 would be unreachable, and a PATHLESS call would pass while proving nothing. The real
+    paths were as absurd as this fixture: chicken legs under `Elektronik und Technik > Marken >
+    Samsung`, prawns and plums under `Tierbedarf > Marken für Tiere`.
+    """
+    assert classify(name, brand, NONFOOD_PATH) == expected, why
+
+
+@pytest.mark.parametrize("name", ["Cesar Hund Nassfutter", "Gourmet Gold",
+                                  "Gourmet Revelations Mousse mit Lachs",
+                                  "Winston Hund Feinschmeckerli"])
+def test_pet_food_reaches_the_pet_chip_not_household(name):
+    """These arrive on a `Tierbedarf` path, so layer 1 owns them and the fix belongs in
+    `_DRUGSTORE_RULES`, which runs inside that branch — NOT the layer-2 pet guard, which never
+    gets a turn for a pathed product. A bare ` hund` was simulated and REJECTED: "Oma Hartmanns
+    Kalter Hund" is a German fridge cake."""
+    assert classify(name, None, NONFOOD_PATH) == "pet"
+
+
+@pytest.mark.parametrize(
+    "name, was",
+    [("Seelachsschnitzel-Brötchen", "fish"), ("Fleischkäse im Brötchen", "pork"),
+     ("Curry-Chicken-Panini", "poultry")],
+)
+def test_the_counter_sandwich_is_one_class_not_five(name, was):
+    """The single most useful finding of the sweep, because it is a CLASS and not a row: a
+    filled roll sold by the Stück was landing in five different categories depending on which
+    filling word won — fish, pork, poultry, cheese. They are the same thing, and the app already
+    routes `fischbrötchen` to ready_meals, so this only extends a call it had already made."""
+    assert classify(name, None) == "ready_meals", f"was {was}"
+
+
+@pytest.mark.parametrize(
+    "name, expected, why",
+    [
+        ("LYTTOS Bifteki Classic", "pork", "minced-meat patties named after their cheese filling"),
+        ("LYTTOS Mini-Bifteki", "pork", "same range, 'Vom Schwein' in the caption"),
+        ("Bauerngut Kalbsvorderhaxe", "beef", "a veal shank; veal is already beef elsewhere"),
+        ("Bauerngut Rindsbratwurst Merguez", "beef", "100% beef sausage"),
+        ("FAIRGLOBE Bio Hochland Kaffee", "coffee", "instant coffee taken by a CHEESE brand"),
+        ("GUT&GÜNSTIG Bacon-Snack", "snacks", "puffed corn; bacon is the flavour"),
+        ("Leerdammer Knusper-Minis Natur", "frozen", "breaded cheese — the app's own convention"),
+        ("demeter Mogli-Quetschie", "fruits", "a 100% fruit puree pouch, filed as dairy"),
+    ],
+)
+def test_products_whose_photo_contradicts_every_text_signal(name, expected, why):
+    assert classify(name, None) == expected, why
+
+
+def test_an_alcohol_free_only_brand_is_a_soft_drink():
+    """Clausthaler makes nothing else, so the name alone settles it. Two products in the same
+    flyer were deliberately NOT fixed: Carlsberg 0.0 and Peroni Nastro Azzurro 0.0 both show
+    "0.0" on the PHOTO only — the stored name says "Carlsberg BEER" and "Peroni Nastro
+    Azzurro", and both brands also sell real beer. There is no text signal to key on, so
+    inventing one would be guessing."""
+    assert classify("Clausthaler", "Clausthaler", None, "alkoholfreies Bier") == "soft_drinks"
+    assert classify("Carlsberg BEER", "Carlsberg") != "soft_drinks", (
+        "with no 0.0 in the stored text, guessing either way is worse than not guessing"
+    )
+
+
+def test_a_salad_dressing_guard_must_sit_above_the_yoghurt_token():
+    """`joghurt` is a substring of `joghurt dressing` and sits at layer 2 index 2, so appending
+    the guard below it made it dead code — which the shadowing ratchet caught on the first run.
+    A flat first-hit-wins table can only express "not a yoghurt" as an entry placed ABOVE."""
+    assert classify("GUT&GÜNSTIG Joghurt Dressing", "GUT&GÜNSTIG") == "pantry"
+    assert classify("GUT&GÜNSTIG Fruchtjoghurt", "GUT&GÜNSTIG") == "dairy", "the token still works"
+
+
+def test_a_micellar_water_is_not_a_drink():
+    """`wasser` had "LACURA Mizellenwasser" in `soft_drinks` — a facial cleanser in the
+    beverages chip."""
+    assert classify("LACURA Mizellenwasser", "LACURA", None, "Mit Macadamianussöl 400-ml") == "face"
