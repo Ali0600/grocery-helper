@@ -637,15 +637,41 @@ def _offer_validity(
     return min(starts), max(ends)
 
 
+def _starts_within_a_day(vf: datetime, now: datetime) -> bool:
+    """Does *vf* land on today's or tomorrow's Berlin calendar day?
+
+    Berlin days rather than an hour count because every validity boundary in this feed is
+    a Berlin midnight (22:00 UTC in summer, 23:00 in winter), so a fixed number of hours
+    would drift across the DST change while "tomorrow" never does.
+    """
+    today = now.astimezone(_BERLIN).date()
+    return today <= vf.astimezone(_BERLIN).date() <= today + timedelta(days=1)
+
+
 def _select_brochures(found: dict, now: datetime, chain: str) -> List[dict]:
     """Pick which weekly brochure(s) to scrape from all the publisher lists.
 
-    Normally that's the currently-valid weekly brochure(s) (``validFrom <= now <=
-    validUntil``). Between flyer weeks — e.g. Sunday, when last week's brochure has
-    ended and next week's hasn't started — meinprospekt already lists next week's
-    brochure with a ``validFrom`` a day or two out; serve the soonest of those rather
-    than falling back to sample data. Long-running (non-weekly) brochures are ignored
-    via ``MAX_FLYER_DAYS``.
+    That's the currently-valid weekly brochure(s) (``validFrom <= now <= validUntil``)
+    **plus** any that start within a day. Between flyer weeks — e.g. Sunday, when last
+    week's brochure has ended and next week's hasn't started — meinprospekt already lists
+    next week's with a ``validFrom`` a day or two out; serve the soonest of those rather
+    than falling back to sample data. Long-running (non-weekly) brochures are ignored via
+    ``MAX_FLYER_DAYS``.
+
+    A brochure being *valid* does not make it *this week's flyer*, which is why the
+    imminent ones are unioned in rather than being a fallback for when nothing is active.
+    Measured on 2026-08-09: Rossmann was running a 6-page, 11-day supplement (Aug 2→14,
+    active, 2 offers) alongside its real 26-page weekly (Aug 9→14, starting that evening,
+    300 offers). Returning "the active one" served **2 offers of 302** and read as a dead
+    chain for the whole week. ``MAX_FLYER_DAYS`` cannot catch that — an 11-day span is
+    under the limit — because span is the wrong discriminator; the tell is that a fresh
+    weekly is imminent.
+
+    The union cannot leak *next* week's flyer into this one: a weekly ends Sat ~23:00
+    Berlin and the next starts Mon 00:00, so while one is still active "today or tomorrow"
+    reaches at most Sunday and never Monday. The two sets are disjoint by the publishing
+    calendar — which is also why this needs its own tight window and must NOT reuse
+    ``UPCOMING_LOOKAHEAD_DAYS`` (8 days would pull in the following week mid-week).
     """
     active: List[Tuple[datetime, dict]] = []
     upcoming: List[Tuple[datetime, dict]] = []
@@ -658,10 +684,12 @@ def _select_brochures(found: dict, now: datetime, chain: str) -> List[dict]:
             active.append((vf, entry))
         elif now < vf <= now + timedelta(days=UPCOMING_LOOKAHEAD_DAYS):
             upcoming.append((vf, entry))
-    if active:
-        return [e for _, e in active]
+    imminent = [(vf, e) for vf, e in upcoming if _starts_within_a_day(vf, now)]
+    if active or imminent:
+        return [e for _, e in active] + [e for _, e in imminent]
     if upcoming:
-        # Serve only the nearest upcoming week, not the one after it.
+        # Nothing valid and nothing imminent: serve only the nearest upcoming week, not
+        # the one after it.
         earliest = min(vf for vf, _ in upcoming)
         return [e for vf, e in upcoming if (vf - earliest).days <= 1]
     raise RuntimeError(f"no active weekly brochure for {chain}")

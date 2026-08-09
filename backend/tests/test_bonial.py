@@ -315,6 +315,36 @@ def test_select_raises_when_nothing_active_or_soon():
         _select_brochures({"old": old, "far": far}, _SUNDAY, "rewe")
 
 
+# A multi-week supplement that is merely *valid* used to suppress the upcoming branch
+# entirely, so the week's real flyer was never fetched. See _select_brochures' docstring
+# for the live Rossmann measurement (2 offers served out of 302).
+_SUPPLEMENT = {  # started a week ago, runs 11 days: valid on _SUNDAY, and NOT the weekly
+    "validFrom": "2026-06-28T22:00:00.000+0000",
+    "validUntil": "2026-07-10T21:00:00.000+0000",
+}
+_SATURDAY = datetime(2026, 7, 11, 12, tzinfo=timezone.utc)  # WK1 still running, WK2 Monday
+
+
+def test_select_does_not_let_a_running_supplement_shadow_the_imminent_weekly():
+    """The supplement is valid, under MAX_FLYER_DAYS, and worth ~2 offers; the weekly
+    starts tonight and carries the other ~300. Taking "whatever is active" reads as a dead
+    chain for the entire week, because the Sunday reset is the only scheduled scrape."""
+    chosen = _select_brochures({"supp": _SUPPLEMENT, "a": _WK1}, _SUNDAY, "rossmann")
+    assert sorted(c["id"] for c in chosen) == ["a", "supp"], (
+        "the week's real flyer must be scraped alongside the supplement, not instead of it"
+    )
+
+
+def test_select_keeps_next_week_out_while_this_week_is_still_running():
+    """The tightest point of the disjointness claim: on Saturday WK1 is still valid and
+    WK2 is already listed. WK2 starts Monday, so "today or tomorrow" (Sat/Sun) must not
+    reach it — otherwise the union advertises next week's prices two days early."""
+    chosen = _select_brochures({"a": _WK1, "b": _WK2}, _SATURDAY, "lidl")
+    assert [c["id"] for c in chosen] == ["a"], (
+        "next week's brochure leaked into the current week — imminence is too wide"
+    )
+
+
 # --- thin-response retry ------------------------------------------------------
 # The aggregators soft-throttle a burst by answering **HTTP 200 with less content** — an empty
 # brochure list, or a brochure that parses to zero offers. Nothing "fails", so the transport
