@@ -1653,3 +1653,58 @@ every dashboard number for `other` looked healthy.
 
 **Takeaway:** whenever a view excludes a category by name, ask what the *fallback* category
 contains — and audit a catch-all bucket by reading its contents, never by watching its rate.
+
+## A corpus diff that only counts "left a real category" is blind to the errors it creates
+
+**What it is.** The classifier audit ships nothing without simulating each candidate rule over
+every stored product and requiring **0 regressions**, where "regression" means a product moving
+*out of* a real category. That definition has a hole: a product sitting in the `other` fallback
+can move anywhere and it never counts as a regression — it counts as a **rescue**, which is the
+thing the audit is trying to maximise.
+
+**Why it came up.** A candidate `président` → cheese (for "PRÉSIDENT Carré Gourmet") reported
+clean: 0 out of a real category. But among its "rescues" was **"Corsaire Réserve du Président —
+Frankreich trocken 0,75-l-Fl."**, a French dry wine that happened to have no category path and so
+was sitting in `other`. The rule would have filed a wine as cheese, and the gate designed to
+catch exactly that scored it as a win. It surfaced only from reading the printed list of what
+actually moved, product by product. Shipped as `président carré` instead.
+
+**Takeaway.** When a metric counts "moved out of a good state" as the failure, moves *out of the
+junk state* are unexamined by construction — read the moves, don't just count the conflicts. Any
+diff over a bucket that means "we don't know" needs its output eyeballed, not just its total.
+
+## Verify which layer decided before you write the reason into a comment
+
+**What it is.** `categories.explain()` returns a per-layer verdict — which rule fired, from which
+table, at which index — precisely so a claim about *why* a product resolves the way it does can be
+checked instead of reasoned about.
+
+**Why it came up.** Adding `oreo` → sweets is normally disqualified, because Oreo is also a
+Stieleis. The comment justifying it said the ice cream was safe because the `ice_cream` tuple sits
+before `sweets` in the same first-hit-wins table. `explain()` said otherwise: **layer 2** decides,
+via `stieleis` in `_FORM_OVERRIDES`, so those tuples never get a turn. The sabotage written to
+prove the point then failed to bite — `stieleis` appears in **five** independent places, so
+removing one changes nothing.
+
+**Takeaway.** A comment naming the mechanism is load-bearing documentation: the next editor will
+change the guard it points at. In a layered rule engine, ask the tracer rather than reading the
+table, and check whether the protection is single or redundant — a redundant guard means no
+single-token sabotage can prove the test bites, which is itself worth recording.
+
+## "Currently valid" is not "the current edition"
+
+**What it is.** Picking which of several published documents to consume is a *selection* problem,
+and validity windows alone do not solve it. A short supplementary edition can be valid at the same
+time as, and for longer than, the main one.
+
+**Why it came up.** Rossmann publishes a weekly flyer plus, intermittently, a small multi-week
+supplement. The brochure selector returned "all currently-active brochures" and stopped there. On
+2026-08-09 a 6-page, 11-day supplement was active while the real 26-page weekly started that
+evening, so the scrape took **2 offers instead of 302** — and because the Sunday reset is the only
+scheduled scrape, that stood for the whole week. The existing `MAX_FLYER_DAYS` guard could not
+help: 11 days is under the limit, because *span* is the wrong discriminator.
+
+**Takeaway.** When selecting among versioned documents, encode what makes one *the current one* —
+here "a fresh edition starts within a day", unioned with the active set — not merely that it is in
+date. And derive the safety of such a window from the domain's calendar (a weekly ends Saturday
+night, the next starts Monday, so the two can never overlap) rather than picking a number.
