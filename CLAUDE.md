@@ -1568,7 +1568,11 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   actually live (~15 min bound; a newer deploy superseding mid-poll stands down with a warning),
   then asserts `/api/offers` serves >0 offers — a red here means the boot-scrape failed even
   though the deploy "succeeded". `scrape.yml` additionally runs a **data-quality gate** after the
-  Sunday reset (`.github/scripts/verify_deals.py`, offline-testable via `--file`): **chains ≥5**
+  Sunday reset (`.github/scripts/verify_deals.py`, offline-testable via `--file`; **covered by
+  `backend/tests/test_verify_deals.py` since 2026-08-08** — it loads the script via
+  `importlib.util.spec_from_file_location`, because ruff runs with `working-directory: backend`
+  and pytest has `testpaths = tests`, so **nothing under `.github/scripts/` is linted or collected
+  by default** and the gate had gone its whole life unproven): **chains ≥5**
   (a missing chain pages even when the skip was a designed degradation — fail-closed must
   announce itself; the issue auto-closes on recovery), offers ≥800, €/kg-sortable ≥50%, "other"
   ≤15% (~2× the measured 7.4% norm — calibrating this gate corrected an earlier stale ~1%
