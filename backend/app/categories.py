@@ -466,7 +466,11 @@ _RULES: list[tuple[str, list[str]]] = [
     # already existed for exactly this class and the source spelled it without the T, so the
     # species word is the handle that does not depend on how they wrote the pot. It also leaves
     # the already-correct plain "Kaktus" where it is.
-    "jogginganzug", "gugelhupfform", "kaktus"]),
+    "jogginganzug", "gugelhupfform", "kaktus",
+    # 2026-08-09 photo sweep: a children's wooden hammer game and a kids' T-shirt were sitting
+    # in `other`, i.e. rendering in the food list. `t-shirt` also correctly no-ops on the 42
+    # shirts already in household.
+    "hammerspiel", "t-shirt"]),
 ]
 
 # Unambiguous brand -> category. Multi-category house brands (Milbona, Metzgerfrisch,
@@ -576,6 +580,16 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # `müsli` is cereal; a `joghurt` with a muesli topping is still a yoghurt.
     ("ice_cream", ["nutella eis", "nutella ice", "nuii", "oreo eis", "oreo ice", "sandwich-eis"]),
     ("sweets", ["müsliriegel", "müsli riegel"]),
+    # THE COUNTER SANDWICH IS ONE CLASS. A filled roll sold by the Stück was landing in five
+    # different categories depending on which filling word won — `seelachs` -> fish,
+    # `fleischkäse` -> pork, `chicken` -> poultry, `mozzarella` -> cheese. It has to sit here,
+    # above those tokens: appended at the end of this table it was dead code for every product
+    # it was written for. Deliberately NOT a bare `brötchen`, which is a plain bread roll
+    # (bakery); each token names a FILLED roll, extending the existing `fischbrötchen` call.
+    ("ready_meals", ["im brötchen", "schnitzel-brötchen", "panini"]),
+    # A salad dressing is not a yoghurt — this guard must stay ABOVE `joghurt`, which is a
+    # substring of it (2026-08-09: appended below, the shadowing ratchet correctly failed it).
+    ("pantry", ["joghurt dressing"]),
     ("dairy", ["joghurt"]),
     # The CUT-vs-SPECIES class again, this week as Rouladen/Braten/Gulasch: the source files
     # Irish BEEF roulades under a pork node, and a Kalbsschnitzel is veal (= beef here).
@@ -658,7 +672,18 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # product (QUARKI Kefir mild) the same way.
     ("dairy", ["yofrutta", "milchreis", "activedrink", "trinkjoghurt", "joghurtdrink",
                "drinkjoghurt", "kefir"]),
-    ("ice_cream", ["gelato", "stieleis"]),
+    ("ice_cream", ["gelato", "stieleis",
+                   # Mars/Snickers/Bounty ICE CREAM bars, which the brand's confectionery
+                   # keywords were claiming as `sweets` (photo: snowflake packs, 5 Stück).
+                   "eisriegel"]),
+    # Clausthaler is an alcohol-free-ONLY brand, so the name alone settles it. Carlsberg 0.0
+    # and Peroni 0.0 are in the same flyer and are deliberately NOT here: both brands also
+    # sell real beer, and the "0.0" appears only on the PHOTO, never in the stored name — so
+    # there is no text signal to key on and `other`/alcoholic is the honest answer.
+    ("soft_drinks", ["clausthaler"]),
+    # A micellar water is facial cleanser; `wasser` was sending it to soft_drinks.
+    ("face", ["mizellenwasser"]),
+    ("pet", ["lieblings-sticks"]),  # "Ergänzungsfuttermittel für ausgewachsene Hunde"
     ("pantry", ["tomatenmark"]),                       # tomato paste is not fresh produce
     ("frozen", ["edamame", "bistro baguette"]),        # both packs state tiefgefroren
     ("alcoholic", ["berliner perle"]),                 # a Helles that was in soft_drinks
@@ -945,6 +970,28 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # its slug was changed in place instead. A duplicate token below the first hit is dead code.)
     ("cheese", ["pizza-donut"]),
     ("sweets", ["donut", "kuchenriegel", "mini-kuchen"]),
+
+    # --- 2026-08-09 photo sweep -------------------------------------------------------------
+    # Every one of these resolves at layer 4 or 6 today, so layer 2 is the only place that can
+    # correct them. Appending is safe precisely because none of them matches an existing layer-2
+    # entry — if one did, this block would be dead code below the first hit.
+    #
+    # THE COUNTER SANDWICH IS ONE CLASS, currently scattered across five categories: a
+    # Seelachsschnitzel-Brötchen reads `fish`, a Fleischkäse im Brötchen `pork`, a
+    # Curry-Chicken-Panini `poultry`, and two filled rolls `cheese`. They are all a filled roll
+    # sold by the Stück — the same call the app already makes for `fischbrötchen`.
+    # Lyttos names every meat product after its cream-cheese filling ("Bifteki-Frischkäse"),
+    # which put three trays of minced-meat patties in the Cheese chip.
+    ("pork", ["bifteki"]),
+    # Species named in the product, contradicted by a pork keyword winning first. Veal is
+    # already `beef` elsewhere ("Kalbs-Hinterhaxe", "Osso Buco vom Kalb"), so this was a
+    # self-disagreement, not a judgement call.
+    ("beef", ["rindsbratwurst", "kalbsvorderhaxe", "rindersteak"]),
+    ("coffee", ["hochland kaffee"]),   # instant coffee taken by the `hochland` CHEESE brand
+    ("bakery", ["käsekuchen"]),        # a Rührkuchen; the quark is an ingredient
+    ("snacks", ["bacon-snack"]),       # puffed corn snack, bacon is the FLAVOUR
+    ("fruits", ["quetschie"]),         # 100% fruit puree pouch, filed as dairy
+    ("frozen", ["knusper-minis"]),     # breaded cheese bites — the app's breaded-cheese rule
 ]
 
 # What the flyer CAPTION says the product is. Read from `Offer.unit`, which holds the source's
@@ -1094,22 +1141,32 @@ _OVERRIDES: list[tuple[str, list[str]]] = [
 _FOOD_RESCUE: dict[str, list[str]] = {
     "fruits": ["sweet ananas", "nektarine", "plattpfirsich", "aprikose", "brombeere", "himbeere", "erdbeere",
                "pflaume", "wassermelone", "honigmelone", "kirsche", "heidelbeere", "blaubeere",
+               # 2026-08-09 photo sweep: fresh fruit found in `household`, filed by the source
+               # under `Tierbedarf > Marken für Tiere` and `Marken > REWE Beste Wahl`.
+               "zwetschge", "grapefruit", "snack äpfel", "snack-äpfel",
                "stachelbeere", "johannisbeere", " mango", "papaya", "weintraube",
                "tafeltraube", "mandarin-orange"],
     "vegetables": ["frische minze", "speisekartoffeln", "regional paprika", "rispentomate", "romatomate", "cherrytomate", "kulturchampignon", "champignon",
-                   "zucchini", "rucola", "feldsalat", "wildkräuter salat"],
+                   "zucchini", "rucola", "feldsalat", "wildkräuter salat",
+                   "sonnenmais"],  # canned sweetcorn under `R > REWE > REWE Bio`
     "frozen": ["burek"],
     "fish": ["backfisch", "seelachs", "deutsche see", "lachsfilet", "pangasius", "räucher-garnele",
-             "heringsstipp", "tiger-garnele"],
+             "heringsstipp", "tiger-garnele",
+            # A bag of raw prawns filed under `Tierbedarf und Tierfutter > Marken für Tiere`.
+            "garnelen", "viktoriabarsch"],
     # "putensteak"/"puten-ministeak": grill meat filed under the `Saison und Events > … >
     # Grillsaison` root. Layer 1 decides on a non-food path and never falls through, so a
     # rescue token is the only thing that can reach it — without one a turkey steak lands in
     # household, i.e. invisible behind the Non-food toggle.
     "poultry": ["hähnchenflügel", "goldgriller", "bruzzlkracher", "maishähnchen", "geflügelsalat", "geflügel-fleischsalat", "hähnchen-grillplatte",
-                "knusperdino", "putensteak", "puten-ministeak"],
+                "knusperdino", "putensteak", "puten-ministeak", "hähnchenschenkel"],
     "snacks": ["sonnenblumenkerne", "nic nac", "linsenwaffel", "jumbo erdnüsse", "erdnusskerne", "erdnuss-flip", "cashew", "walnusskern", "reiswaffel"],
-    "bakery": ["burger-buns", "laugen-burger", "fertigteig", "croissant", "nusshappen", "meggle brot", "vitalgebäck", "roggenmischbrot", "vollkornbrot", "mehrkornbrot", "kernbrot"],
-    "pantry": ["haferflocken", "baba ganoush", "hummus", "guacamole", "tomatenketchup", "agavendicksaft", "quinoa"],
+    "bakery": ["burger-buns", "laugen-burger", "fertigteig", "croissant", "nusshappen", "meggle brot", "vitalgebäck", "roggenmischbrot", "vollkornbrot", "mehrkornbrot", "kernbrot",
+               # bake-off rolls and Greek breadsticks, both under non-food nodes
+               "dinkelkrusti", "kritsinia"],
+    "pantry": ["haferflocken", "baba ganoush", "hummus", "guacamole", "tomatenketchup", "agavendicksaft", "quinoa",
+              # Greek orzo, canned giant beans and a grill sauce, all under non-food nodes.
+              "kritharaki", "riesenbohnen", "schlemmersauce"],
     "beef": ["ochsen-bäckchen", "ochsenbäckchen"],
     # Pork the source files under a non-food "Grillfleisch"/promo node → household ("Hausmarke
     # Schweine-Nackensteaks"). `nackensteak` is already a pork keyword, but the path wins first, so
@@ -1117,14 +1174,20 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     # "ASIA GREEN GARDEN Spare Ribs" is filed under `Textilreinigung > Waschmittel` — the
     # unrelated-domain mis-file. Its caption says "Koteletrippe vom Schwein", but layer 1
     # reads only name+brand, so the noun has to be here.
-    "pork": ["nackensteak", "schweinenacken", "schweine-nacken", "grillnackensteak", "spare ribs", "spareribs"],
+    "pork": ["nackensteak", "schweinenacken", "schweine-nacken", "grillnackensteak", "spare ribs", "spareribs",
+             # 2026-08-09 photo sweep. Raw pork and fried meatballs reaching `household`
+             # through non-food paths — a Samsung node, `Produkte > Aktionen`, `R > REWE`.
+             "grillkotelett", "schälrippe", "frikadellen"],
     # 2026-07-29: the source sometimes attaches a path from an ENTIRELY UNRELATED domain --
     # a Zott Monte under "Hautpflege > Creme", Capri-Sun syrup under "Reinigungsmittel >
     # Spülmittel". Layer 1 always decides on a non-food path, so a rescue noun is the ONLY
     # way back for these; the same product arrives with a correct path from another chain,
     # which is how the self-disagreement check found them.
-    "dairy": ["monte mega", "fruchtjoghurt"],
-    "soft_drinks": ["ingwer shot", "capri sun", "capri-sun", "fruchtsäfte"],
+    # `cremefine` is a COOKING CREAM. The source hangs it off `Hautpflege > Creme`, and the
+    # drugstore veto deliberately keeps it out of Body & Shower — but that left it in
+    # `household`, i.e. hidden from the user entirely. Rescuing it to dairy answers both.
+    "dairy": ["monte mega", "fruchtjoghurt", "cremefine", "creme zum kochen"],
+    "soft_drinks": ["ingwer shot", "capri sun", "capri-sun", "fruchtsäfte", "eistee"],
     "alcoholic": ["frische-fass", " weine"],  # LEADING SPACE: bare "weine" is a substring of "Schweine-"
     # (a Schweinebraten under a pet path classified as ALCOHOLIC before this guard).
     # Grated cheese the source mis-files under a PET-brand node ("Milsani Reibekäse XXL" under
@@ -1141,8 +1204,8 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     # is load-bearing and measurable: removing it leaks 7 machines (Kaffeevollautomat x3,
     # Filterkaffeemaschine x2, DeLonghi x2) into Coffee. "espresso" is deliberately NOT here —
     # it would drag in a "CROFTON Espressokocher" (a moka pot).
-    "sweets": ["nutella", "amicelli", "fruchtkaramell"],
-    "coffee": ["feine milde", "senseo", "kaffeepad", "kaffee", "caffè crema", "ganze bohnen"],
+    "sweets": ["nutella", "amicelli", "fruchtkaramell", "hafer cookies"],
+    "coffee": ["feine milde", "senseo", "kaffeepad", "kaffee", "café pads", "cafe pads", "caffè crema", "ganze bohnen"],
 }
 
 # If any of these appear in the name, the food noun is a coincidence and the non-food path stands:
@@ -1420,7 +1483,10 @@ _DRUGSTORE_RULES: list[tuple[str, list[str]]] = [
                   "hygiene-reiniger", "klorix"]),
     ("laundry", ["calgon", "vanish", "wasserenthärter"]),
     ("pet", ["katzentoilette", "kratzbaum", "kratzmöbel", "katzenkratz", "hundesnack",
-             "beneful", "vitakraft", "winston katze", "katzenkorb"]),
+             "beneful", "vitakraft", "winston katze", "katzenkorb",
+             # 2026-08-09 photo sweep: dog/cat food still blobbing into `household`.
+             "cesar hund", "winston hund", "gourmet gold", "gourmet revelations",
+             "lieblings-sticks"]),
 ]
 
 
