@@ -914,8 +914,31 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     collision — no error, just a category that quietly stops grouping. Pinned by a test.
   - **A bare `creme` is deliberately absent from `body`**: that chip still holds a few mis-filed
     FOODS ending in it (a cooking cream, a chocolate). Ungrouped is the honest answer there.
-  - `household` is deliberately NOT mapped — it is the "can't tell" bucket (lamps, cutlery,
-    clothing) and the Basket excludes it anyway.
+  - `household` **is mapped now** (2026-08-10, `_HOUSEHOLD_GROUPS`, 14 groups, 64.8% of 2,038
+    distinct names). It stays out of `_DRUGSTORE_GROUPS` and the Basket still excludes it, so
+    this is a deals-list-readability change only — but it was 564 served offers of
+    unstructured list, the biggest single block in the app.
+    - **The discounters' OWN BRANDS are the signal**: Parkside/Workzone→Werkzeug,
+      Livarno/Home Creation/Casalux→Wohnen, Silvercrest/Crofton/Ernesto/Ambiano→Küche,
+      Esmara/Lupilu/Up2fashion/Crane→Kleidung, Crivit→Sport, Gardenline/Florabest→Garten,
+      Novitesse/Biberna→Bettwaren, Playtive/Toylino→Spielzeug.
+    - **The map runs in TWO PASSES and that is the whole design**: every head noun first, then
+      the brands. Several brands span aisles, and what a thing IS must beat who made it — a
+      CRIVIT Wendejacke is clothing, a LIVARNO Steppbett is bedding, a SILVERCREST
+      Dampfreiniger is cleaning. The second pass **repeats the same labels** (legal: same slug,
+      one group), which is the only way to express "noun beats brand" in a flat first-hit-wins
+      table. A test pins that the fallback pass introduces no NEW label, since a typo'd one
+      would silently create a near-duplicate section.
+    - **Five substring traps, all found by reading what each group caught**: `blume` ⊂
+      "Sonnen**blume**nkerne" (a FOOD — the token is now `blumenstrauß`/`blumentopf`);
+      `aster` ⊂ "Pfl**aster**"; `gläser` ⊂ "Wechsel**gläser**n" (sports glasses);
+      `tablet` ⊂ "Bett-**Tablet**t" (a tray — Küche carries a `tablett` guard above
+      Elektronik); `kleid` ⊂ "**Kleid**erschrank" (a wardrobe — Wohnen carries a guard tuple
+      above Kleidung). `schal` is plural-guarded because it is inside "**Schal**e", a bowl.
+      `thermo` and `dose` are spelled out (a bare `thermo` caught a blood-pressure monitor).
+    - **~63 cosmetics and ~62 edible products in this chip stay UNGROUPED on purpose** — both
+      are tracked classifier findings, and adding tokens here would paper over the
+      mis-classification. Same call the pantry map makes for the in-store breads. Pinned.
   **EVERY category is being mapped** (2026-08-10, user's call: "I want each category to have sub
   categories"). Measured before starting: **61% of served offers carried no sub-group** — 339 in
   10 unmapped FOOD categories, 564 in `household`, and 247 sitting in the *tail* of maps that
