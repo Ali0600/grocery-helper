@@ -1004,6 +1004,28 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     list was written and then **dropped**: it reverses the deliberate 2026-07-29 decision to
     head single-offer groups, and it does not address the case it was written for (MANY
     singleton groups, where it never fires). One redundant header line is the cheaper answer.
+  **The 23 pre-existing maps were deepened last** (2026-08-10), closing the 247-offer tail
+  they still carried: cheese 58%→82%, dairy 58%→95%, pork 62%→90%, bakery 65%→95%,
+  soft_drinks 65%→85%, poultry 70%→96%, fish 75%→94%. **Overall grouped: 39% → 82%.**
+  - **This is the ONLY block that can regress**, since a new token sits beside tokens that
+    already place products — so it gets the full corpus diff. But the harness's binary
+    "left an existing group = regression" is too blunt here: 46 offers moved from a map's
+    GENERIC bucket to a specific one (`Käse` → `Feta`/`Cheddar`/`Bergkäse`), which is exactly
+    what deepening means. The diff was re-cut into three buckets — newly grouped /
+    generic→specific / **specific→specific or grouped→ungrouped** — and only the third is a
+    real regression. It read **zero**.
+  - **Three candidates were wrong and only reading the moved rows found them**: `patros` →
+    Frischkäse (it is a brined WHITE cheese, so it belongs in Feta), `ofenkäse` → Halloumi &
+    Grillkäse (a soft BAKING cheese is not a firm grilling one), `fladenbrot` → Sandwich &
+    Wrap (a flatbread is bread).
+  - **`hochland` is deliberately NOT a cheese brand token**, though every other big one is:
+    the same word sits in "FAIRGLOBE Bio **Hochland** Kaffee", a bag of coffee the classifier
+    files into this chip. Its products still resolve via `patros`, which names a real cheese.
+    Pinned by a test.
+  - **The umlaut plural bites here too** — "Nürnberger Rostbrat**würste**" never matched the
+    `bratwurst` stem, exactly as `categories.py` already records for its own keyword layer.
+    Both `bratwürst` and `rostbratwürst` are now tokens. Found by a test failing, not by
+    reading.
   Computed in the serializer → `OfferOut.group`/`group_label`
   (**no DB column / migration**, like `unit_price_cents`). The app renders a
   `SectionList` **only in a selected category** (not All/search): **every** sub-group gets a

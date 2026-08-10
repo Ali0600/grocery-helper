@@ -133,6 +133,10 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         ("Hähnchen", ["hähnchen", "haehnchen", "huhn", "hühner", "poulet"]),
         ("Pute", ["pute"]),
         ("Ente", ["ente"]),
+        ("Nuggets & Paniertes", ["nuggets", "crispies", "chicken-box", "knusper"]),
+        ("Geflügelwurst", ["geflügel-aufschnitt", "geflügelsalami", "mortadella",
+                           "jagdwurst", "geflügel bratwurst", "geflügel-roulade",
+                           "geflügelsalat", "geflügel-fleischsalat"]),
     ],
     "pork": [
         ("Mett", ["mett", "hackepeter"]),
@@ -140,11 +144,23 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         ("Gulasch", ["gulasch"]),
         ("Braten", ["braten"]),
         ("Kotelett", ["kotelett", "nackensteak", "nacken"]),
-        ("Bratwurst", ["bratwurst", "rostbratwurst"]),  # before Wurst
+        # "würst" as well as "wurst": the flyer writes the plural with an umlaut
+        # ("Nürnberger RostbratWÜRSTe"), which the singular stem misses entirely — the
+        # same trap categories.py already carries a note about.
+        ("Bratwurst", ["bratwurst", "bratwürst", "rostbratwurst",
+                       "rostbratwürst"]),  # before Wurst
         ("Salami", ["salami"]),
         ("Schinken", ["schinken"]),
         ("Bacon", ["bacon", "frühstücksspeck", "speck"]),
-        ("Wurst", ["wurst", "würstchen", "lyoner", "fleischwurst"]),  # generic
+        ("Spareribs", ["spareribs", "rippchen", "bauchscheiben", "grillbauch"]),
+        ("Filet", ["schweinefilet", "schweine-filet", "filet-spieß", "filet lang"]),
+        ("Steak", ["rückensteak", "minutensteak", "nackensteak", "schweinesteak"]),
+        ("Cordon Bleu", ["cordon bleu", "cordon-bleu"]),
+        ("Luftgetrocknetes", ["chorizo", "jamón", "jamon", "serrano", "fuet", "prosciutto",
+                              "kabanos", "krakauer", "salamini", "coppa", "pancetta"]),
+        ("Wurst", ["wurst", "würst", "lyoner", "fleischwurst", "leberpâté",
+                   "leberpastete", "rostbrätl", "bruzzlkracher", "snackstick",
+                   "pulled pork"]),  # generic
     ],
     # Thin by design (~2 offers/week) but mapped so the chip is structured whenever the
     # butcher does run lamb alongside game.
@@ -165,6 +181,10 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         ("Sardine", ["sardine", "sardelle"]),
         ("Makrele", ["makrele"]),
         ("Fischstäbchen", ["fischstäbchen", "stäbchen"]),
+        ("Meeresfrüchte", ["meeresfrüchte", "crevetten", "tintenfisch", "tentakel",
+                           "calamari", "calamares", "riesenkalmar", "muscheln",
+                           "oktopus"]),
+        ("Scholle", ["scholle"]),
     ],
     "butter": [
         # Kräuterbutter and Margarine both before the generic Butter: "Rama MIT BUTTER" and
@@ -180,28 +200,39 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         ("Butter", ["butter", "kærgård", "kaergård", "kaergarden", "kerrygold", "meggle"]),
     ],
     "cheese": [
-        ("Frischkäse", ["frischkäse"]),  # before the generic Käse
+        ("Frischkäse", ["frischkäse", "philadelphia", "almette", "exquisa",
+                        "hüttenkäse", "kräuterquark"]),  # before the generic Käse
         ("Gouda", ["gouda"]),
         ("Mozzarella", ["mozzarella"]),
-        ("Feta", ["feta"]),
+        ("Feta", ["feta", "patros", "weißkäse", "hirtenkäse"]),
         ("Camembert", ["camembert"]),
         ("Parmesan", ["parmesan", "grana"]),
         ("Emmentaler", ["emmentaler"]),
         ("Edamer", ["edamer"]),
         ("Brie", ["brie"]),
-        ("Ziegenkäse", ["ziegenkäse"]),
-        ("Käse", ["käse"]),  # generic
+        ("Ziegenkäse", ["ziegenkäse", "chavroux"]),
+        ("Cheddar", ["cheddar"]),
+        ("Bergkäse", ["appenzeller", "bergkäse", "gruyère", "comté"]),
+        ("Halloumi & Grillkäse", ["halloumi", "grillkäse", "bratkäse"]),
+        # Generic/last. NOTE: no "hochland" brand token — the same word is in "FAIRGLOBE
+        # Bio HOCHLAND Kaffee", a bag of coffee the classifier files in this chip.
+        ("Käse", ["käse", "beemster", "leerdammer", "old amsterdam", "landana",
+                  "saint albray", "babybel", "manchego", "queso", "raclette",
+                  "maasdamer", "harzer", "tilsiter"]),  # generic
     ],
     "dairy": [
         ("Buttermilch", ["buttermilch"]),  # before Milch
         ("Milch", ["milch"]),
-        ("Joghurt", ["joghurt", "jogurt"]),
+        ("Joghurt", ["joghurt", "jogurt", "actimel", "almighurt", "fruchtzwerge",
+                     "frucht zwerge", "milk-twist", "fitline", "quetschie"]),
         ("Quark", ["quark"]),
         ("Sahne", ["sahne"]),
         ("Skyr", ["skyr"]),
         ("Pudding", ["pudding"]),
         ("Schmand", ["schmand", "crème fraîche", "creme fraiche"]),
         ("Kefir", ["kefir"]),
+        ("Dessert", ["dessert", "zott monte", "mousse au", "creme brulee"]),
+        ("Milchgetränk", ["ayran", "kakao", "milchdrink", "milchmix", "trinkmilch"]),
     ],
     # Deliberately thin: the feed carries ~2 branded egg offers a week, all of them "Eier".
     "eggs": [
@@ -216,7 +247,12 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         ("Kuchen", ["kuchen", "torte"]),
         ("Donut", ["donut"]),
         ("Muffin", ["muffin"]),
-        ("Brot", ["brot"]),  # generic, after the specific baked goods
+        ("Sandwich & Wrap", ["sandwich", "wrap", "pita", "tortilla", "simit"]),
+        ("Feingebäck", ["amerikaner", "bienenstich", "törtchen", "pastéis", "topfen-tasche",
+                        "blätterteig", "napolitan", "zwieback", "schnecke", "plunder",
+                        "berliner", "krapfen"]),
+        ("Brot", ["brot", "roggen", "vollkorn", "batzen", "goldstücke", "frischlinge",
+                  "kruste", "schiffchen"]),  # generic, after the specific baked goods
     ],
     # Coffee groups by FORM, not by brand: capsules, pads, beans and a chilled iced coffee are
     # not substitutes for each other, so "which of these is cheapest" is only a fair question
@@ -242,7 +278,9 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         # before Wasser/Saft so "Volvic Tee" -> Tee. "tea" catches the English iced teas
         # (Fuze Tea / Ice Tea / Bubble Tea — every "tea" name in the feed is a tea); eistee /
         # " tee" / teekanne the German -tee spellings.
-        ("Tee", ["tea", "eistee", " tee", "teekanne", "teegetränk", "früchtetee", "kombucha"]),
+        ("Tee", ["tea", "eistee", " tee", "teekanne", "teegetränk", "früchtetee", "kombucha",
+                 # the herbal teas write it as one word, so " tee" alone misses them all
+                 "kräutertee", "rooibos", "pfefferminztee", "kamillentee", "tee set"]),
         ("Energy", ["energy", "energydrink", "red bull", "rockstar", "28 black",
                     "effect energy", "powerade"]),
         ("Schorle", ["schorle"]),  # before Saft/Wasser (it's neither)
@@ -263,7 +301,9 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         ("Wasser", ["wasser", "naturell", "gerolsteiner", "evian", "volvic", "spreequell",
                     "sprechquell", "sanpellegrino", "adelholzener", "aquintell", "near water",
                     "active o2", "vitamin-water", "vitamin water", "kokoswasser",
-                    "kokosnusswasser"]),
+                    "kokosnusswasser", "vio ", "san pellegrino", "sanpellegrino", "deit",
+                    "delt"]),
+        ("Sirup", ["getränkesirup", "sirup", "konzentrat"]),
     ],
     # Pizza is 37% of this chip on its own. It runs FIRST so "Pizza-Brötchen" and
     # "Pizzatasche" are pizza rather than bread, and so Wagner's Flammkuchen (sold alongside

@@ -828,3 +828,75 @@ def test_cosmetics_and_food_mis_filed_into_household_stay_ungrouped():
     assert product_group("EDEKA Bio Sonnenblumenkerne", None, "household") == (None, None)
     assert product_group("Duftkerze im Glas mit Blumen, 1 St", None,
                          "household")[1] == "Wohnen & Deko"
+
+
+# --- deepening the maps that already existed ------------------------------------
+# Unlike a brand-new category map, these CAN regress: a new token here sits alongside
+# tokens that already place products. Every case below is a real DB name that was
+# ungrouped before, paired with the sibling that must not move.
+
+
+@pytest.mark.parametrize(
+    "category,name,expected",
+    [
+        ("cheese", "Philadelphia Original", "Frischkäse"),
+        ("cheese", "Gervais Hüttenkäse", "Frischkäse"),
+        ("cheese", "EDEKA Bio Hirtenkäse", "Feta"),
+        ("cheese", "Kerrygold Cheddar herzhaft", "Cheddar"),
+        ("cheese", "Bergader Watzmann Bergkäse", "Bergkäse"),
+        ("cheese", "MILBONA Halloumi Grillkäse", "Halloumi & Grillkäse"),
+        ("cheese", "Old Amsterdam", "Käse"),
+        ("dairy", "Danone Actimel Drink", "Joghurt"),
+        ("dairy", "Ehrmann Grand Dessert", "Dessert"),
+        ("dairy", "Müller Ayran", "Milchgetränk"),
+        ("pork", "Bauerngut Spareribs", "Spareribs"),
+        ("pork", "Duroc Schweine-Filet", "Filet"),
+        ("pork", "Schweine-rückensteak mariniert", "Steak"),
+        ("pork", "GUT&GÜNSTIG Schweine-Cordon-Bleu", "Cordon Bleu"),
+        ("pork", "SOL & MAR Jamón Serrano", "Luftgetrocknetes"),
+        ("soft_drinks", 'Kräutertee "Chamomile" (20 Beutel), 40 g', "Tee"),
+        ("soft_drinks", "San Pellegrino", "Wasser"),
+        ("soft_drinks", "GUT&GÜNSTIG Getränkesirup", "Sirup"),
+        ("bakery", "Harry Sandwich", "Sandwich & Wrap"),
+        ("bakery", "GUT&GÜNSTIG Bienenstich", "Feingebäck"),
+        ("bakery", "LYTTOS Zwieback", "Feingebäck"),
+        ("poultry", "Chicken Nuggets", "Nuggets & Paniertes"),
+        ("poultry", "Gutfried Geflügel-Aufschnitt", "Geflügelwurst"),
+        ("fish", "Deutsche See Crevetten", "Meeresfrüchte"),
+        ("fish", "SOL & MAR Tintenfisch", "Meeresfrüchte"),
+        ("fish", "EDEKA Herzstücke Pazifische Schollenfilets", "Scholle"),
+    ],
+)
+def test_deepened_maps_place_what_used_to_fall_through(category, name, expected):
+    assert product_group(name, None, category)[1] == expected
+
+
+@pytest.mark.parametrize(
+    "category,name,expected,why",
+    [
+        ("cheese", "Rougette Ofenkäse fein-würzig", "Käse",
+         "an Ofenkäse is a soft BAKING cheese, not a firm grilling one"),
+        ("bakery", "Fladenbrot mit Kümmel und Sesam", "Brot",
+         "a flatbread is bread, not a sandwich"),
+        ("cheese", "FAIRGLOBE Bio Hochland Kaffee", None,
+         "'hochland' is a cheese brand AND a word in this bag of coffee, so it is not a token"),
+        ("pork", "Gut Drei Eichen Nürnberger Rostbratwürste", "Bratwurst",
+         "the existing Bratwurst group must still win"),
+        ("dairy", "Frische Vollmilch", "Milch",
+         "the new Milchgetränk group must not claim plain milk"),
+        ("soft_drinks", "VOLVIC Tee", "Tee",
+         "the widened Tee tokens must not disturb the brand-after-type convention"),
+    ],
+)
+def test_deepening_did_not_disturb_what_was_already_right(category, name, expected, why):
+    got = product_group(name, None, category)[1]
+    assert got == expected, f"{name!r} -> {got!r}, expected {expected!r} because {why}"
+
+
+def test_hochland_is_deliberately_not_a_cheese_brand_token():
+    """Every other big cheese brand is a token here; Hochland is not, because "FAIRGLOBE Bio
+    HOCHLAND Kaffee" is a bag of coffee the classifier files into this chip. Adding it would
+    put coffee in the cheese aisle's generic group. Its own product still resolves — via
+    "patros", the sub-brand, which names an actual cheese."""
+    assert product_group("FAIRGLOBE Bio Hochland Kaffee", None, "cheese") == (None, None)
+    assert product_group("Hochland Patros", None, "cheese")[1] == "Feta"
