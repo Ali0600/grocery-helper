@@ -961,6 +961,26 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   - **Bakery breads and the Sol & Mar range mis-filed into `pantry` stay UNGROUPED on purpose**
     — both are known classifier findings, and adding bread keywords to the pantry map would
     paper over the mis-classification and make it invisible. Pinned by a test.
+  - **The other 8 food categories (2026-08-10): 97.2% of 573 distinct names.** `sweets` (10
+    groups) and `frozen` (6) group by product type; **`ice_cream` groups by FORM like coffee**
+    (a Magnum on a stick, a 900 ml tub and a multipack of cones are not substitutes);
+    **`vegan` groups by the food each product REPLACES** (Pflanzendrink / Fleischalternative /
+    Käsealternative), since the chip is cross-cutting and its members are otherwise unrelated.
+    Ordering again did the work: **Kaugummi before Fruchtgummi** (`gummi` ⊂ "**Kau**gummi", so
+    chewing gum was serving as jelly sweets), Riegel/Kekse/Waffeln before Schokolade
+    (Schoko**riegel**, Schoko**kekse**), Wassereis before Stieleis (`sticks` ⊂ "Fruity Sticks"),
+    Kuchen and Kekse before the Nutella jar, Margarine and Kräuterbutter before Butter
+    ("**Rama mit Butter**"), Pizza before Backwaren ("Pizza-**Brötchen**").
+  - **Three stems that looked right and matched nothing**, each found by diffing the real DB:
+    `tortelli` matches neither Tortell**ini** nor Tortell**oni** (the stem is `tortell`);
+    `mühlen` misses "Rügenwalder **Mühle**"; `kräuterbutter` misses the hyphenated
+    "Kräuter-Butter". Kærgården ships with **æ, ae AND a**, and "Multiplack-Eis" is the feed's
+    own typo — both are pinned.
+  - **`eggs` and `other_meat` render a single header over the whole chip** (~2 offers/week,
+    all "Eier" / all "Lamm"). A `buildSections` guard collapsing a lone group back to a flat
+    list was written and then **dropped**: it reverses the deliberate 2026-07-29 decision to
+    head single-offer groups, and it does not address the case it was written for (MANY
+    singleton groups, where it never fires). One redundant header line is the cheaper answer.
   Computed in the serializer → `OfferOut.group`/`group_label`
   (**no DB column / migration**, like `unit_price_cents`). The app renders a
   `SectionList` **only in a selected category** (not All/search): **every** sub-group gets a

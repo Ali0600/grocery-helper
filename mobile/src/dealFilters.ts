@@ -364,10 +364,10 @@ export function buildSections(sorted: Offer[], mode: SortMode): DealSection[] {
     groups.push({
       key: '__rest__',
       data: tailSorted,
-      // Only label the bucket when headed groups sit above it. Since every sub-group now
-      // gets a header, the unlabelled case means "not one offer here carries a sub-group"
-      // — i.e. a category `product_group` doesn't map (pantry, sweets, alcoholic, …),
-      // which must keep rendering as a plain flat list.
+      // Only label the bucket when headed groups sit above it. Since every sub-group gets a
+      // header, the unlabelled case means "not one offer here carries a sub-group". Every
+      // category is mapped now, so that means every name here missed its map's keywords —
+      // it must keep rendering as a plain flat list.
       label: groups.length ? 'More' : null,
       count: tailSorted.length,
       fromCents: null,
