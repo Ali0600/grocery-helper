@@ -1738,6 +1738,13 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   and alerts the user to reload now (`Updates.reloadAsync`). Inert in dev / Expo Go / web
   (`__DEV__` / `Platform.OS` / `Updates.isEnabled` guards), best-effort, once per session.
   Only fires in a build embedding `expo-updates` at the matching `runtimeVersion`.
+- **`docs/DECISIONS.md` is the design-fork log** (created 2026-08-09): when a decision with real
+  alternatives gets made, record the fork, every option's tradeoff, what was chosen, a **status**
+  per rejected option (`deferred — worth trying` / `rejected — <reason>`) and a **revisit hook**
+  naming the seam where trying it later would plug in. The `deferred` ones are also listed in a
+  **"Backlog — alternatives worth trying later"** block at the top of the file. Write the entry as
+  the decision is made, not at wrap-up. Skip cosmetic forks. Sibling of `docs/learnings.md`, which
+  holds teachable *concepts* rather than roads not taken.
 - **Commits**: author as the user only — no `Co-Authored-By: Claude` trailer.
 - **Branching — hybrid by blast radius** (solo dev): **branch + PR + squash-merge-on-green** for
   anything that ships or can break CI (backend/mobile code, migrations, **workflow/CI files**,
