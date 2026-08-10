@@ -215,8 +215,10 @@ def test_snacks_studentenfutter_beats_the_alesto_nut_brand():
 
 
 def test_unmapped_category_and_no_match_return_none():
-    # Sweets isn't a grouping category -> never groups.
-    assert product_group("Milka Schokolade", None, "sweets") == (None, None)
+    # `other` is the classifier's fallback and is the one category left unmapped on
+    # purpose, so nothing in it ever groups. (This assertion used to name `sweets`,
+    # which is a real aisle and now has its own map.)
+    assert product_group("Milka Schokolade", None, "other") == (None, None)
     # A fruits offer with no known noun stays ungrouped.
     assert product_group("Obstsalat to go", None, "fruits") == (None, None)
     # Missing/empty category or name is safe.
@@ -332,12 +334,80 @@ def test_a_specific_drugstore_group_beats_the_generic_one(category, name, expect
 
 def test_the_drugstore_maps_do_not_overwrite_a_grocery_one():
     """`_GROUPS.update(_DRUGSTORE_GROUPS)` would SILENTLY replace a grocery mapping if a slug
-    were ever repeated — no error, just a category that stops grouping the way it did."""
-    from app.product_group import _DRUGSTORE_GROUPS, _GROUPS
-    grocery = {"fruits", "vegetables", "beef", "poultry", "pork", "fish", "cheese", "dairy",
-               "bakery", "coffee", "soft_drinks", "snacks"}
-    assert not (set(_DRUGSTORE_GROUPS) & grocery), "a drugstore key shadows a grocery map"
-    assert grocery <= set(_GROUPS), "a grocery map went missing from _GROUPS"
+    were ever repeated — no error, just a category that stops grouping the way it did.
+
+    The grocery set is DERIVED (`_GROCERY_GROUP_KEYS`, snapshotted at the merge site) rather
+    than written out here: this test used to carry a 12-slug literal, which would have gone on
+    passing while covering none of the categories added since."""
+    from app.product_group import _DRUGSTORE_GROUPS, _GROCERY_GROUP_KEYS, _GROUPS
+    assert not (set(_DRUGSTORE_GROUPS) & _GROCERY_GROUP_KEYS), \
+        "a drugstore key shadows a grocery map"
+    assert _GROCERY_GROUP_KEYS <= set(_GROUPS), "a grocery map went missing from _GROUPS"
+
+
+def test_every_category_has_sub_groups():
+    """RATCHET, and it only tightens. Every category the app can show should offer sub-groups,
+    so a NEW category cannot ship as an unstructured flat list by accident, and a typo'd slug
+    in `_GROUPS` (which would simply never fire) fails here instead of going unnoticed.
+
+    `other` is exempt permanently: it is the classifier's fallback bucket, is driven toward
+    zero offers by the weekly audit, and its contents are unclassifiable by construction.
+
+    `STILL_TO_MAP` is the temporary half — the categories not yet worked through. Both
+    directions bite: a category outside the list that loses its map fails, and an entry that
+    HAS been mapped fails as stale, so finishing one forces its removal here."""
+    from app.categories import CATEGORIES
+    from app.product_group import _GROUPS
+
+    UNGROUPABLE = {"other"}
+    STILL_TO_MAP = {
+        "other_meat", "butter", "eggs", "frozen", "ready_meals", "ice_cream", "sweets",
+        "vegan", "household",
+    }
+
+    missing = set(CATEGORIES) - set(_GROUPS) - UNGROUPABLE - STILL_TO_MAP
+    assert not missing, f"categories with no sub-groups: {sorted(missing)}"
+
+    orphans = set(_GROUPS) - set(CATEGORIES)
+    assert not orphans, f"_GROUPS keys that are not categories: {sorted(orphans)}"
+
+    assert UNGROUPABLE.isdisjoint(_GROUPS), "`other` is mapped; drop it from UNGROUPABLE"
+    done = STILL_TO_MAP & set(_GROUPS)
+    assert not done, f"now mapped — remove from STILL_TO_MAP: {sorted(done)}"
+    unknown = (STILL_TO_MAP | UNGROUPABLE) - set(CATEGORIES)
+    assert not unknown, f"exemption names a category that does not exist: {sorted(unknown)}"
+
+
+def test_a_group_label_the_catalog_already_covers_is_spelled_its_way():
+    """Mobile's `basketResolve.subGroupItem` maps a group LABEL onto a `GROCERY_CATALOG` item
+    by exact equality (against the German name, then against each keyword), and a hit wins
+    because catalog entries carry `exclude` guards a synthesized `grp:` item has not.
+
+    So a label that drifts from the catalog's spelling does not merely look different — it
+    mints a second basket item for a product the catalog already has, and the same thing
+    occupies two rows. "Müsli & Cerealien" would do exactly that; "Müsli" does not.
+
+    The catalog lives in mobile/, so this pins the backend half: these exact strings must
+    survive any relabelling here."""
+    from app.product_group import _GROUPS
+
+    # (category, label) -> the GROCERY_CATALOG entry it has to keep matching.
+    catalog_backed = {
+        ("alcoholic", "Bier"): "beer.de",
+        ("pantry", "Nudeln"): "pasta.de",
+        ("pantry", "Reis"): "rice.de",
+        ("pantry", "Mehl"): "flour.de",
+        ("pantry", "Zucker"): "sugar.de",
+        ("pantry", "Müsli"): "cereal.de",
+        ("pantry", "Speiseöl"): "oil.keywords",
+    }
+    for (category, label), catalog_ref in catalog_backed.items():
+        labels = [lbl for lbl, _kws in _GROUPS[category]]
+        assert label in labels, (
+            f"{category} lost the label {label!r}, which mobile's {catalog_ref} matches "
+            f"by exact equality — renaming it duplicates the product in the Basket. "
+            f"Have: {labels}"
+        )
 
 
 def test_an_either_variant_name_picks_one_group_and_that_is_fine():
@@ -357,3 +427,186 @@ def test_food_mis_filed_into_a_drugstore_aisle_stays_ungrouped():
     assert product_group("Choceur Milchmäuse-Duo-Creme", None, "body") == (None, None)
     # ...while a genuine body cream still groups.
     assert product_group("ISANA Softcreme", None, "body")[1] == "Hautcreme"
+
+
+# --- alcoholic: grouped by DRINK TYPE ------------------------------------------
+# Two thirds of these names are a bare brand with no type word at all ("Jägermeister",
+# "Aperol", "Heineken"), so each type carries its brands after its type words. Every case
+# below is a real name from the DB.
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("BITBURGER Premium Pils", "Bier"),
+        ("Franziskaner Weissbier", "Bier"),
+        ("Benediktiner Hell", "Bier"),
+        ("Gösser Natur Radler", "Bier"),
+        ("Köstritzer Schwarzbier", "Bier"),
+        ("HEINEKEN Original", "Bier"),          # brand only, and "Original" holds no type word
+        ("Knabe Malz", "Bier"),
+        ("Dornfelder QbA, Rotwein, lieblich", "Wein"),
+        ("Cantine Leuci Primitivo", "Wein"),
+        ("Folonari Pinot Grigio", "Wein"),
+        ("Chablis AOP", "Wein"),
+        ("Gewürztraminer", "Wein"),
+        ("Rotkäppchen Sekt", "Sekt & Champagner"),
+        ("MOET & CHANDON Imperial, Champagner, brut", "Sekt & Champagner"),
+        ("ARESTEL Cava", "Sekt & Champagner"),
+        ("Mionetto Prosecco Spumante", "Sekt & Champagner"),
+        ("Jameson Irish Whiskey", "Whisky"),
+        ("THE MACALLEN Double Cask Highland Single Malt Scotch Whisky 12 Jahre", "Whisky"),
+        ("Gorbatschow Wodka", "Wodka"),
+        ("ABSOLUT Vodka", "Wodka"),
+        ("Roku Gin", "Gin"),                    # trailing "Gin"
+        ("GIN SUL Dry Gin/ Laranjal", "Gin"),   # leading "Gin"
+        ("Havana Club Añejo 3 Años", "Rum"),
+        ("POTT Rum", "Rum"),
+        ("Jägermeister", "Likör"),
+        ("Eckes Edler Eierlikör", "Likör"),
+        ("Pallini Limoncello", "Likör"),
+        ("Aperol", "Aperitif"),
+        ("MARTINI Bianco", "Aperitif"),
+        ("Gracioso Hugo", "Aperitif"),
+        ("Sierra Tequila Blanco", "Spirituosen"),
+        ("Echter Nordhäuser Doppelkorn", "Spirituosen"),
+        ("PIRCHER Mirabellen Edelbrand", "Spirituosen"),
+        ("Ouzo Plomari", "Spirituosen"),
+        ("Somersby Cider", "Cider & Fruchtwein"),
+        ("Kelterei Heil Cidre", "Cider & Fruchtwein"),
+    ],
+)
+def test_alcoholic_groups_by_drink_type(name, expected):
+    assert product_group(name, None, "alcoholic")[1] == expected
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Jack Daniel's Dosen",
+        "Jack Daniel’s Coca-Cola",
+        "Jim Beam Bourbon Whiskey & Cola",
+        "Three Sixty Dosen",
+        "Smirnoff Ice Vodka",
+        "Karlsberg Mixery Bier+Cola",
+        "Gorbatschow Premixed Longdrink Lemon",
+        "Maelt Hard Seltzer",
+        "Cocktail Ready To Serve Cosmopolitan",
+    ],
+)
+def test_a_premixed_can_is_not_the_bottle_it_is_named_after(name):
+    """A 0,33 l can of "Jack Daniel's Cola" is not a substitute for a bottle of Jack Daniel's,
+    so ranking them together answers the wrong question — the same form-not-brand argument the
+    coffee map makes for capsules vs beans.
+
+    Mixgetränke therefore runs FIRST, ahead of every spirit and beer brand below it. Sabotage:
+    move that tuple to the end of the alcoholic list and each of these lands in Whisky / Wodka
+    / Bier instead."""
+    assert product_group(name, None, "alcoholic")[1] == "Mixgetränke"
+
+
+def test_a_liqueur_that_merely_names_a_spirit_is_not_that_spirit():
+    """"whisky" fires inside "WhiskyGESCHMACK". These two are liqueurs that name a whisky
+    flavour, which is a designation-vs-ingredient distinction, so Likör must run before
+    Whisky. Sabotage: swap the two tuples and both become Whisky."""
+    assert product_group("FIREBALL Likör mit Zimt- und Whiskygeschmack", None,
+                         "alcoholic")[1] == "Likör"
+    assert product_group("IRISH MIST Honig Whiskey Liqueur", None, "alcoholic")[1] == "Likör"
+    # ...while a real whisky is untouched.
+    assert product_group("Jack Daniel's Tennessee Whiskey", None, "alcoholic")[1] == "Whisky"
+
+
+@pytest.mark.parametrize(
+    "name,expected,why",
+    [
+        ("Werder Fruchtweine", "Cider & Fruchtwein", "'fruchtwein' contains 'wein'"),
+        ("ARMILAR Portwein Late Bottled Vintage 2020", "Wein", "'portwein' contains 'wein'"),
+        ("Salitos Tequila Beer", "Bier", "'tequila' would claim a tequila-flavoured beer"),
+        ("Chandon Garden Spritz", "Aperitif", "'chandon' is a Sekt brand, 'spritz' wins"),
+        ("Aperol Aperitif Bitter", "Aperitif", "'bitter' would claim it for Likör"),
+    ],
+)
+def test_alcoholic_ordering_is_part_of_the_mapping(name, expected, why):
+    got = product_group(name, None, "alcoholic")[1]
+    assert got == expected, f"{name!r} -> {got!r}, expected {expected!r} because {why}"
+
+
+def test_gin_and_rum_tokens_are_space_guarded():
+    """"gin" sits inside "oriGINal" and "rum" inside "tRUMpf", so neither token is bare — the
+    pair " gin"/"gin " catches the word at either end of a name without catching the compound.
+    Sabotage: replace them with a bare "gin" and the first two assertions below flip to Gin."""
+    assert product_group("Havana Club Original", None, "alcoholic")[1] == "Rum"
+    assert product_group("DESPERADOS Original", None, "alcoholic")[1] == "Bier"
+    assert product_group("Gordon's London Dry Gin", None, "alcoholic")[1] == "Gin"
+
+
+# --- pantry: the dry-goods shelf -----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("Bertolli Olivenöl", "Speiseöl"),
+        ("Hengstenberg Balsamico Bianco", "Essig"),
+        ("Heinz Tomato Ketchup", "Ketchup"),
+        ("Bautz'ner Senf", "Senf"),
+        ("Kunella Feinkost Delikatess-Mayonnaise", "Mayonnaise & Dressing"),
+        ("Barilla Pesto", "Pesto"),
+        ("Maggi Delikatess-Saucen", "Sauce"),
+        ("Landliebe Konfitüre", "Konfitüre"),
+        ("Deluxe Manuka Honig", "Honig"),
+        ("Zentis Nusspli", "Nussmus & Creme"),
+        ("Knorr Fix Spaghetti Bolognese", "Fix & Instant"),
+        ("Barilla Italienische Teigwaren", "Nudeln"),
+        ("Steinhaus Tortelloni", "Nudeln"),
+        ("GUT&GÜNSTIG Langkorn-Spitzenreis", "Reis"),
+        ("Kölln Blütenzarte Haferflocken", "Müsli"),
+        ("EDEKA Herzstücke Antipasti", "Feinkost-Salate"),
+        ("MYVAY Grilltofu", "Tofu & Fleischersatz"),
+        ("EDEKA Bio Kichererbsen", "Konserven"),
+        ("Erasco 1-Portions-Eintöpfe", "Eintopf & Suppe"),
+        ("Back Family Natron XXL", "Backzutaten"),
+        ("Diamant Weizenmehl Extra Type 405 XXL", "Mehl"),
+        ("GUT&GÜNSTIG Feiner Raffinadezucker", "Zucker"),
+        ("Bad Reichenhaller Alpen Jodsalz", "Gewürze"),
+    ],
+)
+def test_pantry_groups_by_product(name, expected):
+    assert product_group(name, None, "pantry")[1] == expected
+
+
+@pytest.mark.parametrize(
+    "name,expected,why",
+    [
+        ("Bio-Zuckermais", "Konserven", "'zucker' would sell sweetcorn as a bag of sugar"),
+        ("Noa Hummus Dattel-Curry", "Feinkost-Salate", "'curry' would file hummus as a spice"),
+        ("Eigene Herstellung Bohnensalat", "Feinkost-Salate", "'bohnen' would tin a deli salad"),
+        ("Knorr Salat Krönung", "Mayonnaise & Dressing", "'salat' would make a sachet a salad"),
+        ("EDEKA Herzstücke Ölspray", "Speiseöl", "Konserven's 'oliven' must not precede oils"),
+        ("EDEKA Bio Grüne Oliven", "Konserven", "...while real olives still reach Konserven"),
+        ("Bautz’ner fix Tomatensoße", "Sauce", "Konserven's 'tomaten' must not beat a sauce"),
+        ("Knorr Asia Noodles Chicken Taste", "Fix & Instant", "a cup noodle is not dry pasta"),
+        ("Miracel Whip Salatcreme Original", "Mayonnaise & Dressing",
+         "'creme' would send a salad cream to the spreads"),
+    ],
+)
+def test_pantry_ordering_is_part_of_the_mapping(name, expected, why):
+    got = product_group(name, None, "pantry")[1]
+    assert got == expected, f"{name!r} -> {got!r}, expected {expected!r} because {why}"
+
+
+def test_hefe_is_not_a_bare_token_in_backzutaten():
+    """"hefe" sits inside Hefezopf, Hefe-Röllchen and Hefeweizen, none of which is a baking
+    ingredient — so Backzutaten spells out the actual products. Sabotage: add a bare "hefe"
+    and the pastry below becomes a baking ingredient."""
+    assert product_group("Pagen Gifflar Hefe-Röllchen", None, "pantry") == (None, None)
+    assert product_group("Dr. Oetker Trockenhefe", None, "pantry")[1] == "Backzutaten"
+
+
+def test_a_bread_mis_filed_into_pantry_stays_ungrouped():
+    """The classifier currently files a handful of in-store bakery breads under pantry (a
+    known, separately-tracked bug). Adding bread keywords HERE would paper over it and make
+    the mis-classification invisible, so they stay ungrouped — the honest answer for a product
+    that is in the wrong aisle to begin with."""
+    assert product_group("EDEKA Bio Kräuterröpfe", None, "pantry") == (None, None)
+    assert product_group("ÖLZ Mohnstrudel", None, "pantry") == (None, None)
