@@ -1708,3 +1708,60 @@ help: 11 days is under the limit, because *span* is the wrong discriminator.
 here "a fresh edition starts within a day", unioned with the active set — not merely that it is in
 date. And derive the safety of such a window from the domain's calendar (a weekly ends Saturday
 night, the next starts Monday, so the two can never overlap) rather than picking a number.
+
+## Precedence in a flat first-hit-wins table: run the same key twice
+
+**What it is.** A rules table that is scanned in order, first match wins, can only express one
+priority — the order you wrote it in. When two *different* kinds of signal need different
+precedence, you cannot interleave them; you split the table into passes and let a key appear in
+both.
+
+**Why it came up.** Sub-grouping the `household` chip, the discounters' own brands are the most
+reliable signal (Parkside→tools, Livarno→homeware, Esmara→clothing). But several brands span
+aisles, so "who made it" must lose to "what it is": a CRIVIT *Wendejacke* is clothing, a LIVARNO
+*Steppbett* is bedding, a SILVERCREST *Dampfreiniger* is cleaning. Mixing nouns and brands inside
+each group made all three wrong. The fix was two passes over one list — every head noun first,
+then a second block of tuples carrying only brand tokens and **repeating the same labels**. A
+repeated label is the same slug, so both tuples feed one group.
+
+**Takeaway.** When a flat ordered table needs two levels of precedence, duplicate the key rather
+than reordering within it — and add a test that the second pass introduces no *new* key, since a
+typo'd one silently creates a near-duplicate bucket instead of an error.
+
+## A binary regression gate cannot tell a refinement from a regression
+
+**What it is.** A before/after diff whose failure condition is "this item left the state it was
+in" counts every move as damage. That is right while a change is purely additive, and wrong the
+moment the change is meant to *reclassify* things more precisely.
+
+**Why it came up.** Adding sub-groups to categories that had none was zero-regression by
+construction — the resolver gates on the category before it reads the name, so a new key cannot
+touch another category. The same harness then flagged **48 "regressions"** when the existing maps
+were deepened. Reading them, 46 were `Käse` → `Feta` / `Cheddar` / `Bergkäse`: a move out of the
+map's *generic* bucket into a specific one, which is exactly what deepening means. Only three were
+real (`patros` is a brined white cheese, not a fresh one; an *Ofenkäse* is not a grilling cheese;
+a *Fladenbrot* is bread, not a sandwich).
+
+**Takeaway.** Bucket the transitions instead of counting them: newly-classified, generic→specific,
+and specific→specific or classified→unclassified. Only the last is a regression, and stating that
+split is what makes the number readable. Pairs with the rule that a "0 regressions" score is blind
+to damage inside the fallback bucket — same cause, opposite sign: the failure definition is coarser
+than the thing being measured.
+
+## A test whose fixture an earlier rule already claims never runs the rule it names
+
+**What it is.** In an ordered rules table, a test case is only exercising the rule you think it is
+if no earlier rule matches it first. Otherwise the assertion passes for the wrong reason and the
+rule it was written for is untested.
+
+**Why it came up.** A test for the household brand-fallback pass used `PARKSIDE Absperrkette` — but
+`absperr` is a Werkzeug **head noun**, matched in the first pass, so the case never reached the
+fallback at all. Renaming the fallback's label left the test green. The break→test→restore harness
+reported it NOT-CAUGHT; reading the test had not. A second case was decoration for a different
+reason: a flower-pattern ordering test stopped being order-dependent the moment the bare `blume`
+token it depended on was removed, so it pinned an outcome that was true either way.
+
+**Takeaway.** For an ordered table, choose fixtures that *only* the target rule can match, and let
+a mutation harness confirm it — "the test passes" and "the test tests this" are different claims,
+and only sabotage separates them. Re-check ordering tests after removing any token, since deleting
+a trap can quietly turn its guard test into a tautology.
