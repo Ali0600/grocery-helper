@@ -752,6 +752,120 @@ _DRUGSTORE_GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
 }
 # Snapshot the grocery keys BEFORE the merge, so the collision test below can be derived
 # rather than hand-listed — a literal set stops covering every category added after it.
+# The non-food catch-all, and the one chip where the discounters' OWN BRANDS are the most
+# reliable signal: Parkside is tools, Livarno is homeware, Silvercrest is appliances, Esmara
+# and Lupilu are clothing, Crivit is sport, Gardenline is garden. Each brand keyword therefore
+# sits AFTER the head nouns of its own aisle, because several brands span two ("CRIVIT
+# Wendejacke" is clothing, "CRIVIT Standluftpumpe" is not).
+#
+# Two things are deliberately left UNGROUPED here, both of them classifier findings tracked
+# separately: the ~28 cosmetics that belong in the drugstore aisles, and the handful of edible
+# products the source hangs off a non-food node. Adding tokens for either would paper over the
+# mis-classification and make it invisible — pinned by a test.
+_HOUSEHOLD_GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
+    "household": [
+        # ---- pass 1: HEAD NOUNS. What the thing IS always beats who made it. ----
+        ("Papier & Hygiene", ["taschentücher", "toilettenpapier", "küchenrolle",
+                              "feuchttücher", "serviette", "müllbeutel", "frischhaltefolie",
+                              "alufolie", "backpapier", "inkontinenz", "wattestäbchen"]),
+        ("Bettwaren", ["bettwäsche", "spannbetttuch", "bettlaken", "matratze", "kopfkissen",
+                       "bettdecke", "steppbett", "schlafsack", "lattenrost", "renforcé",
+                       "handtuch", "badetuch", "kissenbezug", "bettbezug", "boxspringbett",
+                       "bettgestell", "daunendecke"]),
+        # Clothing before Garten and Wohnen: these names are full of PATTERN words, and
+        # "Bluse mit BLUMEN-Stickerei" is a blouse, not a bunch of flowers. "schal" is
+        # space/plural-guarded because it is inside "SCHALE", a bowl.
+        # Furniture guard ABOVE Kleidung: "kleid" is inside "KLEIDerschrank".
+        ("Wohnen & Deko", ["kleiderschrank", "kleiderbügel", "kleiderständer",
+                           "schuhregal"]),
+        ("Kleidung & Schuhe", ["shirt", "hose", "shorts", "jacke", "mütze", "socken",
+                               "strumpf", "kleid", "pullover", "sweatshirt", "schals",
+                               " schal,", "pyjama", "schlafanzug", "slipper", "hausschuh",
+                               "jeans", "loungewear", "fäustlinge", "mantel", "bluse",
+                               "sneaker", "sandale", "stiefel", "badeanzug", "bikini",
+                               "unterwäsche", "boxer", "bralette", "weste", "overall", "tunika",
+                               "strickjacke", "handschuhe"]),
+        ("Küche & Geschirr", ["fritteuse", "pfanne", "kochtopf", "topfset", "mixer",
+                              "kochplatte", "espressomaschine", "kaffeemaschine",
+                              "wasserkocher", "toaster", "geschirr", "teller", "tasse",
+                              "schale", "trinkglas", "weinglas", "cocktailgläser",
+                              "gläser-set", "tablett", "besteck", "messer", "isokanne",
+                              "springform", "backblech", "auflaufform", "brotkasten",
+                              "küchenregal", "kombiservice", "wasserfilter", "kontaktgrill",
+                              # "dose"/"thermo" are spelled out: a bare "thermo" caught a
+                              # blood-pressure monitor and a thermal blind, and a bare "dose"
+                              # an "Anspitzer mit AuffangDOSE".
+                              "tischgrill", "vorratsdose", "aufbewahrungsdose",
+                              "frischhaltedose", "thermobecher", "thermoskanne",
+                              "kaffeevollautomat",
+                              "küchenmaschine", "sahnespender", "öffner", "ausstecher",
+                              "spartopf", "maker", "schneidebrett", "waffeleisen",
+                              "mikrowelle", "salatschleuder", "trinkflasche", "sodastream",
+                              "grillzubehör", "grillhelfer", "grillbesteck"]),
+        ("Werkzeug", ["bohr", "säge", "schrauber", "zange", "werkzeug", "schleif",
+                      "kreppband", "steckschlüssel", "bit-set", "hammer", "leiter",
+                      "rollbrett", "werkstatt", "absperr", "schraube", "dübel"]),
+        ("Elektronik", ["bluetooth", "lautsprecher", "kopfhörer", "ladegerät", "usb",
+                        "kabel", "tablet", "smartwatch", "fernseher", "waage", "batterie",
+                        "monitor", "drucker", "pulsoximeter", "blutdruck", "powerbank"]),
+        ("Spielzeug", ["spielzeug", "puzzle", "spielzelt", "wasserballon", "scooter",
+                       "paw patrol", "rainbocorns", "gummitwist", "plüsch", "bausteine",
+                       "malbuch", "flugdrache", "spielset", "playmobil", "kinderküche",
+                       "kratzbaum", "kunststoffeier", "lego"]),
+        ("Auto & Fahrrad", ["mofaroller", "kindersitz", "scheibenwischer", "motoröl",
+                            "fahrrad", "luftpumpe"]),
+        ("Reinigung", ["reinig", "wc-", "putz", "wischmop", "schwamm", "wäscheklammer",
+                       "bügelbrett", "abflusssieb", "staubsauger", "wäschekorb",
+                       "lufterfrischer", "vanish", "duftspray", "fleckenentferner",
+                       "entkalker", "kalkreiniger", "wäscheständer", "wäschespinne"]),
+        # Stationery: no bare "stift" — that is inside LippenSTIFT, and the cosmetics
+        # mis-filed into this chip stay ungrouped on purpose (see the note above).
+        ("Schreibwaren & Büro", ["schreibwaren", "pritt", "anspitzer", "notizbuch", "ordner",
+                                 "kalender", "kugelschreiber", "filzstift", "buntstift",
+                                 "radiergummi", "geschenkband"]),
+        # Travel and event tickets: the flyer really does sell these, and they are neither
+        # a product nor "can't tell".
+        ("Reisen & Erlebnis", ["reisen", "kreuzfahrt", "hotel", "übernachtung",
+                               "halbpension", "rundreise", "flusskreuz", "science center",
+                               "geschenkkarte", "gutschein"]),
+        # "grill" is narrowed to the garden appliances — a "Kontaktgrill" is a kitchen one
+        # and Küche above already took it.
+        ("Garten & Pflanzen", ["pflanze", "pflanzgefäß", "blumenerde", "rosen", "orchidee",
+                               "kaktus", "sedum", "lavendel", "hortensie", "chrysantheme",
+                               "sempervivum", "saaten", "holzkohlegrill", "gasgrill",
+                               "gießkanne", "topfcover", "strauß", "beet", "bonsai",
+                               "gartenschere", "rasen", "holzkohle", "grillanzünder",
+                               # NOT a bare "blume": it is inside "SonnenBLUMEnkerne", which
+                               # is food, and inside the flower-patterned homeware above.
+                               # NOT a bare "aster" either — that is inside "PflASTER".
+                               "blumenstrauß", "blumentopf", "blumenzwiebel", "astern",
+                               "strauch", "hyazinthe", "tulpe", "narzisse", "sonnenschirm"]),
+        ("Sport & Freizeit", ["fitness", "camping", "zelt", "rucksack", "hantel", "yoga",
+                              "wander", "isomatte", "schlauchboot"]),
+        ("Wohnen & Deko", ["kerze", "leuchte", "lampe", "deko", "bilderrahmen", "vase",
+                           "teppich", "kissen", "vorhang", "organizer", "klappbox",
+                           "ordnungskiste", "aufbewahrung", "regal", "geschenkpapier",
+                           "spiegel", " uhr", "windlicht", "duftöl"]),
+        # ---- pass 2: BRAND FALLBACKS. Same labels, so they land in the same group; they
+        # only get a turn once every head noun above has missed. This split is what stops
+        # "CRIVIT Campinglampe" reading as sportswear and "LIVARNO Steppbett" as decor.
+        ("Werkzeug", ["parkside", "workzone", "powerfix"]),
+        ("Kleidung & Schuhe", ["esmara", "lupilu", "up2fashion", "pepperts", "crane",
+                               "livergy"]),
+        ("Küche & Geschirr", ["crofton", "ernesto", "coox", "tognana", "mäser", "brita",
+                              "emsa", "tefal", "kenwood", "wenko", "ambiano",
+                              "silvercrest"]),
+        ("Papier & Hygiene", ["zewa", "hakle", "tempo ", "alouette"]),
+        ("Bettwaren", ["novitesse", "biberna", "badenia"]),
+        ("Garten & Pflanzen", ["gardenline", "florabest"]),
+        ("Spielzeug", ["playtive", "toylino", "casdon"]),
+        ("Sport & Freizeit", ["crivit"]),
+        ("Auto & Fahrrad", ["ultimate speed"]),
+        ("Wohnen & Deko", ["livarno", "home creation", "casalux", "melinera"]),
+    ],
+}
+_GROUPS.update(_HOUSEHOLD_GROUPS)
+
 _GROCERY_GROUP_KEYS = frozenset(_GROUPS)
 # A repeated slug here would SILENTLY replace a grocery map — no error, just a category that
 # quietly stops grouping the way it did. Pinned by

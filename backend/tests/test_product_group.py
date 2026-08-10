@@ -360,7 +360,7 @@ def test_every_category_has_sub_groups():
     from app.product_group import _GROUPS
 
     UNGROUPABLE = {"other"}
-    STILL_TO_MAP = {"household"}
+    STILL_TO_MAP: set[str] = set()
 
     missing = set(CATEGORIES) - set(_GROUPS) - UNGROUPABLE - STILL_TO_MAP
     assert not missing, f"categories with no sub-groups: {sorted(missing)}"
@@ -719,3 +719,112 @@ def test_eis_is_never_a_bare_token():
     assert product_group("Schöller Multiplack-Eis", None, "ice_cream")[1] == "Multipack"
     # A name with no ice-cream word at all stays ungrouped rather than being swept up.
     assert product_group("Deluxe Pistazien-Drink", None, "ice_cream") == (None, None)
+
+
+# --- household: the non-food catch-all -----------------------------------------
+# The discounters' own brands are the most reliable signal here, but they run in a SECOND
+# pass so that what a thing IS always beats who made it.
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("Tempo Taschentücher Box", "Papier & Hygiene"),
+        ("NOVITESSE Renforcé-Spannbetttuch", "Bettwaren"),
+        ("T-Shirt mit Tulpen-Muster & Ripp-Struktur, beige, Gr. 110, 1 St", "Kleidung & Schuhe"),
+        ("UP2FASHION Slipper", "Kleidung & Schuhe"),
+        ("Tefal Pfannenset", "Küche & Geschirr"),
+        ("SILVERCREST Premium-Espressomaschine", "Küche & Geschirr"),
+        ("PARKSIDE Zug-/Kapp- und Gehrungssäge", "Werkzeug"),
+        ("AMBIANO Mini-Bluetooth-Lautsprecher", "Elektronik"),
+        ("GARDENLINE Lavendel", "Garten & Pflanzen"),
+        ("LUPILU PAW Patrol Spielzelt", "Spielzeug"),
+        ("ULTIMATE SPEED Kindersitzerhöhung", "Auto & Fahrrad"),
+        ("Domestos Aktiv Kraft WC-Gel", "Reinigung"),
+        ("HOME CREATION Duftkerze Verbena & Citronella", "Wohnen & Deko"),
+        ("Pritt Stick", "Schreibwaren & Büro"),
+        ("Zalando Geschenkkarte", "Reisen & Erlebnis"),
+    ],
+)
+def test_household_groups_by_aisle(name, expected):
+    assert product_group(name, None, "household")[1] == expected
+
+
+@pytest.mark.parametrize(
+    "name,expected,why",
+    [
+        ("CRIVIT Wendejacke", "Kleidung & Schuhe",
+         "the garment noun must beat the sport brand"),
+        ("CRIVIT Fahrrad-Helm mit Rücklicht", "Auto & Fahrrad",
+         "...and so must the bike noun"),
+        ("CRIVIT Funktionstop", "Sport & Freizeit",
+         "...while the brand still catches what no noun claimed"),
+        ("LIVARNO 4-Jahreszeiten-Steppbett", "Bettwaren",
+         "'livarno' would file bedding as decor"),
+        ("LIVARNO Textil-Kleiderschrank", "Wohnen & Deko",
+         "'kleid' is inside 'KLEIDerschrank' — a wardrobe is furniture"),
+        ("LIVARNO Bett-Tablett", "Küche & Geschirr",
+         "'tablet' is inside 'TABLETt' — a bed tray is not a computer"),
+        ("CRIVIT Sportbrille mit Wechselgläsern", "Sport & Freizeit",
+         "a bare 'gläser' would file sports glasses as drinkware"),
+        ("AMBIANO Mini-Kontaktgrill", "Küche & Geschirr",
+         "a contact grill is a kitchen appliance, not a barbecue"),
+        ("Bepflanzte Zinkschale", "Küche & Geschirr",
+         "'schal' must not fire inside 'SCHALE' — the clothing token is plural-guarded"),
+    ],
+)
+def test_household_head_nouns_beat_the_brand_that_made_it(name, expected, why):
+    got = product_group(name, None, "household")[1]
+    assert got == expected, f"{name!r} -> {got!r}, expected {expected!r} because {why}"
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        # Each of these carries NO head noun from any aisle — the brand is the only signal,
+        # so only the second pass can place them. An earlier version of this test used
+        # "PARKSIDE Absperrkette", which the Werkzeug NOUN "absperr" already catches: it
+        # therefore never reached the brand pass and the test proved nothing (the sabotage
+        # harness reported it NOT-CAUGHT, which is how this was found).
+        ("PARKSIDE Akku-Kombi-gerät", "Werkzeug"),
+        ("ULTIMATE SPEED Autozubehör", "Auto & Fahrrad"),
+        ("SilverCrest Pasta-Maschine", "Küche & Geschirr"),
+        ("LIVARNO home Folienballon/Partyartikel", "Wohnen & Deko"),
+    ],
+)
+def test_the_household_brand_fallback_pass_places_what_no_noun_claimed(name, expected):
+    """The map lists several labels TWICE — once with head nouns, once with brand tokens far
+    below. That split is what makes "what it IS beats who made it" expressible in a flat
+    first-hit-wins table, and a repeated label is the same slug, so both tuples feed one
+    group. Sabotage: rename the brand tuple's label and these stop matching."""
+    assert product_group(name, None, "household")[1] == expected
+
+
+def test_the_household_brand_pass_introduces_no_new_group():
+    """A brand tuple must reuse a label the head-noun pass already defines. A typo'd one
+    would silently create a second, near-duplicate section in the deals list."""
+    from app.product_group import _GROUPS
+    labels = [lbl for lbl, _kws in _GROUPS["household"]]
+    repeated = {lbl for lbl in labels if labels.count(lbl) > 1}
+    assert repeated, "the brand-fallback pass is gone; head nouns no longer outrank brands"
+    # Every label after the first repeat must have appeared before it.
+    first_repeat = next(i for i, lbl in enumerate(labels) if lbl in labels[:i])
+    for i, lbl in enumerate(labels[first_repeat:], start=first_repeat):
+        assert lbl in labels[:i], f"{lbl!r} appears only in the fallback pass"
+
+
+def test_cosmetics_and_food_mis_filed_into_household_stay_ungrouped():
+    """This chip still holds ~63 cosmetics that belong in the drugstore aisles and ~62 edible
+    products the source hangs off a non-food node. Both are tracked classifier findings.
+    Adding tokens for them HERE would paper over the mis-classification and make it invisible
+    — the same call the pantry map makes for the in-store breads."""
+    for name in ("Nivea Q10 Anti-Falten Power", "Colgate Total", "Taft Schaumfestiger"):
+        assert product_group(name, None, "household") == (None, None), name
+    for name in ("GUT&GÜNSTIG Mozzarella", "BABYBEL 9er-Netz", "Frische Schweine Schälrippe"):
+        assert product_group(name, None, "household") == (None, None), name
+    # "SonnenBLUMEnkerne" is the reason Garten carries no bare "blume" token. That guard is
+    # also what keeps a flower-PATTERNED garment out of the flower bed — the clothing nouns
+    # would win anyway, so THIS is the assertion that bites, not an ordering one.
+    assert product_group("EDEKA Bio Sonnenblumenkerne", None, "household") == (None, None)
+    assert product_group("Duftkerze im Glas mit Blumen, 1 St", None,
+                         "household")[1] == "Wohnen & Deko"
