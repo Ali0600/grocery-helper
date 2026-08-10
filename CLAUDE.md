@@ -717,6 +717,32 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   leaf, so `Gesichtspflege für Männer` shares no key with the `gesichtspflege` entry sitting right
   above it and has no parent to fall back to. A test now pins the clothing as correct, so a future
   audit doesn't chase the percentage.
+  **A drugstore product with NO path could not reach its aisle at all, and the ratchet was
+  guarding the smaller half of the drift** (2026-08-09). `_DRUGSTORE_RULES` runs INSIDE layer 1,
+  which only a **non-food path** reaches, so **226 of its 237 tokens were dead for a pathless
+  product** — a pathless "Formil Feinwaschmittel" matched `waschmittel` in the `_RULES`
+  household tuple and stopped there. `test_the_two_drugstore_tables_do_not_drift_further` only
+  ever checked the opposite direction (31 layer-2 tokens dead for a *pathed* product).
+  - **The fix is data, not a new layer.** `_RULES` is already ordered first-hit-wins with
+    `household` LAST, so `_RULES[-1:-1] = …` splices the aisles in immediately before it: every
+    food tuple has had its turn, and an aisle token can only catch what was going to be
+    `household`/`other` anyway — zero-regression by construction. Splicing (not copying) keeps
+    ONE source of truth so the two placements cannot drift.
+  - **Live impact is small and that is worth knowing before repeating the work**: 5 products
+    moved (Formil, two Pampers, a dishwasher salt, a body mist). Nearly every drugstore product
+    really does arrive with a non-food path. The value is that the 226 tokens stop lying.
+  - **German compounds hide a toiletry inside a food word**, so the aisles need GUARDS above the
+    food tuples: `mundwasser`/`gesichtswasser`/`mizellenwasser` (vs `wasser`), `zahnpasta` (vs
+    `pasta`), `körpermilch`/`sonnenmilch`/`muttermilch`/`scheuermilch` (vs `milch`),
+    `hustenbonbon` (vs `bonbon`), `wasserenthärter` (vs `wasser`). Every one is already correct
+    today via its path — which is exactly why the guard is needed now, since the failure is
+    invisible until a chain ships one without a path.
+  - **Nine tokens were DELETED from the household tuple** (`shampoo`, `duschgel`, `zahnbürste`,
+    `rasierer`, `windel`, `weichspüler`, `spülmittel`, `spülmaschinen`, `waschmittel`): they
+    predate the drugstore aisles, which now own them, so the copies were dead code.
+  - **Still open**: `BRAND_CATEGORY["nivea"] = "household"` decides at layer 4 and outranks these
+    guards, so a pathless "Nivea Sun Sonnenmilch" is still household. Nivea spans body/face/sun,
+    so re-pointing it needs its own corpus diff.
   **Don't hardcode absolute `_FORM_OVERRIDES` indices in tests** — inserting a guard shifts them
   all; derive the index instead (two trace tests were fixed this way).
   **`_FORM_OVERRIDES` is first-hit-wins, so ORDER is part of the fix.** Two guards had to be

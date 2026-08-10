@@ -464,7 +464,10 @@ def test_classify_without_a_caption_is_unchanged():
         ("GUT&GÜNSTIG Apfelsaft", "GUT&GÜNSTIG", "soft_drinks", "a real juice still wins"),
         ("Rauch Happy Day Saft", "Rauch", "soft_drinks", "a real juice still wins"),
         # "spezi" fires inside Spezialsalz / Spezialmehl / Käsespezialitäten.
-        ("GUT&GÜNSTIG Spülmaschinen-Spezialsalz", "GUT&GÜNSTIG", "household", "dishwasher salt"),
+        # Was `household` until the drugstore aisles were spliced into `_RULES` (2026-08-09);
+        # dishwasher salt is a cleaning product, so this is the better answer. The guard's own
+        # intent is unchanged and is what the `why` still names: `spezi` must not claim it.
+        ("GUT&GÜNSTIG Spülmaschinen-Spezialsalz", "GUT&GÜNSTIG", "cleaning", "not a Spezi"),
         ("Italiamo Spezialmehl", "ITALIAMO", "pantry", "special flour"),
         ("Krombacher Spezi", "Krombacher", "soft_drinks", "the real Spezi still wins"),
         ("Milbona Hartkäse Spezialitäten", "Milbona", "cheese", "Spezialitäten is not Spezi"),
@@ -2799,3 +2802,52 @@ def test_a_micellar_water_is_not_a_drink():
     """`wasser` had "LACURA Mizellenwasser" in `soft_drinks` — a facial cleanser in the
     beverages chip."""
     assert classify("LACURA Mizellenwasser", "LACURA", None, "Mit Macadamianussöl 400-ml") == "face"
+
+
+# --- 2026-08-09: drugstore aisles reachable without a path -----------------------------------
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [("Formil Feinwaschmittel", "laundry"), ("Alpecin Coffein Shampoo", "hair"),
+     ("Sensodyne Zahnpasta", "dental"), ("Frosch Scheuermilch", "cleaning"),
+     ("Pampers Baby Dry", "baby")],
+)
+def test_a_drugstore_product_reaches_its_aisle_without_a_path(name, expected):
+    """`_DRUGSTORE_RULES` runs INSIDE layer 1, which only a NON-FOOD path reaches — so 226 of
+    its 237 tokens were dead for a product with no path at all. A pathless "Formil
+    Feinwaschmittel" matched `waschmittel` in the household tuple at layer 6 and stopped there.
+
+    The drift ratchet had only ever guarded the other direction (31 layer-2 tokens dead for a
+    PATHED product), so the larger half was silent. Fixed with data, not a new layer: the aisles
+    are spliced into `_RULES` immediately before the household tuple.
+    """
+    assert classify(name, None) == expected
+
+
+def test_the_spliced_aisles_cannot_reach_a_product_a_food_rule_wants():
+    """What makes the splice zero-regression: it sits AFTER every food tuple, so a drugstore
+    token can only ever catch something that was going to be `household` or `other` anyway.
+    Measured over the corpus: 5 products moved, 0 out of a real category.
+
+    `Bio Kokosmilch` is the case that proves the ordering — `milch` (dairy, tuple 22) has to win
+    over the `body` aisle, which carries `körpermilch`/`sonnenmilch`."""
+    assert classify("Bio Kokosmilch", None) == "dairy"
+    assert classify("GUT&GÜNSTIG Apfelsaft", "GUT&GÜNSTIG") == "soft_drinks"
+
+
+@pytest.mark.parametrize(
+    "name, expected, swallowed_by",
+    [("Odol-med3 Mundwasser", "dental", "`wasser` -> soft_drinks"),
+     ("Sensodyne Zahnpasta", "dental", "`pasta` -> pantry"),
+     ("Isana Med Körpermilch", "body", "`milch` -> dairy"),
+     ("Em-eukal Hustenbonbon", "health", "`bonbon` -> sweets"),
+     ("Calgon Wasserenthärter", "laundry", "`wasser` -> soft_drinks"),
+     ("Frosch Scheuermilch", "cleaning", "`milch` -> dairy")],
+)
+def test_german_compounds_that_hide_a_toiletry_inside_a_food_word(name, expected, swallowed_by):
+    """German compounding puts a food word inside a toiletry, so the aisles needed guards ABOVE
+    the food tuples. Every one of these is already correct in today's corpus — decided at layer
+    1 by its non-food path — which is exactly why the guard has to exist now: the failure is
+    invisible until a chain ships one of these WITHOUT a path."""
+    assert classify(name, None) == expected, f"would be swallowed by {swallowed_by}"

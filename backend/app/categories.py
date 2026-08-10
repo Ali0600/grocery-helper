@@ -172,6 +172,24 @@ _PATH_MAP: dict[str, str] = {
 
 # (slug, [German keywords]); first matching rule wins.
 _RULES: list[tuple[str, list[str]]] = [
+    # --- Drugstore compounds that a FOOD token would otherwise swallow -----------------------
+    # German compounding puts a food word inside a toiletry: a Mundwasser contains "wasser"
+    # (soft_drinks), a Zahnpasta contains "pasta" (pantry), a Körper-/Sonnenmilch contains
+    # "milch" (dairy). The drugstore aisles are spliced in near the END of this table (see the
+    # note by `_DRUGSTORE_RULES`), so without these guards those food tokens win first — which
+    # the shadowing ratchet correctly refused to let through.
+    #
+    # These only ever matter for a PATHLESS product: every one of these currently in the corpus
+    # is already right, decided at layer 1 by its non-food path. That is exactly why the guard
+    # belongs here rather than being "fixed later" — the failure is invisible until a chain
+    # ships one of these without a path.
+    ("dental", ["zahnpasta", "mundwasser"]),
+    ("face", ["mizellenwasser", "gesichtswasser"]),
+    ("body", ["körpermilch", "sonnenmilch"]),
+    ("baby", ["muttermilch"]),
+    ("health", ["hustenbonbon"]),                 # a cough sweet, not a `bonbon`
+    ("cleaning", ["scheuermilch"]),               # scouring cream, not `milch`
+    ("laundry", ["wasserenthärter"]),             # a water softener, not `wasser`
     # --- 2026-07-31 image audit -------------------------------------------------------------
     # Found by reading contact sheets of every served product photo, which is the only thing
     # that settles a product whose name, brand, path AND caption all read plausibly for the
@@ -435,13 +453,18 @@ _RULES: list[tuple[str, list[str]]] = [
     # 2026-08-09: syrups, a honey speciality, a canned pulse and fresh pasta, all of which the
     # flyers publish under a brand-leaf path that carries no category.
     "ahornsirup", "gelée royale", "bihophar", "weiße bohnen", "eierspätzle"]),
-    ("household", ["spülmittel", "spuelmittel", "spülmaschinen", "waschmittel", "toilettenpapier", "küchenrolle", "reiniger",
-                   "windel", "müllbeutel", "weichspüler", "oleander", "pflanze", "blume", "kleid", "jacke", "schuhe",
+    ("household", [
+    # NB: `shampoo`, `duschgel`, `zahnbürste`, `rasierer`, `windel`,
+    # `weichspüler`, `spülmittel`, `spülmaschinen` and `waschmittel` were REMOVED here on
+    # 2026-08-09. They predate the drugstore aisles, which are now spliced in above this
+    # tuple and own them — so the copies were dead code, and the shadowing ratchet said so.
+"toilettenpapier", "küchenrolle", "reiniger",
+                   "müllbeutel", "oleander", "pflanze", "blume", "kleid", "jacke", "schuhe",
                    "garten", "werkzeug", "kissen", "bettdecke", "matratze", "wäschest", "haushaltshelfer",
                    "küchenhelfer", "rätselbuch", "autozubehör", "grillhelfer", "grillzubehör", "schreibwaren",
                    "geschenkpapier", "reinigung", "e-bike", "e-scooter", "ventilator", "staubsauger", "klimagerät",
-                   "luftkühler", "bügeleisen", "bügelstation", "fritteuse", "shampoo", "duschgel", "zahnbürste",
-                   "rasierer", "haartrockner", "batterien", "kosmetik", "sonnenschutz", "pavillon", "fahrradträger",
+                   "luftkühler", "bügeleisen", "bügelstation", "fritteuse",
+                   "haartrockner", "batterien", "kosmetik", "sonnenschutz", "pavillon", "fahrradträger",
                    # "chrysanthem" (not the plural) also catches the singular "Chrysantheme".
                    "fahrradanhänger", "wanduhr", "kühltasche", "chrysanthem", "lavendel", "palme", "kreuzfahrt", "hotel",
                    "holzkohle", "grillkohle", "brikett", "grillmatte", "haushaltstuch", "müllbeutel", "papierbeutel",
@@ -1488,6 +1511,22 @@ _DRUGSTORE_RULES: list[tuple[str, list[str]]] = [
              "cesar hund", "winston hund", "gourmet gold", "gourmet revelations",
              "lieblings-sticks"]),
 ]
+
+# `_DRUGSTORE_RULES` above runs INSIDE layer 1, which is only reached by a product carrying a
+# NON-FOOD path. That left 226 of its 237 tokens dead for a product with no path at all (or a
+# food-root one): a pathless "Formil Feinwaschmittel" matched `waschmittel` in the household
+# tuple at layer 6 and stopped there, because no drugstore slug appears in `_RULES`. Measured
+# 2026-08-09 — the ratchet test only ever guarded the OTHER direction (31 layer-2 tokens dead
+# for a pathed product), so the larger half of the drift was silent.
+#
+# The fix is data, not a new layer. `_RULES` is already an ordered first-hit-wins list whose
+# LAST tuple is `household`, so splicing the aisles in immediately before it gives exactly the
+# gate we want: every food tuple has already had its turn, and a drugstore token can only ever
+# catch a product that was going to be `household` or `other` anyway. Zero-regression by
+# construction — the same argument as appending to the last tuple.
+#
+# Splicing rather than copying keeps ONE source of truth, so the two placements cannot drift.
+_RULES[-1:-1] = [(slug, list(tokens)) for slug, tokens in _DRUGSTORE_RULES if slug != "household"]
 
 
 # --------------------------------------------------------------------------------------
