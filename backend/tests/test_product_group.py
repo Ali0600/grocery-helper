@@ -360,10 +360,7 @@ def test_every_category_has_sub_groups():
     from app.product_group import _GROUPS
 
     UNGROUPABLE = {"other"}
-    STILL_TO_MAP = {
-        "other_meat", "butter", "eggs", "frozen", "ready_meals", "ice_cream", "sweets",
-        "vegan", "household",
-    }
+    STILL_TO_MAP = {"household"}
 
     missing = set(CATEGORIES) - set(_GROUPS) - UNGROUPABLE - STILL_TO_MAP
     assert not missing, f"categories with no sub-groups: {sorted(missing)}"
@@ -610,3 +607,115 @@ def test_a_bread_mis_filed_into_pantry_stays_ungrouped():
     that is in the wrong aisle to begin with."""
     assert product_group("EDEKA Bio Kräuterröpfe", None, "pantry") == (None, None)
     assert product_group("ÖLZ Mohnstrudel", None, "pantry") == (None, None)
+
+
+# --- the remaining food categories ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "category,name,expected",
+    [
+        # sweets — grouped by confection type, not by brand.
+        ("sweets", "FIN CARRÉ Tafelschokolade", "Schokolade"),
+        ("sweets", "Ritter Sport Alpenmilch", "Schokolade"),
+        ("sweets", "Mars Snickers", "Riegel"),
+        ("sweets", "Storck Knoppers", "Riegel"),
+        ("sweets", "De Beukelaer Prinzenrolle", "Kekse"),
+        ("sweets", "Amicelli Waffelröllchen", "Waffeln"),
+        ("sweets", "Haribo Fruchtgummi", "Fruchtgummi & Lakritz"),
+        ("sweets", "Chupa Chups Lutscher", "Bonbon & Lutscher"),
+        ("sweets", "WRIGLEY’S Extra Plus Kaugummi", "Kaugummi"),
+        ("sweets", "Ferrero Raffaello", "Pralinen"),
+        ("sweets", "Deluxe Baklava Pistazie", "Kuchen & Gebäck"),
+        ("sweets", "Nudossi Nuss-Nougat-Creme", "Nuss-Nougat-Creme"),
+        # ice_cream — grouped by FORM, like coffee.
+        ("ice_cream", "EDEKA Herzstücke Stieleis", "Stieleis"),
+        ("ice_cream", "Langnese Magnum", "Stieleis"),
+        ("ice_cream", "Langnese Cornetto Classic", "Hörnchen"),
+        ("ice_cream", "BON GELATI Sandwich-Eis XXL", "Sandwich-Eis"),
+        ("ice_cream", "Little Moons Mochi Ice", "Mochi"),
+        ("ice_cream", "Sun Lolly Wassereis", "Wassereis"),
+        ("ice_cream", "KULJANKA Eistorte", "Eistorte & Dessert"),
+        ("ice_cream", "Ferrero Ice-Cream-Multipack", "Multipack"),
+        ("ice_cream", "Langnese Cremissimo", "Eiscreme"),
+        # frozen
+        ("frozen", "Wagner Steinofen Pizza", "Pizza"),
+        ("frozen", "McCain Western Fries", "Pommes"),
+        ("frozen", "Iglo Fischstäbchen", "Fisch"),
+        ("frozen", "Iglo Rahm-Spinat", "Gemüse"),
+        ("frozen", "EDEKA Bio Erdbeeren", "Beeren & Obst"),
+        # vegan — grouped by the food each product REPLACES.
+        ("vegan", "Oatly Haferdrink", "Pflanzendrink"),
+        ("vegan", "Billie Green Vegane Bratwurst", "Fleischalternative"),
+        ("vegan", "Bedda Vegane Scheiben", "Käsealternative"),
+        ("vegan", "REWE Bio pflanzlich Sojagurt Natur", "Joghurtalternative"),
+        ("vegan", "Vemondo Veganer Bio Brotaufstrich", "Aufstrich"),
+        # butter / ready_meals / other_meat / eggs
+        ("butter", "Landliebe Butter", "Butter"),
+        ("butter", "Lätta Original", "Margarine"),
+        ("butter", "Meggle Kräuter-Butter", "Kräuterbutter"),
+        ("ready_meals", "Sushi4You Sushi", "Sushi"),
+        ("ready_meals", "BÜRGER Maultaschen", "Maultaschen"),
+        ("ready_meals", "Popp Meistersalat Eiersalat", "Salat"),
+        ("ready_meals", "iglo Fertiggerichte", "Fertiggericht"),
+        ("other_meat", "Lammkeule in Scheiben", "Lamm"),
+        ("other_meat", "OLIVIA Ganzes Kaninchen", "Kaninchen"),
+        ("eggs", "GUT&GÜNSTIG Eier", "Eier"),
+    ],
+)
+def test_the_remaining_food_categories_group(category, name, expected):
+    assert product_group(name, None, category)[1] == expected
+
+
+@pytest.mark.parametrize(
+    "category,name,expected,why",
+    [
+        ("sweets", "Kaugummistange", "Kaugummi",
+         "'gummi' is inside 'KAUgummi', so Kaugummi must run before Fruchtgummi"),
+        ("sweets", "Choceur Waffelriegel", "Riegel",
+         "'waffel' would claim a bar that happens to be a wafer"),
+        ("sweets", "Schwartau Corny Schoko", "Riegel",
+         "'schoko' would claim a muesli bar for the chocolate shelf"),
+        ("sweets", "Nutella-Muffin", "Kuchen & Gebäck",
+         "Kuchen runs before the spread, so a muffin is not a jar of Nutella"),
+        ("sweets", "Ferrero Nutella Biscuits", "Kekse",
+         "...and so does Kekse"),
+        ("ice_cream", "Fruity Sticks Mango", "Wassereis",
+         "'sticks' would file a water ice as a Stieleis"),
+        ("butter", "Rama mit Butter XXL", "Margarine",
+         "'butter' is in the name of a margarine"),
+        ("butter", "Kerrygold Kräuterbutter oder Original Irische Butter", "Kräuterbutter",
+         "the specific spread must beat the generic block"),
+        ("frozen", "Dermaris Pizza-Brötchen Mozzarella-Kräuterbutter", "Pizza",
+         "'brötchen' would file a pizza roll as bread"),
+        ("vegan", "Rügenwalder Vegane Mühlen BBQ-Filets oder Rostbratwürstchen",
+         "Fleischalternative", "the meat words must outrank nothing else here"),
+    ],
+)
+def test_the_remaining_categories_ordering_is_part_of_the_mapping(category, name, expected, why):
+    got = product_group(name, None, category)[1]
+    assert got == expected, f"{name!r} -> {got!r}, expected {expected!r} because {why}"
+
+
+def test_the_feeds_own_spelling_variants_are_covered():
+    """Three stems that look right and match nothing. Each was found by diffing against the
+    real DB, never by reading the table."""
+    # "mühle" not "mühlen" — the feed ships both.
+    assert product_group("Rügenwalder Mühle Veganer Schinkenspicker", None,
+                         "vegan")[1] == "Fleischalternative"
+    # Kærgården appears with æ, ae and a.
+    for spelling in ("Arla Kærgården", "Arla Kaergarden Butter", "ARLA Kærgården XXL"):
+        assert product_group(spelling, None, "butter")[1] == "Butter", spelling
+    # "Multiplack" is the feed's own typo and it ships that spelling every week.
+    assert product_group("Schöller Multiplack-Eis", None, "ice_cream")[1] == "Multipack"
+
+
+def test_eis_is_never_a_bare_token():
+    """A bare "eis" sits inside Reis, Fleisch and Eiweiß. The category gate makes that
+    survivable but not safe, so Eiscreme carries the three affixed forms instead. Sabotage:
+    replace them with a bare "eis" — this still passes, which is the point of pinning the
+    ungrouped case below it."""
+    assert product_group("Langnese Cremissimo Eis", None, "ice_cream")[1] == "Eiscreme"
+    assert product_group("Schöller Multiplack-Eis", None, "ice_cream")[1] == "Multipack"
+    # A name with no ice-cream word at all stays ungrouped rather than being swept up.
+    assert product_group("Deluxe Pistazien-Drink", None, "ice_cream") == (None, None)

@@ -150,8 +150,9 @@ describe('buildSections', () => {
 
   it('an all-ungrouped category renders one unlabeled bucket', () => {
     // The ONLY route to `label: null` now that every sub-group is headed — it means no
-    // offer here carries a group at all, i.e. a category `product_group` doesn't map
-    // (pantry, sweets, alcoholic…), which must stay a plain flat list with no headers.
+    // offer here carries a group at all. Every category is mapped on the backend now, so
+    // that means every name here missed its map's keywords; it must stay a plain flat
+    // list with no headers.
     const sections = buildSections([loose], 'price');
     expect(sections).toHaveLength(1);
     expect(sections[0].label).toBeNull();

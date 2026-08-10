@@ -146,6 +146,13 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         ("Bacon", ["bacon", "frühstücksspeck", "speck"]),
         ("Wurst", ["wurst", "würstchen", "lyoner", "fleischwurst"]),  # generic
     ],
+    # Thin by design (~2 offers/week) but mapped so the chip is structured whenever the
+    # butcher does run lamb alongside game.
+    "other_meat": [
+        ("Lamm", ["lamm"]),
+        ("Kaninchen", ["kaninchen", "hase"]),
+        ("Wild", ["wild", "reh", "hirsch", "wildschwein"]),
+    ],
     "fish": [
         ("Seelachs", ["seelachs"]),  # before Lachs ("lachs" ⊂ "seelachs")
         ("Lachs", ["lachs"]),
@@ -158,6 +165,19 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         ("Sardine", ["sardine", "sardelle"]),
         ("Makrele", ["makrele"]),
         ("Fischstäbchen", ["fischstäbchen", "stäbchen"]),
+    ],
+    "butter": [
+        # Kräuterbutter and Margarine both before the generic Butter: "Rama MIT BUTTER" and
+        # "Kerrygold KräuterBUTTER" both contain it, and neither is a plain block of butter.
+        # The feed hyphenates it both ways ("Kräuterbutter" and "Kräuter-Butter"), and the
+        # brand tokens in Butter below would swallow the hyphenated one.
+        ("Kräuterbutter", ["kräuterbutter", "kräuter-butter", "knoblauchbutter",
+                           "grillbutter"]),
+        ("Margarine", ["margarine", "streichfett", "streichzart", "halbfettbutter", "rama",
+                       "lätta", "becel", "deli reform", "sanella", "cremefine", "culinesse"]),
+        # Label fixed by mobile's catalog `butter` item. Kærgården is spelled three ways in
+        # the feed (æ / ae / a) and none of them contains "butter".
+        ("Butter", ["butter", "kærgård", "kaergård", "kaergarden", "kerrygold", "meggle"]),
     ],
     "cheese": [
         ("Frischkäse", ["frischkäse"]),  # before the generic Käse
@@ -182,6 +202,10 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
         ("Pudding", ["pudding"]),
         ("Schmand", ["schmand", "crème fraîche", "creme fraiche"]),
         ("Kefir", ["kefir"]),
+    ],
+    # Deliberately thin: the feed carries ~2 branded egg offers a week, all of them "Eier".
+    "eggs": [
+        ("Eier", ["eier", "freilandei"]),
     ],
     "bakery": [
         ("Brötchen", ["brötchen", "broetchen", "semmel", "schrippe"]),
@@ -240,6 +264,116 @@ _GROUPS: Dict[str, List[Tuple[str, List[str]]]] = {
                     "sprechquell", "sanpellegrino", "adelholzener", "aquintell", "near water",
                     "active o2", "vitamin-water", "vitamin water", "kokoswasser",
                     "kokosnusswasser"]),
+    ],
+    # Pizza is 37% of this chip on its own. It runs FIRST so "Pizza-Brötchen" and
+    # "Pizzatasche" are pizza rather than bread, and so Wagner's Flammkuchen (sold alongside
+    # its pizzas, same shelf, same question) sits with them.
+    "frozen": [
+        ("Pizza", ["pizza", "pinsa", "flammkuchen", "piccolini", "backfrische", "ofenfrische",
+                   "steinofen", "wagner", "gustavo", "ristorante", "margherita", "salame"]),
+        ("Pommes", ["pommes", "frites", "fries", "wedges", "rösti", "kroketten", "mccain",
+                    "golden longs"]),
+        # Gemüse before Fisch: iglo makes both, so no bare "iglo" token exists in either.
+        ("Gemüse", ["gemüse", "spinat", "erbsen", "edamame", "rahm-", "buttergemüse",
+                    "gemüsepfanne", "bohnen"]),
+        ("Fisch", ["fischstäbchen", "schlemmerfilet", "filegro", "backfisch", "seelachs",
+                   "müllerin", "bordelaise", "knusprig kross"]),
+        ("Beeren & Obst", ["erdbeeren", "himbeeren", "heidelbeeren", "beerenmix", "mango"]),
+        ("Backwaren", ["brötchen", "plätzli", "burrito", "baguette", "teigtaschen"]),
+    ],
+    "ready_meals": [
+        ("Sushi", ["sushi"]),
+        ("Maultaschen", ["maultaschen", "bürger"]),
+        ("Döner & Wrap", ["döner", "kebab", "wrap", "im brötchen", "burrito"]),
+        # "salat" here is the deli tub (Kartoffel-/Eier-/Fleischsalat) the user filed under
+        # ready meals — a finished single serving.
+        ("Salat", ["kartoffelsalat", "eiersalat", "meistersalat", "nudelsalat", "salat"]),
+        ("Eintopf", ["eintopf", "eintöpfe", "suppe"]),
+        ("Fertiggericht", ["fertiggericht", "youcook", "frosta", "curry king", "meica",
+                           "bechergericht", "gericht", "mahlzeit"]),
+    ],
+    # Grouped by FORM, exactly like coffee: a Magnum on a stick, a 900 ml tub and a box of
+    # multipack cones are not substitutes, so "which is cheapest" is only fair within a form.
+    "ice_cream": [
+        # Wassereis before Stieleis: "Fruity STICKS" is a water ice, and both carry "sticks".
+        ("Wassereis", ["wassereis", "fruity sticks", "eisfrüchte", "sun lolly", "flutschfinger",
+                       "pops", "rocket", "calippo"]),
+        ("Stieleis", ["stieleis", "am stiel", "magnum", "eissticks", "cuja mara", "split",
+                      "nogger", "sticks", "figgo", "ice-bites", "pirulo"]),
+        ("Hörnchen", ["hörnchen", "cornetto", "cornetti", "nussini"]),
+        ("Sandwich-Eis", ["sandwich"]),
+        ("Mochi", ["mochi", "little moons"]),
+        ("Eistorte & Dessert", ["eistorte", "eisbecher", "spaghetti-eis", "eis-dessert",
+                                "dessert", "mousse"]),
+        # "multiplack" is the feed's own typo, and it ships that spelling every week.
+        ("Multipack", ["multipack", "multiplack", "mini mix", "cool-lection", "eisbox",
+                       "remix"]),
+        # Everything else is a tub of ice cream — the default form, so it goes last. "eis" is
+        # never bare (it sits inside Reis, Fleisch, Eiweiß); the three affixed forms below
+        # cover "… Eis", "Eis …" and the hyphenated "Multiplack-Eis".
+        ("Eiscreme", ["eiscreme", "cremissimo", "ice cream", "iced", "ben & jerry",
+                      "ben & jerry’s", "mövenpick", "häagen", "plombir", "gelato", "oreo",
+                      "langnese", "mucci", " eis", "eis ", "-eis"]),
+    ],
+    "sweets": [
+        # Riegel/Kekse/Waffeln before Schokolade: "SchokoRIEGEL", "SchokoKEKSE" and
+        # "WaffelRIEGEL" all contain the word for the thing they are not.
+        ("Riegel", ["riegel", "snickers", "mars", "bounty", "twix", "balisto", "lion",
+                    "kinder bueno", "duplo", "hanuta", "knoppers", "corny", "maxi king",
+                    "pick up", "ahead bar", "clif bar", "kit kat", "milky way",
+                    "milchschnitte", "pingui", "delice"]),
+        ("Kekse", ["keks", "cookie", "prinzenrolle", "prinzen rolle", "leibniz", "biscuit",
+                   "cantuccini", "baiocchi", "bahlsen", "cereola", "butterkeks", "spekulatius",
+                   "soft cake"]),
+        ("Waffeln", ["waffel", "amicelli", "manner", "biscotto", "hippo"]),
+        # Kaugummi BEFORE Fruchtgummi: "gummi" is inside "KAUgummistange", so a pack of
+        # chewing gum was being served as jelly sweets.
+        ("Kaugummi", ["kaugummi", "wrigley", "airwaves", "orbit", "extra professional"]),
+        ("Fruchtgummi & Lakritz", ["fruchtgummi", "gummi", "haribo", "katjes", "hitschler",
+                                   "hitschies", "lakritz", "weingummi", "riesenmäuse",
+                                   "maoam", "trolli", "mamba", "jelly bean", "drachenzungen",
+                                   "fruchtmix", "softmix", "fruchtschnitte"]),
+        ("Bonbon & Lutscher", ["bonbon", "lutscher", "chupa chups", "brause", "tic tac",
+                               "pastillen", "mints", "dextro", "kaustreifen", "fritt",
+                               "werther"]),
+        ("Pralinen", ["praline", "raffaello", "rocher", "celebrations", "mon chéri",
+                      "toffifee", "merci", "daim", "orangetten", "trüffel", "schoko-bons",
+                      "halloren", "nippon", "dickmann", "smarties", "m&m", "choco crossies",
+                      "mikado"]),
+        ("Kuchen & Gebäck", ["kuchen", "gebäck", "baklava", "muffin", "donut", "stollen",
+                             "comtess", "cheesecake", "törtchen", "plätzchen", "profiteroles",
+                             "linzer"]),
+        # After Kuchen/Kekse/Riegel, so "Nutella-Muffin" is cake and "Nutella Biscuits" a
+        # biscuit — the jar is the only thing left.
+        ("Nuss-Nougat-Creme", ["nuss-nougat", "nougatcreme", "haselnuss-creme", "schokocreme",
+                               "nutella", "nudossi", "cream wave"]),
+        # Generic/last: label spelled the catalog's way (`chocolate` -> "Schokolade").
+        ("Schokolade", ["schokolade", "tafelschokolade", "schoko", "milka", "ritter sport",
+                        "schogetten", "fin carré", "choceur", "yogurette", "kinder country",
+                        "kinderschokolade", "moser roth", "chokis", "bambina", "tony's",
+                        "storck nuss", "knister-pop"]),
+    ],
+    # Vegan is cross-cutting — a vegan cheese is filed here, not under cheese — so its members
+    # are heterogeneous and the only useful grouping is by the food each one REPLACES.
+    "vegan": [
+        ("Pflanzendrink", ["haferdrink", "mandeldrink", "sojadrink", "soya", "not milk",
+                           "no milk", "not mlk", "barista", "oatly", "alpro",
+                           "kokosnuss-drink", "mandel-drink", "pflanzendrink", "hafercreme",
+                           "creme cuisine", "cremefine"]),
+        ("Käsealternative", ["scheiben", "käsealternative", "veganer käse", "bedda",
+                             "simply v", "hirtengenuss"]),
+        ("Joghurtalternative", ["sojagurt", "joghurt", "jogurt", "skyr"]),
+        ("Aufstrich", ["streichcreme", "brotaufstrich", "kräuter-tube", "aufstrich", "pesto",
+                       "no butter", "butteralternative"]),
+        ("Süßes", ["torte", "bienenstich", "proteinriegel", "riegel", "kekse", "muffin",
+                   "schokolade", "treets"]),
+        # Last and broadest: everything else in this chip is a meat substitute.
+        ("Fleischalternative", ["schnitzel", "bratwurst", "salami", "geschnetzeltes",
+                                "frikadellen", "steak", "döner", "gyros", "cevapcici", "hack",
+                                "fleischalternative", "bällchen", "aufschnitt", "nuggets",
+                                "räucherlaxxs", "filets", "pommersche", "wurst", "würst",
+                                # "mühle" not "mühlen" — the feed ships both spellings.
+                                "schinkenspicker", "mühle"]),
     ],
     # Grouped by DRINK TYPE. Two thirds of these names are a bare brand ("Jägermeister",
     # "Aperol", "Heineken") with no type word at all, so each type carries its brands after
