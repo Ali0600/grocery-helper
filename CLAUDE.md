@@ -916,6 +916,51 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     FOODS ending in it (a cooking cream, a chocolate). Ungrouped is the honest answer there.
   - `household` is deliberately NOT mapped — it is the "can't tell" bucket (lamps, cutlery,
     clothing) and the Basket excludes it anyway.
+  **EVERY category is being mapped** (2026-08-10, user's call: "I want each category to have sub
+  categories"). Measured before starting: **61% of served offers carried no sub-group** — 339 in
+  10 unmapped FOOD categories, 564 in `household`, and 247 sitting in the *tail* of maps that
+  already exist (cheese 42% ungrouped, dairy 42%, pork 38%, bakery 35%). `other` stays unmapped
+  on purpose — it is the classifier's fallback, is driven toward zero by the weekly audit, and
+  its contents are unclassifiable by construction.
+  - **Adding a map for a currently-unmapped category is 0-regression BY CONSTRUCTION**:
+    `product_group` gates on `_GROUPS.get(category)` *before* it reads the name, so a new key
+    cannot move an offer in any other category. Only deepening an EXISTING map can regress, and
+    that needs the full corpus diff.
+  - **`test_every_category_has_sub_groups` is a two-way RATCHET**: a category outside its
+    `STILL_TO_MAP` list that has no map fails, AND a `STILL_TO_MAP` entry that has since been
+    mapped fails as stale — so finishing one forces its removal. `_GROCERY_GROUP_KEYS` is now
+    snapshotted at the `_GROUPS.update()` line so the drugstore-collision test derives its
+    grocery set instead of carrying a 12-slug literal that silently stopped covering new keys.
+  - **A label the mobile catalog already covers MUST be spelled the catalog's way.**
+    `basketResolve.subGroupItem` matches a group label against `GROCERY_CATALOG` by exact
+    equality (German name, then each keyword) and a hit wins, because catalog entries carry
+    `exclude` guards a synthesized `grp:` item has not. So **"Nudeln"** (not "Pasta"),
+    **"Müsli"** (not "Müsli & Cerealien"), "Bier", "Reis", "Mehl", "Zucker", "Speiseöl",
+    "Butter", "Schokolade". A label that misses does not merely look different — it mints a
+    second basket item and the same product occupies two rows. Pinned by a test.
+  - **`alcoholic` (2026-08-10): 12 groups, 98.5% of 615 distinct names.** Two thirds of these
+    names are a bare brand with no type word ("Jägermeister", "Aperol", "Heineken"), so each
+    type carries its brands after its type words — the convention `soft_drinks` uses for Volvic.
+    A brand token is far safer here than in `categories.py` for the usual category-gate reason.
+    Four ordering facts, every one caught by reading what each group CAUGHT, none by reading the
+    code: **Mixgetränke runs first** (a 0,33 l "Jack Daniel's Cola" can is not a substitute for
+    the bottle — the same form-not-brand argument coffee makes for capsules vs beans);
+    **Likör before Whisky** (`whisky` fires inside "WhiskyGESCHMACK", so Fireball and Irish Mist
+    were being served as whisky); **Sekt and Cider before Wein** (`schaumwein`/`apfelwein` both
+    contain `wein`); **Bier before Spirituosen** (or "Salitos Tequila Beer" is a tequila).
+    `gin` and `rum` are space-guarded pairs (` gin`/`gin `) because both sit inside "**ORI**GIN**AL**"
+    and "t**RUM**pf" — "Havana Club Original" was the tell. `karlsberg` is deliberately NOT a
+    Bier token: the brand's only products here are the Mixery and a vodka RTD.
+  - **`pantry` (2026-08-10): 22 groups, 90.9% of 484 distinct names.** Ordering did all the
+    work: Feinkost-Salate before Konserven AND before Gewürze (else "Hummus Dattel-Curry" is a
+    spice), Konserven before Zucker (else "Bio-**Zucker**mais" is a bag of sugar), Speiseöl
+    first (`olivenöl` contains `oliven`), Fix & Instant before Nudeln (a cup noodle is not dry
+    pasta). Never a bare `öl` (inside "**Köl**ln") or a bare `hefe` (inside Hefezopf,
+    Hefe-Röllchen, Hefeweizen). `tortelli` matches neither Tortellini nor Torte**ll**oni —
+    the stem is `tortell`.
+  - **Bakery breads and the Sol & Mar range mis-filed into `pantry` stay UNGROUPED on purpose**
+    — both are known classifier findings, and adding bread keywords to the pantry map would
+    paper over the mis-classification and make it invisible. Pinned by a test.
   Computed in the serializer → `OfferOut.group`/`group_label`
   (**no DB column / migration**, like `unit_price_cents`). The app renders a
   `SectionList` **only in a selected category** (not All/search): **every** sub-group gets a
