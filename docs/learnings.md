@@ -1765,3 +1765,54 @@ token it depended on was removed, so it pinned an outcome that was true either w
 a mutation harness confirm it — "the test passes" and "the test tests this" are different claims,
 and only sabotage separates them. Re-check ordering tests after removing any token, since deleting
 a trap can quietly turn its guard test into a tautology.
+
+## Derived files in git conflict on content; regenerate rather than pick a side
+
+**What it is.** A build output committed to a repo (an index, a bundle, a lockfile) will
+conflict the moment two branches both regenerate it. Neither side is "right" — the file is a
+function of its inputs, so the resolution is to merge the *inputs* and re-run the generator.
+
+**Why it came up.** A PR adding a filtered `data/index-min.json` to the price-history repo hit
+`CONFLICT (content): data/index.json` at merge time: the weekly collector had run on `main` and
+committed two new snapshots plus a regenerated index, while the branch had regenerated the same
+file from the older snapshot set. Taking either version would have published an index that did
+not match the snapshots beside it. `npm run aggregate` after the merge produced a correct file
+over all seven weeks — and the count changed (6,588 → 8,856), which is the tell that picking a
+side would have silently shipped stale data.
+
+**Takeaway.** Never resolve a conflict in a generated file by choosing ours/theirs. Merge the
+sources, re-run the generator, and check that the output's own summary (row counts, dates)
+reflects the *union* — a scheduled job committing to `main` is a second developer, and it will
+race any branch that touches its outputs.
+
+## A tripwire calibrated against the old input stops being a tripwire
+
+**What it is.** A guard threshold is only meaningful relative to what it measures. Change the
+input by an order of magnitude and the guard silently becomes unreachable — it still passes
+review, still has a test, and can no longer fire.
+
+**Why it came up.** The app refuses to parse a price index over `MAX_INDEX_BYTES = 2_500_000`,
+sized against a 2.76 MB file that was projected to cross it around week 26. Switching to the
+filtered index (65 KB over the wire) left the ceiling at ~38× the real body. Nothing failed; the
+existing test still passed, because it asserted the constant was *greater than* 500 KB — a bound
+that only made sense for the old file. Retuned to 400 KB with both bounds derived from the
+measured size instead of restated as literals.
+
+**Takeaway.** When you change what a guard measures, re-derive the threshold in the same commit,
+and write its test against the *measurement* (`MEASURED * 3` … `MEASURED * 20`) rather than a
+hard number — a literal bound cannot tell you it has stopped being relevant.
+
+## Extract the predicate you want to test, don't mirror it in the test
+
+**What it is.** Testing a rule by re-implementing it in the test file proves the two copies
+agree, not that the shipped one is right. The fix is to export the real function and call it.
+
+**Why it came up.** Twice in one session. The first draft of the price-index writer test
+duplicated its `weeks_seen >= 2` filter inline; the first draft of the app's cache guard left
+`stored?.source === CACHE_SOURCE` inline in a hook that has no fetch test at all. Both were
+extracted (`filterToTrend`, `usableCache`) so the test drives the shipped code — and only then
+did a sabotage that recomputed `stats` inside the filter get **caught**.
+
+**Takeaway.** If a rule is worth a test, it is worth a name. A predicate buried in a script or a
+hook is one you can only test by copying it, and a copy passes exactly when it is wrong in the
+same way.
