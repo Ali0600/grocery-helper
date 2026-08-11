@@ -291,7 +291,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   existing "+ Non-food" toggle. Its `Marken > Marken Aldi Süd` path nodes inside a *Nord*
   brochure are a meinprospekt taxonomy quirk, **not** a routing leak (`_collect_brochures`
   filters on `publisher.id`).
-- **Two sources × five chains, tagged `Offer.source` / `Store.chain`**: `coupon`
+- **Two sources × six grocery chains, tagged `Offer.source` / `Store.chain`**: `coupon`
   (Lidl Plus app endpoints, `app/scrapers/lidl.py`) and `flyer`
   (meinprospekt weekly Prospekt, `app/scrapers/bonial.py`). `bonial.py` is a
   publisher-parameterized engine (`MeinprospektScraper`): `BonialScraper` =
@@ -313,10 +313,25 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   its "Dein Markt" flyer carries none of the three on most items, so most REWE
   offers still have no `discount_pct` (they sink under discount-sort but the
   optimizer ranks by absolute price). ALDI is the same story (~72% carry no strike price).
-  **Five** chains measured **1650 deduped** for a Berlin PLZ (2026-07-15, ALDI +244), under the
-  `/api/offers` `limit` cap of **2000** (also the app's load) but with only **~350 headroom
-  left** — a *sixth* chain almost certainly crosses it, at which point move search server-side
-  (`q` param) rather than raising the cap again.
+  **`PennyScraper` = Penny** (publisher **`DE-1050`**, page `/penny-de`) is the sixth grocery
+  chain, added 2026-08-11. **Regional like REWE/EDEKA** (Berlin `2501215484` vs Munich
+  `2501215489`, measured), so the location-cookie pinning is what makes it correct — no
+  ALDI-style division. Parses with **zero parser changes**: 258 offers / 255 deduped, 100%
+  image, 99.2% path, 98.4% caption, 43.8% strike price, **73.6% €/kg-sortable**, and 53%
+  day-limited (Penny runs a lot of day specials).
+  **Six chains serve 1712 for a Berlin PLZ, under the `/api/offers` cap of 2000.** The old note
+  here predicted a sixth chain would cross it and prescribed server-side search — **both halves
+  were wrong** and the correction is worth keeping. Penny fits; Netto (461 raw, `DE-1034`) and
+  Kaufland (723 raw, `DE-424316869`) do not, and were probed and deferred for exactly that.
+  And **server-side `q` would not fix truncation**: search is one of ~12 passes over the loaded
+  array — chip counts, `presentChains`, `facetCounts`, Basket matching, Compare and Recipes all
+  read the same list — so a truncated BROWSE list makes all of them quietly wrong. Raising the
+  cap is the real fix when a 7th chain comes; see `docs/DECISIONS.md`. Truncation is why the cap
+  matters at all: `/api/offers` slices **after** a discount sort with nulls last, so the dropped
+  rows are disproportionately the chains that publish no strike price.
+  **Two Nettos publish** (`DE-1034` Marken-Discount and `DE-1122` "mit dem Scottie") and
+  `store_locator` prefix-matches both into one `netto` slug — a second problem to solve before
+  that chain can land. Don't re-probe these publisher IDs.
 - **Offers are de-duplicated at serve time** (`app/dedup.py`, used by both
   `/api/offers` and `/api/categories` so list and chip counts agree). A chain
   publishes several weekly brochures, so the flyer feed repeats a product across
@@ -337,7 +352,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   normalization (Aldi Nord→aldi, Netto Marken-Discount→netto — the *directory* collapses both
   ALDIs into one chain; `aldi_division` reads the same tags to route the **scrape**).
   `active` = chain in
-  `ACTIVE_CHAINS` (lidl/rewe/edeka/edeka_center/aldi — the ones we scrape). Public Overpass instances 504 a lot → tries
+  `ACTIVE_CHAINS` (lidl/rewe/edeka/edeka_center/aldi/penny + rossmann/dm — the ones we scrape;
+  netto and kaufland are in the directory but still read "Deals coming soon"). Public Overpass instances 504 a lot → tries
   mirrors in order + caches per-area (24h) + returns `[]` on total failure. **The endpoint
   is globally rate-limited** (`app/throttle.py` `RateLimiter` token bucket → `_NEARBY_LIMITER`
   in `api/offers.py`, ~30/min, burst 30): it fans out to Overpass/Nominatim on a cache miss, so
@@ -1568,7 +1584,21 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   silently drop every entry**. Drop the mirror a release or two out.
   - **Each row carries a PRICE TRAIL from the `grocery-price-history` collector** (2026-07-30,
     `priceHistory.ts` + `usePriceHistory.ts` + `components/PriceTrail.tsx`). Read straight from
-    `raw.githubusercontent.com/.../data/index.json` — 418 KB gzipped, `access-control-allow-origin: *`.
+    `raw.githubusercontent.com/.../data/**index-min.json**` — the collector's `weeks_seen >= 2`
+    file, **65 KB over the wire** (389 KB raw) against ~550 KB for the full `index.json`, with
+    `access-control-allow-origin: *`. Switched 2026-08-11.
+    - **The switch needed a cache discriminator, and that is why upstream published a SECOND
+      file rather than replacing the first.** A cached projection carries `misses` and an
+      `etag`, and both answer a question the new file asks differently: `misses` used to mean
+      "the collector has never seen this", it now means "never seen OR seen once and withheld".
+      A device reusing a pre-switch projection would keep answering under the old policy and —
+      because `unknownKeys()` then reports nothing missing — **would never even ask**.
+      `CACHE_SOURCE` + the exported pure `usableCache()` drop it instead. Bump `CACHE_SOURCE`
+      in the same commit as any `INDEX_URL` change.
+    - **`MAX_INDEX_BYTES` is 400 KB, not 2.5 MB.** The old ceiling was sized against the full
+      index; against the filtered one it was ~38x the real body, i.e. a tripwire the thing it
+      guarded could no longer reach. Its test derives both bounds from the measured 65 KB
+      rather than restating a literal.
     - **It is TIERED BY EVIDENCE because 93.75% of the collector's 6,588 products have exactly
       ONE data point** (≥2 weeks: 6.25%, ≥3: 0.76%). **Tier 0 renders `null`** — no "no history
       yet" line, no empty chart. A placeholder on 94% of rows reads as a broken feature; the row
@@ -1797,7 +1827,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `backend/tests/test_verify_deals.py` since 2026-08-08** — it loads the script via
   `importlib.util.spec_from_file_location`, because ruff runs with `working-directory: backend`
   and pytest has `testpaths = tests`, so **nothing under `.github/scripts/` is linted or collected
-  by default** and the gate had gone its whole life unproven): **chains ≥5**
+  by default** and the gate had gone its whole life unproven): **chains ≥6** (was 5 until
+  Penny landed 2026-08-11 — bump it with every chain, or a dark new chain reads green)
   (a missing chain pages even when the skip was a designed degradation — fail-closed must
   announce itself; the issue auto-closes on recovery), offers ≥800, €/kg-sortable ≥50%, "other"
   ≤15% (~2× the measured 7.4% norm — calibrating this gate corrected an earlier stale ~1%

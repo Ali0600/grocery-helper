@@ -10,7 +10,7 @@ build the cheapest basket across one or two stores.
 > **Live Lidl + REWE + EDEKA + E center + ALDI (grocery) and Rossmann + dm (drugstore)
 > offers** + API + the React Native app work end-to-end — real Berlin prices,
 > resolved from your postal code via the Lidl Plus endpoints, the meinprospekt
-> weekly-flyer feed and dm's clearance API. Seven chains make the basket optimizer, the
+> weekly-flyer feed and dm's clearance API. Eight chains make the basket optimizer, the
 > per-product grouping, and the **Compare Stores** face-off meaningful. The **backend is deployed on
 > Render** (HTTPS), and the iOS app ships via **EAS → TestFlight** (build 1.1.0)
 > with OTA updates.
@@ -18,7 +18,7 @@ build the cheapest basket across one or two stores.
 
 ## Highlights
 
-- **Two shopping sections behind one home screen** — Grocery (five supermarket chains)
+- **Two shopping sections behind one home screen** — Grocery (six supermarket chains)
   and Drugstore (Rossmann + dm), picked from two large buttons on launch. Every fetch,
   cache and filter chip is scoped to the chosen section, which is also what keeps each
   one clear of the API's 2,000-offer ceiling: as a single query all seven chains would
@@ -59,6 +59,14 @@ build the cheapest basket across one or two stores.
   app consuming the API to browse local deals by category, sorted by savings;
   the same code runs in the browser via Expo Web / react-native-web
   (`npm run web`).
+- **Every category is sub-categorized** — inside a chip the deals list is grouped by the
+  actual product, with a header per sub-group showing how many offers it holds and the
+  cheapest price in it: Alcoholic splits into Bier · Wein · Sekt · Whisky · Gin · Likör,
+  Pantry into Sauce · Nudeln · Reis · Speiseöl · Müsli · Konserven, and so on across all
+  35 categories. Ice cream and coffee group by *form* rather than product (a stick, a tub
+  and a multipack of cones are not substitutes); the Vegan chip groups by the food each
+  product replaces. **82% of served offers carry a sub-group**, up from 39% — which also
+  means they can be added to the basket by name.
 - **Compare Stores price face-off** — pick stores and a category, and every product
   sub-group (Avocado, Butter, Milch…) lines up each store's cheapest price side by
   side with the winner highlighted — powered by a cross-source product-grouping
@@ -126,14 +134,14 @@ build the cheapest basket across one or two stores.
   failure** — with least-privilege permissions, dependency caching, concurrency
   control, and **Dependabot raising pull requests for security advisories only** — routine
   version bumps are switched off, so a dependency PR always means there is a CVE.
-- **Automated test suite** — ~1,200 backend tests (pytest) covering the scrapers,
+- **Automated test suite** — ~1,475 backend tests (pytest) covering the scrapers,
   classifier, dedup, unit-price/validity logic, and HTTP-level API behavior
-  (filters, auth guards, throttling), plus a React Native **Jest** suite (~440 tests)
+  (filters, auth guards, throttling), plus a React Native **Jest** suite (~450 tests)
   for the app's pure business logic (basket matching, the deals filter pipeline,
   recipe filtering, store comparison, catalog trap-guards); a model-vs-migration
   **drift check** (`alembic check`) fails CI if the ORM and schema diverge.
 - **Multi-retailer ingestion across heterogeneous sources** — a single
-  publisher-parameterized engine normalizes five German chains (Lidl, REWE, EDEKA,
+  publisher-parameterized engine normalizes six German chains (Lidl, REWE, EDEKA, Penny,
   E center, ALDI) from two feed types (a private mobile coupon API and structured
   weekly-flyer data) into one schema, tagged by chain/source, powering a cross-store
   basket optimizer.
@@ -431,6 +439,27 @@ zero-risk docs can still be pushed directly.
 
 Engineering practices demonstrated while building and operating this project:
 
+- **Designing a regression gate that can tell a refinement from a defect** — A
+  before/after diff over 17,000 records reported 48 "regressions" while a classification
+  taxonomy was being deliberately refined; reading the moved rows showed 46 were exactly
+  the intended outcome (a generic bucket resolving into a specific one) and only 3 were
+  real. Re-cut the comparison into three transition classes — newly classified,
+  generic-to-specific, and genuinely wrong — so the gate reports a number that means
+  something. A binary "did anything change" verdict is correct only while a change is
+  purely additive, and silently useless the moment it is meant to reclassify.
+- **Break-test-restore verification of a rule engine** — Built a harness that mutates a
+  production rules table one guard at a time and asserts the corresponding test fails,
+  guarding every way such a harness lies: a mutation that never applied, a compiled-bytecode
+  cache serving the pre-mutation module, and a shrinking test count masquerading as passes.
+  It caught two tests that were passing for the wrong reason — one whose fixture an earlier
+  rule already claimed, so it never exercised the rule it was named after.
+- **Extending a production ingestion pipeline to a new upstream source** — Added a sixth
+  retailer by measuring first: probed three candidates' feeds, quantified parse quality
+  (image, taxonomy, unit-price and discount coverage) against the existing gate's
+  thresholds, and chose on a capacity constraint the naive answer would have missed — the
+  API truncates after a relevance sort, so an oversized source would have silently dropped
+  the very records the product compares. Zero parser changes were needed; the rejected
+  candidates and the reasoning are recorded as an architecture decision record.
 - **Data-quality auditing at scale** — Audited a 2,700-product taxonomy by rendering
   every item's photograph into per-category contact sheets and judging each against its
   source caption, rather than trusting the product name. This surfaced a systematic
