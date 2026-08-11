@@ -10,7 +10,9 @@ import {
   filterDeals,
   presentChains,
   shouldLandOnMine,
+  CHAIN_ORDER,
 } from '../dealFilters';
+import { CHAIN_COLORS, CHAIN_LABELS } from '../chains';
 import { SortMode } from '../storage';
 import { hideKey } from '../hidden';
 import { Offer } from '../types';
@@ -612,5 +614,32 @@ describe('shouldLandOnMine — the landing rule across verticals', () => {
 
   it('lands on All when no categories are served at all', () => {
     expect(shouldLandOnMine(['fruits'], [])).toBe(false);
+  });
+});
+
+describe('CHAIN_ORDER covers every chain the backend serves', () => {
+  // A chain missing from CHAIN_ORDER still *renders* — presentChains appends unknowns
+  // alphabetically — but it loses its StoresModal placeholder row and its RecipesModal
+  // "Shop at" chip, which is silent. This is the list that has to grow with the backend.
+  const BACKEND_CHAINS = ['lidl', 'rewe', 'edeka', 'edeka_center', 'aldi', 'penny', 'dm', 'rossmann'];
+
+  it('names every chain, so none is silently unselectable', () => {
+    const missing = BACKEND_CHAINS.filter((c) => !CHAIN_ORDER.includes(c));
+    expect(missing).toEqual([]);
+  });
+
+  it('gives every chain a label and a colour rather than a capitalized slug', () => {
+    const unlabelled = BACKEND_CHAINS.filter((c) => !(c in CHAIN_LABELS));
+    const uncoloured = BACKEND_CHAINS.filter((c) => !(c in CHAIN_COLORS));
+    expect({ unlabelled, uncoloured }).toEqual({ unlabelled: [], uncoloured: [] });
+  });
+
+  it('keeps the grocery chains ahead of the drugstore ones', () => {
+    // The two verticals never share a list, but the order is what StoresModal renders its
+    // placeholders in, so grocery-first keeps that list readable.
+    const iPenny = CHAIN_ORDER.indexOf('penny');
+    expect(iPenny).toBeGreaterThan(CHAIN_ORDER.indexOf('lidl'));
+    expect(iPenny).toBeLessThan(CHAIN_ORDER.indexOf('rossmann'));
+    expect(iPenny).toBeLessThan(CHAIN_ORDER.indexOf('dm'));
   });
 });

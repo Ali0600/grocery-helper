@@ -17,7 +17,16 @@ import { Offer } from './types';
 // verticals — a list only ever holds one vertical's chains, so the other's are simply absent.
 // Load-bearing beyond ordering: StoresModal builds placeholder rows from it, and RecipesModal
 // derives its "Shop at" chips from it, so a chain missing here is silently unselectable.
-export const CHAIN_ORDER = ['lidl', 'rewe', 'edeka', 'edeka_center', 'aldi', 'rossmann', 'dm'];
+export const CHAIN_ORDER = [
+  'lidl',
+  'rewe',
+  'edeka',
+  'edeka_center',
+  'aldi',
+  'penny',
+  'rossmann',
+  'dm',
+];
 
 /** Chains present in the loaded set, CHAIN_ORDER first, unknown chains appended A–Z. */
 export function presentChains(offers: Offer[]): string[] {

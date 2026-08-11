@@ -110,8 +110,9 @@ export const dealsStale = (cachedAt: number | null): boolean =>
  * v5 (2026-07-30): dm joined the drugstore vertical (its Ausverkauf feed). A fresh weekly
  * cache makes ZERO backend calls, so without this bump dm would be invisible to everyone
  * who already has one until Sunday — the exact trap that hid E center and then ALDI.
+ * v6 (2026-08-11): Penny joined the grocery vertical — same reason, third time.
  */
-export const DEALS_CACHE_VERSION = 5;
+export const DEALS_CACHE_VERSION = 6;
 
 /**
  * True when the cached deals must be refetched: absent, written by an older app version,
