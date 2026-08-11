@@ -11,24 +11,34 @@ import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_PLZ } from './config';
 import { dealsStale } from './format';
 import { nameKey } from './nameKey';
-import { CachedPriceHistory, projectIndex } from './priceHistory';
+import { CACHE_SOURCE, CachedPriceHistory, projectIndex, usableCache } from './priceHistory';
 import { getPriceHistory, getStoredPlz, setPriceHistory } from './storage';
 import { HistoryItem } from './types';
 
+// The FILTERED index: only products the collector has seen in >= 2 weeks. One sighting
+// supports no comparison and renders as tier 0 (nothing), so the other 90% of the full
+// index was pure transfer cost — 389 KB / 65 KB gzipped here, against 3.7 MB / ~550 KB for
+// `index.json`, and the gap widens every week.
+//
+// Changing this URL REQUIRES bumping `CACHE_SOURCE`: a projection built from a different
+// file has `misses` computed under a different policy and an ETag belonging to another URL.
 const INDEX_URL =
-  'https://raw.githubusercontent.com/Ali0600/grocery-price-history/main/data/index.json';
+  'https://raw.githubusercontent.com/Ali0600/grocery-price-history/main/data/index-min.json';
 
 /**
  * Tripwire on the COMPRESSED body, checked before `res.json()` — parsing is what breaks on
  * a phone, and by the time you are parsing it is too late to decline.
  *
- * The index grows ~1,300 products/week at a flat ~419 B each, so the decompressed size is
- * projected to reach ~14 MB by week 26 and ~28 MB by week 52. At the measured ~6.6:1 gzip
- * ratio this ceiling corresponds to roughly the week-26 mark: the point at which the real
- * fix (an upstream index of only `weeks_seen >= 2` products — 412 rows today, ~170 KB) is
- * needed rather than optional. Tripping this degrades the trail; it never breaks History.
+ * Retuned 2026-08-11 with the switch to `index-min.json`. The old 2.5 MB ceiling was set
+ * against the full index and was ~38x the filtered file, i.e. a tripwire wired to nothing:
+ * the thing it was meant to catch could no longer reach it. 400 KB is ~6x the measured
+ * 65 KB gzipped body, which leaves room for the filtered index to keep growing (it only
+ * gains a product when one is seen a second time — 882 of 8,856 after 7 weeks) while still
+ * refusing a body that has clearly changed shape upstream.
+ *
+ * Tripping this degrades the trail; it never breaks History.
  */
-export const MAX_INDEX_BYTES = 2_500_000;
+export const MAX_INDEX_BYTES = 400_000;
 
 const FETCH_TIMEOUT_MS = 30_000;
 
@@ -71,7 +81,12 @@ export function usePriceHistory(visible: boolean, items: HistoryItem[]) {
     running.current = true;
 
     (async () => {
-      const cached = await getPriceHistory();
+      const stored = await getPriceHistory();
+      // A projection built from a DIFFERENT upstream file is not a usable cache: its
+      // `misses` answer a different question ("absent from the full index" vs "absent from
+      // the filtered one") and its ETag belongs to another URL. Drop it rather than reuse
+      // it — the alternative is a device that keeps serving withheld rows and never asks.
+      const cached = usableCache(stored);
       if (!cancelled) setState({ cache: cached, loading: false });
       // Fall back to DEFAULT_PLZ, not to "" — the stored PLZ is only written once the user
       // changes it, so `null` is the NORMAL first-run state and treating it as uncovered
@@ -131,6 +146,7 @@ export function usePriceHistory(visible: boolean, items: HistoryItem[]) {
           generatedAt: typeof raw?.generated_at === 'string' ? raw.generated_at : '',
           etag: res.headers.get('etag'),
           fetchedAt: Date.now(),
+          source: CACHE_SOURCE,
         };
         await setPriceHistory(next);
         if (!cancelled) setState({ cache: next, loading: false });

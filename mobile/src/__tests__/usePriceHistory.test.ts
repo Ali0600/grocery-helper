@@ -27,11 +27,17 @@ describe('price-history coverage guard', () => {
     expect(isCoveredPlz(DEFAULT_PLZ)).toBe(true);
   });
 
-  it('caps the index size below the point where JSON.parse is the problem', () => {
-    // A tripwire, not a precise bound: the index grows ~1,300 products/week at ~419 B each,
-    // so this compressed ceiling lands around the week-26 mark — when the upstream
-    // `weeks_seen >= 2` index (412 rows today, ~170 KB) stops being optional.
-    expect(MAX_INDEX_BYTES).toBeGreaterThan(500_000); // today's index is ~418 KB gzipped
-    expect(MAX_INDEX_BYTES).toBeLessThan(5_000_000);
+  it('caps the index size where the tripwire can still actually trip', () => {
+    // Retuned 2026-08-11 with the switch to `index-min.json`. The old 2.5 MB ceiling was set
+    // against the full index; measured against the filtered one it was ~38x the real body,
+    // i.e. a tripwire wired to nothing — the thing it was meant to catch could no longer
+    // reach it. That is the failure mode this test now guards.
+    //
+    // Measured: the filtered index is 389 KB raw / 65 KB gzipped (882 of 8,856 products
+    // after 7 weeks). It only gains a product when one is seen a SECOND time, so it grows
+    // far slower than the full index ever did.
+    const MEASURED_GZIP = 65_259;
+    expect(MAX_INDEX_BYTES).toBeGreaterThan(MEASURED_GZIP * 3); // room to grow
+    expect(MAX_INDEX_BYTES).toBeLessThan(MEASURED_GZIP * 20); // ...but still reachable
   });
 });
