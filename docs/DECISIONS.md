@@ -25,8 +25,45 @@ The one-glance menu. Only `deferred` items appear here.
 - **A brochure "age" guard as a second signal** — an active brochure that started more than a
   week ago is probably not this week's flyer. Would have caught the Rossmann case independently
   of the imminence window; see *How to stop a stale supplement shadowing the weekly flyer*.
+- **Raise the `/api/offers` serve cap (2000) so Netto and Kaufland become addable** — both
+  measured over it; see *Which chain becomes the sixth, and the cap it runs into*.
 - **A `{"default": 100, "dm": 60}` per-chain override map in the data gate** — only worth it if
   a healthy week ever lands in the 100–160 band; see *Per-chain floor: one number or per-chain*.
+
+---
+
+## 2026-08-11 — Which chain becomes the sixth, and the cap it runs into
+
+Netto, Penny and Kaufland all sat in the store directory as "Deals coming soon". Probed live
+(Berlin cookie, paced) on 2026-08-11 — all three publish a normal weekly on meinprospekt:
+
+| candidate | publisher | raw products | grocery total | vs the 2000 serve cap |
+|---|---|---|---|---|
+| **Penny** | `DE-1050` `/penny-de` | 313 (255 deduped) | ~1930 | **under** |
+| Netto Marken-Discount | `DE-1034` | 461 | ~2070 | over |
+| Kaufland | `DE-424316869` | 723 | ~2280 | over |
+
+| Option | Tradeoff |
+|---|---|
+| **A. Penny now; Netto/Kaufland behind a cap decision** | Ships a whole chain with no cap work. Penny is REGIONAL (Berlin `2501215484` vs Munich `2501215489`), so the existing cookie pinning is what makes it correct — the well-trodden REWE/EDEKA path. |
+| B. Netto first | The everyday Berlin discounter and the bigger content win, but it crosses the cap, and `store_locator` prefix-matches **two** unrelated Nettos (`DE-1034` Marken-Discount and `DE-1122` "mit dem Scottie") into one slug. Two problems in one PR. |
+| C. Kaufland first | Biggest content win (723), clearly over the cap, and its brochures run overlapping mid-week windows (08-05→08-12 *and* 08-09→08-12) that `_select_brochures` has never been exercised against. |
+| D. Add a server-side `q` search param instead of raising the cap | Does **not** solve it. Search is only one of ~12 passes over the loaded array — category chip counts, `presentChains`, facet counts, Basket matching, Compare and Recipes all read the same list, so a truncated browse list makes all of them quietly wrong. |
+| E. Raise the cap to ~3000 | The actual fix when it is needed. Deferred only because Penny does not need it. |
+
+**Chose A.** Truncation is the reason the cap matters at all: `/api/offers` slices *after* a
+discount sort with nulls last, and REWE/EDEKA/E center/ALDI mostly publish no strike price — so
+the rows dropped at the cap are disproportionately those chains. Shipping a chain that crosses it
+would silently corrupt the very comparisons the app exists for.
+
+- B, C — **deferred — worth trying**, both gated on E.
+- D — **rejected**: measured to fix the wrong surface.
+- E — **deferred — worth trying**, and it is the prerequisite for B and C.
+
+**Revisit hook:** `limit: int = Query(200, ge=1, le=2000)` in `backend/app/api/offers.py`, the
+matching `q.set('limit', '2000')` in `mobile/src/api.ts`, and `SERVE_LIMIT` in
+`.github/scripts/verify_deals.py` — all three must move together, and the gate's truncation check
+is what will tell you when.
 
 ---
 

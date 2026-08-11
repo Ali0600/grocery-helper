@@ -94,7 +94,8 @@ def test_active_flags():
     by = {s.chain: s for s in _stores()}
     assert by["lidl"].active and by["rewe"].active and by["edeka"].active
     assert by["aldi"].active  # scraped since the Nord/SÜD division routing landed
-    assert not by["kaufland"].active and not by["penny"].active  # not scraped yet
+    assert by["penny"].active  # scraped since the 6th-chain rollout (2026-08-11)
+    assert not by["kaufland"].active  # not scraped yet — over the 2000 serve cap
 
 
 def test_way_element_parsed_via_center():

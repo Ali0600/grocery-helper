@@ -120,7 +120,7 @@ SERVE_LIMIT = 2000
 PROFILES: dict[str, dict] = {
     # Measured 2026-07-15, prod AND local agreeing: 1650-1663 offers, 5 chains, ~71% €/kg,
     # ~7.4% "other". Unchanged by the split — this is still the same population.
-    "grocery": {"chains": 5, "offers": 800, "unit_price_pct": 50.0, "other_pct": 15.0,
+    "grocery": {"chains": 6, "offers": 800, "unit_price_pct": 50.0, "other_pct": 15.0,
                 "min_chain_offers": 100},
     # Measured 2026-07-30: Rossmann 283 + dm 214 = ~497.
     #

@@ -381,6 +381,50 @@ class EdekaCenterScraper(MeinprospektScraper):
         ]
 
 
+class PennyScraper(MeinprospektScraper):
+    """Penny's weekly Prospekt — the sixth grocery chain (publisher ``DE-1050``, ``/penny-de``).
+
+    **Regional, like REWE/EDEKA and unlike ALDI**: measured 2026-08-11, the same publisher page
+    returns brochure ``2501215484`` for Berlin and ``2501215489`` for Munich, so the existing
+    ``location`` cookie pinning is what makes it correct — there is no ALDI-style division to
+    resolve.
+
+    Parses with **no parser change at all**. Measured on the Berlin 36-page flyer: 258 offers
+    (255 after dedup), 100% with an image, 99.2% with a ``category_path``, 98.4% with a caption,
+    43.8% with a struck-through price, and **73.6% €/kg-sortable** after normalisation — well
+    clear of the grocery gate's 50% floor. Penny runs a lot of day-limited specials (53% of
+    offers have a sub-week window), so the app's orange day pill earns its keep here.
+
+    Why Penny and not Netto or Kaufland: at 255 offers grocery lands ~1930, still under
+    ``/api/offers``' 2000 serve cap. Netto (461 raw) and Kaufland (723 raw) both cross it, and
+    truncation happens after a discount sort with nulls last — which would silently drop the
+    chains that publish no strike price. Those two wait on a cap decision (``docs/DECISIONS.md``).
+    """
+
+    publisher_id = "DE-1050"
+    publisher_page = "https://www.meinprospekt.de/penny-de"
+    chain = "penny"
+    store_label = "Penny"
+
+    def _sample(self) -> List[ScrapedOffer]:
+        today = date.today()
+        end = today + timedelta(days=6)
+
+        def o(ext, name, price, regular, unit, brand=None):
+            return ScrapedOffer(external_id=ext, name=name, price_cents=price,
+                                regular_price_cents=regular, unit=unit, brand=brand,
+                                valid_from=today, valid_to=end)
+
+        # Penny's real flyer carries a strike price on ~44% of offers, so the sample mixes both.
+        return [
+            o("pe-001", "Dallmayr Classic Kaffee", 649, 979, "500 g", "Dallmayr"),
+            o("pe-002", "Bauer Fruchtjoghurt", 49, 99, "250 g", "Bauer"),
+            o("pe-003", "Philadelphia Frischkäsezubereitung", 229, None, "175 g", "Philadelphia"),
+            o("pe-004", "Penny Rispentomaten", 149, None, "500 g"),
+            o("pe-005", "Pringles Original", 169, 279, "185 g", "Pringles"),
+        ]
+
+
 class RossmannScraper(MeinprospektScraper):
     """Rossmann's weekly Prospekt — the DRUGSTORE vertical's first chain.
 
