@@ -34,6 +34,7 @@ from .bonial import (
     BonialScraper,
     EdekaCenterScraper,
     EdekaScraper,
+    PennyScraper,
     ReweScraper,
     RossmannScraper,
 )
@@ -155,7 +156,15 @@ def run_scrapers(session: Session, plz: str) -> int:
         ecenter_store = _get_or_create_store(session, ecenter)
         total += _upsert(session, ecenter_store, ecenter.offers, source=ecenter_scraper.source)
 
-        # 7. ALDI — two independent companies with disjoint territories, and BOTH their
+        # 7. Penny — the sixth grocery chain. Regional like REWE/EDEKA, so it reuses the same
+        # Lidl-resolved coordinates and the `location` cookie does the rest; no division to
+        # resolve as ALDI needs.
+        penny_scraper = PennyScraper()
+        penny = penny_scraper.fetch(plz, store.lat, store.lng)
+        penny_store = _get_or_create_store(session, penny)
+        total += _upsert(session, penny_store, penny.offers, source=penny_scraper.source)
+
+        # 8. ALDI — two independent companies with disjoint territories, and BOTH their
         #    publishers are national, so the feed can't tell us which one applies here.
         #    Ask OSM which division actually operates at these coordinates; if that can't
         #    be answered, skip ALDI rather than guess — a missing chain is visible, whereas
@@ -171,7 +180,7 @@ def run_scrapers(session: Session, plz: str) -> int:
             aldi_store = _get_or_create_store(session, aldi)
             total += _upsert(session, aldi_store, aldi.offers, source=aldi_scraper.source)
 
-        # 8. Rossmann — the DRUGSTORE vertical. Scraped in the same run as the grocery
+        # 9. Rossmann — the DRUGSTORE vertical. Scraped in the same run as the grocery
         #    chains (one scrape fills both verticals); which vertical it lands in is decided
         #    at serve time by `app/verticals.py`, from its chain slug.
         rossmann_scraper = RossmannScraper()

@@ -31,7 +31,9 @@ def gate():
 
 # The measured 2026-08-02 Sunday post-reset counts. The fixture IS the calibration, so a
 # future edit that drifts from reality has to change these numbers deliberately.
-HEALTHY_GROCERY = {"aldi": 247, "edeka": 234, "edeka_center": 274, "lidl": 417, "rewe": 390}
+# `penny` joined 2026-08-11 at its measured first-parse count (258 offers, 255 after dedup).
+HEALTHY_GROCERY = {"aldi": 247, "edeka": 234, "edeka_center": 274, "lidl": 417, "rewe": 390,
+                   "penny": 255}
 
 
 def _offers(store_name: str = "Store", **counts: int) -> list[dict]:
@@ -76,8 +78,10 @@ def test_the_same_thin_chain_is_only_a_diagnostic_before_the_reset(gate):
 
 def test_a_grocery_chain_on_sample_data_hides_behind_four_healthy_ones(gate):
     """The blind spot is wider than one chain. At the measured counts the total floor is
-    carried by the survivors: 1562 - 247 - 234 - 274 + 4 + 5 + 5 = 821, still >= 800, so
-    THREE of five grocery chains could fall back to sample data and the old gate stayed green.
+    carried by the survivors: with penny's 255 the healthy total is 1817, so even after
+    three chains fall back to sample data it clears 800 — and the old gate stayed green.
+    Adding a sixth chain WIDENS this blind spot, which is exactly why `min_chain_offers`
+    rather than the total floor is the instrument that catches it.
 
     aldi=4 is its real `_sample()` size, not a round number. Verified live in production on
     2026-08-08, where the old gate reported grocery green at 1207 offers with aldi at 4.

@@ -77,14 +77,19 @@ def _session() -> Session:
 
 
 def _stub_everything_but_aldi(monkeypatch):
-    """Neutralize the other five scrapers so only the ALDI routing is under test. Lidl still
-    resolves the coordinates every flyer chain reuses."""
+    """Neutralize every OTHER scraper so only the ALDI routing is under test. Lidl still
+    resolves the coordinates every flyer chain reuses.
+
+    This tuple is load-bearing and nothing else guards it: a scraper added to `run.py` but
+    missed here does not fail — it makes a LIVE meinprospekt request during the test run.
+    `test_run_scrapers_registers_every_flyer_chain` below derives the expected set so that
+    omission fails loudly instead."""
     def lidl_result(self, plz):
         return ScrapeResult(chain="lidl", store_name=f"Lidl {plz}", plz=plz,
                             lat=52.5, lng=13.4, offers=[])
     monkeypatch.setattr(run_mod.LidlScraper, "fetch", lidl_result)
-    for cls in (run_mod.BonialScraper, run_mod.ReweScraper,
-                run_mod.EdekaScraper, run_mod.EdekaCenterScraper):
+    for cls in (run_mod.BonialScraper, run_mod.ReweScraper, run_mod.EdekaScraper,
+                run_mod.EdekaCenterScraper, run_mod.PennyScraper):
         monkeypatch.setattr(
             cls, "fetch",
             lambda self, plz, lat, lng: ScrapeResult(
@@ -142,3 +147,29 @@ def test_run_scrapers_skips_aldi_when_the_division_is_undetermined(monkeypatch, 
     assert session.scalar(select(Store).where(Store.chain == "aldi")) is None
     assert session.scalar(select(Store).where(Store.chain == "lidl")) is not None  # others OK
     assert any("aldi" in r.message.lower() for r in caplog.records)
+
+
+def test_the_stub_tuple_covers_every_flyer_scraper_run_py_uses():
+    """A scraper wired into `run.py` but missing from `_stub_everything_but_aldi` above does
+    not fail the ALDI tests — it silently makes a live meinprospekt request. Derive the set
+    from the module rather than trusting the literal.
+
+    Sabotage: drop PennyScraper from that tuple and this fails, naming it."""
+    import inspect
+
+    from app.scrapers.bonial import MeinprospektScraper
+
+    # Every Meinprospekt subclass `run.py` imported, minus the ALDI pair (under test) and the
+    # drugstore chain (a different vertical, stubbed by its own test).
+    wired = {
+        obj for _n, obj in vars(run_mod).items()
+        if inspect.isclass(obj) and issubclass(obj, MeinprospektScraper)
+        and obj is not MeinprospektScraper and getattr(obj, "publisher_id", "")
+    }
+    grocery = {c for c in wired if c.chain not in ("aldi", "rossmann")}
+    src = inspect.getsource(_stub_everything_but_aldi)
+    missing = sorted(c.__name__ for c in grocery if c.__name__ not in src)
+    assert not missing, (
+        f"{missing} is wired into run.py but not stubbed — the ALDI tests would hit the "
+        "network for it"
+    )

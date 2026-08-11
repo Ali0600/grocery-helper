@@ -14,7 +14,14 @@ keeps that free of import cycles.
 the app loads the whole set. Measured 2026-07-30 for one Berlin PLZ, deduped: grocery is
 **1630** (rewe 434, lidl 397, aldi 287, edeka_center 278, edeka 234), Rossmann adds
 **283** and dm **214** — 2127, i.e. **past the cap if it were one query**. Scoping each
-vertical to its own query is the only reason both fit: grocery ~1630, drugstore ~497.
+vertical to its own query is the only reason both fit.
+
+Penny joined the grocery vertical on 2026-08-11 at a measured 255 deduped offers, taking it
+to ~1885 — still under the cap, which is exactly why Penny was chosen over Netto (461 raw)
+and Kaufland (723 raw). Both of those cross it, and truncation happens AFTER a discount sort
+with nulls last, so the rows dropped would be disproportionately the chains that publish no
+strike price. Raising the cap is the prerequisite for a seventh chain; see
+``docs/DECISIONS.md``.
 
 That is also why ``/api/offers`` now defaults to **grocery** when no ``vertical`` is
 given, instead of returning every chain (see ``api/offers.py``). Only app builds older
@@ -40,7 +47,7 @@ class VerticalSpec:
 VERTICALS: Dict[str, VerticalSpec] = {
     "grocery": VerticalSpec(
         label="Grocery",
-        chains=("lidl", "rewe", "edeka", "edeka_center", "aldi"),
+        chains=("lidl", "rewe", "edeka", "edeka_center", "aldi", "penny"),
         osm_tags=("shop=supermarket",),
     ),
     # dm is here via its **clearance** feed, not a flyer. Its meinprospekt brochure serves
