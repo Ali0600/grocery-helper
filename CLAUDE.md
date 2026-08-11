@@ -743,6 +743,34 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   - **Still open**: `BRAND_CATEGORY["nivea"] = "household"` decides at layer 4 and outranks these
     guards, so a pathless "Nivea Sun Sonnenmilch" is still household. Nivea spans body/face/sun,
     so re-pointing it needs its own corpus diff.
+  **The 2026-08-11 pass shipped the queue the 08-09 sweep had adjudicated but held back**
+  (100 offers moved, 0 unintended). Two structural notes:
+  - **~50 drugstore products were sitting in `household` needing TOKENS, not reachability.**
+    They carry a `Drogerie und Haushalt` path, so they already reached layer 1 — the opposite
+    half of what PR #155 fixed. Any test for them MUST pass a non-food path; a pathless call
+    proves nothing about `_DRUGSTORE_RULES`. **Brands that span aisles stay out** (garnier →
+    hair/face/body, isana → face/body/health, cien → makeup/tools, lacura → body/makeup); the
+    product-type word is used instead. Single-aisle brands are safe (Colgate, Elvital, Pantene,
+    Taft, Tetesept).
+  - **Feminine hygiene resolves to `body`, and that was the corpus's ANSWER, not a new call**:
+    all 9 stored Slipeinlagen rows already said body while the Camelia/Carefree strays sat in
+    household. Same for Weleda Skin Food (body on one row, household on another). When a
+    convention is already implied by the majority of stored rows, align to it rather than
+    inventing a third answer — and say in the test that it is an alignment.
+  - **Two substring traps**: no bare `insektenschutz` (LIVARNO's Dachfenster-/Alu-Insektenschutz
+    are window and door SCREENS), and `raid essentials` in full because a bare `raid ` sits
+    inside "Hyd**raid ** Hydration Helper", a drink. On the food side, no bare `kruste` —
+    Krustenbraten/Krustensteaks/Krustenschinken are all pork.
+  - **Both ratchets fired and both were right**: the shadowing test caught `wasser` (soft_drinks)
+    swallowing `reinigungswasser` and `essig` (pantry) swallowing `essigreiniger` — the
+    documented German-compound class, invisible until a chain ships one without a path — and the
+    drift ratchet demanded its allowlist be re-derived (31 → **27** tokens).
+  - **Deferred, deliberately**: the preserved-produce redirect (jarred Schwarzwurzeln, pickled
+    Pfefferonen and two `Fix für Salat` sachets still in the fresh chips). `_PRESERVED_CAPTION`
+    already encodes the rule but only inside layer 1's rescue branch; making it general is a
+    **mechanism** change, not a token, so it stays out of a data PR. Also deferred: the mixed
+    "Tapas Selektion"/"Tapasplatte", which the sweep read as cured meats but whose names do not
+    say so — pinned as a decision rather than left as an oversight.
   **Don't hardcode absolute `_FORM_OVERRIDES` indices in tests** — inserting a guard shifts them
   all; derive the index instead (two trace tests were fixed this way).
   **`_FORM_OVERRIDES` is first-hit-wins, so ORDER is part of the fix.** Two guards had to be

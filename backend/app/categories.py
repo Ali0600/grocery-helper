@@ -184,11 +184,12 @@ _RULES: list[tuple[str, list[str]]] = [
     # belongs here rather than being "fixed later" — the failure is invisible until a chain
     # ships one of these without a path.
     ("dental", ["zahnpasta", "mundwasser"]),
-    ("face", ["mizellenwasser", "gesichtswasser"]),
+    ("face", ["mizellenwasser", "gesichtswasser", "reinigungswasser"]),
     ("body", ["körpermilch", "sonnenmilch"]),
     ("baby", ["muttermilch"]),
     ("health", ["hustenbonbon"]),                 # a cough sweet, not a `bonbon`
-    ("cleaning", ["scheuermilch"]),               # scouring cream, not `milch`
+    ("cleaning", ["scheuermilch",                 # scouring cream, not `milch`
+                  "essigreiniger"]),              # a cleaner, not `essig` (pantry)
     ("laundry", ["wasserenthärter"]),             # a water softener, not `wasser`
     # --- 2026-07-31 image audit -------------------------------------------------------------
     # Found by reading contact sheets of every served product photo, which is the only thing
@@ -335,7 +336,9 @@ _RULES: list[tuple[str, list[str]]] = [
     # 2026-08-09: "Börekstange" is a filled savoury pastry (same call as the Apfeltasche above);
     # "grillino" is ALDI's Fladenbrot-Sticks; "brandt" is the Zwieback maker (single-category);
     # "knusperrollen" and "bienenstich" name the pastry itself.
-    "börekstange", "bienenstich", "grillino", "brandt", "knusperrollen"]),
+    # "knusperrollen" left this tuple on 2026-08-11: the photo showed CROQUETTES ("Versch.
+    # Sorten, Gekühlt 8er-Pack"), which is a ready meal, not a pastry. See _FORM_OVERRIDES.
+    "börekstange", "bienenstich", "grillino", "brandt"]),
     ("vegetables", ["tomate", "gurke", "salat", "kartoffel", "zwiebel", "paprika", "möhre", "moehre", "karotte",
                     "brokkoli", "blumenkohl", "spinat", "zucchini", "champignon", "pilz", "knoblauch", "lauch",
                     "sellerie", "kürbis", "rucola", "spargel", "kohlrabi", "coleslaw", "kresse",
@@ -804,9 +807,31 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # Breaded chicken drumsticks the source dumps into Knabberzeug>Sticks (a snacks node); no
     # ice-cream "Drumstick" is in the feed, so this is unambiguous poultry.
     ("poultry", ["drumstick"]),
+    # --- 2026-08-11: Lidl's "Sol & Mar" Spanish range, adjudicated in the 08-09 photo sweep.
+    # Each arrives on a path that answers first, so only layer 2 can reach them; every call
+    # below is confirmed by the flyer caption, not by the name alone.
+    #   Paella          "Andalusischer Style. Tiefgefroren."   -> frozen
+    #   Knusperrollen   "Versch. Sorten, Gekühlt 8er-Pack"     -> croquettes, ready_meals
+    #   Kartoffel-Omelette "Versch. Sorten, Gekühlt je 500 g"  -> a tortilla, ready_meals
+    #   Tapas de Chorizo — "chorizo" is already a pork token; the `Tapas` PATH node beats it.
+    # The mixed "Tapas Selektion"/"Tapasplatte" are deliberately NOT moved: the sweep read
+    # them as cured meats, but the name does not say so and I could not re-verify the photo.
+    ("frozen", ["sol & mar paella"]),
+    ("ready_meals", ["knusperrollen", "omelette"]),
+    ("pork", ["tapas de chorizo"]),
+    # Two in-store breads the source files under a `Backzutaten` node (a BAKING INGREDIENT).
+    # Never a bare "kruste": Krustenbraten, Krustensteaks and Krustenschinken are all pork.
+    ("bakery", ["weizenkruste", "vollkornkruste", "dinkelcrusty", "dinkel-schiffchen"]),
     ("dairy", ["joghurt", "jogurt", "froop", "skyr", "müllermilch", "fruchtzwerge", "fruchtquark"]),
     # Freeze-dried fruit is a shelf-stable SNACK, not frozen food — "gefrier" alone reads
     # "Gefriergetrocknete Himbeeren" as tiefkühl.
+    # Mövenpick spans ice cream AND coffee AND, here, a tub called "Chocolate Chips" that the
+    # snacks token below reads as crisps — its path leaf is literally "Eis". A multi-category
+    # brand needs its other categories pinned at layer 2, the only layer above the brand map.
+    ("ice_cream", ["mövenpick chocolate chips"]),
+    # ...and in the other direction: "Mövenpick Erdbeere" is a FEINJOGHURT, which the
+    # brand map (mövenpick -> ice_cream, layer 4) would otherwise serve as ice cream.
+    ("dairy", ["mövenpick erdbeere"]),
     ("snacks", ["chips", "trüfrü", "trufru", "gefriergetrocknet"]),
     # "Lachs" is a German LOIN cut as well as a salmon: a Lachsschinken is cured PORK, but the
     # fish rule ("lachs") runs first and the source files one under "Bier > Biermarken > Radeberger".
@@ -1510,6 +1535,32 @@ _DRUGSTORE_RULES: list[tuple[str, list[str]]] = [
              # 2026-08-09 photo sweep: dog/cat food still blobbing into `household`.
              "cesar hund", "winston hund", "gourmet gold", "gourmet revelations",
              "lieblings-sticks"]),
+    # 2026-08-11: the ~50 drugstore products the 08-09 sweep left sitting in `household`.
+    # They all arrive on a `Drogerie und Haushalt` path, so they already REACHED layer 1 —
+    # they fell through for want of a token, which is the opposite half of the problem PR #155
+    # fixed. Appended, so every more-specific rule above keeps priority.
+    #
+    # Brands that span aisles are deliberately absent (garnier -> hair/face/body, isana ->
+    # face/body/health, cien -> makeup/tools, lacura -> body/makeup); the product-type word is
+    # used instead. Single-aisle brands are safe: Colgate, Elvital, Pantene, Taft, Tetesept.
+    ("dental", ["haftcreme", "blend-a-dent", "colgate"]),
+    ("hair", ["schaumfestiger", "lockenstab", "fructis", "elvital", "pantene", "taft "]),
+    ("face", ["feuchtigkeitscreme", "augenpads", "reinigungsöl", "reinigungswasser",
+              "mizellen", "beauty-roller"]),
+    # Feminine hygiene resolves to `body` here, and that is the EXISTING answer, not a new
+    # call: all 9 stored Slipeinlagen rows (Always/Facelle/Carefree) already classify body.
+    # These tokens make the household strays agree with them rather than inventing a third
+    # answer. "skin food" is the same shape — one Weleda row said body, another household.
+    ("body", ["enthaarungscreme", "bodycream", "selbstbräun", "après", "sonnenschutzfluid",
+              "ambre solaire", "sunozon", "sun ozon", "isana pace", "hornhautentferner",
+              "skin food", " binden", "carefree", "intimpflege", "tena "]),
+    # NOT a bare "insektenschutz": LIVARNO's Dachfenster-Insektenschutz and Alu-Insektenschutz-
+    # Tür are window and door SCREENS, i.e. household hardware. Only what goes on skin is here.
+    ("health", ["tetesept", "tiger balm", "zeckito", "insektenschutzspray", "autan",
+                "mückenschutz"]),
+    # "raid essentials", never a bare "raid " — that sits inside "HydRAID Hydration Helper",
+    # a drink.
+    ("cleaning", ["domestos", "drano", "wc ente", "essigreiniger", "raid essentials"]),
 ]
 
 # `_DRUGSTORE_RULES` above runs INSIDE layer 1, which is only reached by a product carrying a

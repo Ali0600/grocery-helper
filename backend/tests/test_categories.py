@@ -2350,9 +2350,13 @@ def test_no_rule_is_shadowed_by_an_earlier_one_with_a_different_slug():
 # simulated over the full corpus first: `vogelfutter` would turn a "Vogelfutterhaus" (a bird
 # feeder, household) into pet food. It is a RATCHET — it may shrink, never grow.
 _UNMIRRORED_DRUGSTORE_TOKENS = {
-    "body": {"bodycream", "carefree"},
+    # Re-derived 2026-08-11 from the tables themselves (was 31 tokens, now 27): the drugstore
+    # pass that session mirrored `bodycream`, `carefree`, `blend-a-dent` and `colgate` into
+    # `_DRUGSTORE_RULES`, and the staleness half of the ratchet below is what demanded they be
+    # dropped from here. Do not hand-edit this list — re-derive it against `_FORM_OVERRIDES`
+    # minus `_DRUGSTORE_RULES`.
     "cleaning": {"allzwecktücher", "wc-spüler"},
-    "dental": {"blend-a-dent", "colgate", "listerine"},
+    "dental": {"listerine"},
     "hair": {"strong power"},
     "health": {"eaa ", "protein-pulver", "proteinpulver"},
     "pet": {"beef stick", "coshida", "dental-stick", "ergänzungsfuttermittel", "hello my cat",
@@ -2851,3 +2855,143 @@ def test_german_compounds_that_hide_a_toiletry_inside_a_food_word(name, expected
     1 by its non-food path — which is exactly why the guard has to exist now: the failure is
     invisible until a chain ships one of these WITHOUT a path."""
     assert classify(name, None) == expected, f"would be swallowed by {swallowed_by}"
+
+
+# --- 2026-08-11: the queue the 08-09 photo sweep left unshipped ---------------------------
+# Each finding was adjudicated from a product photo that session but held back to keep one
+# corpus diff reviewable. The drugstore half is the largest: ~50 products carrying a
+# `Drogerie und Haushalt` path, which means they REACHED layer 1 and fell through for want of
+# a token — the opposite half of the reachability problem PR #155 fixed.
+
+DROGERIE_PATH = ["Drogerie und Haushalt", "Marken", "Marken Drogerie"]
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("Colgate Total", "dental"),
+        ("blend-a-dent Complete Haftcreme", "dental"),
+        ("Elvital Hydra", "hair"),
+        ("Taft Schaumfestiger", "hair"),
+        ("Garnier Fructis Hair Food Maske", "hair"),
+        ("CIEN BEAUTY Lockenstab", "hair"),
+        ("Bulldog Original Feuchtigkeitscreme", "face"),
+        ("Garnier Mizellen Reinigungswasser", "face"),
+        ("Isana Augenpads Hydrogel Hibuskus", "face"),
+        ("Isana Enthaarungscreme", "body"),
+        ("LACURA SPA Bodycream", "body"),
+        ("Sunozon Apréslotion Melaninbooster", "body"),
+        ("Neutrogena Ultra Sheer Sonnenschutzfluid LSF 50", "body"),
+        ("tetesept Mariendistel Artischocke", "health"),
+        ("Tiger Balm Weiß oder Rot", "health"),
+        ("Zeckito Pure Protect Insektenschutz Spray", "health"),
+        ("Domestos Aktiv Kraft WC-Gel", "cleaning"),
+        ("Drano", "cleaning"),
+        ("WC Ente Frische-Siegel Nachfüllpack", "cleaning"),
+        ("Power Force Essigreiniger", "cleaning"),
+    ],
+)
+def test_drugstore_products_stranded_in_household_reach_their_aisle(name, expected):
+    """A pathED product: this is the case `_DRUGSTORE_RULES` was always able to serve, and the
+    only thing missing was the token. Passing a non-food path is mandatory — layer 1 is the
+    only place these rules run, so a pathless call would prove nothing about them."""
+    assert classify(name, None, DROGERIE_PATH) == expected
+
+
+def test_feminine_hygiene_follows_the_answer_the_corpus_already_gave():
+    """Not a new convention — an ALIGNMENT. All nine stored Slipeinlagen rows (Always,
+    Facelle, Carefree) already classified `body`, while Camelia/Carefree strays sat in
+    `household`. The new tokens make the strays agree rather than inventing a third answer.
+    Same shape for Weleda Skin Food, which said `body` on one row and `household` on another.
+    """
+    for name in ("Camelia Maxi Binden", "Carefree Plus Long", "Tena Discreet Einlagen Extra",
+                 "WELEDA Skin Food Intensivpflege"):
+        assert classify(name, None, DROGERIE_PATH) == "body", name
+    # The rows that were already right are untouched.
+    assert classify("Facelle Slipeinlagen Classic Lang", None, DROGERIE_PATH) == "body"
+
+
+@pytest.mark.parametrize(
+    "name, expected, why",
+    [
+        ("LIVARNO Dachfenster-Insektenschutz", "household",
+         "a window SCREEN — which is why there is no bare 'insektenschutz' token"),
+        ("LIVARNO Alu-Insektenschutz-Tür", "household", "a door screen, same reason"),
+        ("CRANE Duschhocker", "household", "a shower stool, not body care"),
+        ("LIVARNO Duschtuch", "household", "a towel"),
+        ("PARKSIDE Duschtürdichtungen", "household", "shower-door seals"),
+    ],
+)
+def test_the_household_hardware_these_tokens_must_not_claim(name, expected, why):
+    got = classify(name, None, DROGERIE_PATH)
+    assert got == expected, f"{name!r} -> {got!r}, expected {expected!r} because {why}"
+
+
+def test_raid_is_spelled_in_full_because_hydraid_exists():
+    """A bare "raid " would fire inside "HydRAID Hydration Helper", a drink. The full brand
+    string is the token instead. Sabotage: shorten it to "raid " and the drink moves."""
+    assert classify("RAID ESSENTIALS Insektenabwehr", None, DROGERIE_PATH) == "cleaning"
+    assert classify("Hydraid Hydration Helper Berry oder Lemon") != "cleaning"
+
+
+# --- the food half of the queue ------------------------------------------------------------
+# Lidl's "Sol & Mar" Spanish range plus two brand/path traps. Every one of these arrives on a
+# path that answers first, so only layer 2 can reach them.
+
+
+# Every path below is the REAL stored `category_path` for that product, copied out of the
+# corpus. An invented-but-plausible path proves nothing: which layer fires depends on the
+# root and on whether an intermediate node is in `_PATH_MAP`, so a made-up path can pass while
+# the shipped product still resolves wrongly (it did, on the first draft of this test).
+FOOD = "Lebensmittel und Getränke"
+BRAND_LEAF_SOLMAR = [FOOD, "Marken", "Marken Lebensmittel", "Sol&Mar"]
+
+
+@pytest.mark.parametrize(
+    "name, path, expected, why",
+    [
+        ("Sol & Mar Paella",
+         [FOOD, "Produkte", "Lebensmittel", "Fertiggerichte", "Pfannengericht", "Paella"],
+         "frozen", 'the caption reads "Andalusischer Style. Tiefgefroren."'),
+        ("Sol & Mar Knusperrollen", BRAND_LEAF_SOLMAR, "ready_meals",
+         "the photo showed croquettes, sold chilled in an 8-pack — this overrules #153"),
+        ("SOL & MAR Kartoffel-Omelette", BRAND_LEAF_SOLMAR, "ready_meals",
+         "a Spanish tortilla; 'kartoffel' would file it as a vegetable"),
+        ("Sol & Mar Tapas de Chorizo",
+         [FOOD, "Produkte", "Lebensmittel", "Feinkostlebensmittel", "Antipasti", "Tapas"],
+         "pork", "'chorizo' is already a pork token — the `Tapas` PATH node was beating it"),
+        ("Mövenpick Chocolate Chips", [FOOD, "Produkte", "Lebensmittel", "Dessert", "Eis"],
+         "ice_cream", "the snacks token 'chips' reads a tub of ice cream as crisps"),
+        ("Mövenpick Erdbeere", [FOOD, "Marken", "Marken Lebensmittel", "Mövenpick"], "dairy",
+         "a Feinjoghurt; the brand map (mövenpick -> ice_cream) decides at layer 4"),
+        ("EDEKA Bio Weizenkruste", [FOOD, "Marken", "Marken Bio", "Bioland"], "bakery",
+         "a bread on a brand-leaf path, so only a name rule can reach it"),
+        ("Dinkel-schiffchen",
+         [FOOD, "Produkte", "Lebensmittel", "Backzutaten", "Getreide", "Dinkel"], "bakery",
+         "a bread the source files under a BAKING-INGREDIENT node"),
+    ],
+)
+def test_the_food_findings_the_sweep_adjudicated(name, path, expected, why):
+    got = classify(name, None, path)
+    assert got == expected, f"{name!r} -> {got!r}, expected {expected!r} because {why}"
+
+
+def test_kruste_is_never_a_bare_bakery_token():
+    """Krustenbraten, Krustensteaks and Krustenschinken are all PORK, so the bread rule names
+    the two actual breads instead. Sabotage: replace them with a bare "kruste" and every
+    assertion below flips."""
+    for name in ("Steinhaus Krustenbraten", "BauernGut Krustensteaks vom Schwein",
+                 "GUT&GÜNSTIG Delikatess-Krustenschinken"):
+        assert classify(name) == "pork", name
+    assert classify("Langewiesche Puten-Krustenbraten") == "poultry"
+
+
+def test_the_mixed_tapas_platters_are_deliberately_left_alone():
+    """The sweep read "Tapas Selektion"/"Tapasplatte" as cured meats, but the NAME does not say
+    so and the photo could not be re-checked when this shipped. Leaving them in `pantry` is the
+    honest answer; moving them on an unverifiable note is not. Pinned so the next audit sees a
+    decision rather than an oversight."""
+    assert classify("Sol & Mar Tapas Selektion", None, BRAND_LEAF_SOLMAR) == "pantry"
+    assert classify("SOL & MAR Tapasplatte", None,
+                    [FOOD, "Produkte", "Lebensmittel", "Feinkostlebensmittel",
+                     "Antipasti"]) == "pantry"
