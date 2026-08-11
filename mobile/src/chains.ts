@@ -11,6 +11,7 @@ export const CHAIN_LABELS: Record<string, string> = {
   // backend scrapes whichever one operates at the PLZ, so only ever one "Aldi" is present.
   // Which division it is shows in the store name, not the chip.
   aldi: 'Aldi',
+  penny: 'Penny',
   rossmann: 'Rossmann', // drugstore vertical
   dm: 'dm', // drugstore vertical — lowercase is the brand's own styling
 };
@@ -23,6 +24,11 @@ export const CHAIN_COLORS: Record<string, { bg: string; fg: string }> = {
   // ALDI's own navy+orange would collide with Lidl's blue and E center's orange, so the
   // pill uses its lighter cyan instead — the point is telling the chains apart at a glance.
   aldi: { bg: 'rgba(0,170,190,0.18)', fg: '#5fd6de' },
+  // Penny's own red is the same family as REWE's (they are both REWE Group), and the two
+  // sit side by side in the grocery list — so the pill takes Penny's secondary yellow-
+  // orange instead. It has to stay clear of EDEKA's yellow and E center's orange too,
+  // hence the warmer, deeper tone.
+  penny: { bg: 'rgba(212,105,20,0.20)', fg: '#f0a35e' },
   // Rossmann's own red would read as `colors.badge` (#e8453c), which means discount/error
   // everywhere else in the app — so its pill uses a distinct magenta instead. It only ever
   // shares a screen with other drugstore chains, so it needn't dodge the grocery palette.

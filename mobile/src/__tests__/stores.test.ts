@@ -123,7 +123,9 @@ describe('activeStoreLens', () => {
 
   it('is a no-op when NONE of the selection is available (the stale-lens guard)', () => {
     // This is what makes persisting the selection safe: a stale pick can never empty the list.
-    expect(activeStoreLens(['netto', 'penny'], available)).toEqual([]);
+    // Both slugs are chains the backend does NOT scrape (penny moved off this list when it
+    // shipped, 2026-08-11) — the point is that they are absent from `available`.
+    expect(activeStoreLens(['netto', 'kaufland'], available)).toEqual([]);
   });
 
   it('collapses to All when the selection covers every available chain', () => {
