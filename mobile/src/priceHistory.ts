@@ -104,13 +104,27 @@ function toFacts(raw: RawEntry): PriceFacts | null {
 /**
  * What gets persisted: the PROJECTION, never the index.
  *
- * The index is 2.76 MB decompressed; a 100-item History projects to roughly 20 KB. Storing
- * the projection keeps the cache small AND makes the misses durable, which is what stops
- * the 94%-of-rows-with-no-history case from refetching on every open.
+ * Storing the projection keeps the cache small (a 100-item History is roughly 20 KB) AND
+ * makes the misses durable, which is what stops the no-history case from refetching on
+ * every open.
  */
 export type CachedPriceHistory = {
   byKey: Record<string, PriceFacts[]>;
-  /** Keys proven absent from this index revision. */
+  /**
+   * Keys proven absent from this index revision.
+   *
+   * Since the switch to `index-min.json` this means one of TWO things, and nothing in the
+   * app can tell them apart: the collector has never seen the product, OR it has seen it in
+   * exactly one week and the publisher withheld it. Both are correctly tier 0 (render
+   * nothing), so the ambiguity costs nothing at display time — the evidence for the second
+   * case is the row the filter removed.
+   *
+   * What it does change is refetch economics. A miss now flips to a hit the moment a product
+   * is seen a SECOND week, which is precisely the event this feature exists to surface. The
+   * cadences line up: the upstream regenerates Sunday 09:00 UTC and `dealsStale` turns over
+   * on the same weekly boundary, so the transition is picked up on the next open after the
+   * flyer week rolls — not held for an arbitrary window.
+   */
   misses: string[];
   /** The weeks the index covered, for "N weeks of data" context. */
   weeks: string[];
@@ -119,7 +133,38 @@ export type CachedPriceHistory = {
   /** Sent back as `If-None-Match`; a 304 proves the misses are still misses, at 0 bytes. */
   etag: string | null;
   fetchedAt: number;
+  /**
+   * Which upstream file this projection came from. A cache written against a different
+   * source has `misses` computed under a different policy and an `etag` belonging to a
+   * different URL, so it must be DISCARDED rather than reused — see `CACHE_SOURCE`.
+   *
+   * Optional so a pre-switch cache parses; `undefined` simply never matches, which is the
+   * behaviour we want.
+   */
+  source?: string;
 };
+
+/**
+ * Identifies the upstream file + policy a cached projection was built from. Bump it whenever
+ * INDEX_URL changes or the publisher changes what it includes.
+ *
+ * Without this, a device holding a pre-switch cache would send an ETag from the OLD url to
+ * the new one and, worse, keep serving `misses` that meant "absent from the full index" as
+ * though they meant "absent from the filtered one". Those are different questions.
+ */
+export const CACHE_SOURCE = 'index-min@1';
+
+/**
+ * The cached projection, but only if it was built from the file we are about to ask for.
+ *
+ * Exported and pure so it is testable: this is the whole safety mechanism behind switching
+ * upstream files, and inline in the hook it would only be exercised by a fetch test that
+ * does not exist. Returns `null` for a mismatch, which the caller treats as "no cache" —
+ * so the stale `misses` and the ETag from the old URL are both dropped.
+ */
+export function usableCache(stored: CachedPriceHistory | null): CachedPriceHistory | null {
+  return stored?.source === CACHE_SOURCE ? stored : null;
+}
 
 export type Projection = {
   /** name_key -> every chain's series for that product. */
@@ -131,8 +176,8 @@ export type Projection = {
 };
 
 /**
- * Keep only the entries matching `keys`, discard the rest. The index is 2.76 MB decompressed
- * and ~419 B/product; a 100-item History projects to roughly 20 KB, which is what gets
+ * Keep only the entries matching `keys`, discard the rest. `index-min.json` is 389 KB
+ * decompressed (65 KB over the wire); a 100-item History projects to roughly 20 KB, which is what gets
  * persisted. Parsing happens once, in memory, and the parsed index is never stored.
  */
 export function projectIndex(raw: unknown, keys: string[]): Projection {

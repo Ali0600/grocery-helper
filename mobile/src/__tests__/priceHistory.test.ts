@@ -10,6 +10,9 @@
 import rawIndex from './fixtures/priceIndex.json';
 
 import {
+  CACHE_SOURCE,
+  CachedPriceHistory,
+  usableCache,
   MAX_POINTS,
   NOISE_RATIO,
   PriceFacts,
@@ -224,5 +227,57 @@ describe('buildTrail — tiered by evidence', () => {
     const t = trailFor(item('Coca-Cola', 'edeka_center'), project().byKey);
     if (t.tier !== 3) throw new Error('expected tier 3');
     expect(t.label).toBe('Coca-Cola');
+  });
+});
+
+describe('CACHE_SOURCE — the guard that makes switching upstream files safe', () => {
+  // Switching INDEX_URL from `index.json` to `index-min.json` changes what a cached `misses`
+  // entry MEANS: it used to be "the collector has never seen this product", it is now "never
+  // seen, OR seen once and withheld". A device that reused a pre-switch projection would go
+  // on answering from the old policy and, because `unknownKeys` reports nothing missing,
+  // would never even ask. That is the failure this discriminator exists to prevent.
+
+  it('is a non-empty version string, so a stale cache can be recognised', () => {
+    expect(typeof CACHE_SOURCE).toBe('string');
+    expect(CACHE_SOURCE.length).toBeGreaterThan(0);
+  });
+
+  it('does not match a cache written before the field existed', () => {
+    // `source` is optional so an old blob still PARSES — it just never matches, which is
+    // exactly the behaviour wanted: parse it, then discard it.
+    const legacy = {
+      byKey: {},
+      misses: ['gouda jung'],
+      weeks: ['2026-W27'],
+      generatedAt: '2026-07-26T00:00:00.000Z',
+      etag: 'W/"old-etag-from-the-full-index"',
+      fetchedAt: Date.now(),
+    } as CachedPriceHistory;
+    expect(legacy.source).toBeUndefined();
+    expect(legacy.source === CACHE_SOURCE).toBe(false);
+  });
+
+  it('DISCARDS a projection built from a different upstream file', () => {
+    const legacy = {
+      byKey: { 'gouda jung': [] },
+      misses: ['butter'],
+      weeks: ['2026-W27'],
+      generatedAt: '',
+      etag: 'W/"etag-from-the-full-index"',
+      fetchedAt: Date.now(),
+    } as CachedPriceHistory;
+    // No source at all (pre-switch), and a source from some other file: both are unusable.
+    expect(usableCache(legacy)).toBeNull();
+    expect(usableCache({ ...legacy, source: 'index@1' })).toBeNull();
+    expect(usableCache(null)).toBeNull();
+    // ...and a matching one is handed straight back, ETag and misses intact.
+    const current = { ...legacy, source: CACHE_SOURCE };
+    expect(usableCache(current)).toBe(current);
+  });
+
+  it('names the file it came from, so the next switch is forced to bump it', () => {
+    // Sabotage: point INDEX_URL somewhere else without changing this, and the string stops
+    // describing the cache — which is the review signal.
+    expect(CACHE_SOURCE).toContain('index-min');
   });
 });
