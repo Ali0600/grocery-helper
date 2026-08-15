@@ -22,6 +22,28 @@ def _load(name: str) -> dict:
     return yaml.safe_load(path.read_text())
 
 
+# The weekly refresh now has TWO data-quality gates — one after the reset, one for a
+# verify-only run — so a substring match like "quality" in the name silently picks whichever
+# comes first. Select by exact name and fail loudly on ambiguity: a test that grabs the wrong
+# gate would assert the right thing about the wrong step.
+RESET_STEP = "POST /api/reset (retry transient failures)"
+GATE_AFTER_RESET = "Data-quality gate on the served deals"
+GATE_VERIFY_ONLY = "Data-quality gate (verify-only)"
+
+
+def _triggers(wf: dict) -> dict:
+    """The `on:` block. PyYAML follows YAML 1.1, where a bare `on:` key is the BOOLEAN True —
+    so `wf["on"]` raises KeyError and a test written that way fails for the wrong reason."""
+    return wf[True] if True in wf else wf["on"]
+
+
+def _step(wf: dict, job: str, name: str) -> dict:
+    steps = wf["jobs"][job]["steps"]
+    match = [s for s in steps if (s.get("name") or "") == name]
+    assert len(match) == 1, f"expected exactly one step named {name!r}, found {len(match)}"
+    return match[0]
+
+
 def test_main_runs_are_never_cancelled_by_a_newer_push():
     """A superseded PR run is waste; a superseded `main` run is a LOST DEPLOY.
 
@@ -80,7 +102,7 @@ def test_ci_keeps_a_manual_recovery_hatch_for_a_lost_deploy():
     trigger, recovering a cancelled/failed deploy means inventing a backend commit. Twice in two
     days that was the actual blocker, so the hatch is pinned."""
     wf = _load("ci.yml")
-    triggers = wf[True] if True in wf else wf["on"]  # PyYAML reads bare `on:` as the bool True
+    triggers = _triggers(wf)
     assert "workflow_dispatch" in triggers, "ci.yml must stay manually re-runnable"
     deploy = next((j for n, j in wf["jobs"].items() if "deploy" in n.lower()), None)
     if deploy is None:  # pragma: no cover - the job is optional by design
@@ -134,8 +156,7 @@ def test_the_weekly_gate_enforces_the_per_chain_floor_after_the_reset():
     """
     wf = _load("scrape.yml")
     steps = wf["jobs"]["refresh"]["steps"]
-    gate = next((s for s in steps if "quality" in (s.get("name") or "").lower()), None)
-    assert gate is not None, "expected a data-quality gate step in the weekly refresh"
+    gate = _step(wf, "refresh", GATE_AFTER_RESET)
     assert "--post-reset" in gate["run"], (
         "without --post-reset the per-chain floor never runs and a dark chain reads as green"
     )
@@ -143,7 +164,57 @@ def test_the_weekly_gate_enforces_the_per_chain_floor_after_the_reset():
         "workflow inputs belong in env:, never interpolated into a run: block"
     )
     # The flag asserts "a re-scrape just finished", so it is a lie if the gate outruns the reset.
-    reset = next(s for s in steps if "reset" in (s.get("name") or "").lower())
+    reset = _step(wf, "refresh", RESET_STEP)
     assert steps.index(gate) > steps.index(reset), (
         "the gate must run AFTER /api/reset, or --post-reset claims something that isn't true"
     )
+
+
+def test_a_verify_only_run_skips_the_destructive_reset():
+    """`verify_only` exists so a stale alert issue can be cleared without wiping prod.
+
+    Before it, the ONLY way to re-verify the deployed backend was the full wipe-and-re-scrape,
+    so a bug fixed on Monday left its `scrape-failure` issue open until Sunday — and that open
+    issue is what the self-heal poller consumes, which is how it burned both its attempts on a
+    repo that was already fixed. If this guard goes, "verify" quietly becomes "wipe" again.
+    """
+    wf = _load("scrape.yml")
+    assert "verify_only" in _triggers(wf)["workflow_dispatch"]["inputs"], (
+        "the verify-only path needs its own dispatch input"
+    )
+    reset = _step(wf, "refresh", RESET_STEP)
+    # `inputs` (not `github.event.inputs`) PRESERVES the declared boolean; github.event.inputs
+    # stringifies it. So the condition must be plain truthiness — `inputs.verify_only == 'true'`
+    # compares a boolean against a string, which GitHub coerces to false, and the guard would
+    # never fire. A schedule run has no `inputs` at all, so the negation runs the reset.
+    assert reset.get("if") == "${{ ! inputs.verify_only }}", (
+        "the reset must be skipped on a verify-only run, guarded on the TYPED inputs context"
+    )
+
+
+def test_the_verify_only_gate_never_claims_a_reset_just_ran():
+    """--post-reset arms the per-chain floor by asserting "every chain has a fresh brochure".
+
+    That is true right after the weekly wipe and false at any other moment — a chain empties
+    legitimately between brochures (Rossmann's week ends Friday). Passing the flag on a
+    mid-week verify-only run would make the gate fail on healthy data, and the natural "fix"
+    for that red is to loosen the floor, which is the compensating control for a dark chain.
+    So the two gates must stay genuinely separate commands, not one step with a conditional
+    built inside `run:` — that would leave the literal flag in the step body and let the
+    sibling test above pass while the flag never applied.
+    """
+    wf = _load("scrape.yml")
+    gate = _step(wf, "refresh", GATE_VERIFY_ONLY)
+    assert "--post-reset" not in gate["run"], (
+        "a verify-only run has not just re-scraped, so --post-reset would assert something false"
+    )
+    assert gate.get("if") == "${{ inputs.verify_only }}", (
+        "the verify-only gate must run only on a verify-only dispatch"
+    )
+    assert "${{" not in gate["run"], (
+        "workflow inputs belong in env:, never interpolated into a run: block"
+    )
+    # Both gates must still feed the same alert/close machinery, or a green verify-only run
+    # would prove prod healthy and leave the issue open anyway — the whole point of the path.
+    names = [s.get("name") or "" for s in wf["jobs"]["refresh"]["steps"]]
+    assert names.index(GATE_VERIFY_ONLY) < names.index("Close recovery issues")

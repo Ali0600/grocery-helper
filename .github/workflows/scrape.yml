@@ -17,6 +17,23 @@ on:
       plz:
         description: Postal code to scrape (blank → SCRAPE_PLZ secret, else 10115)
         required: false
+      # Re-run the data gate against the DEPLOYED backend without touching its data.
+      #
+      # Until this existed the only way to re-verify prod was the wipe-and-re-scrape below, so
+      # a bug fixed mid-week left its `scrape-failure` issue open until the next Sunday — and
+      # that open issue is what the self-heal poller consumes, so a stale one actively burns
+      # healing attempts on a repo that is already fixed. A green verify-only run closes the
+      # issue through the same machinery a real refresh does.
+      #
+      # Declared `type: boolean` and read via the `inputs` context, which PRESERVES the boolean
+      # (`github.event.inputs` stringifies it). Every guard below is therefore plain truthiness:
+      # `inputs.verify_only == 'true'` would compare a boolean to a string, which coerces to
+      # false, and the guard would silently never fire.
+      verify_only:
+        description: Re-check the served deals WITHOUT wiping and re-scraping
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: read
@@ -50,12 +67,18 @@ jobs:
           curl -fsS --max-time 300 --retry 2 --retry-all-errors --retry-delay 15 \
                "$BASE/health" -w " (health answered in %{time_total}s)\n" \
             || echo "::warning::health check did not answer — continuing to the reset anyway"
-          echo "pausing ${SETTLE_S}s so our scrape isn't a second burst on the same pages…"
-          sleep "${SETTLE_S}"
+          if [ "${VERIFY_ONLY}" = "true" ]; then
+            echo "verify-only run - no reset follows, so there is no second burst to space out"
+          else
+            echo "pausing ${SETTLE_S}s so our scrape isn't a second burst on the same pages…"
+            sleep "${SETTLE_S}"
+          fi
         env:
           SETTLE_S: 60
+          VERIFY_ONLY: ${{ inputs.verify_only }}
 
       - name: POST /api/reset (retry transient failures)
+        if: ${{ ! inputs.verify_only }}
         env:
           # SCRAPE_PLZ is a *secret* (not a variable) so a personal postal code is masked
           # in the public Actions logs; falls back to a neutral central default if unset.
@@ -89,10 +112,30 @@ jobs:
       # re-scrape above, where every chain is supposed to have a fresh brochure. A thin one
       # at this point is an incident. Keep this step AFTER the reset or the flag is a lie.
       - name: Data-quality gate on the served deals
+        if: ${{ ! inputs.verify_only }}
         env:
           PLZ: ${{ github.event.inputs.plz || secrets.SCRAPE_PLZ || '10115' }}
         run: |
           python3 .github/scripts/verify_deals.py --post-reset \
+            --url "https://grocery-helper-sw6c.onrender.com/api/offers" --plz "${PLZ}"
+
+      # The verify-only twin. Deliberately a SEPARATE step rather than one gate that builds its
+      # flags in the shell: a conditional inside `run:` would leave the literal `--post-reset`
+      # in the step body, so the test asserting the scheduled path passes it would stay green
+      # whether or not the flag ever applied — a gate reporting on something it never checked.
+      #
+      # No --post-reset here, and that is the whole point. The flag arms the per-chain floor by
+      # asserting "every chain has a fresh brochure", which is true right after the wipe and
+      # false at any other moment: a chain empties legitimately between brochures (Rossmann's
+      # week ends Friday, so a Saturday really does serve ~2 offers). Passing it mid-week would
+      # fail the gate on healthy data, and the tempting fix for that red is to loosen the floor
+      # that exists to catch a genuinely dark chain.
+      - name: Data-quality gate (verify-only)
+        if: ${{ inputs.verify_only }}
+        env:
+          PLZ: ${{ github.event.inputs.plz || secrets.SCRAPE_PLZ || '10115' }}
+        run: |
+          python3 .github/scripts/verify_deals.py \
             --url "https://grocery-helper-sw6c.onrender.com/api/offers" --plz "${PLZ}"
 
       # A silent weekly failure is invisible; surface it as a (deduplicated) issue.
