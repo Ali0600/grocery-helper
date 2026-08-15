@@ -222,6 +222,10 @@ def test_category_trace_reports_the_deciding_rule_and_the_stored_category(client
     assert [s["layer"] for s in body["trace"]["layers"]] == [
         "0", "1", "2", "2b", "3", "4", "5", "6", "7"
     ]
+    # "the first decided layer IS the answer" holds only while nothing overrode the walk.
+    # A post-layer redirect (preserved produce -> pantry) breaks that inference, so assert the
+    # precondition rather than leaving this quietly asserting a general rule it isn't.
+    assert body["trace"].get("redirect") is None
     winner = next(s for s in body["trace"]["layers"] if s["status"] == "decided")
     assert winner["slug"] == body["computed_category"]
     assert client.get("/api/offers/999999/category-trace").status_code == 404
@@ -348,3 +352,29 @@ def test_health_exposes_the_running_commit(monkeypatch):
 
     monkeypatch.setenv("RENDER_GIT_COMMIT", "abc123")
     assert health() == {"status": "ok", "commit": "abc123"}
+
+
+def test_the_bulk_trace_carries_a_post_layer_redirect(client):
+    """The bulk payload is trimmed hard for size, and a dropped field here is invisible.
+
+    Without `redirect` a preserved-produce offer renders as "pantry" above a layer list whose
+    only decided entry says "vegetables" — a trace contradicting its own answer, which is the
+    one failure a debugging surface cannot afford. Calls `_compact` directly: routing a real
+    offer through would mean seeding one, and several tests pin the seed by exact name list.
+    """
+    from app.api.offers import _compact
+    from app.categories import explain
+
+    trace = explain(
+        "ALL SEASONS Schwarzwurzeln", "ALL SEASONS",
+        ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Gemüse", "Wurzelgemüse",
+         "Schwarzwurzeln"],
+        "Abtropfgewicht (ATG) = 320 g 580-ml-Glas")
+    out = _compact(trace)
+
+    assert out["category"] == "pantry"
+    assert out["redirect"]["slug"] == out["category"], "the payload must explain its own answer"
+    assert out["redirect"]["blocked_slug"] == "vegetables"
+    # ...and an un-redirected offer must not carry the key at all (it is a size budget).
+    plain = _compact(explain("Nektarinen", None, None, "Klasse I 1 kg"))
+    assert "redirect" not in plain

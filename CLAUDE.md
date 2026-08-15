@@ -542,8 +542,24 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   "Bananen-Kirsch-Getränk" out of soft_drinks — it needs a negative guard the L2 table can't
   express.
   **Preserved produce leaves the FRESH chips** (user's convention): jarred/canned → pantry,
-  frozen → frozen, at layer 2 (canned is a definitive *form* and must beat the produce path
-  and brand — `Bonduelle` is mapped to vegetables, so a layer-5 override never gets a turn).
+  frozen → frozen, at layer 2 for *named* products (canned is a definitive *form* and must beat
+  the produce path and brand — `Bonduelle` is mapped to vegetables, so a layer-5 override never
+  gets a turn), **plus a POST-LAYER caption redirect for the rest** (2026-08-15, `_redirect`).
+  Every rule answering `fruits`/`vegetables` matches the NAME or the PATH, and neither can tell
+  a jar from loose produce, while the caption states it outright — so the redirect runs after
+  the walk, in `_decide`, which `classify` and `explain` BOTH call. That shared call is now the
+  thing keeping them in agreement: once an answer can be overridden post-walk, `_layers` +
+  `_winner` no longer guarantee it. It cannot be a layer — `_winner` takes the FIRST decided
+  layer, so anything after L3/L6 is unreachable and reaching it would exhaust the generator,
+  which is exactly the de-lazification a test forbids. **The gate is the winning SLUG, not the
+  token, and that is load-bearing**: `-glas` is not right-bounded and really does fire inside
+  "Bubble-Gum-Glasur", a stored ice lolly. It outranks every layer, so a future layer-2 guard
+  meaning "this jarred thing really IS a vegetable" would be silently overridden. Layer 1's old
+  special case is **gone** — verified redundant by blinding `_preserved_caption` and re-running
+  over all 17,018 stored rows for an identical result, and its removal *improves* the trace
+  (layer 1 now reports the rescue token it actually matched, with the override recorded beside
+  it). `ClassifyTrace.redirect` carries it; `layers` stays exactly `LAYER_ORDER`. Full-corpus
+  diff: **20 rows / 15 distinct products moved, 0 regressions.**
   **Three signals were simulated and REJECTED, each pinned by a test** — the simulation is the
   point, all three looked obviously right: a bare `brotaufstrich` caption (a USE, not an
   identity — it moved Fleischsalat/Eiersalat out of pork and the Brunch spread out of cheese);
@@ -781,12 +797,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     swallowing `reinigungswasser` and `essig` (pantry) swallowing `essigreiniger` — the
     documented German-compound class, invisible until a chain ships one without a path — and the
     drift ratchet demanded its allowlist be re-derived (31 → **27** tokens).
-  - **Deferred, deliberately**: the preserved-produce redirect (jarred Schwarzwurzeln, pickled
-    Pfefferonen and two `Fix für Salat` sachets still in the fresh chips). `_PRESERVED_CAPTION`
-    already encodes the rule but only inside layer 1's rescue branch; making it general is a
-    **mechanism** change, not a token, so it stays out of a data PR. Also deferred: the mixed
-    "Tapas Selektion"/"Tapasplatte", which the sweep read as cured meats but whose names do not
-    say so — pinned as a decision rather than left as an oversight.
+  - **The preserved-produce redirect SHIPPED 2026-08-15** — see the `_redirect` note above.
+    Still deferred: the mixed "Tapas Selektion"/"Tapasplatte", which the sweep read as cured
+    meats but whose names do not say so — pinned as a decision rather than left as an oversight.
   **Don't hardcode absolute `_FORM_OVERRIDES` indices in tests** — inserting a guard shifts them
   all; derive the index instead (two trace tests were fixed this way).
   **`_FORM_OVERRIDES` is first-hit-wins, so ORDER is part of the fix.** Two guards had to be

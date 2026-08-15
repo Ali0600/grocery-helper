@@ -630,6 +630,10 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # still do (Brotaufstrich, nut creams), the salads no longer.
     ("ready_meals", ["hühnerfrikassee", "prepmymeal", "eiersalat", "nudelsalat",
                      "kartoffelsalat", "weisskrautsalat", "fleischsalat", "soljanka",
+                     # A deli salad sold by drained weight. Without it the layer-6 `salat`
+                     # keyword makes it a vegetable, and the preserved redirect then files it
+                     # as pantry — one class landing in two chips depending on the filling.
+                     "selleriesalat",
                      "gärtnerinnen traum"]),  # a counter deli salad, named like a dish
     ("frozen", ["baniza", "teigröllchen"]),
     # CONVENTION (user): a milk-cream snack cake is a SWEET — Milchschnitte joins Maxi King,
@@ -1256,14 +1260,15 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     "coffee": ["feine milde", "senseo", "kaffeepad", "kaffee", "café pads", "cafe pads", "caffè crema", "ganze bohnen"],
 }
 
-# If any of these appear in the name, the food noun is a coincidence and the non-food path stands:
-# a garden plant, a garment, cookware/DIY material, or pet food — the things that legitimately live
-# under the non-food roots and happen to share a word with a produce/meat noun ("Mango" the fashion
-# brand, "Kirschholz" furniture, "Tomatenpflanze", "Good Boy … Knabbermix" cat treats).
 # The caption words that mean "this produce is preserved, not fresh" — a drained weight or a
-# jar/tin. Consulted only inside layer 1's food rescue (see `_layers`), because that layer
-# decides and never falls through to the layer-2 form words that handle the same convention
-# for food-path products.
+# jar/tin. Read by `_redirect` AFTER the layer walk, so it reaches a product however it was
+# classified.
+#
+# It used to be consulted only inside layer 1's food rescue, on the stated grounds that "the
+# layer-2 form words handle the same convention for food-path products". They do not: those
+# entries name SPECIFIC preserved products (gewürzgurke, passata), they never implement the
+# caption rule. So the convention held only for the non-food-path minority, and a jar of
+# Schwarzwurzeln sat in the Vegetables chip because its path was perfectly ordinary.
 _PRESERVED_CAPTION: tuple[str, ...] = ("abtropfgewicht", "-glas", " glas", "konserve", " dose")
 _FRESH_PRODUCE: frozenset[str] = frozenset({"fruits", "vegetables"})
 
@@ -1274,6 +1279,10 @@ def _preserved_caption(unit: str) -> Optional[str]:
     return next((t for t in _PRESERVED_CAPTION if t in low), None)
 
 
+# If any of these appear in the name, the food noun is a coincidence and the non-food path stands:
+# a garden plant, a garment, cookware/DIY material, or pet food — the things that legitimately live
+# under the non-food roots and happen to share a word with a produce/meat noun ("Mango" the fashion
+# brand, "Kirschholz" furniture, "Tomatenpflanze", "Good Boy … Knabbermix" cat treats).
 _RESCUE_VETO: list[str] = [
     "pflanze", "hyazinth", "röschen", "strauch", "saatgut", " samen", "topfrose", "kunstblume",
     "schleierkraut", " beet", "kübel", "blumen", "baumschule",
@@ -1627,7 +1636,9 @@ class LayerTrace:
     matched: str | None = None  # the exact token / brand key / path node / regex match
     where: str | None = None  # which haystack it matched against
     reason: str | None = None  # why it was skipped, or which branch of layer 1 ran
-    blocked_slug: str | None = None  # layer 1 only: the rescue a `_RESCUE_VETO` word killed
+    # What this entry PREVENTED: the rescue a `_RESCUE_VETO` word killed (layer 1), or the
+    # answer a post-layer redirect overrode (layer "R").
+    blocked_slug: str | None = None
 
     @classmethod
     def decided(cls, layer: str, name: str, slug: str, **kw: object) -> LayerTrace:
@@ -1664,10 +1675,15 @@ class ClassifyTrace:
     category: str
     inputs: TraceInputs
     layers: tuple[LayerTrace, ...]
+    # A post-layer override, when one fired. NOT a tenth entry in `layers`: that tuple is
+    # exactly `LAYER_ORDER` and three tests pin it, so a variable-length list would churn
+    # them for a reason unrelated to what they assert. `blocked_slug` names what it overrode.
+    redirect: LayerTrace | None = None
 
     @property
     def winner(self) -> LayerTrace:
-        return _winner(self.layers)
+        """What produced `category` — the redirect when one fired, else the first decided layer."""
+        return self.redirect or _winner(self.layers)
 
 
 def _haystack(name: str, brand: str | None) -> str:
@@ -1804,22 +1820,16 @@ def _layers(
         if rescue is not None and veto is None:
             # Real food buried under a non-food path — checked FIRST so a drugstore node
             # can't claim it (the source files spare ribs under `Waschmittel`).
-            slug = rescue[1]
-            # ...but preserved produce must not land in a FRESH chip just because the rescue
-            # is what found it. The rescue matches the NAME ("Mandarin-Orangen"), which can't
-            # tell a jar from loose fruit; the CAPTION states the form ("Abtropfgewicht",
-            # "1.062-ml-Glas"). Layer 2b would catch it, but layer 1 never falls through.
-            # Only the two fresh-produce slugs are redirected, so nothing else can shift.
-            if slug in _FRESH_PRODUCE and unit and _preserved_caption(unit):
-                yield LayerTrace.decided(
-                    "1", "nonfood_path", "pantry", table="_PRESERVED_CAPTION",
-                    matched=_preserved_caption(unit), where=_WHERE_CAPTION,
-                )
-            else:
-                yield LayerTrace.decided(
-                    "1", "nonfood_path", slug, table="_FOOD_RESCUE",
-                    index=rescue[0], matched=rescue[2], where=_WHERE_TEXT,
-                )
+            # Preserved produce used to be redirected right here. `_redirect` now does it for
+            # every layer, so this branch reports what it actually found and the override is
+            # recorded separately — two facts instead of one conflated one. Verified
+            # redundant, not assumed: blinding `_preserved_caption` (which is exactly what
+            # disabled this branch) and re-running the general redirect over the full stored
+            # table reproduced the old answers row for row.
+            yield LayerTrace.decided(
+                "1", "nonfood_path", rescue[1], table="_FOOD_RESCUE",
+                index=rescue[0], matched=rescue[2], where=_WHERE_TEXT,
+            )
         elif drug is not None:
             # Not food — but a drugstore aisle rather than the undifferentiated "household"
             # bucket? Only reachable where the answer was ALREADY household, so every move
@@ -1886,6 +1896,52 @@ def _winner(layers: Iterable[LayerTrace]) -> LayerTrace:
     raise AssertionError("the fallback layer always decides")  # pragma: no cover
 
 
+def _redirect(won: LayerTrace, unit: str | None) -> Optional[LayerTrace]:
+    """Preserved produce leaves the FRESH chips, whichever layer put it there.
+
+    The user's standing convention (jarred/canned -> pantry, frozen -> frozen). Every rule that
+    answers `fruits`/`vegetables` matches the NAME or the PATH, and neither can tell a jar from
+    loose produce — while the CAPTION states the form outright ("Abtropfgewicht", "580-ml-Glas").
+
+    A post-layer redirect rather than a layer, because a layer cannot reach this: `_winner`
+    takes the FIRST decided layer, so anything placed after layers 3/6 is unreachable, and
+    anything placed before them would have to re-derive the answer it is correcting.
+
+    Gated on the winning SLUG, and that gate — not the token — is what holds the line:
+    `-glas` is not right-bounded and really does fire inside "Bubble-Gum-Glasur", a stored ice
+    lolly. Note this outranks every layer including the layer-2 guards; no fruits/vegetables
+    entry there carries a preserved caption today, but a future guard meaning "this jarred
+    thing really IS a vegetable" would be silently overridden.
+    """
+    if won.slug not in _FRESH_PRODUCE or not unit:
+        return None
+    token = _preserved_caption(unit)
+    if token is None:
+        return None
+    return LayerTrace.decided(
+        "R", "preserved_redirect", "pantry", table="_PRESERVED_CAPTION",
+        matched=token, where=_WHERE_CAPTION, blocked_slug=won.slug,
+    )
+
+
+def _decide(
+    layers: Iterable[LayerTrace], unit: str | None
+) -> tuple[str, Optional[LayerTrace]]:
+    """(final slug, the redirect that produced it or None) — the ONE place the answer forms.
+
+    `classify` and `explain` both come through here, and that shared call is what keeps them
+    unable to disagree: once an answer can be overridden after the walk, `_layers` + `_winner`
+    alone no longer guarantee it.
+
+    Stays LAZY. `_winner` abandons the generator at the first decided layer, and `_redirect`
+    scans no rule table — five substrings against a short caption — so `classify` still costs
+    the same table walks it did before.
+    """
+    won = _winner(layers)
+    redirect = _redirect(won, unit)
+    return (redirect or won).slug or "other", redirect
+
+
 def classify(
     name: str,
     brand: str | None = None,
@@ -1902,7 +1958,7 @@ def classify(
     # generator, so the layers after it never run — the same short-circuit as before. Do NOT
     # simplify this to `explain(...).category`: that evaluates every layer (~3x the work) on
     # a path that runs once per scraped offer.
-    return _winner(_layers(name, brand, category_path, unit)).slug or "other"
+    return _decide(_layers(name, brand, category_path, unit), unit)[0]
 
 
 def explain(
@@ -1915,13 +1971,15 @@ def explain(
 
     Eager, so the layers *after* the winner are evaluated too — a later "decided" entry is
     the counterfactual ("layer 3 would have said fish"), which is what tells you where a fix
-    belongs. Shares `_layers`/`_winner` with `classify`, so the two cannot disagree on the
-    winner. Note this reaches layers `classify` short-circuits past, so it sees inputs
-    `classify` never touches — callers must validate `category_path` is a list of str.
+    belongs. Shares `_layers` and `_decide` with `classify`, so the two cannot disagree on the
+    answer — `_decide` is the guarantee now that a post-layer redirect can override the walk.
+    Note this reaches layers `classify` short-circuits past, so it sees inputs `classify`
+    never touches — callers must validate `category_path` is a list of str.
     """
     layers = tuple(_layers(name, brand, category_path, unit))
+    category, redirect = _decide(layers, unit)
     return ClassifyTrace(
-        category=_winner(layers).slug or "other",
+        category=category,
         inputs=TraceInputs(
             name=name,
             brand=brand,
@@ -1931,6 +1989,7 @@ def explain(
             caption=f" {unit.lower()} " if unit else None,
         ),
         layers=layers,
+        redirect=redirect,
     )
 
 

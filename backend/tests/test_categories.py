@@ -2995,3 +2995,75 @@ def test_the_mixed_tapas_platters_are_deliberately_left_alone():
     assert classify("SOL & MAR Tapasplatte", None,
                     [FOOD, "Produkte", "Lebensmittel", "Feinkostlebensmittel",
                      "Antipasti"]) == "pantry"
+
+
+# --- the preserved-produce redirect (2026-08-15) --------------------------------------
+#
+# Every path below is the REAL stored `category_path`, read from the served data — an invented
+# one proves nothing, since the whole bug is about which layer a real path routes through.
+
+def test_preserved_produce_leaves_the_fresh_chip_on_a_FOOD_path():
+    """The convention held only for products arriving on a NON-food path.
+
+    `_PRESERVED_CAPTION` was consulted inside layer 1's rescue branch, and layer 1 is reached
+    only by a non-food path. These four arrive on food paths, so the rule could not reach them
+    however well it was written — a jar of Schwarzwurzeln served in the Vegetables chip. The
+    two holders below are different layers on purpose (a path node and a name keyword), which
+    is why the fix cannot live in either table.
+    """
+    # layer 3: `_PATH_MAP["Wurzelgemüse"]` -> vegetables
+    assert classify(
+        "ALL SEASONS Schwarzwurzeln", "ALL SEASONS",
+        ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Gemüse", "Wurzelgemüse",
+         "Schwarzwurzeln"],
+        "Abtropfgewicht (ATG) = 320 g 580-ml-Glas") == "pantry"
+    # layer 6: `_RULES` "erdbeer" -> fruits. A jam, not fruit.
+    assert classify(
+        "GRANDESSA Gelee Erdbeere", "GRANDESSA",
+        ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "Grandessa"],
+        "Fruchtaufstrich; versch. Sorten 450-g-Glas") == "pantry"
+    # layer 6: `_RULES` "avocado" -> fruits. A spread in a jar; a spread stays pantry.
+    assert classify(
+        "EDEKA Bio My Veggie Avocado", "EDEKA",
+        ["Lebensmittel und Getränke", "Marken", "Marken Kaufland", "K-Bio"],
+        "Pflanzlicher Brotaufstrich 180g Glas") == "pantry"
+
+
+def test_a_deli_salad_in_a_jar_is_ready_meals_not_pantry():
+    """The redirect must not swallow a class that already has an answer.
+
+    "Rote Bete oder Selleriesalat" is a deli salad sold by drained weight, and the standing
+    convention files those with Eiersalat and Fleischsalat under ready_meals — one class, one
+    chip. Layer 2 runs before the layer-6 `salat` keyword that was making it a vegetable, so
+    the winner is never a fresh-produce slug and the redirect never sees the row. That
+    ordering IS the mechanism: it is how the redirect stays a fallback rather than a veto.
+    """
+    assert classify(
+        "SPREEWALD FELDMANN Rote Bete oder Selleriesalat", "SPREEWALD FELDMANN",
+        ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "Spreewald"],
+        "Streifen, Abtropfgewicht = 220 g, je 330 g oder Abtropfgewicht = 190 g, je 320 g",
+    ) == "ready_meals"
+
+
+def test_the_redirect_only_touches_the_two_fresh_slugs():
+    """`-glas` is not right-bounded and really does fire inside "Bubble-Gum-Glasur".
+
+    That ice cream is stored data, not a hypothetical. It survives because the redirect is
+    gated on the winning SLUG, not on the token — so the gate, not the token, is what holds
+    this line, and removing it would file an ice lolly under pantry.
+    """
+    assert classify(
+        "GUT&GÜNSTIG Rocket", "GUT&GÜNSTIG",
+        ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Dessert", "Eis"],
+        "3-faches Frucht-Vergnügen: Zitrone-Orange-Limette, mit Knisterstückchen und "
+        "Bubble-Gum-Glasur 12x47ml = 564ml Packung") == "ice_cream"
+    # A tinned fish is still fish: preserved is the normal form there, not a demotion.
+    assert classify("Deutsche See Thunfisch", None, None, "Abtropfgewicht 112 g") == "fish"
+
+
+def test_genuinely_fresh_produce_is_untouched():
+    """The counter-example to every assertion above: a caption without a preserve word."""
+    assert classify(
+        "REWE Bio Staudensellerie", "REWE Bio",
+        ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Gemüse"],
+        "Deutschland Kl. II") == "vegetables"

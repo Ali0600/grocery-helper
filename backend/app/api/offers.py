@@ -243,11 +243,18 @@ def _compact(trace: categories.ClassifyTrace) -> dict:
             entry.pop("where", None)
         layers.append(entry)
     path = trace.inputs.category_path
-    return {
+    out = {
         "category": trace.category,
         "inputs": {"category_path": path} if path else {},
         "layers": layers,
     }
+    # Without this a redirected offer renders as "pantry" above a layer list whose only
+    # decided entry says "vegetables" — the trace contradicting its own answer, which is the
+    # one thing a debugging surface must never do. Costs ~nothing: a handful of rows per PLZ.
+    if trace.redirect is not None:
+        out["redirect"] = {k: v for k, v in asdict(trace.redirect).items()
+                           if v is not None and k != "name"}
+    return out
 
 
 @router.get("/offers/{offer_id}/category-trace")

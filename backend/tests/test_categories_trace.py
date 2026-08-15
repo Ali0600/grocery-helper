@@ -44,7 +44,12 @@ def _rule_tokens() -> list[str]:
 def _generated_cases() -> list[tuple]:
     """The harvested tokens crossed with the path/unit shapes that switch layers on and off."""
     paths = [None, [FOOD_ROOT, "käse"], ["Tierbedarf", "Marken für Tiere"], []]
-    units = [None, "500 g", "45 % Fett i.Tr.", ""]
+    # The last one carries a `_PRESERVED_CAPTION` token deliberately. Without a caption that
+    # can trigger the post-layer redirect, this whole generated corpus cannot tell a redirect
+    # applied in `classify` from one applied in both — the drift it exists to catch. (T2, which
+    # would also catch it, is skipped in CI because *.db is gitignored, so this is the only
+    # surface that runs there.)
+    units = [None, "500 g", "45 % Fett i.Tr.", "Abtropfgewicht (ATG) = 320 g 580-ml-Glas"]
     cases: list[tuple] = []
     for i, token in enumerate(_rule_tokens()):
         cases.append((token, None, paths[i % len(paths)], units[i % len(units)]))
@@ -264,3 +269,74 @@ def test_vegan_match_reports_the_literal_and_is_vegan_still_returns_a_bool():
     assert vegan_match("Butter") is None
     assert is_vegan("Oatly Haferdrink") is True
     assert is_vegan("Butter") is False
+
+
+# --- the post-layer preserved-produce redirect (2026-08-15) ---------------------------
+
+# The real stored row: `_PATH_MAP["Wurzelgemüse"]` decides `vegetables` at layer 3, and the
+# caption is what says it is a jar. An invented path would prove nothing here — the whole
+# point is which layer a REAL path routes through.
+_JAR = ("ALL SEASONS Schwarzwurzeln", "ALL SEASONS",
+        ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Gemüse", "Wurzelgemüse",
+         "Schwarzwurzeln"],
+        "Abtropfgewicht (ATG) = 320 g 580-ml-Glas")
+
+
+def test_explain_reports_the_redirect_and_the_answer_it_overrode():
+    """A trace whose category no layer produced is a trace that lies about itself.
+
+    So the redirect is reported as its own entry, and it names what it displaced — otherwise
+    the reader sees "pantry" over a layer list whose only decided line says "vegetables" and
+    has to guess. `layers` deliberately stays exactly LAYER_ORDER; the override rides beside
+    it, not inside it.
+    """
+    tr = explain(*_JAR)
+    assert tr.category == "pantry"
+    assert tr.redirect is not None
+    assert tr.redirect.table == "_PRESERVED_CAPTION"
+    assert tr.redirect.matched == "abtropfgewicht"
+    assert tr.redirect.blocked_slug == "vegetables", "must name the answer it overrode"
+    assert tr.winner is tr.redirect, "`winner` is what produced `category`"
+    # The layer walk is untouched and still reports what it really found.
+    assert [s.layer for s in tr.layers] == LAYER_ORDER
+    first = next(s for s in tr.layers if s.status == "decided")
+    assert (first.slug, first.table) == ("vegetables", "_PATH_MAP")
+
+
+def test_a_trace_without_a_redirect_says_so():
+    """The negative case, so `redirect` can't just be always-set."""
+    tr = explain("REWE Bio Staudensellerie", "REWE Bio",
+                 ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Gemüse"],
+                 "Deutschland Kl. II")
+    assert tr.category == "vegetables"
+    assert tr.redirect is None
+    assert tr.winner is _winner_of(tr)
+
+
+def _winner_of(tr):
+    return next(s for s in tr.layers if s.status == "decided")
+
+
+def test_the_redirect_costs_classify_no_extra_table_scan(monkeypatch):
+    """The redirect must not de-lazify `classify`, which runs once per scraped offer.
+
+    `_redirect` reads five substrings off a short caption and scans no rule table, so the
+    count is whatever the layer walk already cost. A `tuple(layers)` slipped into `_decide`
+    — or a rewrite of the redirect as a terminal layer, which would have to exhaust the
+    generator to be reached — shows up here immediately.
+    """
+    calls: list[str] = []
+    real = C._first_token_hit
+    monkeypatch.setattr(
+        C, "_first_token_hit", lambda table, hay: (calls.append("x"), real(table, hay))[1]
+    )
+    calls.clear()
+    assert classify(*_JAR) == "pantry"
+    lazy = len(calls)
+    calls.clear()
+    explain(*_JAR)
+    eager = len(calls)
+    assert lazy < eager, (
+        f"classify must stop at the winner ({lazy} scans) while explain pays for every "
+        f"counterfactual ({eager}) — equal counts mean the redirect de-lazified classify"
+    )

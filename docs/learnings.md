@@ -1816,3 +1816,61 @@ did a sabotage that recomputed `stats` inside the filter get **caught**.
 **Takeaway.** If a rule is worth a test, it is worth a name. A predicate buried in a script or a
 hook is one you can only test by copying it, and a copy passes exactly when it is wrong in the
 same way.
+
+## A post-layer override needs one shared resolver, not a copy in each caller
+
+A first-hit-wins layer stack answers "which rule decided". If some answers need
+*correcting* afterwards (here: preserved produce leaving the fresh-produce chips), the
+correction cannot be another layer — the winner is the FIRST layer that decides, so
+anything appended is unreachable, and reaching it would mean evaluating every layer, which
+is the cost the short-circuit exists to avoid.
+
+**Why it came up:** `_PRESERVED_CAPTION` had lived inside layer 1's rescue branch, which
+only products on a *non-food* source path ever reach. A jar of Schwarzwurzeln arrives on a
+perfectly ordinary food path, so the rule could not reach it however well written. The fix
+was `_decide(layers, unit)` — one function that both `classify` and `explain` call.
+
+**Takeaway:** when an answer can be overridden after the walk, the shared *walk* no longer
+guarantees two callers agree — only a shared *resolver* does. Put the override in one place
+both call, and add a case to the agreement gate that can actually trigger it.
+
+## Gate a substring rule on the answer, not the token, when the token is unbounded
+
+`-glas` matches "580-ml-Glas" and also "Bubble-Gum-Glasur", a real stored ice lolly. The
+redirect is safe only because it fires on the winning *slug* (`fruits`/`vegetables`), never
+on the token alone.
+
+**Why it came up:** the token list was inherited from a branch where a second condition
+already constrained it. Generalising the rule stripped that constraint away silently.
+
+**Takeaway:** when you lift a rule out of a narrow branch, list what the branch was
+implicitly guaranteeing — the token may have been safe only because of where it sat. Pin
+the near-miss as a test using the real row, so it can't be dismissed as hypothetical.
+
+## A threshold calibrated on fresh data goes red on healthy stale data
+
+The deals gate's "at least N offers" floor was measured right after a weekly re-scrape.
+Run mid-week it failed on a perfectly healthy backend, because `/api/offers` filters
+`valid_to >= today` and a chain whose flyer week has ended drops out **by design**.
+
+**Why it came up:** adding a way to re-verify production without wiping it. The first run
+went red; the data was fine and the floor was being asked a question it could not answer.
+
+**Takeaway:** a floor over a decaying quantity is only meaningful relative to when the data
+was produced. Either scope the check to the moment it was calibrated for, or carry a second
+threshold for the decayed state — and print which one was applied, so a pass says what it
+actually checked. An alarm that cries wolf mid-week is one you learn to ignore by Sunday.
+
+## A recovery mechanism must not depend on what it recovers from
+
+A self-healing poller runs a headless agent to fix broken repos. When its own credential
+expired, every run died before reading anything — but each still counted against the target
+repo's attempt budget, so two failures "exhausted" it and announced that a human was needed,
+about a repo whose bug had already been fixed.
+
+**Why it came up:** two open alert issues turned out to have one shared cause, and the
+mechanism built to handle them was the thing amplifying it.
+
+**Takeaway:** classify failures by *whether the check ran*, not by whether it succeeded.
+"Could not evaluate" is not evidence about the thing being evaluated, and spending a budget
+on it converts an outage in your tooling into a false verdict about someone else's code.
