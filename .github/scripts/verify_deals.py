@@ -120,8 +120,8 @@ SERVE_LIMIT = 2000
 PROFILES: dict[str, dict] = {
     # Measured 2026-07-15, prod AND local agreeing: 1650-1663 offers, 5 chains, ~71% €/kg,
     # ~7.4% "other". Unchanged by the split — this is still the same population.
-    "grocery": {"chains": 6, "offers": 800, "unit_price_pct": 50.0, "other_pct": 15.0,
-                "min_chain_offers": 100},
+    "grocery": {"chains": 6, "offers": 800, "offers_stale": 800, "unit_price_pct": 50.0,
+                "other_pct": 15.0, "min_chain_offers": 100},
     # Measured 2026-07-30: Rossmann 283 + dm 214 = ~497.
     #
     # `chains` is the load-bearing check here, NOT the offer floor. dm's feed is a
@@ -134,9 +134,25 @@ PROFILES: dict[str, dict] = {
     # 2026-08-08 (rossmann 2 vs 287 the week before). `min_chain_offers` is the check that
     # actually names the chain; the offers floor caught that one only because dm happened to
     # be at 213 that week, and would have passed it at dm's own measured 250.
-    "drugstore": {"chains": 2, "offers": 250, "unit_price_pct": None, "other_pct": 15.0,
-                  "min_chain_offers": 100},
+    "drugstore": {"chains": 2, "offers": 250, "offers_stale": 150, "unit_price_pct": None,
+                  "other_pct": 15.0, "min_chain_offers": 100},
 }
+
+# `offers_stale` is the floor for a run where no scrape just happened (`--post-reset` absent).
+#
+# The offers floor answers "did the last scrape produce enough?", and that question is only
+# well-posed right after one. Between Sundays the served set DECAYS BY DESIGN: /api/offers
+# filters `valid_to >= today`, so a chain whose flyer week has ended drops out on schedule.
+#
+# Measured 2026-08-15, four days after the last scrape: drugstore served 201 against the 250
+# floor and went red on a perfectly healthy system. Rossmann's weekly had simply expired — its
+# 302 offers were measured on 08-12 — leaving 5 rows from a supplement dated 08-21, while dm's
+# clearance rows never expire (`valid_to` is NULL). Nothing was broken; the floor was being
+# asked a question it could not answer.
+#
+# Grocery keeps the SAME number because it barely decays: its flyers run Mon-Sat, so the
+# 08-11 scrape still served 1676 on 08-15. Drugstore's is set from dm ALONE (measured 196-214,
+# and unexpirable), which is the floor a real collapse would still have to breach.
 
 
 def self_disagreeing(offers: list[dict]) -> tuple[list[tuple[str, set[str], int]], int]:
@@ -196,6 +212,8 @@ def verify(offers: list[dict], profile: dict, *, post_reset: bool = False) -> in
     disagree, comparable = self_disagreeing(offers)
     disagree_pct = (len(disagree) / comparable * 100) if comparable else 0.0
     floor_unit = profile["unit_price_pct"]
+    # Plain subscripts, not .get(): a missing key must fail closed (see `min_chain_offers`).
+    floor_offers = profile["offers"] if post_reset else profile["offers_stale"]
 
     checks = [
         (len(chains) >= profile["chains"],
@@ -211,8 +229,9 @@ def verify(offers: list[dict], profile: dict, *, post_reset: bool = False) -> in
         # count — including the per-chain ones. Fail rather than report numbers we can't trust.
         (total < SERVE_LIMIT,
          f"not truncated: {total} (serve cap {SERVE_LIMIT})"),
-        (total >= profile["offers"],
-         f"offers: {total} (floor {profile['offers']})"),
+        (total >= floor_offers,
+         f"offers: {total} (floor {floor_offers}"
+         + (")" if post_reset else ", mid-week: nothing re-scraped)")),
         (floor_unit is None or unit_pct >= floor_unit,
          f"eur/kg sortable: {unit_pct:.1f}% "
          + (f"(floor {floor_unit}%)" if floor_unit is not None else "(not gated here)")),

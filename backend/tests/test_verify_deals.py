@@ -149,3 +149,43 @@ def test_the_flag_is_wired_through_the_cli(gate, tmp_path):
     base = [sys.executable, str(SCRIPT), "--file", str(path), "--vertical", "drugstore"]
     assert subprocess.run(base + ["--post-reset"], capture_output=True).returncode == 1
     assert subprocess.run(base, capture_output=True).returncode == 0
+
+
+def test_the_offers_floor_is_scoped_to_whether_a_scrape_just_ran(gate):
+    """Between Sundays the served set DECAYS by design, so the post-reset floor goes red on
+    a healthy system.
+
+    /api/offers filters `valid_to >= today`, so a chain whose flyer week has ended drops out
+    on schedule. Measured 2026-08-15, four days after the last scrape: drugstore served 201
+    against the 250 floor. Nothing was broken — Rossmann's weekly had expired (its 302 offers
+    were measured on 08-12), leaving 5 rows from a supplement dated 08-21, while dm's
+    clearance rows never expire. That red is the mirror of a gate reporting green while
+    evaluating nothing: a gate reporting RED while measuring something it cannot judge.
+    """
+    midweek = _offers(rossmann=5, dm=196)
+    assert gate.verify(midweek, gate.PROFILES["drugstore"], post_reset=False) == 0, (
+        "a mid-week reading must be judged against the floor that survives flyer expiry"
+    )
+
+
+def test_scoping_that_floor_did_not_loosen_the_sunday_one(gate):
+    """The compensating half. `offers_stale` exists so a mid-week run is judgeable, NOT so the
+    weekly gate gets easier — right after a wipe-and-re-scrape, 201 drugstore offers really is
+    an incident, and this is the assertion that stops the new key becoming a way to soften it.
+    """
+    # BOTH chains sit above the per-chain floor on purpose, so the offers floor is the only
+    # check that can fail. A `rossmann=5` fixture would fail post-reset on the per-chain floor
+    # instead, and the assertion would hold whatever the offers number was — proven: loosening
+    # `offers` to 150 sailed past that version of this test.
+    borderline = _offers(rossmann=110, dm=110)  # 220: under the Sunday floor, over the mid-week
+    assert gate.verify(borderline, gate.PROFILES["drugstore"], post_reset=True) == 1, (
+        "post-reset, a fresh scrape yielding 220 drugstore offers is a real failure"
+    )
+    assert gate.verify(borderline, gate.PROFILES["drugstore"], post_reset=False) == 0, (
+        "the same 220 mid-week is expected decay, not an incident"
+    )
+    # And the mid-week floor still has to be breachable, or it is decoration.
+    assert gate.verify(_offers(rossmann=5, dm=60), gate.PROFILES["drugstore"],
+                       post_reset=False) == 1, (
+        "dm collapsing must still fail mid-week — the floor is set from dm alone"
+    )
