@@ -3128,3 +3128,61 @@ def test_sansibar_is_rejected_as_a_household_token():
     # `südafrika` was rejected on the other side of the same trade: one travel advert, against
     # a word that is a produce ORIGIN and will recur.
     assert classify("Südafrika", None, None, None) != "household"
+
+
+# --- 2026-08-17 photo sweep: food hiding in `household` --------------------------------
+
+def test_food_buried_under_an_absurd_nonfood_path_is_rescued():
+    """Food in `household` is not merely mis-chipped — the app HIDES it.
+
+    `other` renders in the grocery list; `household` sits behind the Non-food toggle, so an
+    edible product there is gone from the app entirely. The source buries these under paths
+    that have nothing to do with them, and layer 1 DECIDES on a non-food path and never falls
+    through — so only `_FOOD_RESCUE` can reach them, and every fixture below therefore carries
+    its REAL non-food path. A pathless call would prove nothing about this table.
+    """
+    pets = ["Tierbedarf und Tierfutter", "Marken für Tiere"]
+    grill = ["Saison und Events", "Produkte", "Saison", "Grillsaison"]
+    assert classify("Arla Pizzakäse", "Arla", pets, "Finello, Reibekäse 150-g-Beutel") == "cheese"
+    assert classify("funny-frisch Chipsfrisch ungarisch", None, pets, "150-g-Beutel") == "snacks"
+    assert classify("REWE to go Obstsalat Classic", None, pets, "500-g-Schale") == "fruits"
+    assert classify("Rostbrätl XXL", None, grill,
+                    "BBQ; Aus dem Schweinenacken; mariniert") == "pork"
+
+
+def test_aldi_files_meat_under_a_laundry_path_and_the_rescue_beats_it():
+    """Layer 1 runs food rescue BEFORE the drugstore aisles, and this is why.
+
+    ALDI hangs raw meat off `Drogerie und Haushalt > … > Textilreinigung`, so without a rescue
+    token `_DRUGSTORE_PATH_MAP` claims it and a pork fillet is served as LAUNDRY.
+    """
+    textil = ["Drogerie und Haushalt", "Produkte", "Haushalt", "Textilreinigung"]
+    assert classify("Schweinefilet", None, textil, "Flüssig gewürzt; zum Braten") == "pork"
+    assert classify("Straußensteaks", None, textil,
+                    "Vorgegrillt; in Pfeffermarinade") == "other_meat"
+
+
+def test_straussensteak_is_spelled_in_full_because_strauss_is_a_bouquet():
+    """Every other stored product containing "strauß" is a flower BOUQUET. A bare token moves
+    13 rows into the meat chip to rescue one pack of ostrich steaks — measured, not guessed.
+
+    The fixtures are deliberately the bouquets WITHOUT "blumen" in the name. `Blumenstrauß`
+    and `Sonnenblumenstrauß` are already protected by the `_RESCUE_VETO` token `blumen`, so a
+    test built on those passes whatever the rescue table says — which is exactly what the
+    first version of this test did.
+    """
+    garden = ["Heimwerken und Garten", "Produkte", "Garten", "Pflanzen "]
+    deko = ["Dekoration und Geschenkartikel", "Produkte", "Dekoration", "Schnittblumen"]
+    assert classify("Rosenstrauß", None, garden, "Versch. Farben. ca. 35 cm") == "household"
+    assert classify("Sommergärtnerstrauß", None, garden, "Deutschland") == "household"
+    assert classify("Bunter Strauß", None, deko, "Versch. Farben, Je Strauß") == "household"
+
+
+def test_mixed_mince_is_pork_but_the_token_never_claims_beef_or_turkey():
+    """`hackfleisch` is deliberately NOT a token. The corpus files Rinder-Hackfleisch as beef
+    and Puten-Hackfleisch as poultry, so only the "gemischt" form belongs to pork — the bare
+    word would file a future beef mince on a non-food path as pork."""
+    pets = ["Tierbedarf und Tierfutter", "Marken für Tiere"]
+    assert classify("Gemischtes Hackfleisch", None, pets, "Deutschland 1 kg") == "pork"
+    assert classify("Rinder-Hackfleisch", None, pets, "Deutschland 500 g") != "pork"
+    assert classify("Frisches Putenhackfleisch", None, pets, "500 g") != "pork"
