@@ -40,6 +40,19 @@ class Settings(BaseSettings):
     # ask once more before believing an empty answer; measured 2026-07-19, the identical
     # request returned the full list minutes later. Tests set it to 0 (tests/conftest.py).
     scrape_thin_retry_s: float = 8.0
+    # May a failed scrape serve hardcoded `_sample()` offers?
+    #
+    # OFF by default, so production is correct with no configuration. Sample offers carry
+    # INVENTED prices and plausible validity windows, and nothing downstream can tell them
+    # from real ones — not the Basket totals, not Compare, not the price-history collector.
+    # On 2026-08-16 Rossmann's weekly simply was not published and the app served five made-up
+    # drugstore deals for two days. A missing chain is visible (the data gate's chain floor
+    # names it); a fabricated 1,59 € shampoo is not.
+    #
+    # A default of True would have to be switched OFF on Render and remembered forever — the
+    # same shape as the ADMIN_TOKEN dashboard value that is still outstanding. Local dev opts
+    # in via backend/.env so the app is usable offline.
+    scrape_sample_fallback: bool = False
 
 
 settings = Settings()

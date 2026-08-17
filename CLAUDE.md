@@ -152,7 +152,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     `rossmann=2` against 287 the week before and grocery served `aldi=4` (its literal `_sample()`
     size) on the same day. Neither registered: the total floor is carried by the survivors, so at
     the measured counts **three of five grocery chains could fall back to samples and still clear
-    800** (1562−247−234−274+4+5+5 = 821). Sample sizes are tiny and per-scraper: lidl/aldi 4,
+    800** (1562−247−234−274+4+5+5 = 821). Sample sizes are tiny and per-scraper (**dev only
+    since 2026-08-17** — see `scrape_sample_fallback`): lidl/aldi 4,
     rewe/edeka/edeka_center/rossmann 5, dm 6.
     - **Gated behind `--post-reset`, which `scrape.yml` passes**, because a chain empties
       legitimately between brochures (Rossmann's week ends Friday, so on a Saturday it really does
@@ -1097,11 +1098,45 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   (pantry, sweets, alcoholic…), which must keep rendering as a plain flat list. Grouping makes
   category mis-classification *visible* (a peach-flavoured drink lands under
   "Pfirsich"), so it's a good lens for tuning `categories.py`.
+- **A failed scrape serves NOTHING in production, not sample data** (2026-08-17,
+  `settings.scrape_sample_fallback`, default **False**). `_sample()` offers carry INVENTED
+  prices and plausible validity windows, and nothing downstream can tell them apart — not the
+  Basket totals, not Compare, not the `grocery-price-history` collector, which would record
+  them as that week's real price. A missing chain is visible (the data gate's per-chain floor
+  names it); a fabricated 1,59 € shampoo is not. Local dev opts in via
+  `SCRAPE_SAMPLE_FALLBACK=true` in `backend/.env`; the default is off so **Render is correct
+  with zero configuration** — a default-on flag would have to be switched off in the dashboard
+  and remembered forever, which is the `ADMIN_TOKEN` shape.
+  - **What prompted it**: on 2026-08-16 Rossmann's 23–26pp weekly simply **was not published**.
+    Upstream had only the `Schulaktion` (correctly dropped by `MAX_FLYER_DAYS`) and a **6-page**
+    "Mein Drogeriemarkt" whose `/pages` returns page IMAGES and no product data, so the parser
+    correctly yielded 0 offers → `RuntimeError` → 8s retry → samples. `_select_brochures` was
+    NOT at fault (the imminent branch does select a Mon-start brochure from a Sunday run —
+    walked concretely). It failed twice: the served samples were dated 08-17, and `_sample()`
+    uses `date.today()`, so today's cold-start boot scrape produced them, not Sunday's reset.
+  - **The reason it took a live upstream probe to diagnose**: `exc_info=True` sat OUTSIDE the
+    `except` block in `MeinprospektScraper.fetch`. Both exits are a `break` from inside a
+    handler, and CPython clears the exception state on handler exit — so production logged the
+    literal `NoneType: None`. `except ... as exc` also unbinds `exc` at the end of the block,
+    so the failure must be **captured into a variable** and passed as `exc_info=failure`.
+  - **`metrics.record_scrape_failure(chain, reason)`** now counts it into `/api/scrape-stats`
+    (`scrape_failures`). `record_throttle` only ever fired for HTTP-status-shaped failures
+    inside the pacing transport, so every `RuntimeError` and transport drop read as zero.
+  - **The `(sample)` store-name suffix was never a reliable signal** and the belief that it
+    marks a degraded run is stale: it existed only in `lidl.py`/`dm.py`, never for the
+    meinprospekt chains — and `_get_or_create_store` sets `name` only on INSERT, while
+    `/api/reset` deletes `Offer` rows and leaves `Store` rows, so an old name would persist.
+  - **A Lidl failure still costs all six flyer chains**, sample flag or not: the Lidl Plus
+    lookup resolves the store COORDINATES and `run_scrapers` gates every meinprospekt chain on
+    `store.lat is not None`, and that path has never returned lat/lng. Its log now says so
+    explicitly, because the symptom is six dark chains and the cause is one line about Lidl.
+    Decoupling it (`services/store_locator.plz_centroid` is the seam) is deferred.
 - **Aggregators soft-throttle bursts** (marktguru, Bonial): they return empty
   after many quick requests. Scrape weekly, and `tracked_client` now **paces** every
   outbound call (global min-gap + jitter) and **backs off/retries** on 429/5xx honoring
   `Retry-After` (see the "Outbound calls are counted, paced, and backed off" note above);
-  both scrapers still fall back to sample data on failure, but a throttle is now metered
+  both scrapers **serve NOTHING on failure since 2026-08-17** (see the note below), and a
+  throttle is metered
   (`/api/scrape-stats` `throttles`), not silently hidden behind the sample fallback.
   **The throttle's real shape is HTTP 200 with LESS CONTENT, not an error** (proven from Render
   logs, 2026-07-19): the publisher page answers 200 with an **empty brochure list**, or lists a

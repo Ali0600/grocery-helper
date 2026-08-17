@@ -214,3 +214,29 @@ def test_dm_still_runs_when_the_lidl_lookup_yields_no_coordinates(monkeypatch):
     dm_offers = session.scalars(select(Offer).where(Offer.store_id == dm_store.id)).all()
     assert len(dm_offers) == 1
     assert dm_offers[0].source == "clearance"
+
+
+# --- dm degrades the same way (2026-08-17) --------------------------------------------
+
+def _failing_dm(monkeypatch):
+    from app.scrapers.dm import DmScraper
+
+    s = DmScraper()
+    monkeypatch.setattr(s, "_fetch_live",
+                        lambda plz: (_ for _ in ()).throw(RuntimeError("upstream down")))
+    return s
+
+
+def test_a_failed_dm_scrape_serves_nothing_by_default(monkeypatch):
+    """dm's clearance feed is the ONLY source of a dm price, so an invented one has no real
+    counterpart anywhere to correct it — the last place fabricated data should survive."""
+    result = _failing_dm(monkeypatch).fetch("10713")
+    assert result.offers == []
+    assert "(sample)" not in result.store_name
+
+
+def test_the_dev_flag_restores_dm_samples(monkeypatch):
+    monkeypatch.setattr("app.scrapers.dm.settings.scrape_sample_fallback", True)
+    result = _failing_dm(monkeypatch).fetch("10713")
+    assert len(result.offers) > 0
+    assert result.store_name.endswith("(sample)")

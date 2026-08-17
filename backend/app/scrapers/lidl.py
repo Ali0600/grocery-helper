@@ -20,6 +20,8 @@ from typing import List, Optional, Tuple
 
 import httpx
 
+from .. import metrics
+from ..core.config import settings
 from ..http import tracked_client
 from .base import ScrapedOffer, ScrapeResult
 
@@ -60,17 +62,26 @@ class LidlScraper:
                 lng=loc.get("longitude"),
                 offers=offers,
             )
-        except Exception:
-            # Any live-scrape failure falls back to sample data so the system
-            # stays up; log it so the degradation is visible (not silent).
+        except Exception as exc:
+            # This failure is the widest-blast-radius one in the app and it is worth saying so
+            # loudly: the Lidl Plus lookup is what resolves the store COORDINATES, and
+            # `run_scrapers` gates every meinprospekt chain on `store.lat is not None`. So a
+            # Lidl failure takes out all six flyer chains with it, whichever way the sample
+            # flag is set — this path has never returned lat/lng. Decoupling that (the PLZ
+            # centroid is already resolvable via `services/store_locator.plz_centroid`) is the
+            # real fix and is deliberately not bundled here.
+            degraded = self._sample() if settings.scrape_sample_fallback else []
+            metrics.record_scrape_failure(self.chain, f"{type(exc).__name__}: {exc}")
             logger.warning(
-                "Lidl live scrape failed for plz=%s; serving sample data", plz, exc_info=True
+                "Lidl live scrape failed for plz=%s; serving %s — NOTE this also leaves the "
+                "flyer chains without coordinates, so they will be skipped",
+                plz, "sample data" if degraded else "no offers", exc_info=exc,
             )
             return ScrapeResult(
                 chain=self.chain,
-                store_name=f"Lidl {plz} (sample)",
+                store_name=f"Lidl {plz}" + (" (sample)" if degraded else ""),
                 plz=plz,
-                offers=self._sample(),
+                offers=degraded,
             )
 
     # -- live -----------------------------------------------------------------

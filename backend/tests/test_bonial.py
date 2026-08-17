@@ -399,7 +399,14 @@ def test_brochure_that_parses_to_zero_offers_is_also_retried():
     assert result.offers == real
 
 
-def test_still_empty_on_the_retry_falls_back_to_samples():
+def test_the_retry_still_happens_when_sample_data_is_enabled(monkeypatch):
+    """Repointed 2026-08-17: the fallback now serves nothing unless the dev flag is on.
+
+    Kept as its own case because it pins something the default-path test cannot — that
+    enabling samples does not short-circuit the re-ask. A thin answer must still be
+    disbelieved once before anything is served, whichever way the flag is set.
+    """
+    monkeypatch.setattr("app.scrapers.bonial.settings.scrape_sample_fallback", True)
     s = _CountingScraper([[], []])
 
     result = s.fetch("10713", 52.5, 13.4)
@@ -419,8 +426,8 @@ def test_http_error_is_NOT_retried():
 
     result = s.fetch("10713", 52.5, 13.4)
 
-    assert s.calls == 1, "an HTTP error must go straight to samples, not re-hit a blocked host"
-    assert result.offers == ["SAMPLE"]
+    assert s.calls == 1, "an HTTP error must degrade at once, not re-hit a blocked host"
+    assert result.offers == [], "and degrading means serving nothing, not invented prices"
 
 
 def test_retry_waits_the_configured_pause(monkeypatch):
@@ -432,3 +439,75 @@ def test_retry_waits_the_configured_pause(monkeypatch):
     s.fetch("10713", 52.5, 13.4)
 
     assert slept == [8.0], "re-asking instantly would just hit the same throttled response"
+
+
+# --- a degraded scrape must announce itself and must not invent (2026-08-17) -----------
+
+def test_a_failed_scrape_serves_NOTHING_by_default():
+    """Sample offers carry invented prices, and nothing downstream can tell them apart.
+
+    On 2026-08-16 Rossmann's weekly was not published — upstream had only an image-only
+    6-page brochure with no product data — and the app served five hardcoded offers with
+    made-up prices and plausible validity windows, indistinguishable from real deals to the
+    Basket, Compare, and the price-history collector. An absent chain is visible (the gate's
+    chain floor names it); a fabricated 1,59 € Schauma is not. So the default is to serve
+    nothing and let the chain be missing.
+    """
+    s = _CountingScraper([[], []])
+
+    result = s.fetch("10713", 52.5, 13.4)
+
+    assert s.calls == 2, "the thin-retry must still happen"
+    assert result.offers == [], "production must not invent offers for a chain that failed"
+    # The store itself is still resolved — only the fabricated offers are gone.
+    assert result.chain == s.chain and result.plz == "10713"
+
+
+def test_the_dev_flag_brings_sample_data_back(monkeypatch):
+    """`_sample()` is still worth having: it lets local dev and fixtures work with no network.
+    It is opt-IN so production is correct with no configuration — a default-on flag would have
+    to be switched off on Render and remembered forever."""
+    monkeypatch.setattr("app.scrapers.bonial.settings.scrape_sample_fallback", True)
+    s = _CountingScraper([[], []])
+
+    assert s.fetch("10713", 52.5, 13.4).offers == ["SAMPLE"]
+
+
+def test_the_fallback_log_names_the_exception(caplog):
+    """The bug that made this incident undiagnosable.
+
+    `exc_info=True` reads ambient exception state, and both exits from the retry loop are a
+    `break` out of an `except` handler — CPython clears that state on handler exit, so the
+    production log wrote the literal "NoneType: None" and nothing else. `except ... as exc`
+    also unbinds `exc` at the end of the block, so capturing it explicitly is the only fix.
+    """
+    import logging
+
+    s = _CountingScraper([RuntimeError("no active weekly brochure for rewe")] * 2)
+    with caplog.at_level(logging.WARNING, logger="app.scrapers.bonial"):
+        s.fetch("10713", 52.5, 13.4)
+
+    fallback = [r for r in caplog.records if "serving no offers" in r.getMessage()
+                or "sample" in r.getMessage()]
+    assert fallback, "the fallback must log at WARNING"
+    rec = fallback[-1]
+    assert rec.exc_info and rec.exc_info[0] is RuntimeError, (
+        "the log must carry the exception that caused the fallback, not ambient state"
+    )
+    assert "no active weekly brochure" in str(rec.exc_info[1])
+
+
+def test_a_failed_scrape_shows_up_in_the_stats_snapshot():
+    """`record_throttle` only fires for HTTP-status-shaped failures in the pacing transport,
+    so all three RuntimeError paths and every transport error left /api/scrape-stats reading
+    zero. A degraded chain has to be answerable without SSHing into the log."""
+    from app import metrics
+
+    scraper = _CountingScraper([[], []])
+    chain = scraper.chain  # read it off the scraper — BonialScraper is the LIDL flyer
+    before = metrics.snapshot()["scrape_failures"].get(chain, 0)
+    scraper.fetch("10713", 52.5, 13.4)
+    after = metrics.snapshot()
+
+    assert after["scrape_failures"].get(chain, 0) == before + 1
+    assert after["scrape_failures_total"] >= 1

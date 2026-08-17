@@ -21,6 +21,7 @@ _RECENT_MAX = 20  # how many of the latest calls /api/scrape-stats keeps
 _lock = threading.Lock()
 _total: Counter = Counter()  # host -> calls since server start
 _throttles: Counter = Counter()  # host -> 429/5xx/403 throttle-or-block events
+_scrape_failures: Counter = Counter()  # chain -> scrapes that fell back (no offers served)
 _recent: Deque[dict] = deque(maxlen=_RECENT_MAX)  # latest calls, oldest -> newest
 _started_at = datetime.now(timezone.utc)
 
@@ -42,6 +43,19 @@ def record_throttle(host: str, status: int) -> None:
     with _lock:
         _throttles[host] += 1
     logger.warning("outbound throttle/block from %s (HTTP %s)", host, status)
+
+
+def record_scrape_failure(chain: str, reason: str) -> None:
+    """Count one scrape that degraded — the chain served nothing (or samples in dev).
+
+    `record_throttle` only fires for HTTP-status-shaped failures inside the pacing transport,
+    so a chain that failed on "no active weekly brochure", a parse error or a transport drop
+    left this snapshot reading zero while the chain was dark. Keyed on `chain`, never on the
+    store name: store names embed the PLZ.
+    """
+    with _lock:
+        _scrape_failures[chain] += 1
+    logger.warning("scrape degraded for chain=%s (%s)", chain, reason)
 
 
 def _source(host: str) -> str:
@@ -81,5 +95,7 @@ def snapshot() -> dict:
             "by_host": dict(_total),
             "throttled_total": sum(_throttles.values()),
             "throttles": dict(_throttles),
+            "scrape_failures_total": sum(_scrape_failures.values()),
+            "scrape_failures": dict(_scrape_failures),
             "recent": recent,
         }
