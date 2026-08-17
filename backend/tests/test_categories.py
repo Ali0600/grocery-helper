@@ -3067,3 +3067,64 @@ def test_genuinely_fresh_produce_is_untouched():
         "REWE Bio Staudensellerie", "REWE Bio",
         ["Lebensmittel und Getränke", "Produkte", "Lebensmittel", "Gemüse"],
         "Deutschland Kl. II") == "vegetables"
+
+
+# --- 2026-08-17 photo sweep: non-food falling through to `other` -----------------------
+
+def test_school_stationery_is_household_not_other():
+    """`other` is NOT hidden by the app's Non-food toggle — only `household` is.
+
+    So a back-to-school range that lands in the fallback renders between the yoghurt and the
+    bread. The path here is the REAL stored one, and it is the whole problem: the source files
+    a ruler under `Lebensmittel und Getränke > … > Gut & Günstig`, a FOOD root, so layer 1's
+    non-food branch can never see it and only a name rule can reach it.
+    """
+    food_root_brand = ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel",
+                       "Gut & Günstig"]
+    for name in ("GUT & GÜNSTIG Collegeblock A4", "GUT&GÜNSTIG Lineal",
+                 "GUT&GÜNSTIG Radiergummi", "GUT&GÜNSTIG Geometriedreieck",
+                 "Gut&Günstig Bleistifte", "GUT&GÜNSTIG Schnellhefter",
+                 "GUT&GÜNSTIG Buntstifte", "GUT&GÜNSTIG Trinkflasche"):
+        assert classify(name, "GUT & GÜNSTIG", food_root_brand) == "household", name
+
+
+def test_toys_and_houseplants_are_household_not_other():
+    """Same bucket, no path at all — these fall to layer 7 today.
+
+    The two spelled-out tokens are the point: a bare `sand` sits inside Sandgebäck and a bare
+    `buch` inside Buchweizen, so the full product word is the only safe handle.
+    """
+    assert classify("Kinetic Sand", None, None, "Mit Baustellenfahrzeug") == "household"
+    assert classify("Aktivitätsbuch", None, None, "Enthält Spiele, Ausmalbilder") == "household"
+    assert classify("UNO Kartenspiel", None, None, "Je Stück") == "household"
+    assert classify("Mauerpfeffer", None, None, "Deutschland 13-cm-Topf") == "household"
+    assert classify("Bepflanzte Zinkschale", None, None, "mit Sukkulenten") == "household"
+    # The counter-example that actually bites. A bare `sand` matches three SANDWICHES that
+    # sit in `other` today; household is hidden by the app's Non-food toggle, so moving food
+    # there does not mis-chip it, it removes it from the app.
+    assert classify("Gut&Günstig Sandwich", "Gut&Günstig", None, None) != "household"
+    assert classify("Milbona Sandwich Scheiben", "Milbona", None, None) != "household"
+
+
+def test_sansibar_is_rejected_as_a_household_token():
+    """A travel advert named "Sansibar" sits in `other`, and the obvious token is a trap —
+    but not the trap it first appears to be.
+
+    Sansibar Deluxe is also a WINE brand. Three of its wines are safe, because a layer-3 wine
+    path decides them long before this tuple runs, so a "does it steal from a real category?"
+    check scores the token CLEAN. The row it actually breaks is
+    `SANSIBAR DELUXE Castillo de Albai Gran Reserva Rioja`, which arrives on a brand-leaf path
+    and is therefore already sitting in `other` — so moving it counts as a rescue, not a
+    regression, and the count says "free win". Only reading the moved rows finds it. And the
+    damage is worse than a wrong chip: household is hidden by the app's Non-food toggle.
+
+    This is the fixture the rejection rests on, so it is deliberately the PATHLESS-ish row
+    rather than the path-protected Primitivo, which stays `alcoholic` either way and would
+    make this test decorative.
+    """
+    brand_leaf = ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "Deluxe"]
+    assert classify("SANSIBAR DELUXE Castillo de Albai Gran Reserva Rioja", "Sansibar Deluxe",
+                    brand_leaf, "Spanien Rotwein, trocken") != "household"
+    # `südafrika` was rejected on the other side of the same trade: one travel advert, against
+    # a word that is a produce ORIGIN and will recur.
+    assert classify("Südafrika", None, None, None) != "household"
