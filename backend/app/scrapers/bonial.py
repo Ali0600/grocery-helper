@@ -41,6 +41,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from .. import metrics
 from ..core.config import settings
 from ..http import tracked_client
 from .base import ScrapedOffer, ScrapeResult
@@ -99,6 +100,12 @@ class MeinprospektScraper:
         # degraded to samples on one attempt and the identical request returned the full list ten
         # minutes later. An HTTP error is NOT retried here: 5xx/429 are already handled upstream,
         # and a 403 is a hard block that retrying only worsens.
+        # Bound explicitly. `exc_info=True` reads AMBIENT exception state, and both exits
+        # below are a `break` out of an `except` handler — CPython clears that state on
+        # handler exit, so the production log for the 2026-08-16 Rossmann outage wrote the
+        # literal "NoneType: None" and nothing else. `except ... as exc` also unbinds `exc`
+        # at the end of the block, so capturing it is the only way to log what happened.
+        failure: Optional[BaseException] = None
         for attempt in (1, 2):
             try:
                 offers = self._fetch_live(lat, lng, plz)
@@ -109,6 +116,7 @@ class MeinprospektScraper:
                     lat=lat, lng=lng, offers=offers,
                 )
             except RuntimeError as exc:
+                failure = exc
                 if attempt == 1:
                     logger.warning(
                         "%s flyer scrape came back empty (%s); retrying once in %.0fs",
@@ -117,15 +125,24 @@ class MeinprospektScraper:
                     time.sleep(settings.scrape_thin_retry_s)
                     continue
                 break
-            except Exception:
+            except Exception as exc:
+                failure = exc
                 break
+        # Sample offers carry INVENTED prices, so serving them is worse than serving nothing:
+        # a missing chain is visible (the data gate's per-chain floor names it) while a
+        # fabricated 1,59 € shampoo is indistinguishable from a real deal to the Basket,
+        # Compare and the price-history collector. Opt in via `scrape_sample_fallback` for
+        # local dev, where working offline matters more than the prices being true.
+        degraded = self._sample() if settings.scrape_sample_fallback else []
+        metrics.record_scrape_failure(self.chain, f"{type(failure).__name__}: {failure}")
         logger.warning(
-            "%s flyer scrape failed for plz=%s; serving sample data",
-            self.chain, plz, exc_info=True,
+            "%s flyer scrape failed for plz=%s; serving %s",
+            self.chain, plz, "sample data" if degraded else "no offers",
+            exc_info=failure,
         )
         return ScrapeResult(
             chain=self.chain, store_name=store_name, plz=plz,
-            lat=lat, lng=lng, offers=self._sample(),
+            lat=lat, lng=lng, offers=degraded,
         )
 
     # -- live -----------------------------------------------------------------

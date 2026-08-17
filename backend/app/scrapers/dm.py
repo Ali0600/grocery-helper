@@ -39,6 +39,8 @@ from typing import List, Optional
 
 import httpx
 
+from .. import metrics
+from ..core.config import settings
 from ..http import tracked_client
 from .base import ScrapedOffer, ScrapeResult
 
@@ -135,15 +137,21 @@ class DmScraper:
                 plz=plz,
                 offers=offers,
             )
-        except Exception:
+        except Exception as exc:
+            # Nothing beats serving nothing here: dm's sample prices are invented, and the
+            # clearance feed is the only place a dm price comes from, so a fabricated one has
+            # no real counterpart to be corrected by. See `scrape_sample_fallback`.
+            degraded = self._sample() if settings.scrape_sample_fallback else []
+            metrics.record_scrape_failure(self.chain, f"{type(exc).__name__}: {exc}")
             logger.warning(
-                "dm live scrape failed for plz=%s; serving sample data", plz, exc_info=True
+                "dm live scrape failed for plz=%s; serving %s",
+                plz, "sample data" if degraded else "no offers", exc_info=exc,
             )
             return ScrapeResult(
                 chain=self.chain,
-                store_name=f"{self.store_label} {plz} (sample)",
+                store_name=f"{self.store_label} {plz}" + (" (sample)" if degraded else ""),
                 plz=plz,
-                offers=self._sample(),
+                offers=degraded,
             )
 
     # -- live -----------------------------------------------------------------
