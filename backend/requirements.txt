@@ -15,6 +15,10 @@ tzdata>=2024.1
 # pulls the Starlette/FastAPI integration so unhandled 500s are captured automatically.
 sentry-sdk[fastapi]>=2.63.0
 # Dev / testing (also used by CI: pytest + ruff lint + coverage)
+# Pillow builds the weekly audit's contact sheets (app/scripts/contact_sheets.py). It was
+# installed ad-hoc in a long-lived venv and never declared, so a fresh checkout could not
+# run the audit at all — the drift only a from-scratch install exposes.
+pillow>=11.0
 pytest>=9.1.1
 pytest-cov>=7.1.0
 ruff>=0.15
