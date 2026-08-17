@@ -496,7 +496,32 @@ _RULES: list[tuple[str, list[str]]] = [
     # 2026-08-09 photo sweep: a children's wooden hammer game and a kids' T-shirt were sitting
     # in `other`, i.e. rendering in the food list. `t-shirt` also correctly no-ops on the 42
     # shirts already in household.
-    "hammerspiel", "t-shirt"]),
+    "hammerspiel", "t-shirt",
+     # 2026-08-17 photo sweep. A whole BACK-TO-SCHOOL range (EDEKA/E center's Gut&Günstig)
+     # plus toys, houseplants and hardware were rendering between the yoghurt and the bread.
+     # Every one of them falls to layer 7 today — no rule matches at all — because the source
+     # files them under `Lebensmittel und Getränke > Marken > Marken Lebensmittel > Gut &
+     # Günstig`, a FOOD root, so layer 1's non-food branch never sees them.
+     "collegeblock", "bleistift", "buntstift", "geometriedreieck", "lineal", "radiergummi",
+     "schnellhefter", "niveus papier", "frischebox", "trinkflasche",
+     # Toys and games, spelled in FULL. A bare `sand` matches three SANDWICHES sitting in
+     # `other` (Milbona Sandwich Scheiben, Gut&Günstig Sandwich, Mucci Stracciatella-Sandwich)
+     # and would move them to household — which the app hides behind its Non-food toggle, so
+     # the food would not merely be mis-chipped, it would vanish. A bare `buch` happens to be
+     # harmless this week (its only extra hit is a picture book, correctly household), but the
+     # full word does not depend on that staying true.
+     "kinetic sand", "stressball", "kartenspiel", "gedächtnisspiel", "aktivitätsbuch",
+     # Houseplants named after the plant, and hardware.
+     "zinkschale", "lilien", "mauerpfeffer", "drehplatte", "wandleuchte", "airfreshener",
+     # A streaming subscription sold at the till — the same class as the mobile-phone plan the
+     # 2026-08-08 audit found.
+     #
+     # `sansibar` was SIMULATED AND REJECTED even though it reads clean: no product leaves a
+     # real category, because the row it breaks — SANSIBAR DELUXE Castillo de Albai Gran
+     # Reserva Rioja, a WINE on a brand-leaf path — is already sitting in `other`, so a
+     # conflict count scores moving it as a free win. It is only visible by reading what MOVED.
+     # `südafrika` was rejected too: one travel advert, against a word that is a produce ORIGIN.
+     "rtl+"]),
 ]
 
 # Unambiguous brand -> category. Multi-category house brands (Milbona, Metzgerfrisch,
