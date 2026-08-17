@@ -1222,10 +1222,12 @@ _FOOD_RESCUE: dict[str, list[str]] = {
                # under `Tierbedarf > Marken für Tiere` and `Marken > REWE Beste Wahl`.
                "zwetschge", "grapefruit", "snack äpfel", "snack-äpfel",
                "stachelbeere", "johannisbeere", " mango", "papaya", "weintraube",
-               "tafeltraube", "mandarin-orange"],
+               "tafeltraube", "mandarin-orange",
+                 "obstsalat", "kokosnuss stücke"],
     "vegetables": ["frische minze", "speisekartoffeln", "regional paprika", "rispentomate", "romatomate", "cherrytomate", "kulturchampignon", "champignon",
                    "zucchini", "rucola", "feldsalat", "wildkräuter salat",
-                   "sonnenmais"],  # canned sweetcorn under `R > REWE > REWE Bio`
+                   "sonnenmais",
+                 "eisbergsalat"],  # canned sweetcorn under `R > REWE > REWE Bio`
     "frozen": ["burek"],
     "fish": ["backfisch", "seelachs", "deutsche see", "lachsfilet", "pangasius", "räucher-garnele",
              "heringsstipp", "tiger-garnele",
@@ -1236,14 +1238,17 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     # rescue token is the only thing that can reach it — without one a turkey steak lands in
     # household, i.e. invisible behind the Non-food toggle.
     "poultry": ["hähnchenflügel", "goldgriller", "bruzzlkracher", "maishähnchen", "geflügelsalat", "geflügel-fleischsalat", "hähnchen-grillplatte",
-                "knusperdino", "putensteak", "puten-ministeak", "hähnchenschenkel"],
-    "snacks": ["sonnenblumenkerne", "nic nac", "linsenwaffel", "jumbo erdnüsse", "erdnusskerne", "erdnuss-flip", "cashew", "walnusskern", "reiswaffel"],
+                "knusperdino", "putensteak", "puten-ministeak", "hähnchenschenkel",
+                 "pollofino", "hähnchengyros"],
+    "snacks": ["sonnenblumenkerne", "nic nac", "linsenwaffel", "jumbo erdnüsse", "erdnusskerne", "erdnuss-flip", "cashew", "walnusskern", "reiswaffel",
+                 "chipsfrisch", "riffle-chips", "fruit snack"],
     "bakery": ["burger-buns", "laugen-burger", "fertigteig", "croissant", "nusshappen", "meggle brot", "vitalgebäck", "roggenmischbrot", "vollkornbrot", "mehrkornbrot", "kernbrot",
                # bake-off rolls and Greek breadsticks, both under non-food nodes
                "dinkelkrusti", "kritsinia"],
     "pantry": ["haferflocken", "baba ganoush", "hummus", "guacamole", "tomatenketchup", "agavendicksaft", "quinoa",
               # Greek orzo, canned giant beans and a grill sauce, all under non-food nodes.
-              "kritharaki", "riesenbohnen", "schlemmersauce"],
+              "kritharaki", "riesenbohnen", "schlemmersauce",
+                 "passierte tomaten", "sweet chili", "röstzwiebeln"],
     "beef": ["ochsen-bäckchen", "ochsenbäckchen"],
     # Pork the source files under a non-food "Grillfleisch"/promo node → household ("Hausmarke
     # Schweine-Nackensteaks"). `nackensteak` is already a pork keyword, but the path wins first, so
@@ -1254,7 +1259,8 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     "pork": ["nackensteak", "schweinenacken", "schweine-nacken", "grillnackensteak", "spare ribs", "spareribs",
              # 2026-08-09 photo sweep. Raw pork and fried meatballs reaching `household`
              # through non-food paths — a Samsung node, `Produkte > Aktionen`, `R > REWE`.
-             "grillkotelett", "schälrippe", "frikadellen"],
+             "grillkotelett", "schälrippe", "frikadellen",
+                 "rostbrätl", "hackfleisch gemischt", "gemischtes hackfleisch", "schweinefilet"],
     # 2026-07-29: the source sometimes attaches a path from an ENTIRELY UNRELATED domain --
     # a Zott Monte under "Hautpflege > Creme", Capri-Sun syrup under "Reinigungsmittel >
     # Spülmittel". Layer 1 always decides on a non-food path, so a rescue noun is the ONLY
@@ -1270,7 +1276,9 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     # Grated cheese the source mis-files under a PET-brand node ("Milsani Reibekäse XXL" under
     # "Marken für Tiere"). Real cheese, not pet food, so it's a rescue — the pet guard's tokens
     # don't match "reibekäse", and no pet product carries the word.
-    "cheese": ["pfannenkäse", "grill & ofen", "grillkäse", "babybel", "reibekäse", "reibekase"],
+    "cheese": ["pfannenkäse", "grill & ofen", "grillkäse", "babybel", "reibekäse", "reibekase",
+               # A grated pizza cheese and a Landfrischkäse terrine, both under Tierbedarf.
+               "pizzakäse", "lauchterrine"],
     # Drinkable coffee filed under a non-food node (Senseo pads and a REWE Bio Caffè Crema sit
     # there). The APPLIANCES that share these words — Kaffeevollautomat, Espressomaschine,
     # Filterkaffeemaschine, "Melitta Barista" — are genuinely household and are held there by
@@ -1281,7 +1289,12 @@ _FOOD_RESCUE: dict[str, list[str]] = {
     # is load-bearing and measurable: removing it leaks 7 machines (Kaffeevollautomat x3,
     # Filterkaffeemaschine x2, DeLonghi x2) into Coffee. "espresso" is deliberately NOT here —
     # it would drag in a "CROFTON Espressokocher" (a moka pot).
-    "sweets": ["nutella", "amicelli", "fruchtkaramell", "hafer cookies"],
+    "sweets": ["nutella", "amicelli", "fruchtkaramell", "hafer cookies", "buttergebäck"],
+    # `straußensteak` in FULL, and the corpus is emphatic about why: every other stored
+    # product containing "strauß" is a flower BOUQUET — Blumenstrauß, Rosenstrauß,
+    # Sommerblumenstrauß, eleven of them, all correctly household. A bare token would
+    # move the lot into the meat chip to rescue one pack of ostrich steaks.
+    "other_meat": ["straußensteak"],
     "coffee": ["feine milde", "senseo", "kaffeepad", "kaffee", "café pads", "cafe pads", "caffè crema", "ganze bohnen"],
 }
 
