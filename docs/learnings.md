@@ -1874,3 +1874,65 @@ mechanism built to handle them was the thing amplifying it.
 **Takeaway:** classify failures by *whether the check ran*, not by whether it succeeded.
 "Could not evaluate" is not evidence about the thing being evaluated, and spending a budget
 on it converts an outage in your tooling into a false verdict about someone else's code.
+
+## A partition expressed twice is a partition that can drift, silently in both directions
+
+Splitting drinks out of the grocery section meant two entries had to agree: Drinks *includes*
+`{soft_drinks, alcoholic}`, and Grocery *excludes* the same two. Written as two literals, the
+day one changed and the other didn't, a drink would be served by **both** sections — or by
+**neither**. Neither failure errors, and the second one makes products vanish for every
+client. The fix is to name the set once and reference it from both sides, so there is nothing
+to keep in sync.
+
+**Why it came up:** a category-scoped section was a new shape for a registry where "belongs
+to exactly one section" had previously been true by construction (the chains were disjoint).
+The invariant that used to be free now had to be stated.
+
+**Takeaway:** when a change turns a structural guarantee into an agreement between two
+declarations, write the agreement down as a test — and state it over the data (*for every
+carved-out set, its home must exclude exactly that set*) rather than over the two names that
+exist today, so the next one inherits the check instead of needing someone to remember it.
+
+## A test that seeds only one of the states it rules out agrees with the bug
+
+A test asserting "the Drugstore section has no companion section" seeded a beer into the
+drinks cache and checked it never reached the drugstore basket. It passed — and it also
+passed a sabotage that pointed Drugstore at *grocery* instead, because nothing was seeded
+there to find. The assertion was true for a reason that had nothing to do with the rule.
+
+**Why it came up:** a sabotage harness reported NOT CAUGHT, and the honest reading was that
+the test was decorative rather than that the sabotage was unrealistic.
+
+**Takeaway:** when a test rules out a whole class ("none of the others"), plant the bait in
+**every** member of that class, not the one you had in mind. A negative assertion is only as
+strong as the number of ways it could have failed.
+
+## A gate whose fixture satisfies it by construction is decoration
+
+A new data-quality floor required 80% of offers to carry a per-unit price. Its test passed —
+and went on passing when the floor was switched off entirely, because the fixture builder
+gives *every* synthetic offer a unit price. Nothing in that suite could ever produce a
+sub-threshold reading.
+
+**Why it came up:** the sabotage run said NOT CAUGHT for a threshold that had just been
+carefully calibrated against real measurements.
+
+**Takeaway:** a shared fixture builder is usually designed so every check but the one under
+test passes — which means a *new* check may be structurally unfailable in it. Before trusting
+a new threshold, feed it input that must breach it. Calibrating a number is not the same as
+proving it can fire.
+
+## Ship the producer before the consumer when the contract rejects unknowns
+
+The section list is a server-side registry, and the API validates the section name against it,
+so an app asking for a section the deployed backend doesn't know gets a 422 rather than a
+fallback. That makes the release order load-bearing rather than a preference: backend, confirm
+it serves, then the client.
+
+**Why it came up:** a strict-by-design validator — chosen so a typo can't silently widen a
+filter — has the side effect of making new values a two-step rollout.
+
+**Takeaway:** fail-closed validation and staged rollout are the same decision seen twice. When
+you choose to reject unknown values, you have also chosen that every new value ships in two
+releases, and the ordering belongs in the docs next to the validator — not in whoever's head
+happened to write both halves.
