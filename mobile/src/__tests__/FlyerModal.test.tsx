@@ -132,6 +132,20 @@ describe('FlyerModal — Why this category?', () => {
     expect(await screen.findByText(/Shown as Beef, but the current rules say/)).toBeTruthy();
   });
 
+  it('finds a companion section’s trace before falling back to the network', async () => {
+    // A deal opened from Grocery's Basket can BE a drink — the two sections are one
+    // shopping trip — and each section prefetches only its own ids. Without the second
+    // look this cold-starts the sleepy free tier for exactly the deals the merge added.
+    (getTraceCache as jest.Mock).mockImplementation(async (v: string) =>
+      v === 'drinks' ? { byId: { [String(offer.id)]: trace() } } : { byId: {} },
+    );
+    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} />);
+    await fireEvent.press(screen.getByLabelText('Why this category?'));
+
+    expect(await screen.findByText(/Form words "lachsschinken"/)).toBeTruthy();
+    expect(api.offerCategoryTrace).not.toHaveBeenCalled();
+  });
+
   it('falls back to the network when the offer was not prefetched', async () => {
     (getTraceCache as jest.Mock).mockResolvedValue({ byId: {} });
     (api.offerCategoryTrace as jest.Mock).mockResolvedValue(trace());

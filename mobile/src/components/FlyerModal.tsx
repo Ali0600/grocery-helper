@@ -26,7 +26,7 @@ import { getPayloadCache, getTraceCache } from '../storage';
 import { colors, tint } from '../theme';
 import { Icon } from './Icon';
 import { Offer, OfferCategoryTrace, OfferPayload } from '../types';
-import { Vertical } from '../verticals';
+import { companionVertical, Vertical } from '../verticals';
 
 /** "Why this category?" — the winning rule, then every layer's verdict.
  *
@@ -103,6 +103,31 @@ const FLYER_LINKS: Record<string, { label: string; url: string }> = {
   rewe: { label: 'REWE', url: 'https://www.meinprospekt.de/rewe-de' },
 };
 
+/**
+ * Read one id out of a prefetch cache, trying this section's cache and then its sibling's.
+ *
+ * A deal opened from the Basket can belong to the OTHER section — Grocery's basket prices
+ * drinks, and vice versa — and each section prefetches only its own payloads. Without the
+ * second look every such deal would fall through to the per-offer endpoint and cold-start
+ * the sleepy free tier, which is exactly what the prefetch exists to avoid.
+ *
+ * Returns `undefined` for "not in either cache", which is why the callers test against
+ * `undefined` rather than truthiness: a captured-null payload is a real answer ("the
+ * source gave us nothing"), and treating it as a miss would refetch it forever.
+ */
+async function cachedById<T>(
+  vertical: Vertical,
+  key: string,
+  read: (v: Vertical) => Promise<{ byId: Record<string, T> } | null>,
+): Promise<T | undefined> {
+  const sibling = companionVertical(vertical);
+  for (const v of sibling ? [vertical, sibling] : [vertical]) {
+    const cache = await read(v);
+    if (cache && key in cache.byId) return cache.byId[key];
+  }
+  return undefined;
+}
+
 export function FlyerModal({
   offer,
   vertical,
@@ -164,11 +189,9 @@ export function FlyerModal({
       // identical to the payload path. `undefined` is the never-fetched sentinel.
       (async () => {
         try {
-          const cache = await getTraceCache(vertical);
           const key = String(offer.id);
-          setTrace(
-            cache && key in cache.byId ? cache.byId[key] : await api.offerCategoryTrace(offer.id),
-          );
+          const cached = await cachedById(vertical, key, getTraceCache);
+          setTrace(cached !== undefined ? cached : await api.offerCategoryTrace(offer.id));
         } catch {
           setTraceError('Could not load the category rules.');
         } finally {
@@ -192,13 +215,13 @@ export function FlyerModal({
       // older cache from before the prefetch ran).
       (async () => {
         try {
-          const cache = await getPayloadCache(vertical);
           const key = String(offer.id);
-          if (cache && key in cache.byId) {
-            setPayload({ id: offer.id, source: offer.source, payload: cache.byId[key] });
-          } else {
-            setPayload(await api.offerPayload(offer.id));
-          }
+          const cached = await cachedById(vertical, key, getPayloadCache);
+          setPayload(
+            cached !== undefined
+              ? { id: offer.id, source: offer.source, payload: cached }
+              : await api.offerPayload(offer.id),
+          );
         } catch {
           setPayloadError('Could not load the payload.');
         } finally {

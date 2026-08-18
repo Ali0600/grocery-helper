@@ -84,8 +84,8 @@ async function seedCache(
 ) {
   await AsyncStorage.setItem('plz', '10115');
   await AsyncStorage.setItem(
-    // Per-vertical key: Grocery and Drugstore each keep their own cached week, so
-    // switching between them doesn't cost a cold-start round trip.
+    // Per-vertical key: every section keeps its own cached week, so switching between
+    // them doesn't cost a cold-start round trip.
     `dealsCache:${vertical}`,
     JSON.stringify({
       plz: '10115',
@@ -1233,5 +1233,104 @@ describe('DealsScreen — the vertical it was opened in', () => {
 
     // The Mine shelves render a category header rather than the flat list.
     expect(await screen.findByText(/Fruits/)).toBeTruthy();
+  });
+});
+
+describe('DealsScreen — Grocery and Drinks are one shopping trip', () => {
+  // The two sections are the SAME six supermarkets split by category (the backend
+  // partitions them), so the Basket must be able to price a beer while the food list
+  // stays clear of it — which is the whole reason the section exists.
+  const BEER = makeOffer({
+    name: 'Pils Bier 0,5 l',
+    category: 'alcoholic',
+    category_label: 'Alcoholic',
+    price_cents: 89,
+  });
+
+  const seedCompanion = async (offers: unknown[], over: Record<string, unknown> = {}) =>
+    AsyncStorage.setItem(
+      'dealsCache:drinks',
+      JSON.stringify({
+        plz: '10115',
+        offers,
+        cats: [],
+        storeName: null,
+        cachedAt: NOW,
+        version: DEALS_CACHE_VERSION,
+        ...over,
+      }),
+    );
+
+  it('a FRESH cache still makes zero backend calls, companion included', async () => {
+    // The contract the whole weekly cache exists for. The companion is read from storage
+    // and only ever topped up from inside `revalidate` — fetching it here would turn every
+    // mid-week open into a cold start on the free tier, which is the bug this cache
+    // was built to avoid. Seeded with NO drinks cache, so a fetch is the tempting move.
+    await seedCache();
+    await renderScreen();
+
+    expect(await screen.findByText('Cached Bergkäse')).toBeTruthy();
+    expect(api.offers).not.toHaveBeenCalled();
+    expect(api.scrape).not.toHaveBeenCalled();
+  });
+
+  it('tops the companion up when it is already going to the network, and caches it', async () => {
+    await seedCache({ version: DEALS_CACHE_VERSION - 1 }); // stale → revalidate runs
+    api.offers.mockImplementation(async ({ vertical }: { vertical: string }) =>
+      vertical === 'drinks' ? [BEER] : [FRESH_OFFER],
+    );
+    await renderScreen();
+
+    await waitFor(() =>
+      expect(api.offers).toHaveBeenCalledWith(expect.objectContaining({ vertical: 'drinks' })),
+    );
+    // Written to the sibling's OWN key, which is what pre-warms that section and gives the
+    // home screen its deal count.
+    await waitFor(async () => {
+      const raw = await AsyncStorage.getItem('dealsCache:drinks');
+      expect(JSON.parse(raw as string).offers[0].name).toBe('Pils Bier 0,5 l');
+    });
+  });
+
+  it('prices a drink in the Basket while keeping it out of the deals list', async () => {
+    // Both halves in one test on purpose: they are the same decision seen from either
+    // side, and a merge that leaked into the list would satisfy the basket half alone.
+    await seedCache({ offers: [makeOffer({ name: 'Vollkornbrot', category: 'bakery' })] });
+    await seedCompanion([BEER]);
+    await AsyncStorage.setItem(
+      'basket',
+      JSON.stringify([{ key: 'beer', label: 'Beer', keywords: ['bier'] }]),
+    );
+    await renderScreen();
+
+    expect(await screen.findByText('Vollkornbrot')).toBeTruthy();
+    expect(screen.queryByText('Pils Bier 0,5 l')).toBeNull(); // not in the food list
+
+    await fireEvent.press(screen.getByLabelText('Basket'));
+    const plan = await screen.findByTestId('plan-card');
+    expect(within(plan).getByText(/Pils Bier/)).toBeTruthy();
+  });
+
+  it('has no companion in Drugstore — a different errand, not a different aisle', async () => {
+    // Asserted through the BASKET, not through `api.offers`: this fixture's cache is fresh,
+    // so nothing fetches anything either way and a call-count assertion would hold whatever
+    // `companionVertical` returned. The plan is the only place the answer is observable.
+    await seedCache({ offers: [makeOffer({ name: 'Schauma Shampoo', category: 'hair' })] },
+      'drugstore');
+    // A beer parked in BOTH other sections, so the assertion holds for ANY non-null
+    // companion. Seeded with only one of them, this passes while pointing at the other —
+    // a test that agrees with the bug. (Proven: it missed a `return 'grocery'` sabotage.)
+    await seedCompanion([BEER]);
+    await seedCache({ offers: [BEER] }, 'grocery');
+    await AsyncStorage.setItem(
+      'basket',
+      JSON.stringify([{ key: 'beer', label: 'Beer', keywords: ['bier'] }]),
+    );
+    await renderScreen({ vertical: 'drugstore' });
+
+    await screen.findByText('Schauma Shampoo');
+    await fireEvent.press(screen.getByLabelText('Basket'));
+    const basket = await screen.findByTestId('basket-modal');
+    expect(within(basket).queryByText(/Pils Bier/)).toBeNull();
   });
 });

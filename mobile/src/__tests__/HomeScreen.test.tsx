@@ -1,5 +1,5 @@
-// The two-button landing screen. Its job is small but load-bearing: it's the only way into
-// either vertical, and the deal count it shows must come from that vertical's OWN cache.
+// The landing screen. Its job is small but load-bearing: it's the only way into any
+// vertical, and the deal count it shows must come from that vertical's OWN cache.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, render, screen } from '@testing-library/react-native';
@@ -7,6 +7,7 @@ import React from 'react';
 
 import HomeScreen from '../screens/HomeScreen';
 import { setDealsCache } from '../storage';
+import { VERTICALS, VERTICAL_LABELS } from '../verticals';
 import { makeOffer } from './fixtures';
 
 const cached = (names: string[]) => ({
@@ -18,10 +19,13 @@ const cached = (names: string[]) => ({
 });
 
 describe('HomeScreen', () => {
-  it('offers both verticals', async () => {
+  it('offers every vertical, in the registry’s own order', async () => {
     await render(<HomeScreen onPick={() => {}} />);
-    expect(screen.getByTestId('vertical-grocery')).toBeTruthy();
-    expect(screen.getByTestId('vertical-drugstore')).toBeTruthy();
+    // Driven off VERTICALS rather than a list of names: this screen is the ONLY way into a
+    // section, so a section added to the registry and not rendered here is unreachable —
+    // and a test naming the sections it expects would go on passing.
+    for (const v of VERTICALS) expect(screen.getByTestId(`vertical-${v}`)).toBeTruthy();
+    expect(VERTICALS).toEqual(['grocery', 'drinks', 'drugstore']);
   });
 
   it('reports which vertical was picked', async () => {
@@ -33,12 +37,24 @@ describe('HomeScreen', () => {
 
   it('shows each vertical’s OWN cached deal count', async () => {
     await setDealsCache('grocery', cached(['a', 'b', 'c']));
+    await setDealsCache('drinks', cached(['beer', 'cola']));
     await setDealsCache('drugstore', cached(['x']));
     await render(<HomeScreen onPick={() => {}} />);
 
-    // Sabotage check: read one shared cache and both cards report the same number.
+    // Sabotage check: read one shared cache and every card reports the same number. Three
+    // distinct counts is what makes that impossible to pass by accident.
     expect(await screen.findByLabelText('Grocery, 3 deals')).toBeTruthy();
+    expect(screen.getByLabelText('Drinks, 2 deals')).toBeTruthy();
     expect(screen.getByLabelText('Drugstore, 1 deals')).toBeTruthy();
+  });
+
+  it('labels every vertical, so a new one can’t render as blank', async () => {
+    await render(<HomeScreen onPick={() => {}} />);
+    // VERTICAL_LABELS/_BLURBS/_ICONS are `Record<Vertical, …>`, so tsc catches a missing
+    // key — but only if the screen reads all three, which is what this checks at runtime.
+    for (const v of VERTICALS) {
+      expect(await screen.findByText(VERTICAL_LABELS[v])).toBeTruthy();
+    }
   });
 
   it('falls back to a blurb when a vertical has no cache yet', async () => {

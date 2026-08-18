@@ -28,7 +28,9 @@ build the cheapest basket across one or two stores.
   first two are chain sets, it is a *category* carve-out over the grocery chains, so the
   two are one partition that a single frozen set defines for both. Each section keeps its
   own cached flyer week, so switching between them is instant and makes no network call
-  at all.
+  at all. Grocery and Drinks are the same six shops, so the **Basket, Recipes and History
+  read both** — a beer belongs on the same list as the bread — while the deals list stays
+  scoped to the section you are in.
 - **Automated grocery-deal ETL pipeline** — scrapes and normalizes weekly offers
   from multiple German retail sources into a relational database on a scheduled,
   containerized cron job, computing per-item discount percentages.

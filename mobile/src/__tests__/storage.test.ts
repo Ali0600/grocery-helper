@@ -16,6 +16,7 @@ import {
 } from '../storage';
 import { HistoryItem } from '../types';
 import { makeOffer } from './fixtures';
+import { VERTICALS } from '../verticals';
 
 describe('myCategories persistence', () => {
   it('returns [] when nothing is stored (so the home falls back to All)', async () => {
@@ -238,12 +239,18 @@ describe('per-vertical caches', () => {
     cachedAt: Date.now(),
   });
 
-  it('keeps each vertical’s week separately, so switching costs no round trip', async () => {
-    await setDealsCache('grocery', cached('Bergkäse'));
-    await setDealsCache('drugstore', cached('Schauma Shampoo'));
+  // Driven off VERTICALS rather than the two names that happened to exist when this block
+  // was written: `allCacheKeys()` derives its list the same way, so a section added to the
+  // registry must be covered here without anyone remembering to add a case.
+  const seedAll = async () => {
+    for (const v of VERTICALS) await setDealsCache(v, cached(`${v} product`));
+  };
 
-    expect((await getDealsCache('grocery'))?.offers[0].name).toBe('Bergkäse');
-    expect((await getDealsCache('drugstore'))?.offers[0].name).toBe('Schauma Shampoo');
+  it('keeps each vertical’s week separately, so switching costs no round trip', async () => {
+    await seedAll();
+    for (const v of VERTICALS) {
+      expect((await getDealsCache(v))?.offers[0].name).toBe(`${v} product`);
+    }
   });
 
   it('writes under a scoped key, never the bare one', async () => {
@@ -252,26 +259,24 @@ describe('per-vertical caches', () => {
     expect(await AsyncStorage.getItem('dealsCache')).toBeNull();
   });
 
-  it('one vertical’s cache is invisible to the other', async () => {
+  it('one vertical’s cache is invisible to the others', async () => {
     await setDealsCache('grocery', cached('Bergkäse'));
-    expect(await getDealsCache('drugstore')).toBeNull();
+    for (const v of VERTICALS.filter((x) => x !== 'grocery')) {
+      expect(await getDealsCache(v)).toBeNull();
+    }
   });
 
   it('"Clear cached deals" clears EVERY vertical, not just the current one', async () => {
     // "deals won't update" is a whole-app complaint; leaving the other vertical's stale
     // week behind reproduces the very bug the button exists to fix, one tap later.
-    await setDealsCache('grocery', cached('Bergkäse'));
-    await setDealsCache('drugstore', cached('Schauma Shampoo'));
+    await seedAll();
     await clearDealsCache();
-    expect(await getDealsCache('grocery')).toBeNull();
-    expect(await getDealsCache('drugstore')).toBeNull();
+    for (const v of VERTICALS) expect(await getDealsCache(v)).toBeNull();
   });
 
   it('"Reset all app data" clears every vertical too', async () => {
-    await setDealsCache('grocery', cached('Bergkäse'));
-    await setDealsCache('drugstore', cached('Schauma Shampoo'));
+    await seedAll();
     await clearAllData();
-    expect(await getDealsCache('grocery')).toBeNull();
-    expect(await getDealsCache('drugstore')).toBeNull();
+    for (const v of VERTICALS) expect(await getDealsCache(v)).toBeNull();
   });
 });
