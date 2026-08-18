@@ -19,6 +19,13 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
 - Backend lint: `cd backend && source .venv/bin/activate && ruff check .` (`--fix` to autofix)
 - DB migration (after a model change): `cd backend && alembic revision --autogenerate -m "msg"`,
   review the file, commit. Runtime auto-runs `upgrade head` at startup (`app/migrations.py`).
+- **Weekly audit's contact sheets** (2026-08-17, kept instead of rebuilt ad-hoc each week):
+  `SCRAPE_REQUEST_GAP_S=0.15 python -m app.scripts.contact_sheets` — labelled per-category
+  sheets of every served product's photo, plus `--manifest` (counts only, no fetch) and
+  `--category X`. **Override the gap**: the 0.7s default protects the flyer AGGREGATORS, which
+  throttle by answering 200 with less content; the images come from a static CDN, and at the
+  default a ~2,000-image run takes ~100 minutes instead of nine. Pillow is a declared dep now —
+  it had been installed ad-hoc in the venv and was missing from any fresh checkout.
 - Mobile typecheck: `cd mobile && npx tsc --noEmit`
 - Mobile tests: `cd mobile && npm test` (jest-expo; CI runs `npm test -- --ci`). **Component tests
   work now** (`__tests__/StoresModal.test.tsx` is the first) — three things had to be true and each
@@ -1126,6 +1133,11 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     marks a degraded run is stale: it existed only in `lidl.py`/`dm.py`, never for the
     meinprospekt chains — and `_get_or_create_store` sets `name` only on INSERT, while
     `/api/reset` deletes `Offer` rows and leaves `Store` rows, so an old name would persist.
+  - **The ALDI DIVISION SKIP records nothing, and now that is conspicuous.** When Overpass
+    can't resolve Nord vs SÜD, `run.py` skips ALDI and logs — deliberate fail-closed, but it
+    never reaches `record_scrape_failure`, so on 2026-08-17 prod served 5 grocery chains with
+    `/api/scrape-stats` reporting only `{'rossmann': 1}`. The gate catches it (`chains >= 6`);
+    the dashboard does not. Wire the skip into the same counter.
   - **A Lidl failure still costs all six flyer chains**, sample flag or not: the Lidl Plus
     lookup resolves the store COORDINATES and `run_scrapers` gates every meinprospekt chain on
     `store.lat is not None`, and that path has never returned lat/lng. Its log now says so

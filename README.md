@@ -134,7 +134,7 @@ build the cheapest basket across one or two stores.
   failure** — with least-privilege permissions, dependency caching, concurrency
   control, and **Dependabot raising pull requests for security advisories only** — routine
   version bumps are switched off, so a dependency PR always means there is a CVE.
-- **Automated test suite** — ~1,475 backend tests (pytest) covering the scrapers,
+- **Automated test suite** — ~1,507 backend tests (pytest) covering the scrapers,
   classifier, dedup, unit-price/validity logic, and HTTP-level API behavior
   (filters, auth guards, throttling), plus a React Native **Jest** suite (~450 tests)
   for the app's pure business logic (basket matching, the deals filter pipeline,
@@ -406,7 +406,7 @@ Three workflows under [`.github/workflows/`](.github/workflows/):
 |----------|---------|--------------|
 | `ci.yml` | push / PR to `main` | Backend `ruff` + `pytest`, mobile ESLint + `tsc`, and a backend Docker image build. On green pushes to `main` it triggers the Render deploy. |
 | `eas-update.yml` | after a green CI run on `main` + manual | Publishes an EAS Update (OTA) to the `production` channel — gated on a successful CI run (via `workflow_run`), and only when `mobile/**` changed, so a failing build can't reach users. |
-| `scrape.yml` | Sunday cron + manual | Wipes & re-scrapes via `POST /api/reset` (flyers are weekly, spent by Sunday) — retries 3× and opens/comments a self-alerting failure issue. |
+| `scrape.yml` | Sunday cron + manual | Wipes & re-scrapes via `POST /api/reset` (flyers are weekly, spent by Sunday) — retries 3× and opens/comments a self-alerting failure issue. A `verify_only` dispatch input re-checks the deployed data **without** wiping it, so a mid-week fix can clear a stale alert. |
 
 Least-privilege permissions, dependency caching, and concurrency cancellation
 throughout. CI is hermetic (tests use JSON fixtures — no network or secrets).
@@ -460,6 +460,14 @@ Engineering practices demonstrated while building and operating this project:
   API truncates after a relevance sort, so an oversized source would have silently dropped
   the very records the product compares. Zero parser changes were needed; the rejected
   candidates and the reasoning are recorded as an architecture decision record.
+- **Fail-closed data integrity** — Found that a failed supplier import silently published
+  *fabricated* records: placeholder prices with plausible validity windows, indistinguishable
+  downstream from real ones and about to be recorded as a week's genuine pricing by a separate
+  history collector. Traced the root cause to an exception handler that logged nothing at all —
+  the diagnostic sat outside the `except` block, so the runtime had already discarded the error
+  — and rewrote the degradation to serve nothing, surface the failure on a metrics endpoint, and
+  keep the placeholder data for local development behind a flag defaulted off so production is
+  correct with no configuration.
 - **Data-quality auditing at scale** — Audited a 2,700-product taxonomy by rendering
   every item's photograph into per-category contact sheets and judging each against its
   source caption, rather than trusting the product name. This surfaced a systematic
