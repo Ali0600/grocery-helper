@@ -60,16 +60,39 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   web; the backend already sends permissive CORS, so it talks to the local API.
 
 ## Important notes / gotchas
-- **The app has TWO VERTICALS and opens on a home screen** (2026-07-30): `HomeScreen` renders one
-  big button per vertical, and `App.tsx` holds `vertical: Vertical | null` (`null` = home). There
+- **The app has THREE VERTICALS and opens on a home screen** (2026-07-30; Drinks added
+  2026-08-18): `HomeScreen` renders one big button per vertical, and `App.tsx` holds
+  `vertical: Vertical | null` (`null` = home). There
   is still **no navigation library** — adding one is a native dep (a new build, not an OTA), and
   the app already navigates by rendering modals over one screen. `DealsScreen` takes its first-ever
   props, `{ vertical, onHome }`. The vertical is **not persisted**: the app always opens on Home
-  (the user framed it as *the homepage*, and either side is one tap away — one line to change).
+  (the user framed it as *the homepage*, and any section is one tap away — one line to change).
   **The split is load-bearing, not navigation sugar.** `/api/offers` caps at 2000 and the app loads
   the whole set; measured for one Berlin PLZ, grocery is **1674**, Rossmann adds **282** and dm
   **213** → **2169 as one query, i.e. past the cap**. Scoping each vertical to its own query is the
-  only reason both fit (grocery 1674, drugstore 495).
+  only reason they fit.
+  - **A vertical has TWO SHAPES, and the second one is newer than most of this section.**
+    Grocery and Drugstore are **chain sets** — a Rossmann is a drugstore whatever it sells — and
+    their chains are disjoint, which is why "a chain's vertical" reads as a fact about the chain
+    everywhere below. **Drinks is a CATEGORY set** over the *grocery* chains (`soft_drinks` +
+    `alcoholic`), so any sentence here of the form "the vertical is decided from the chain slug"
+    is now true only of the first two. The user asked for drinks out of the food list ("I'm just
+    looking for food and it's distracting"), and the cap made it the right answer anyway:
+    measured 2026-08-18, grocery **alone** had reached **1926 of 2000** (96%), and the carve-out
+    takes it to **1689** with Drinks at **237**.
+  - **`DRINK_CATEGORIES` is named ONCE and used twice** — as Drinks' `categories` and as
+    Grocery's `excluded_categories` — because those are one statement seen from either side. A
+    second literal would be a partition that can drift, and both drift directions are silent: a
+    drink served in **both** sections, or in **neither**. `tests/test_verticals.py` asserts the
+    agreement generically over `VERTICALS`, not over the two names that exist today, so a fourth
+    section inherits the check. Both failures are sabotage-proven.
+  - **`verticals.py` cannot import `categories.py`** (it is a leaf module that `scrapers/run.py`
+    and `store_locator.py` import), so a typo'd slug in `DRINK_CATEGORIES` would be a filter
+    matching nothing, silently. That is what `test_carved_out_categories_are_real_category_slugs`
+    buys back.
+  - **Coffee deliberately stays in Grocery** (the user's call): a bag of beans is an aisle you
+    cook from, not a bottle you drink. Pinned by a test, because it is exactly the kind of thing
+    a later "tidy-up" folds in.
   - **Backend**: `app/verticals.py` (`VerticalSpec`, `VERTICALS`, `CHAIN_VERTICAL`) — a frozen
     constant, **no DB column**: a chain's vertical is a fact about the chain, not about a `Store`
     row, so there's no migration and it can't drift per-row. A leaf module with no app imports, so
@@ -78,14 +101,23 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     and `/api/offers/category-traces`. Built as a `Query(pattern=…)` from `VERTICALS`, so an
     unknown value **422s** rather than silently widening to every chain. The two bulk endpoints
     take it because they promise to mirror `/api/offers` — without it a drugstore session
-    downloads every grocery payload and that contract quietly stops holding.
+    downloads every grocery payload and that contract quietly stops holding. Their test is
+    **parametrized over `VERTICALS`**, so a section added later inherits the promise.
+    **That 422 is why a new section ships BACKEND-FIRST**: an app asking for one the deployed
+    backend doesn't know gets an error, not a fallback. Merge and deploy the backend, confirm
+    `?vertical=<new>` serves, *then* publish the OTA.
   - **Omitting it = GROCERY** (changed 2026-07-30 when dm landed; it used to mean *no filter*).
     All chains together is now **2169**, so an unfiltered read would silently truncate at 2000.
     Grocery is the right default rather than a bigger cap because the only clients that omit the
     param are builds older than the vertical release — they predate Drugstore entirely, have no UI
     for it, and were being served Rossmann rows inside a grocery list. Every vertical-aware
-    endpoint applies the default through the single `_vertical_chains()` helper in `api/offers.py`,
-    so `/categories` chips can't advertise a vertical `/offers` won't serve. **A further chain
+    endpoint applies the default through the single `_scoped()` helper in `api/offers.py`
+    (renamed from `_vertical_chains` on 2026-08-18 — it now applies a category filter as well as
+    a chain one), so `/categories` chips can't advertise a vertical `/offers` won't serve.
+    Since 2026-08-18 the grocery default also **excludes the drink categories**, so an old client
+    sees no drinks — the same bargain as above, since it has no UI for that section either.
+    `Offer.category` is `NOT NULL`, which is what makes the `notin_` safe; a nullable column
+    would need an explicit `IS NULL` arm or it would silently drop rows. **A further chain
     still needs server-side `q` search** — the per-vertical queries are what bought the headroom.
 - **Rossmann is the drugstore vertical's chain** (`bonial.py` `RossmannScraper`, publisher
   **`DE-1064`**, page `/rossmann-de`). The shipped `MeinprospektScraper` parses it with **zero
@@ -153,9 +185,17 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     drifted from the script and cost a wrong diagnosis; read `PROFILES`, not this file), with
     **no €/kg floor** — Rossmann measures 48–58%, straddling grocery's 50% floor, and €/kg means
     little for cosmetics. Every vertical runs even after one fails, so a red grocery can't hide a
-    collapsed drugstore.
+    collapsed drugstore. **Drinks** (2026-08-18) is chains ≥6 / offers ≥120 / **€/kg ≥80%** — the
+    strictest coverage floor in the file, deliberately: everything in that section is sold by the
+    litre and carries a Grundpreis (measured 98.3%), so a drop is a parse regression, not a bad
+    flyer week. Its `other_pct` is **structurally 0** — `_scoped` serves only the two drink
+    categories, so no `other` row can reach it; the key exists so every profile has the same
+    shape, not because it gates anything, and `test_every_profile_has_the_same_shape` is what
+    stops a future section omitting `min_chain_offers` (read with a plain subscript, so the
+    omission is a Sunday-morning `KeyError` against production).
   - **`chains >= N` counts PRESENCE, so a nearly-empty chain reads as a healthy one** — hence
-    `min_chain_offers` (100, both verticals), added 2026-08-08 after the drugstore vertical served
+    `min_chain_offers` (100 for the two chain-set verticals; **15** for Drinks, whose whole
+    section is 237 offers), added 2026-08-08 after the drugstore vertical served
     `rossmann=2` against 287 the week before and grocery served `aldi=4` (its literal `_sample()`
     size) on the same day. Neither registered: the total floor is carried by the survivors, so at
     the measured counts **three of five grocery chains could fall back to samples and still clear

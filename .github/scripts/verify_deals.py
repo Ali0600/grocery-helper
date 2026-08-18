@@ -119,7 +119,9 @@ SERVE_LIMIT = 2000
 # over lowering the global number, which would weaken ALDI/Lidl/REWE protection for free.
 PROFILES: dict[str, dict] = {
     # Measured 2026-07-15, prod AND local agreeing: 1650-1663 offers, 5 chains, ~71% €/kg,
-    # ~7.4% "other". Unchanged by the split — this is still the same population.
+    # ~7.4% "other". Re-measured 2026-08-18 after drinks were carved out into their own
+    # section: 1689 offers, 6 chains, per-chain min 204 (edeka), 66.4% €/kg, 5.7% "other" —
+    # every threshold below still clears with room, so none of them moved.
     "grocery": {"chains": 6, "offers": 800, "offers_stale": 800, "unit_price_pct": 50.0,
                 "other_pct": 15.0, "min_chain_offers": 100},
     # Measured 2026-07-30: Rossmann 283 + dm 214 = ~497.
@@ -136,6 +138,24 @@ PROFILES: dict[str, dict] = {
     # be at 213 that week, and would have passed it at dm's own measured 250.
     "drugstore": {"chains": 2, "offers": 250, "offers_stale": 150, "unit_price_pct": None,
                   "other_pct": 15.0, "min_chain_offers": 100},
+    # Drinks is a CATEGORY carve-out of the grocery chains (soft_drinks + alcoholic), not a
+    # chain of its own — so `chains` is the same 6 and a drop there means a supermarket
+    # collapsed, exactly as in the grocery profile.
+    #
+    # Measured 2026-08-18, mid-week (Tuesday), so already decayed by the `valid_to >= today`
+    # filter — a post-reset run can only be higher: 237 offers, 6 chains, per-chain
+    # 35-45 (min edeka 35), 98.3% €/kg. Floors sit at this file's house factor of ~0.5x
+    # measured health: 120/237 = 0.51, 15/35 = 0.43.
+    #
+    # €/kg is the strictest floor in the file at 80% and deliberately so: everything here is
+    # sold by the litre and carries a Grundpreis, so a drop below that is a parse regression,
+    # not a bad flyer week. Grocery's 50% is a mixed population; this one isn't.
+    #
+    # `other_pct` is structurally 0 here — `_scoped` serves only the two drink categories, so
+    # no `other` row can reach this vertical. The key is kept so every profile has the same
+    # shape (a ratchet test pins that), NOT because it gates anything.
+    "drinks": {"chains": 6, "offers": 120, "offers_stale": 120, "unit_price_pct": 80.0,
+               "other_pct": 15.0, "min_chain_offers": 15},
 }
 
 # `offers_stale` is the floor for a run where no scrape just happened (`--post-reset` absent).

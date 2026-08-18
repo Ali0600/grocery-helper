@@ -29,8 +29,60 @@ The one-glance menu. Only `deferred` items appear here.
   measured over it; see *Which chain becomes the sixth, and the cap it runs into*.
 - **A `{"default": 100, "dm": 60}` per-chain override map in the data gate** — only worth it if
   a healthy week ever lands in the 100–160 band; see *Per-chain floor: one number or per-chain*.
+- **Move Coffee into the Drinks section** — kept in Grocery by the user's call; a one-line
+  change to `DRINK_CATEGORIES` if Drinks ever feels thin. See *Where a "Drinks" section lives*.
 
 ---
+
+## 2026-08-18 — Where a "Drinks" section lives, and what it takes with it
+
+The user asked for drinks out of the grocery list ("I'm just looking for food and it's
+distracting") and for a Drinks button on the home screen. Measured that day: grocery served
+**1,926 of the 2,000 cap** and drinks were **237** of it, so this was also the cheapest
+headroom available.
+
+### Fork 1 — where the split happens
+
+| option | tradeoff |
+| --- | --- |
+| **A backend vertical scoped by CATEGORY** (chosen) | Needs a second shape of `VerticalSpec` and a partition invariant between two entries. Buys real cap headroom (grocery 1,926 → 1,689), and every existing contract — one `vertical` param, one cache key per section, one gate profile — keeps its shape instead of growing an exception. |
+| A client-side filter over one grocery fetch | No backend change and no deploy ordering. But the 1,926-row query stays at 96% of the cap, i.e. it fixes the *complaint* and not the *problem* underneath it, and every count the app derives (chips, facets, Compare) would need its own drinks-aware branch. |
+| A `?exclude_category=` query param | More general, and generality is the trap: the app would then own the definition of "what is a drink", in a query string, with no server-side invariant tying grocery's exclusion to drinks' inclusion. |
+| Drinks as a fourth *chain set* (a drinks retailer) | Not the request, and there is no such flyer source. |
+
+**Chosen: A.** Status of the rejected: client-side filter — `rejected — leaves the cap
+problem`; `exclude_category` — `rejected — moves the partition to the client, where nothing
+can enforce it`; drinks retailer — `rejected — no source`.
+
+**Revisit hook:** `backend/app/verticals.py`. A second category carve-out is now a
+`VerticalSpec(categories=…)` entry plus the matching `excluded_categories` on its home
+section; `tests/test_verticals.py` checks the agreement generically, so nothing new is needed
+to make it safe.
+
+### Fork 2 — does Coffee go with the drinks?
+
+Coffee is 42 offers and was split out of `soft_drinks` in July for the same "a bag of beans
+is not a soft drink" reason. **The user chose to keep it in Grocery** — it is an aisle you
+cook from. Status: `deferred — worth trying` if the Drinks section ever feels thin; it is a
+one-line change to `DRINK_CATEGORIES`, and a test pins the current answer so the move has to
+be deliberate.
+
+**Revisit hook:** `DRINK_CATEGORIES` in `backend/app/verticals.py`, plus the assertion in
+`test_drinks_is_the_grocery_chains_and_nothing_else`.
+
+### Fork 3 — is the Basket scoped to the section you are standing in?
+
+| option | tradeoff |
+| --- | --- |
+| **Merged across Grocery + Drinks** (chosen, the user's call) | The two sections are the same six supermarkets and one shopping trip, so a beer belongs on the same list as the bread. Costs a companion-cache read in `DealsScreen` and a rule about when it may be fetched. |
+| Scoped, exactly like Drugstore | Zero new mechanism, consistent with the existing section boundary. But a basket that says "No deal this week" for a beer that *is* on sale two taps away is wrong in the way the user would actually notice. |
+
+Status of the rejected option: `rejected — the sections are one shopping trip`. Note this is
+where Drinks stops resembling Drugstore: the drugstore chains are a different errand, so
+merging *that* would be wrong for the same reason merging this is right.
+
+**Revisit hook:** `companionVertical()` in `mobile/src/verticals.ts` — it returns `null` for
+Drugstore, which is the whole statement.
 
 ## 2026-08-11 — Which chain becomes the sixth, and the cap it runs into
 

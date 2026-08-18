@@ -9,7 +9,7 @@ from dataclasses import asdict
 from typing import List, Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
-from sqlalchemy import delete, select
+from sqlalchemy import delete, false, select
 from sqlalchemy.orm import selectinload
 
 from .. import categories
@@ -30,21 +30,26 @@ from ..serializers import offer_to_out
 from ..services.optimizer import optimize_basket
 from ..throttle import RateLimiter
 from ..validity import berlin_today
-from ..verticals import VERTICALS, chains_for
+from ..verticals import VERTICALS
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["offers"])
 
-# Scope a listing to one shop kind (grocery / drugstore). Built from VERTICALS so a new
-# vertical needs no edit here, and matched as a pattern — like `source` above — so an
-# unknown value is a 422 rather than silently returning EVERY chain (a typo that quietly
-# widens a filter is the "gate evaluating less than it claims" trap).
+# Scope a listing to one section of the app (grocery / drinks / drugstore). Built from
+# VERTICALS so a new section needs no edit here, and matched as a pattern — like `source`
+# above — so an unknown value is a 422 rather than silently returning EVERY chain (a typo
+# that quietly widens a filter is the "gate evaluating less than it claims" trap). That
+# 422 is also why a new section ships backend-first: an app asking for one this deploy
+# doesn't know gets an error, not a fallback.
 #
 # **Omitting it now means GROCERY, not "every chain."** It used to mean no filter, which
 # was fine at 1913/2000 but stopped being so when dm landed: measured 2026-07-30, all
 # chains together is 2127, so an unfiltered read would silently truncate — the "gate looks
-# green while evaluating less than it claims" trap, in data form.
+# green while evaluating less than it claims" trap, in data form. Since 2026-08-18 grocery
+# also *excludes* the drink categories, so an old client sees no drinks; that is the same
+# bargain as above — it has no UI for the section either way, and grocery alone had reached
+# 1926 of the 2000 cap before the carve-out.
 #
 # Grocery is the right default rather than a raised cap because the ONLY clients that omit
 # the param are app builds older than the vertical release. Those predate Drugstore
@@ -56,15 +61,28 @@ _VERTICAL_PATTERN = "^(" + "|".join(VERTICALS) + ")$"
 DEFAULT_VERTICAL = "grocery"
 
 
-def _vertical_chains(vertical: Optional[str]) -> tuple:
-    """The chains a request is scoped to, applying the default when omitted.
+def _scoped(stmt, vertical: Optional[str]):
+    """Narrow *stmt* to one section of the app, applying the default when omitted.
 
     Every vertical-aware endpoint goes through this one function on purpose: the bulk
     payload/trace endpoints promise to mirror `/offers`, and `/categories` renders the
     chips that filter it. If they defaulted differently the chips would advertise a
     vertical the list doesn't serve — so there is exactly one place the default lives.
+
+    Two filters, because a vertical is a chain set, a category carve-out, or a chain set
+    minus one (see `verticals.py`). `Offer.category` is NOT NULL, so `notin_` can't be
+    tripped by SQL's three-valued logic — a nullable column would need an explicit
+    `IS NULL` arm here, and would silently drop rows without one.
     """
-    return chains_for(vertical or DEFAULT_VERTICAL)
+    spec = VERTICALS.get(vertical or DEFAULT_VERTICAL)
+    if spec is None:  # unreachable via the API (the Query pattern 422s first)
+        return stmt.where(false())
+    stmt = stmt.where(Store.chain.in_(spec.chains))
+    if spec.categories is not None:
+        stmt = stmt.where(Offer.category.in_(sorted(spec.categories)))
+    if spec.excluded_categories:
+        stmt = stmt.where(Offer.category.notin_(sorted(spec.excluded_categories)))
+    return stmt
 
 
 def _require_admin(
@@ -125,7 +143,7 @@ def list_offers(
     stmt = select(Offer).options(selectinload(Offer.store)).join(Store)
     if category:
         stmt = stmt.where(Offer.category == category)
-    stmt = stmt.where(Store.chain.in_(_vertical_chains(vertical)))
+    stmt = _scoped(stmt, vertical)
     if chain:
         stmt = stmt.where(Store.chain == chain)
     if plz:
@@ -178,7 +196,7 @@ def offer_payloads(
     stmt = select(Offer).options(selectinload(Offer.store)).join(Store)
     if plz:
         stmt = stmt.where(Store.plz == plz)
-    stmt = stmt.where(Store.chain.in_(_vertical_chains(vertical)))
+    stmt = _scoped(stmt, vertical)
     stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today()))
     rows = dedup_offers(session.scalars(stmt).all())
     return {str(o.id): (json.loads(o.raw_payload) if o.raw_payload else None) for o in rows}
@@ -285,7 +303,7 @@ def offer_category_traces(
     stmt = select(Offer).options(selectinload(Offer.store)).join(Store)
     if plz:
         stmt = stmt.where(Store.plz == plz)
-    stmt = stmt.where(Store.chain.in_(_vertical_chains(vertical)))
+    stmt = _scoped(stmt, vertical)
     stmt = stmt.where((Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today()))
     rows = dedup_offers(session.scalars(stmt).all())
     out = {}
@@ -307,14 +325,18 @@ def list_categories(
     Counts distinct products (deduped) so the chip number matches the deduped list, and
     takes the same `vertical` scope as `/offers` so the chips match the list they filter.
     Categories with no offers are omitted, so a vertical simply never sees the other's
-    chips — no per-vertical category list is needed.
+    chips — no per-vertical category list is needed. That holds for a category-scoped
+    vertical too, and for the same reason: `_scoped` filters the rows the counts are
+    built from, so Drinks' chips can only be drink slugs and Grocery's can never include
+    one. The chips are derived from the same query as the list, never from a second list
+    of "which categories belong here" that could drift from it.
     """
     stmt = select(Offer).options(selectinload(Offer.store)).join(Store).where(
         (Offer.valid_to.is_(None)) | (Offer.valid_to >= berlin_today())
     )
     if plz:
         stmt = stmt.where(Store.plz == plz)
-    stmt = stmt.where(Store.chain.in_(_vertical_chains(vertical)))
+    stmt = _scoped(stmt, vertical)
     counts = Counter(o.category for o in dedup_offers(session.scalars(stmt).all()))
     return [
         CategoryCount(category=slug, label=lbl, count=counts[slug])
