@@ -105,7 +105,7 @@ import {
 import { colors, radius, space } from '../theme';
 import { BasketItem, CategoryCount, HistoryItem, MyStore, Offer, RecipePrefs } from '../types';
 import { DEFAULT_PLZ } from '../config';
-import { hasRecipes, Vertical } from '../verticals';
+import { companionVertical, hasRecipes, Vertical } from '../verticals';
 
 // Moved to `../config` now that the price-history fetch reads it too — one source of truth
 // for the one constant that must never carry a personal postal code.
@@ -136,6 +136,15 @@ export default function DealsScreen({ vertical, onHome }: Props) {
   const [browserMode, setBrowserMode] = useState<BrowserMode>('all');
   const [query, setQuery] = useState('');
   const [offers, setOffers] = useState<Offer[]>([]);
+  // The sibling section's deals — Grocery holds Drinks' and vice versa (see
+  // `companionVertical`). They are the SAME six supermarkets split by category, so a beer
+  // and a loaf of bread are one shopping trip: the Basket, Recipes and History match
+  // against both. The deals LIST never sees them, which is the point of the split.
+  //
+  // Filled from the sibling's own `dealsCache` — never fetched on a cache hit, so the
+  // weekly-authoritative contract ("a fresh cache makes zero backend calls") still holds
+  // exactly. `revalidate` tops it up only when it was already going to the network.
+  const [companionOffers, setCompanionOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [slowLoad, setSlowLoad] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -297,6 +306,50 @@ export default function DealsScreen({ vertical, onHome }: Props) {
     setMine(shouldLandOnMine(myCategoriesRef.current, served));
   }, []);
 
+  // Load the sibling section's deals for this PLZ. Cache-first and, when `allowFetch`,
+  // topping it up from the network — but ONLY from inside `revalidate`'s success path,
+  // where we are already talking to the backend. Calling it on a fresh-cache open would
+  // break the contract this whole cache exists for (a mid-week open touches nothing).
+  //
+  // Best-effort throughout: the companion only feeds the Basket/Recipes/History matchers,
+  // so a failure leaves whatever the cache held rather than surfacing an error. It also
+  // pre-warms the sibling, which is what makes switching sections instant and gives the
+  // home screen its deal count.
+  const loadCompanion = useCallback(
+    async (targetPlz: string, allowFetch: boolean) => {
+      const sibling = companionVertical(vertical);
+      if (!sibling) {
+        setCompanionOffers([]);
+        return;
+      }
+      const cached = await getDealsCache(sibling);
+      const hit = !!cached && cached.plz === targetPlz;
+      if (hit && cached) setCompanionOffers(cached.offers);
+      if (!allowFetch || (hit && cached && !dealsCacheStale(cached))) return;
+      try {
+        const [o, c] = await Promise.all([
+          api.offers({ plz: targetPlz, vertical: sibling }),
+          api.categories(targetPlz, sibling),
+        ]);
+        if (plzRef.current !== targetPlz) return; // the user switched PLZ mid-fetch
+        if (o.length === 0) return; // never clobber good cached deals with an empty read
+        setCompanionOffers(o);
+        // `storeName` is the primary section's business (it names the store row we
+        // resolved); the sibling's copy is only ever read for its offers and count.
+        await setDealsCache(sibling, {
+          plz: targetPlz,
+          offers: o,
+          cats: c,
+          storeName: null,
+          cachedAt: Date.now(),
+        });
+      } catch {
+        // keep whatever the cache gave us
+      }
+    },
+    [vertical],
+  );
+
   const revalidate = useCallback(
     async (hadData: boolean, announce = false) => {
       const target = plz; // the PLZ this run fetches for; bail if the user switches away
@@ -351,6 +404,9 @@ export default function DealsScreen({ vertical, onHome }: Props) {
           // Prefetch this PLZ's payloads in the background (Render is warm from the fetch
           // above) so the deal detail's "View payload" is instant + offline.
           void prefetchDetailData(target, o.length);
+          // We are already awake and talking to the backend, so this is the one moment
+          // topping up the sibling section is free.
+          void loadCompanion(target, true);
           // Pull-to-refresh feedback: say how the deal count changed vs what was on
           // screen; stay silent when nothing changed (per the user's request).
           if (announce) {
@@ -373,7 +429,7 @@ export default function DealsScreen({ vertical, onHome }: Props) {
         }
       }
     },
-    [plz, vertical, showToast, prefetchDetailData, landOnMine],
+    [plz, vertical, showToast, prefetchDetailData, landOnMine, loadCompanion],
   );
 
   // On launch / PLZ change: show the cached deals for this PLZ instantly (no spinner),
@@ -405,6 +461,9 @@ export default function DealsScreen({ vertical, onHome }: Props) {
         setLoading(true);
         setSlowLoad(false);
       }
+      // Cache-only: a section that has never been opened simply contributes nothing to the
+      // basket until it has been. `revalidate` is what fills it, and only when it runs.
+      void loadCompanion(plz, false);
       if (!fresh) revalidate(hit);
       // Fresh deals cache → revalidate won't run, but still ensure this PLZ's payloads are
       // prefetched for offline "View payload" (gated: no-ops if already cached this week).
@@ -413,7 +472,7 @@ export default function DealsScreen({ vertical, onHome }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [plz, vertical, ready, revalidate, prefetchDetailData, landOnMine]);
+  }, [plz, vertical, ready, revalidate, prefetchDetailData, landOnMine, loadCompanion]);
 
   // If the true cold-start spinner drags on (a sleepy free-tier boot), surface a "waking" hint.
   useEffect(() => {
@@ -748,20 +807,38 @@ export default function DealsScreen({ vertical, onHome }: Props) {
   // work off this, not the raw set. The one exception is the History page (see below).
   const notHidden = useMemo(() => filterHidden(offers, hiddenKeys), [offers, hiddenKeys]);
 
+  // This section's deals PLUS its sibling's, for the surfaces that describe a shopping trip
+  // rather than a section: the Basket, Recipes and History. Grocery and Drinks are the same
+  // six supermarkets, so a plan that couldn't price the beer would be a plan you can't shop.
+  // Concatenation is safe without a de-dupe: the backend partitions the two by category, so
+  // no offer can appear in both (`test_grocery_and_drinks_PARTITION_the_grocery_chains`).
+  //
+  // Deliberately NOT merged into the deals list, the chips, the "My Categories" home,
+  // Compare or EdekaVs — those are the section you are standing in, and keeping drinks out
+  // of the food list is the entire request.
+  const withCompanion = useMemo(
+    () => (companionOffers.length ? offers.concat(companionOffers) : offers),
+    [offers, companionOffers],
+  );
+  const notHiddenWithCompanion = useMemo(
+    () => filterHidden(withCompanion, hiddenKeys),
+    [withCompanion, hiddenKeys],
+  );
+
   // Hidden stores apply EVERYWHERE the user shops from: the deals list (via filterDeals
   // below) and the Basket + Recipes matchers — hiding EDEKA means the basket must not
   // route you there as "cheapest". Compare keeps its own store picker (full set).
   const modalOffers = useMemo(
-    () => filterByVisibleStores(notHidden, hiddenStores),
-    [notHidden, hiddenStores],
+    () => filterByVisibleStores(notHiddenWithCompanion, hiddenStores),
+    [notHiddenWithCompanion, hiddenStores],
   );
 
   // History deliberately IGNORES hidden deals: it's a record you built by shopping, so a hidden
   // liked product would render "Not on sale this week" — which would be false. An explicit
   // watchlist beats a browsing declutter; hiding still applies to everything else.
   const historyOffers = useMemo(
-    () => filterByVisibleStores(offers, hiddenStores),
-    [offers, hiddenStores],
+    () => filterByVisibleStores(withCompanion, hiddenStores),
+    [withCompanion, hiddenStores],
   );
 
   // The History badge = recorded products on sale RIGHT NOW (exact name match), not the size

@@ -221,6 +221,31 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     - A response of exactly the 2000 serve cap now **fails**: truncation happens after a sort by
       `discount_pct` with nulls last, which is disproportionately REWE and ALDI — the chains
       nearest the floor — so at the cap the per-chain numbers would be the first thing to lie.
+  - **Grocery and Drinks are ONE SHOPPING TRIP, and that is a mobile-side rule** (2026-08-18,
+    `verticals.ts` `companionVertical`): the same six supermarkets, split only by category, so
+    `DealsScreen` holds a second array — `companionOffers` — that feeds **Basket, Recipes and
+    History** and nothing else. The deals list, the chips, the "My Categories" home, Compare and
+    EdekaVs stay scoped to the section you are standing in; keeping drinks out of the food list
+    is the entire request. `companionVertical` returns **null for Drugstore** — a different
+    errand, not a different aisle — and that null is the whole statement.
+    - **Concatenation needs no de-dupe**, because the backend partitions the two by category
+      (`test_grocery_and_drinks_PARTITION_the_grocery_chains`). That is a cross-repo dependency
+      worth knowing: if the partition ever breaks, the basket double-counts.
+    - **The companion may only be FETCHED from inside `revalidate`'s success path.** Fetching it
+      on a fresh-cache open would turn every mid-week open into a free-tier cold start —
+      breaking the exact contract the weekly cache exists for. On open it is a **cache read**;
+      the top-up rides along on a network round trip we were making anyway, which also pre-warms
+      the sibling section (instant switch, and the home screen's deal count). Pinned by
+      "a FRESH cache still makes zero backend calls, companion included"; sabotage-proven.
+    - **`FlyerModal` reads this section's prefetch cache and then its sibling's** (`cachedById`).
+      A deal opened from Grocery's Basket can BE a drink, and each section prefetches only its
+      own ids — without the second look, exactly the deals the merge added would cold-start the
+      backend. Tested against `undefined`, not truthiness: a captured-null payload is a real
+      answer ("the source gave us nothing"), and treating it as a miss refetches forever.
+    - **A test for "Drugstore has no companion" must park the bait in EVERY other section.**
+      The first version seeded only `dealsCache:drinks` and passed a sabotage that pointed
+      drugstore at *grocery* — a test that agrees with the bug. Same shape as the decorative
+      fixtures the classifier audits keep producing.
   - **The three caches are keyed PER VERTICAL** (`dealsCache:grocery`, `dealsCache:drugstore`, same
     for `payloadCache`/`traceCache`). Sharing one key would make every switch a cache miss — a
     cold-start round trip on the free tier, for a control the user taps constantly. `clearDealsCache`

@@ -111,8 +111,14 @@ export const dealsStale = (cachedAt: number | null): boolean =>
  * cache makes ZERO backend calls, so without this bump dm would be invisible to everyone
  * who already has one until Sunday — the exact trap that hid E center and then ALDI.
  * v6 (2026-08-11): Penny joined the grocery vertical — same reason, third time.
+ *
+ * v7 (2026-08-18): drinks LEFT the grocery vertical for their own section. The mirror of a
+ * new chain and just as invisible without a bump: a v6 grocery cache still holds every
+ * beer and cola, so the section the user asked for would be missing exactly the deals it
+ * exists to show, while the food list kept the clutter they asked to be rid of — until
+ * Sunday. Stale-not-absent, as always, so the old list renders while the new one loads.
  */
-export const DEALS_CACHE_VERSION = 6;
+export const DEALS_CACHE_VERSION = 7;
 
 /**
  * True when the cached deals must be refetched: absent, written by an older app version,
