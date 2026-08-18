@@ -5,8 +5,8 @@ Find the best weekly deals near you in Berlin. The app scrapes the weekly offers
 categorizes them, computes the **% discount** for every item, and helps you
 build the cheapest basket across one or two stores.
 
-> **Status:** v1.1 in progress. The app opens on a home screen with **two sections —
-> Grocery and Drugstore** — and everything below it is scoped to one of them.
+> **Status:** v1.1 in progress. The app opens on a home screen with **three sections —
+> Grocery, Drinks and Drugstore** — and everything below it is scoped to one of them.
 > **Live Lidl + REWE + EDEKA + E center + ALDI (grocery) and Rossmann + dm (drugstore)
 > offers** + API + the React Native app work end-to-end — real Berlin prices,
 > resolved from your postal code via the Lidl Plus endpoints, the meinprospekt
@@ -18,13 +18,17 @@ build the cheapest basket across one or two stores.
 
 ## Highlights
 
-- **Two shopping sections behind one home screen** — Grocery (six supermarket chains)
-  and Drugstore (Rossmann + dm), picked from two large buttons on launch. Every fetch,
-  cache and filter chip is scoped to the chosen section, which is also what keeps each
-  one clear of the API's 2,000-offer ceiling: as a single query all seven chains would
-  now serve 2,169 and be silently truncated, where per section it's 1,674 and 495.
-  Each section keeps its own cached flyer week, so switching between them is instant and
-  makes no network call at all.
+- **Three shopping sections behind one home screen** — Grocery (six supermarket chains),
+  Drinks (soft drinks, beer, wine and spirits from those same six) and Drugstore
+  (Rossmann + dm), picked from three large buttons on launch. Every fetch, cache and
+  filter chip is scoped to the chosen section, which is also what keeps each one clear of
+  the API's 2,000-offer ceiling: as a single query all eight chains would be silently
+  truncated, and grocery **alone** had reached 1,926 of 2,000 before Drinks was split out
+  of it (now 1,689 + 237 + 495). Drinks shows the second shape a section can take — the
+  first two are chain sets, it is a *category* carve-out over the grocery chains, so the
+  two are one partition that a single frozen set defines for both. Each section keeps its
+  own cached flyer week, so switching between them is instant and makes no network call
+  at all.
 - **Automated grocery-deal ETL pipeline** — scrapes and normalizes weekly offers
   from multiple German retail sources into a relational database on a scheduled,
   containerized cron job, computing per-item discount percentages.
@@ -289,8 +293,8 @@ numbers) and `mobile/app.json` (`ios.bundleIdentifier`). Set
 
 | Method | Path              | Purpose                                          |
 | ------ | ----------------- | ------------------------------------------------ |
-| GET    | `/api/offers`     | Offers; filter by `category`/`chain`/`plz`/`min_discount`, `sort=discount\|price` |
-| GET    | `/api/categories` | Categories that currently have offers, w/ counts |
+| GET    | `/api/offers`     | Offers; filter by `vertical` (`grocery\|drinks\|drugstore` — omitted means grocery; an unknown value 422s), `category`/`chain`/`plz`/`min_discount`, `sort=discount\|price` |
+| GET    | `/api/categories` | Categories that currently have offers, w/ counts; takes the same `vertical` scope as `/api/offers`, so the chips always describe the list they filter |
 | GET    | `/api/offers/{id}/payload` | The full raw source payload an offer was scraped from (for the app's "View payload") |
 | GET    | `/api/stores`     | Known stores                                     |
 | GET    | `/api/nearby-stores` | Nearest branch of each major chain near a PLZ (OSM); `active` flag for chains we scrape |
@@ -638,9 +642,12 @@ Engineering practices demonstrated while building and operating this project:
 - [x] Security & ops hardening — header-based admin auth on destructive endpoints,
       scrape throttling, Berlin-timezone validity, supply-chain-pinned CI, non-root
       container
-- [x] Grocery / Drugstore sections — a home screen with two large buttons, with every
+- [x] Grocery / Drugstore sections — a home screen with large buttons, with every
       fetch, cache and chip scoped to the chosen one (which is also what keeps each
       section clear of the API's 2,000-offer ceiling)
+- [x] Drinks as a third section — soft drinks, beer, wine and spirits out of the food
+      list, carved from the grocery chains by *category* rather than by chain, which
+      also took grocery from 1,926 of the 2,000-offer cap down to 1,689
 - [x] Rossmann as the drugstore chain, plus 11 drugstore categories (hair, face, body,
       dental, fragrance, baby, health, cleaning, laundry, pet, make-up) so its offers
       stop collapsing into "Household & Non-food"

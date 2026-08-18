@@ -141,6 +141,49 @@ def test_a_truncated_response_is_not_trusted(gate):
     assert gate.verify(capped, gate.PROFILES["grocery"], post_reset=True) == 1
 
 
+def test_every_profile_has_the_same_shape(gate):
+    """A ratchet on the profile dict, not on any one number.
+
+    `verify()` reads `min_chain_offers` with a plain subscript on purpose, so a profile
+    that omits it raises rather than silently skipping the check. That protection only
+    works if someone notices — a new section is exactly when a key gets forgotten, and the
+    resulting KeyError would surface on a Sunday, in CI, against production data.
+    """
+    expected = set(gate.PROFILES["grocery"])
+    assert len(gate.PROFILES) >= 3, "grocery / drinks / drugstore"
+    for name, profile in gate.PROFILES.items():
+        assert set(profile) == expected, f"{name} does not match grocery's keys"
+
+
+def test_the_drinks_floors_sit_under_the_measured_week(gate):
+    """The calibration, restated as a test so a future edit has to move it deliberately.
+
+    Measured 2026-08-18 mid-week: 237 offers over 6 chains, min per chain 35 (edeka),
+    98.3% €/kg. A floor at or above health is a gate that goes red on a healthy system —
+    the failure this file already records for the drugstore offers floor.
+    """
+    p = gate.PROFILES["drinks"]
+    measured = {"rewe": 45, "penny": 43, "lidl": 40, "aldi": 39, "edeka": 35,
+                "edeka_center": 35}
+    assert gate.verify(_offers(**measured), p, post_reset=True) == 0
+    # …and each floor must still be breachable, or it is decoration.
+    collapsed = dict(measured, edeka=3)
+    assert gate.verify(_offers(**collapsed), p, post_reset=True) == 1, (
+        "a chain serving 3 drinks post-reset is an incident the per-chain floor must name"
+    )
+
+    # The €/kg floor is the strictest in the file (80%) because every drink is sold by the
+    # litre. `_offers` gives every row a unit price, so nothing above can fail on it — this
+    # is the only assertion that stops `unit_price_pct` being switched off unnoticed, which
+    # is a one-word edit (`None` means "don't gate", as the drugstore profile does legally).
+    half_unpriced = _offers(**measured)
+    for row in half_unpriced[: len(half_unpriced) // 2]:
+        row["unit_price_cents"] = None
+    assert gate.verify(half_unpriced, p, post_reset=True) == 1, (
+        "50% €/kg coverage in a section of bottles is a parse regression, not a bad week"
+    )
+
+
 def test_the_flag_is_wired_through_the_cli(gate, tmp_path):
     """Every test above calls verify() directly, so all of them stay green if the flag never
     reaches it. This is the only one that exercises the real entry point."""

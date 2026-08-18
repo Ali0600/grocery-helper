@@ -6,18 +6,20 @@ from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.pool import StaticPool
 
 from app import categories
 from app.api import offers as offers_api
 from app.core.config import settings
 from app.db import get_session
+from app.dedup import _key, dedup_offers
 from app.main import app
 from app.models import Base, Offer, Store
 from app.throttle import RateLimiter
 from app.validity import berlin_today
+from app.verticals import DRINK_CATEGORIES, VERTICALS
 
 TODAY = berlin_today()
 
@@ -35,7 +37,12 @@ def client():
     # Isolate the scrape throttle's module state per test.
     offers_api._last_scrape_at.clear()
     offers_api._last_any_scrape = None
-    yield TestClient(app)
+    c = TestClient(app)
+    # A few tests need to compute a reference set straight from the DB rather than
+    # restating what `_seed` put there — a test that hardcodes the fixture's contents
+    # stops covering any row added to it later.
+    c.db = session
+    yield c
     app.dependency_overrides.clear()
     session.close()
 
@@ -68,6 +75,12 @@ def _seed(session: Session) -> None:
             o(edeka, "f", "Forever Feta", 189, valid_to=None, category="cheese"),
             o(far, "g", "Gouda (andere PLZ)", 299, category="cheese"),
             o(rossmann, "h", "Schauma Shampoo", 159, category="household"),
+            # Two drinks on GROCERY chains: the Drinks vertical is carved out of the same
+            # six supermarkets by category, so these are the rows that tell a chain filter
+            # apart from a category one. Both are invisible to every assertion above,
+            # because omitting `vertical` now means grocery-without-drinks.
+            o(lidl, "i", "Cola", 99, category="soft_drinks"),
+            o(edeka, "j", "Pils", 599, category="alcoholic"),
         ]
     )
     session.commit()
@@ -119,7 +132,7 @@ def test_serializer_carries_store_fields(client):
 
 
 # --------------------------------------------------------------------------- #
-# `vertical` — the grocery/drugstore split
+# `vertical` — the grocery / drinks / drugstore split
 # --------------------------------------------------------------------------- #
 def test_vertical_scopes_offers_to_its_chains(client):
     chains = lambda r: {o["chain"] for o in r.json()}  # noqa: E731
@@ -149,7 +162,7 @@ def test_vertical_omitted_defaults_to_grocery(client):
 
 def test_omitted_vertical_scopes_categories_the_same_way_as_offers(client):
     """The chips must not advertise a vertical the list won't serve. Both endpoints route
-    through one `_vertical_chains`, so this pins that they can't drift apart."""
+    through one `_scoped`, so this pins that they can't drift apart."""
     listed = {o["category"] for o in client.get("/api/offers?limit=2000").json()}
     chips = {c["category"] for c in client.get("/api/categories").json()}
     assert chips <= listed
@@ -172,14 +185,83 @@ def test_categories_take_the_same_vertical_scope(client):
     assert [(c["category"], c["count"]) for c in drugstore] == [("household", 1)]
 
 
-def test_bulk_prefetch_endpoints_honour_vertical(client):
+@pytest.mark.parametrize("vertical", sorted(VERTICALS))
+def test_bulk_prefetch_endpoints_honour_vertical(client, vertical):
     """Both promise to mirror /api/offers so their ids line up with the list; if they ignored
-    `vertical` a drugstore session would also pull every grocery payload."""
-    listed = {str(o["id"]) for o in client.get("/api/offers?vertical=drugstore&limit=100").json()}
-    payloads = client.get("/api/offers/payloads?vertical=drugstore").json()
-    traces = client.get("/api/offers/category-traces?vertical=drugstore").json()
+    `vertical` a drugstore session would also pull every grocery payload.
+
+    Parametrized over every vertical rather than pinning one: the bulk endpoints get the
+    scope from the same `_scoped` as the list, and a section added later must inherit that
+    promise without anyone remembering to add a case here.
+    """
+    listed = {
+        str(o["id"])
+        for o in client.get(f"/api/offers?vertical={vertical}&limit=2000").json()
+    }
+    assert listed, "a vertical with no seeded offers can't prove anything"
+    payloads = client.get(f"/api/offers/payloads?vertical={vertical}").json()
+    traces = client.get(f"/api/offers/category-traces?vertical={vertical}").json()
     assert set(payloads) == listed
     assert set(traces) == listed
+
+
+# --------------------------------------------------------------------------- #
+# Drinks — a vertical scoped by CATEGORY, over the grocery chains
+# --------------------------------------------------------------------------- #
+def test_drinks_serves_the_drink_categories_from_the_grocery_chains(client):
+    rows = client.get("/api/offers?vertical=drinks&limit=2000").json()
+    assert sorted(o["name"] for o in rows) == ["Cola", "Pils"]
+    # Not a chain of its own: these come from the same supermarkets as the food.
+    assert {o["chain"] for o in rows} == {"lidl", "edeka"}
+
+
+def test_grocery_no_longer_serves_drinks(client):
+    """The user's actual request: drinks out of the food list."""
+    cats = {o["category"] for o in client.get("/api/offers?vertical=grocery&limit=2000").json()}
+    assert not (cats & DRINK_CATEGORIES)
+    assert {"fruits", "fish", "cheese"} <= cats  # the food is all still there
+
+
+def test_grocery_and_drinks_PARTITION_the_grocery_chains(client):
+    """The invariant the whole design rests on: every row a grocery chain serves lands in
+    exactly one of the two sections. A row that fell out of both (excluded twice) and one
+    that appears in both (excluded from neither) are distinct failures, and both are
+    silent in production — so they get separate assertions.
+
+    Coverage is stated over the **dedup key**, not the id, because dedup runs per query
+    and after the category filter: two rows sharing (store, name, price) collapse to one,
+    so an id can legitimately vanish while the product is still served. The key is what
+    the user sees. Ids still carry the disjointness half — an offer has one category.
+    """
+    rows = lambda v: client.get(f"/api/offers?vertical={v}&limit=2000").json()  # noqa: E731
+    grocery, drinks = rows("grocery"), rows("drinks")
+    assert {o["id"] for o in grocery} & {o["id"] for o in drinks} == set()
+
+    # Built from the DB, not from `_seed`'s literals: a test that restates its fixture
+    # stops covering any row added to that fixture later.
+    stored = client.db.scalars(
+        select(Offer)
+        .options(selectinload(Offer.store))
+        .join(Store)
+        .where(
+            Store.chain.in_(VERTICALS["grocery"].chains),
+            (Offer.valid_to.is_(None)) | (Offer.valid_to >= TODAY),
+        )
+    ).all()
+    assert stored, "no grocery-chain offers seeded"
+    by_id = {o.id: o for o in stored}
+    served_keys = {_key(by_id[o["id"]]) for o in grocery + drinks}
+    assert served_keys == {_key(o) for o in dedup_offers(stored)}
+
+
+def test_drink_chips_and_grocery_chips_are_disjoint(client):
+    """Chips are derived from the same query as the list, so this can only break if
+    `_scoped` stops being the single choke point."""
+    chips = lambda v: {  # noqa: E731
+        c["category"] for c in client.get(f"/api/categories?vertical={v}").json()
+    }
+    assert chips("drinks") == {"soft_drinks", "alcoholic"}
+    assert not (chips("grocery") & DRINK_CATEGORIES)
 
 
 # --------------------------------------------------------------------------- #
