@@ -921,6 +921,30 @@ describe('DealsScreen — the basket marker on the card', () => {
       expect(screen.getByLabelText('Open deal for Frische Vollmilch, in your basket')).toBeTruthy(),
     );
   });
+
+  it('UNDOES the add when the detail button is pressed again — marker and badge both clear', async () => {
+    // The button used to go `disabled` once added, so the only way back was the Basket page.
+    // Runs the same state -> renderOffer -> card path as the test above, in reverse.
+    await seedCacheWith(MILK);
+    await renderScreen();
+
+    await fireEvent.press(await screen.findByLabelText('Open deal for Frische Vollmilch'));
+    await fireEvent.press(await screen.findByLabelText('Add Frische Vollmilch to basket'));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Open deal for Frische Vollmilch, in your basket')).toBeTruthy(),
+    );
+
+    // The detail stays open on an add (an undo isn't a dismissal, unlike Hide), so the same
+    // button is right there to undo it.
+    await fireEvent.press(
+      await screen.findByLabelText('Remove Frische Vollmilch from your basket'),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Open deal for Frische Vollmilch')).toBeTruthy(),
+    );
+    expect(screen.queryByLabelText('Open deal for Frische Vollmilch, in your basket')).toBeNull();
+  });
 });
 
 // --- History is populated by basket adds ---------------------------------------------
@@ -961,6 +985,56 @@ describe('DealsScreen — adding to the basket records History', () => {
 
     await fireEvent.press(screen.getByLabelText('History'));
     // Scoped to the sheet — the name is also on the deals card behind it.
+    const sheet = await screen.findByTestId('history-modal');
+    expect(within(sheet).getByText('Frische Vollmilch')).toBeTruthy();
+  });
+
+  it('does NOT record a product whose press was a REMOVAL — only an add is something you shopped for', async () => {
+    // The basket key is COARSE: both melons resolve to `melon`, so once one is in the basket
+    // the other's detail button reads "Remove". Pressing it takes the shared row out — it adds
+    // nothing, so it must not land in History either. `recordInHistory` used to run above the
+    // de-dupe unconditionally, which under a toggle would record a product as you remove it.
+    const HONIG = makeOffer({
+      name: 'Honigmelone', category: 'fruits', group: 'melone', group_label: 'Melone',
+    });
+    const WASSER = makeOffer({
+      id: 77, name: 'Wassermelone', category: 'fruits', group: 'melone', group_label: 'Melone',
+    });
+    await seedCache({ offers: [HONIG, WASSER] });
+    await AsyncStorage.removeItem('likedItems');
+    await renderScreen();
+
+    await fireEvent.press(await screen.findByLabelText('Open deal for Honigmelone'));
+    await fireEvent.press(await screen.findByLabelText('Add Honigmelone to basket'));
+    await fireEvent.press(screen.getByText('Close'));
+
+    // The second melon shares the basket row, so its button is already the remove one.
+    await fireEvent.press(await screen.findByLabelText('Open deal for Wassermelone, in your basket'));
+    await fireEvent.press(await screen.findByLabelText('Remove Wassermelone from your basket'));
+    await fireEvent.press(screen.getByText('Close'));
+
+    await fireEvent.press(screen.getByLabelText('History'));
+    const sheet = await screen.findByTestId('history-modal');
+    expect(within(sheet).getByText('Honigmelone')).toBeTruthy(); // the add WAS recorded
+    expect(within(sheet).queryByText('Wassermelone')).toBeNull(); // the removal was not
+  });
+
+  it('keeps the entry when the ADD ITSELF is undone — an undo is not a prune', async () => {
+    // The user's call when the Basket button became a toggle: History is a record of what you
+    // shopped for, and only the History page's own ✕ removes anything from it. Distinct from
+    // the "Clear list" case above — this undoes the very add that created the entry.
+    await seed();
+    await renderScreen();
+    await screen.findByText('Frische Vollmilch');
+
+    await fireEvent.press(await screen.findByLabelText('Open deal for Frische Vollmilch'));
+    await fireEvent.press(await screen.findByLabelText('Add Frische Vollmilch to basket'));
+    await fireEvent.press(
+      await screen.findByLabelText('Remove Frische Vollmilch from your basket'),
+    );
+    await fireEvent.press(screen.getByText('Close'));
+
+    await fireEvent.press(screen.getByLabelText('History'));
     const sheet = await screen.findByTestId('history-modal');
     expect(within(sheet).getByText('Frische Vollmilch')).toBeTruthy();
   });

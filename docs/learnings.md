@@ -1936,3 +1936,30 @@ filter — has the side effect of making new values a two-step rollout.
 you choose to reject unknown values, you have also chosen that every new value ships in two
 releases, and the ordering belongs in the docs next to the validator — not in whoever's head
 happened to write both halves.
+
+## A toggle over a shared key must take its wording from the key, not the row
+
+Turning an add-only control into a toggle is usually a one-line change. It stops being one when
+several rows resolve to the *same* underlying entry: the same gesture on two rows that look
+independent then does opposite things, and the control has to say which.
+
+**Why it came up:** the deal detail's Basket button became an undo. The basket keys on the
+*sub-category*, not the product, so two different pastas share one row — adding the first makes
+the second's swipe a **removal**. The swipe panel said "Basket" unconditionally, which would have
+been the opposite of what the gesture was about to do. Fixing it meant driving the panel's word,
+the button's label and the card's marker from the one resolved key, so all three flip together.
+
+**Takeaway:** when a control's meaning depends on state that several UI rows share, derive every
+affordance from the shared value — and write the test that asserts the wording, because the
+handler will be right long before the label is.
+
+## A test can only see the half of a change that the UI can reach
+
+**Why it came up:** eight sabotages of the basket-undo change were caught by name; the ninth —
+leaving stale per-item "picks" behind when an item leaves the basket — was caught by nothing,
+because the modal had no removal test at all. The options were to write one or to drop the fix.
+Writing it meant driving the real flow (pick a pricier deal, remove the item, re-add it) and
+asserting the plan falls back to the cheapest.
+
+**Takeaway:** an uncaught sabotage is a decision point, not a footnote — write the test or drop
+the change; shipping the code with neither is the only wrong answer.

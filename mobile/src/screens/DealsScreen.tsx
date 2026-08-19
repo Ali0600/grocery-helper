@@ -539,8 +539,10 @@ export default function DealsScreen({ vertical, onHome }: Props) {
     [commitHistory],
   );
 
-  // Swipe-left on a deal → add its sub-category (the same entry the "+" adds) to the
-  // basket, de-duped by key so re-swiping the same product just re-confirms.
+  // Swipe-left on a deal, or the detail's Basket button → TOGGLE its sub-category in the
+  // basket: absent, it's added; present, pressing again undoes it. Same shape as
+  // `onToggleHidden` below, and for the same reason — a control that goes inert once used is
+  // a dead end, and removal used to live only on the Basket page.
   // Reads the basket through a ref so this callback is STABLE — a `[basket]` dep would
   // give every add a new identity and re-render every swipeable row mid-gesture (the
   // suspected stuck-gesture / app-freeze trigger on the TestFlight build).
@@ -548,25 +550,28 @@ export default function DealsScreen({ vertical, onHome }: Props) {
   useEffect(() => {
     basketRef.current = basket;
   }, [basket]);
-  const onAddToBasket = useCallback(
+  const onToggleBasket = useCallback(
     (offer: Offer) => {
-      // BEFORE the basket de-dupe below, deliberately: History is a record of what you shopped
-      // for, so it should catch the add even when the basket already holds this sub-category
-      // (the basket key is coarse — two different melons collapse to one entry — while History
-      // keeps the specific product).
-      // NOT covered by a component test, and not for lack of trying: once the sub-category is
-      // in the basket the detail's Basket button is `disabled`, so the SWIPE is the only route
-      // that still reaches this line — and the native pan can't run under jest. Moving this
-      // call below the de-dupe passes the whole suite. Verified by hand in web QA instead.
-      recordInHistory(offer);
       const item = resolveBasketItem(offer);
       const current = basketRef.current;
-      if (current.some((b) => b.key === item.key)) {
-        showToast(`${item.label} is already in your basket`);
-        return;
-      }
-      onChangeBasket([...current, item]);
-      showToast(`Added ${item.label} to basket`);
+      // The key is COARSE — two melons, or two different yoghurts, collapse onto one entry —
+      // so this can remove a row a *different* product's swipe added. That's only coherent
+      // because every affordance is driven by the same resolved key: the card already wears
+      // the cart marker and the swipe panel already reads "Remove", so the row you act on is
+      // the row you were shown.
+      const present = current.some((b) => b.key === item.key);
+      // Only an ADD is something you shopped for. This used to sit above the de-dupe so a
+      // second distinct product in an already-basketed sub-category still got recorded — but
+      // under a toggle that press is a REMOVAL, and recording a product as you take it out is
+      // incoherent. History stays append-only either way: an undo never prunes it.
+      if (!present) recordInHistory(offer);
+      const next = present ? current.filter((b) => b.key !== item.key) : [...current, item];
+      // Mirror synchronously, like `commitHistory`: undo-then-re-add is now one tap apart, and
+      // the effect above doesn't run until after paint, so the second press would otherwise
+      // read a stale basket and no-op.
+      basketRef.current = next;
+      onChangeBasket(next);
+      showToast(present ? `Removed ${item.label} from basket` : `Added ${item.label} to basket`);
     },
     [onChangeBasket, recordInHistory, showToast],
   );
@@ -611,12 +616,12 @@ export default function DealsScreen({ vertical, onHome }: Props) {
       <SwipeableOfferCard
         offer={item}
         onPressOffer={openOffer}
-        onAdd={onAddToBasket}
+        onBasket={onToggleBasket}
         onHide={onToggleHidden}
         inBasket={basketKeys.has(resolveBasketItem(item).key)}
       />
     ),
-    [openOffer, onAddToBasket, onToggleHidden, basketKeys],
+    [openOffer, onToggleBasket, onToggleHidden, basketKeys],
   );
   // VirtualizedList cells are PureComponent-like: `data` is referentially unchanged when you
   // like/add, so without an `extraData` change the cells never re-invoke `renderOffer` and a fresh
@@ -938,7 +943,7 @@ export default function DealsScreen({ vertical, onHome }: Props) {
       offer={active}
       vertical={vertical}
       onClose={() => setActive(null)}
-      onAddToBasket={onAddToBasket}
+      onToggleBasket={onToggleBasket}
       onToggleHidden={onToggleHidden}
       inBasket={!!active && basket.some((b) => b.key === resolveBasketItem(active).key)}
       hidden={!!active && hiddenKeys.has(hideKey(active))}

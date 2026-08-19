@@ -31,6 +31,8 @@ The one-glance menu. Only `deferred` items appear here.
   a healthy week ever lands in the 100–160 band; see *Per-chain floor: one number or per-chain*.
 - **Move Coffee into the Drinks section** — kept in Grocery by the user's call; a one-line
   change to `DRINK_CATEGORIES` if Drinks ever feels thin. See *Where a "Drinks" section lives*.
+- **Prune the History entry when a basket add is undone** — History is append-only today, so a
+  mis-tap leaves a row behind; see *What happens when you press the Basket button a second time*.
 
 ---
 
@@ -236,3 +238,53 @@ to add cardinality without the gate flapping during a chain's normal publishing 
 **Revisit hook:** `PROFILES` in `.github/scripts/verify_deals.py`. If a healthy week ever lands
 in the 100–160 band, prefer a `{"default": 100, "dm": 60}` override map over lowering the global
 number, which would weaken ALDI/Lidl/REWE protection for free.
+
+---
+
+## What happens when you press the Basket button a second time
+
+**2026-08-19.** The deal detail's Basket button was add-only: `disabled` once the product was in
+the basket, reading `In basket ✓`, with removal only on the Basket page. The user: *"pressing the
+basket button should undo it."* Three forks came out of that.
+
+### Fork 1 — how far does the undo reach?
+
+| Option | Tradeoff |
+|---|---|
+| **A. The button toggles, and the left-swipe toggles with it** | One rule everywhere; the gesture and its button counterpart can't disagree. But a swipe is easy to trigger by accident, and it now removes rather than no-ops. |
+| B. Only the button toggles; the swipe stays add-only | An accidental swipe stays harmless. But the two controls that are meant to be counterparts then behave differently, which is the kind of split that rots. |
+
+**Chose A — the user's call.** The accidental-swipe worry is answered by making the affordance
+honest rather than by making the gesture inert: the panel now reads **Remove** on an
+already-basketed row, and the card already carries the cart marker, so the destructive version of
+the gesture announces itself before you commit to it.
+
+- B — **rejected**: two counterpart controls with different semantics.
+
+### Fork 2 — does an undo prune the History entry the add created?
+
+| Option | Tradeoff |
+|---|---|
+| **A. No — History stays append-only** | Consistent with the existing rule (only the History page's ✕ prunes) and with a test that already pinned it. Cost: a mis-tap leaves one row in History. |
+| B. Yes — the undo fully reverses | Matches the intuition that undo means undo. But it needs bookkeeping to tell "the entry I just created" from one added last week, and it contradicts the append-only contract. |
+
+**Chose A — the user's call.** History answers "what have I shopped for", not "what is in my
+basket right now"; the basket already answers the second.
+
+- B — **deferred — worth trying** if mis-taps turn out to litter History in practice.
+  **Revisit hook:** `recordInHistory` in `DealsScreen.tsx` would have to return whether it
+  inserted, and the toggle would remember that for the session.
+
+### Fork 3 — the coarse key
+
+Not a fork so much as a consequence worth recording. `resolveBasketItem` collapses two melons —
+or two pastas — onto one basket row. Under a toggle, swiping product B removes the row product A
+added. That was accepted rather than fixed (a finer key would split "I want yoghurt" into a row
+per brand, which is not how the basket is meant to work), on the condition that **every affordance
+is driven by the resolved key**: the card marker, the button label, and the swipe panel's word all
+flip together. Verified live — adding a KNORR Carbonara marked the Delverde Teigwaren too, and
+exactly those two rows' panels changed to Remove.
+
+**Revisit hook:** `basketResolve.ts` `resolveBasketItem`. If the shared-row behaviour ever reads
+as a bug rather than as the sub-category model working, that is the function to change — and the
+three affordances above are what would need to follow it.

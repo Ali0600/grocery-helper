@@ -223,3 +223,38 @@ describe('BasketModal — the store lens scopes the plan', () => {
     expect(onChangeBasket).toHaveBeenCalledWith([resolveBasketItem(kohlrabi)]);
   });
 });
+
+// A pick is a per-session preference for an ITEM. The sheet stays mounted for the screen's
+// lifetime (it's gated by `visible`, not by mounting), so a pick outlives its item unless the
+// picks map is pruned — and now that the deal detail and the swipe can both undo an add,
+// taking something out and putting it back is one tap apart.
+describe('BasketModal — a pick does not outlive the item it belongs to', () => {
+  const MILK: BasketItem = { key: 'milk', label: 'Milk', keywords: ['milch'] };
+  const cheap = makeOffer({ id: 921, name: 'REWE Bio Vollmilch', chain: 'rewe', category: 'dairy', price_cents: 99 });
+  const dear = makeOffer({ id: 922, name: 'Milbona Frische Vollmilch', chain: 'lidl', category: 'dairy', price_cents: 129 });
+
+  it('forgets a pick once the item leaves the basket, so re-adding starts from the cheapest', async () => {
+    const onChangeBasket = jest.fn();
+    const props = {
+      visible: true as const,
+      offers: [cheap, dear],
+      onChangeBasket,
+      onClose: jest.fn(),
+      storeLens: [] as string[],
+    };
+    const { rerender } = await render(<BasketModal {...props} basket={[MILK]} />);
+
+    // Override the plan's default (the cheapest) with the pricier Lidl milk.
+    await fireEvent.press(screen.getByLabelText('Choose a deal for Milk'));
+    await fireEvent.press(await screen.findByLabelText('Use Milbona Frische Vollmilch in your plan'));
+    expect(within(screen.getByTestId('plan-card')).getByText('Milbona Frische Vollmilch')).toBeTruthy();
+
+    // Undo the add, then re-add it — the same two taps the deal detail now makes possible.
+    await rerender(<BasketModal {...props} basket={[]} />);
+    await rerender(<BasketModal {...props} basket={[MILK]} />);
+
+    const plan = screen.getByTestId('plan-card');
+    expect(within(plan).getByText('REWE Bio Vollmilch')).toBeTruthy();
+    expect(within(plan).queryByText('Milbona Frische Vollmilch')).toBeNull();
+  });
+});
