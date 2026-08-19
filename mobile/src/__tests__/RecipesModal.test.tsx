@@ -86,3 +86,17 @@ describe('RecipesModal — "Shop at"', () => {
     expect(screen.queryByLabelText('Shop at any store')).toBeNull();
   });
 });
+
+// The staples search is the app's other free-text box over German product names, so it folds
+// umlauts like the deals search does — a phone keyboard shouldn't decide what you can find.
+describe('RecipesModal — the always-have search folds umlauts', () => {
+  it('finds Brötchen when you type "brotchen"', async () => {
+    await renderSheet();
+    await fireEvent.press(screen.getByText(/^Always have:/));
+
+    const input = await screen.findByPlaceholderText(/Add a staple/);
+    await fireEvent.changeText(input, 'brotchen');
+
+    expect(await screen.findByText('+ Bread rolls')).toBeTruthy(); // the chip renders "+ <en>"
+  });
+});

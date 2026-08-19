@@ -31,6 +31,9 @@ The one-glance menu. Only `deferred` items appear here.
   a healthy week ever lands in the 100–160 band; see *Per-chain floor: one number or per-chain*.
 - **Move Coffee into the Drinks section** — kept in Grocery by the user's call; a one-line
   change to `DRINK_CATEGORIES` if Drinks ever feels thin. See *Where a "Drinks" section lives*.
+- **Fold the `ae/oe/ue` transliteration in search too** — `apfel`→`Äpfel` works; `moehre`→`Möhre`
+  does not. One line in `basket.ts` `norm`, but it is shared with the Basket matcher; see
+  *How far the umlaut fold reaches*.
 - **Prune the History entry when a basket add is undone** — History is append-only today, so a
   mis-tap leaves a row behind; see *What happens when you press the Basket button a second time*.
 
@@ -288,3 +291,29 @@ exactly those two rows' panels changed to Remove.
 **Revisit hook:** `basketResolve.ts` `resolveBasketItem`. If the shared-row behaviour ever reads
 as a bug rather than as the sub-category model working, that is the function to change — and the
 three affordances above are what would need to follow it.
+
+---
+
+## How far the umlaut fold reaches
+
+**2026-08-19.** The deals search was `name.toLowerCase().includes(q)`, so typing `apfel` missed
+`Äpfel` — 29% of a week's names carry an umlaut or ß. The user asked for a "safety-net". The
+question was not *whether* to fold but *with which normaliser*, because the app already has
+three and they disagree on purpose.
+
+| Option | Tradeoff |
+|---|---|
+| **A. `basket.ts` `norm` — fold to the base letter (ä→a, ß→ss)** | Already exists, already what the Basket matches with, so the two surfaces agree on what one word is. Doesn't help someone typing `moehre`. |
+| B. `edekaVs.ts` `normName` | Wrong tool: it deliberately KEEPS umlauts, and it is a **persisted key** for hidden deals and History — folding it orphans every stored entry with no migration signal (`nameKey.ts` says so in its header). |
+| C. A new search-only normaliser folding both the base letter and `ae/oe/ue` | Most forgiving. But a fourth normaliser, and search would then disagree with the Basket about whether `moehre` is `Möhre` — the exact drift the other three are documented to avoid. |
+| D. Generic Unicode stripping (`normalize('NFD')` + `\p{Diacritic}`) | Handles every accent, not just German. But it folds `é`→`e` in brand names the corpus spells deliberately, and Hermes/V8 differences make it the kind of thing that behaves differently on device than in jest. |
+
+**Chose A.** The user's case is the bare vowel, and reusing the Basket's normaliser means the
+list and the shopping-plan matcher can't drift.
+
+- C — **deferred — worth trying** if anyone actually types `moehre`. **Revisit hook:** `norm` in
+  `basket.ts`; widening it there changes Basket matching too, so re-check `basketResolve` and the
+  catalog's duplicate `haehnchen`/`broetchen` keywords, which exist only because `norm` doesn't
+  fold that spelling.
+- B — **rejected**: persisted-key normaliser, not a matching one.
+- D — **rejected**: over-broad, and a runtime-difference risk for no measured gain.

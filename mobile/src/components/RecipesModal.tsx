@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { AppModal } from './AppModal';
 
+import { norm } from '../basket';
 import { GROCERY_CATALOG } from '../catalog';
 import { chainColors, chainLabel } from '../chains';
 import { RECIPES } from '../data/recipes';
@@ -242,12 +243,13 @@ export function RecipesModal({
     const c = GROCERY_CATALOG.find((x) => x.key === key);
     if (c) onChangeAlwaysHave([...alwaysHave, { key: c.key, label: c.en, keywords: c.keywords, exclude: c.exclude }]);
   };
-  const q = query.trim().toLowerCase();
+  // Umlaut-insensitive like the deals search: "brotchen" finds "Brötchen".
+  const q = norm(query.trim());
   const suggestions = q
     ? GROCERY_CATALOG.filter(
         (c) =>
           !alwaysHave.some((a) => a.key === c.key) &&
-          (c.en.toLowerCase().includes(q) || c.de.toLowerCase().includes(q)),
+          (norm(c.en).includes(q) || norm(c.de).includes(q)),
       ).slice(0, 12)
     : [];
 

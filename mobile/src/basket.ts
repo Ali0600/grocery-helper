@@ -15,7 +15,9 @@ const UMLAUT: Record<string, string> = {
   ê: 'e',
 };
 
-/** Lowercase + fold umlauts so "Möhre"/"Moehre"/"MÖHRE" all compare equal. */
+/** Lowercase + fold umlauts to their BASE letter, so "Möhre"/"MÖHRE"/"mohre" all compare equal
+ * (ä→a, ö→o, ü→u, ß→ss — NOT the "ae/oe/ue" transliteration: "Moehre" stays distinct, which is
+ * why the catalog lists `haehnchen` beside `hähnchen`). Also what the deals search matches with. */
 export function norm(s: string): string {
   return (s || '').toLowerCase().replace(/[äöüßéèê]/g, (c) => UMLAUT[c] ?? c);
 }
