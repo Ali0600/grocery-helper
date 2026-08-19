@@ -1523,6 +1523,23 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   were **retired** (absorbed by the sheet). **The pure pipeline lives in `dealFilters.ts`**
   (presentChains/chainCounts/compareOffers/filterDeals/buildSections, unit-tested) and the screen
   memoizes it — don't re-inline derived filtering into the render body.
+  - **The search is UMLAUT-INSENSITIVE, both ways** (2026-08-19, user-requested: "if I type in
+    'apfel', I also want it to show the umlaut one too"). `filterDeals` runs `basket.ts` `norm`
+    over the typed text AND over name/brand, so `apfel`↔`Äpfel`, `kase`↔`Käse`, `weiss`↔`Weiß`.
+    It has to be the **same** normaliser the Basket matches with, or the two surfaces would
+    disagree about what one word is. Measured: **29% of a week's names carry an umlaut or ß**
+    (Käse 41, Hähnchen 30), so the old bare `toLowerCase()` dropped a third of the list.
+    `facetCounts` re-runs `filterDeals`, so the sheet's pill counts fold with it — pinned by a
+    test, since a pill reading 0 beside a full list is the visible failure.
+    - **`norm` folds to the BASE letter, not the `ae/oe/ue` transliteration** — `Moehre` and
+      `Möhre` stay distinct, which is why `catalog.ts` lists `haehnchen` beside `hähnchen`. The
+      old docstring claimed otherwise and was simply wrong. Widening it is one line in `norm`,
+      but it is shared with the Basket matcher, so it needs that surface re-checked too.
+    - **Do NOT reach for `normName`/`nameKey` here.** Those deliberately KEEP umlauts and are
+      **persisted keys** (hidden deals, History) — folding them orphans every stored entry with
+      no migration. `nameKey.ts`'s header says so; three normalisers is the correct number.
+    - The other free-text box, Recipes' "always have" staple search, folds too. The Basket's add
+      search already did.
 - **"My Categories" home — a personalized landing view** (2026-07-17, `dealFilters.ts`
   `buildMineSections` + `components/{CategoriesModal,CategorySectionHeader}.tsx`): pick the categories
   you shop and land on a home of just those, each a **preview shelf** (header + top ~5 deals + a

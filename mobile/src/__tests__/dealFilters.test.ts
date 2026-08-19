@@ -108,6 +108,38 @@ describe('filterDeals', () => {
     expect(byBrand.map((o) => o.name)).toEqual(['Bio Milch']);
   });
 
+  // 29% of a real week's names carry an umlaut or ß, so a bare-vowel search used to drop a
+  // third of the list on the floor. The fold has to work in BOTH directions: the German
+  // spelling is what's in the data, the ASCII one is what gets typed on a phone.
+  describe('search folds umlauts, so the keyboard you have does not decide what you can find', () => {
+    const umlauts: Offer[] = [
+      makeOffer({ name: 'Äpfel Klasse I', category: 'fruits', chain: 'lidl' }),
+      makeOffer({ name: 'Apfel', category: 'fruits', chain: 'lidl' }),
+      makeOffer({ name: 'Weißbier', category: 'alcoholic', chain: 'edeka' }),
+      makeOffer({ name: 'Bergkäse', brand: 'Käserei Champignon', category: 'cheese', chain: 'aldi' }),
+    ];
+    const find = (query: string) =>
+      filterDeals(umlauts, { ...OPTS, query }).map((o) => o.name);
+
+    it('finds the umlaut spelling from the plain one', () => {
+      expect(find('apfel').sort()).toEqual(['Apfel', 'Äpfel Klasse I']);
+      expect(find('kase')).toEqual(['Bergkäse']);
+    });
+
+    it('still finds the plain spelling from the umlaut one — the fold is symmetric', () => {
+      expect(find('äpfel').sort()).toEqual(['Apfel', 'Äpfel Klasse I']);
+    });
+
+    it('folds ß to ss, both ways', () => {
+      expect(find('weiss')).toEqual(['Weißbier']);
+      expect(find('weiß')).toEqual(['Weißbier']);
+    });
+
+    it('folds the BRAND too, not just the name', () => {
+      expect(find('kaserei')).toEqual(['Bergkäse']);
+    });
+  });
+
   it('category chip filters when not searching', () => {
     expect(filterDeals(offers, { ...OPTS, selected: 'dairy' }).map((o) => o.name)).toEqual(['Bio Milch']);
   });
@@ -542,6 +574,9 @@ describe('facetCounts — "how many would I see if I turned this on?"', () => {
   it('reacts to the OTHER active filters', () => {
     expect(facetCounts(offers, { ...OPTS, bioOnly: true }).chains).toEqual({ lidl: 1, rewe: 1 });
     expect(facetCounts(offers, { ...OPTS, query: 'brot' }).chains).toEqual({ rewe: 1 });
+    // The pills run the same search predicate as the list, so they fold umlauts with it —
+    // otherwise typing "kase" would show a store pill reading 0 next to a list full of Käse.
+    expect(facetCounts(offers, { ...OPTS, query: 'kase' }).chains).toEqual({ edeka: 1 });
   });
 
   it('does NOT react to the store lens itself — otherwise every unpicked store reads 0', () => {
