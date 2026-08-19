@@ -187,6 +187,19 @@ export function BasketModal({
     }
   }, [visible]);
 
+  // Drop picks for items that have left the basket. This sheet stays mounted for the screen's
+  // lifetime (it's gated by `visible`, not by mounting), so without this a pick outlives its
+  // item — and now that the deal detail and the swipe can both undo an add, taking something
+  // out and putting it back is one tap, which would silently resurrect the old pick.
+  useEffect(() => {
+    setPicks((prev) => {
+      const live = new Set(basket.map((b) => b.key));
+      const kept = Object.keys(prev).filter((k) => live.has(k));
+      if (kept.length === Object.keys(prev).length) return prev; // no orphans: keep identity
+      return Object.fromEntries(kept.map((k) => [k, prev[k]]));
+    });
+  }, [basket]);
+
   // The basket is a grocery list — match against food only (drop household/non-food,
   // which the deals screen also hides by default). Kills traps like Birne→Glühbirne.
   const foodOffers = useMemo(() => offers.filter((o) => o.category !== 'household'), [offers]);

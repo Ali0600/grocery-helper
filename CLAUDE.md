@@ -1775,14 +1775,38 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   derivation and the `storeName` **state** (the cache field + its write stay — `revalidate` uses a
   local); `PlzModal` still passes a store name to `onApplied`, which now ignores it.
 - **The deal detail carries button counterparts of both swipes** (`FlyerModal`): a swipe is
-  unreachable for screen-reader/keyboard users, and **Like had no non-gesture entry point at all**.
-  So `FlyerModal` takes `onLike`/`onAddToBasket` + `liked`/`inBasket` and renders **Like** and
-  **Basket** buttons (DealsScreen is its single render site and reuses the *existing* stable
-  `onLikeOffer`/`onAddToBasket`, so there's no second copy of the dedupe rules). **Add-only and
-  `disabled` once added** — `Liked ✓` / `In basket ✓` — so the control is never inert-looking;
-  removal stays on the History/Basket pages. Note the DealsScreen toast renders *under* this modal, so
-  **the button's state flip is the feedback**, not a toast. `likes.ts` exports `likeKey(offer)` +
-  `isLiked(offer, likes)` — use those for the check, never `resolveLike` (it stamps `Date.now()`).
+  unreachable for screen-reader/keyboard users. So `FlyerModal` takes
+  `onToggleBasket`/`onToggleHidden` + `inBasket`/`hidden` and renders the **Basket** button and
+  the header's **Hide** pill (DealsScreen is its single render site and reuses the *existing*
+  stable handlers, so there's no second copy of the rules). Note the DealsScreen toast renders
+  *under* this modal, so **the button's state flip is the feedback**, not a toast.
+  - **BOTH are live TOGGLES; neither is ever `disabled`** (changed 2026-08-19, at the user's
+    request — "pressing the basket button should undo it"). The Basket button was add-only and
+    went `disabled` once added, which made it a dead end: the only way back was the Basket page.
+    Pressing it again now removes. The **left-swipe toggles too**, so the same rule reaches the
+    gesture. History is deliberately **untouched** by an undo — it stays append-only, and only
+    the History page's own ✕ prunes it (pinned by two tests: one undoing via "Clear list", one
+    undoing the add itself).
+  - **The basket key is COARSE, and that is what makes the affordances load-bearing.**
+    `resolveBasketItem` collapses two melons — or two pastas — onto one entry, so a toggle can
+    remove the row a *different* product's swipe added. Measured live: adding a KNORR Carbonara
+    marks the Delverde Teigwaren too, and exactly those two rows' swipe panels flip to
+    **Remove**. That's coherent only because every affordance is driven by the same resolved
+    key — the card marker, the button's label and the panel's word. **A panel that always said
+    "Basket" would be telling you the opposite of what the gesture is about to do**; a render
+    test pins both words.
+  - **`recordInHistory` therefore runs only on the ADD branch.** It used to sit *above* the
+    de-dupe so a second distinct product in an already-basketed sub-category still got recorded;
+    under a toggle that press is a removal, and recording a product as you take it out is
+    incoherent. The old comment claiming the line is untestable ("the button is disabled, so the
+    swipe is the only route") no longer holds.
+  - The visible text names the **state** (`Basket` / `In basket ✓`) while the a11y label names
+    the **action** (`Remove X from your basket`), and the in-state is marked with an accent
+    border — **never by dimming**, which reads as disabled. The detail does **not** close on an
+    undo (unlike Hide, where hiding is a dismissal).
+  - **`BasketModal` prunes orphan `picks`** in an effect keyed on `basket`: the sheet stays
+    mounted for the screen's lifetime, so without it a pick outlives its item — and now that
+    undo is one tap, remove-then-re-add would resurrect a stale pick.
 - **Deployment**: backend is live on **Render** (free tier) at
   `https://grocery-helper-sw6c.onrender.com` via the IaC `render.yaml` Blueprint
   (Docker, `backend/Dockerfile`, binds `$PORT`, `/health` check). Render free tier

@@ -24,19 +24,27 @@ const offer = makeOffer({ name: 'McCain Golden Longs', chain: 'lidl', price_cent
 const noop = () => {};
 
 describe('FlyerModal — Basket / Hide buttons', () => {
-  it('Basket fires onAddToBasket with the offer', async () => {
-    const onAdd = jest.fn();
-    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} onAddToBasket={onAdd} />);
+  it('Basket fires onToggleBasket with the offer', async () => {
+    const onToggle = jest.fn();
+    await render(
+      <FlyerModal vertical="grocery" offer={offer} onClose={noop} onToggleBasket={onToggle} />,
+    );
     await fireEvent.press(screen.getByLabelText('Add McCain Golden Longs to basket'));
-    expect(onAdd).toHaveBeenCalledWith(offer);
+    expect(onToggle).toHaveBeenCalledWith(offer);
   });
 
-  it('shows a done state and does NOT fire once already in the basket', async () => {
-    const onAdd = jest.fn();
-    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} onAddToBasket={onAdd} inBasket />);
+  // The button used to go `disabled` here, which made it a dead end: the only way back was
+  // the Basket page. It's a live toggle now — the visible text still names the STATE, while
+  // the spoken label names the ACTION, so a screen reader announces the undo.
+  it('stays pressable once in the basket, and pressing it undoes the add', async () => {
+    const onToggle = jest.fn();
+    await render(
+      <FlyerModal vertical="grocery" offer={offer} onClose={noop} onToggleBasket={onToggle} inBasket />,
+    );
     expect(screen.getByText('In basket ✓')).toBeTruthy();
-    await fireEvent.press(screen.getByLabelText('McCain Golden Longs is in your basket'));
-    expect(onAdd).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText('Add McCain Golden Longs to basket')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Remove McCain Golden Longs from your basket'));
+    expect(onToggle).toHaveBeenCalledWith(offer);
   });
 
   it('offers Hide — the button counterpart of the right-swipe', async () => {
@@ -47,13 +55,13 @@ describe('FlyerModal — Basket / Hide buttons', () => {
   });
 
   it('has no Like affordance left — liking is gone, the right-swipe hides now', async () => {
-    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} onAddToBasket={noop} />);
+    await render(<FlyerModal vertical="grocery" offer={offer} onClose={noop} onToggleBasket={noop} />);
     expect(screen.queryByText('Like')).toBeNull();
     expect(screen.queryByLabelText(/Like /)).toBeNull();
   });
 
   it('renders nothing actionable with no offer', async () => {
-    await render(<FlyerModal vertical="grocery" offer={null} onClose={noop} onAddToBasket={noop} />);
+    await render(<FlyerModal vertical="grocery" offer={null} onClose={noop} onToggleBasket={noop} />);
     expect(screen.queryByText('Basket')).toBeNull();
   });
 });

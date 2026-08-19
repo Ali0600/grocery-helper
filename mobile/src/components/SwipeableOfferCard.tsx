@@ -8,8 +8,9 @@ import { Offer } from '../types';
 import { Icon } from './Icon';
 import { OfferCard } from './OfferCard';
 
-// Swipe a deal LEFT to add it to the basket (green "Basket" panel on the right), or
-// RIGHT to hide it (muted "Hide" panel on the left — see hidden.ts). Releasing past the
+// Swipe a deal LEFT to TOGGLE it in the basket (green panel on the right — "Basket" when
+// it's absent, "Remove" when it's already there), or RIGHT to hide it (muted "Hide" panel
+// on the left — see hidden.ts). Releasing past the
 // threshold acts, buzzes, and snaps the row shut — fling-to-act, the row never stays open.
 // NOTE the legacy Swipeable's `direction` names the PANEL SIDE that opened, not the finger
 // motion: a right-swipe opens the LEFT panel → direction === 'left'.
@@ -29,11 +30,11 @@ export function handleSwipeableOpen(
   direction: 'left' | 'right',
   swipeable: { close: () => void },
   offer: Offer,
-  actions: { onAdd: (offer: Offer) => void; onHide: (offer: Offer) => void },
+  actions: { onBasket: (offer: Offer) => void; onHide: (offer: Offer) => void },
 ): void {
   swipeable.close();
   requestAnimationFrame(() => {
-    if (direction === 'right') actions.onAdd(offer);
+    if (direction === 'right') actions.onBasket(offer);
     else actions.onHide(offer);
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -44,13 +45,15 @@ export function handleSwipeableOpen(
 export const SwipeableOfferCard = memo(function SwipeableOfferCard({
   offer,
   onPressOffer,
-  onAdd,
+  onBasket,
   onHide,
   inBasket,
 }: {
   offer: Offer;
   onPressOffer: (offer: Offer) => void;
-  onAdd: (offer: Offer) => void;
+  /** Toggles: on an already-basketed row this REMOVES, which is why the panel below has to
+   * read `inBasket` and say so — a panel that always says "Basket" would be a lie. */
+  onBasket: (offer: Offer) => void;
   onHide: (offer: Offer) => void;
   // Primitive prop: booleans compare by value under memo(), so only the row whose flag actually
   // flips re-renders — the freeze contract (identity-stable props) is preserved.
@@ -65,8 +68,8 @@ export const SwipeableOfferCard = memo(function SwipeableOfferCard({
       overshootLeft={false}
       renderRightActions={() => (
         <View style={styles.action}>
-          <Icon name="cart" size={20} color={colors.onAccent} />
-          <Text style={styles.label}>Basket</Text>
+          <Icon name={inBasket ? 'cart-outline' : 'cart'} size={20} color={colors.onAccent} />
+          <Text style={styles.label}>{inBasket ? 'Remove' : 'Basket'}</Text>
         </View>
       )}
       renderLeftActions={() => (
@@ -76,7 +79,7 @@ export const SwipeableOfferCard = memo(function SwipeableOfferCard({
         </View>
       )}
       onSwipeableOpen={(direction, swipeable) =>
-        handleSwipeableOpen(direction, swipeable, offer, { onAdd, onHide })
+        handleSwipeableOpen(direction, swipeable, offer, { onBasket, onHide })
       }
     >
       <OfferCard offer={offer} onPress={() => onPressOffer(offer)} inBasket={inBasket} />

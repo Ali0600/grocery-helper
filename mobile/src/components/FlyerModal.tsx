@@ -132,7 +132,7 @@ export function FlyerModal({
   offer,
   vertical,
   onClose,
-  onAddToBasket,
+  onToggleBasket,
   onToggleHidden,
   inBasket = false,
   hidden = false,
@@ -141,11 +141,13 @@ export function FlyerModal({
   /** Which vertical's prefetched payload/trace caches to read — they're keyed per vertical. */
   vertical: Vertical;
   onClose: () => void;
-  onAddToBasket?: (offer: Offer) => void;
+  /** Add this deal's sub-category to the basket, or take it out again — a TOGGLE, like
+   * `onToggleHidden` below. */
+  onToggleBasket?: (offer: Offer) => void;
   /** Dismiss this deal from the list (and from Basket/Recipes/Compare) for this flyer week.
-   * A TOGGLE, unlike the add-only Basket button below: this is the only place to un-hide,
-   * reached via the Filters sheet's "Show hidden" lens. It's also the button counterpart of
-   * the card's right-swipe. */
+   * The other toggle in this modal: this is the only place to un-hide, reached via the
+   * Filters sheet's "Show hidden" lens. It's also the button counterpart of the card's
+   * right-swipe. */
   onToggleHidden?: (offer: Offer) => void;
   inBasket?: boolean;
   hidden?: boolean;
@@ -310,23 +312,25 @@ export function FlyerModal({
               )}
 
               {/* The non-gesture path to the left-swipe (Basket): a swipe is unreachable for
-                  screen-reader/keyboard users. Add-only and DISABLED once added, so the control is
-                  never inert-looking; removing lives on the Basket page. The state flip is the
-                  feedback — DealsScreen's toast renders *under* this modal. The right-swipe's
-                  counterpart is the Hide button in this modal's header. */}
+                  screen-reader/keyboard users. A live TOGGLE in both states, like the Hide button
+                  in this modal's header — pressing it again undoes the add, so the control is
+                  never a dead end. The state flip is the feedback: DealsScreen's toast renders
+                  *under* this modal. Hence the VISIBLE text names the state ("In basket ✓") while
+                  the spoken label names the action ("Remove …"), and the in-state is marked with
+                  an accent border rather than by dimming, which would read as disabled. */}
               <View style={styles.actions}>
                 <Pressable
                   style={({ pressed }) => [
                     styles.actionBtn,
-                    inBasket && styles.actionBtnDone,
+                    inBasket && styles.actionBtnOn,
                     pressed && styles.flyerBtnPressed,
                   ]}
-                  onPress={() => onAddToBasket?.(offer)}
-                  disabled={inBasket}
+                  onPress={() => onToggleBasket?.(offer)}
                   accessibilityRole="button"
-                  accessibilityState={{ disabled: inBasket }}
                   accessibilityLabel={
-                    inBasket ? `${offer.name} is in your basket` : `Add ${offer.name} to basket`
+                    inBasket
+                      ? `Remove ${offer.name} from your basket`
+                      : `Add ${offer.name} to basket`
                   }
                 >
                   <Icon
@@ -493,7 +497,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 13,
   },
-  actionBtnDone: { opacity: 0.85 },
+  actionBtnOn: { borderColor: colors.accent },
   actionText: { color: colors.text, fontSize: 15, fontWeight: '600' },
   payloadBtn: {
     marginTop: 10,
