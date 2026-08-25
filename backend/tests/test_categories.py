@@ -3186,3 +3186,329 @@ def test_mixed_mince_is_pork_but_the_token_never_claims_beef_or_turkey():
     assert classify("Gemischtes Hackfleisch", None, pets, "Deutschland 1 kg") == "pork"
     assert classify("Rinder-Hackfleisch", None, pets, "Deutschland 500 g") != "pork"
     assert classify("Frisches Putenhackfleisch", None, pets, "500 g") != "pork"
+
+
+# --- 2026-08-25 audit: non-food that was rendering in the food list ------------------------
+
+
+def test_a_holiday_is_caught_by_its_caption_not_by_the_destination():
+    """The flyers sell package holidays. `other` is NOT hidden by the app's Non-food toggle,
+    so they render between the yoghurt and the bread.
+
+    The destination CANNOT be the handle: `sansibar` was simulated and rejected because the
+    SANSIBAR DELUXE wine range carries the same word (see the test below). Every advert says
+    "N-tägig inkl. Flüge" instead, which is a designation and collides with nothing.
+    """
+    assert classify("Madagaskar", None, None,
+                    "17-tägig inkl. Flüge Mittelklassehotels mit Verpflegung") == "household"
+    assert classify("Vietnam, Kambodscha & Thailand", None, None,
+                    "17-tägig inkl. Flüge 3-/4-Sterne-Hotels mit Frühstück") == "household"
+
+
+def test_the_holiday_caption_beats_a_path_that_says_beer():
+    """A 7-day trip to Ireland, which the source hung off `Bier > Biermarken > Kilkenny` — so
+    it was served as ALCOHOLIC, not merely unclassified. Only a signal ABOVE the path can
+    reach it, which is why this lives in `_CAPTION_SIGNALS` (2b) and not in `_RULES` (6).
+    """
+    kilkenny = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Alkoholische Getränke",
+                "Bier", "Biermarken", "Kilkenny"]
+    assert classify("Irland", None, kilkenny,
+                    "7-tägig inkl. Flüge Mittelklassehotels mit Frühstück") == "household"
+
+
+def test_the_sansibar_wine_survives_the_holiday_rule():
+    """The counter-example that made a `sansibar` token unshippable, and it is now LIVE on both
+    sides: a Zanzibar holiday and a Sansibar Deluxe Chianti are in the same week's flyers.
+
+    The fixture is deliberately a wine with NO usable path (a brand leaf), so nothing but the
+    name layer can hold it — if the destination word were ever added as a household token,
+    this is the row it would break, and it would score as a free "rescue" because the wine was
+    sitting in `other` when it was measured.
+    """
+    leaf = ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "SANSIBAR DELUXE"]
+    # The fixture is the RIOJA, not the Chianti, and the sabotage run is what forced that: the
+    # Chianti now carries a `chianti` token of its own, so it would survive the destination
+    # word whatever this table said. The Rioja names no varietal, still falls to `other`, and
+    # is therefore the row a `sansibar` token would actually take — scoring as a free "rescue"
+    # because it was already in the fallback bucket.
+    assert classify("SANSIBAR DELUXE Castillo de Albai Gran Reserva Rioja", "Sansibar Deluxe",
+                    leaf, "Rotwein, trocken 0,75-l-Fl.") != "household"
+    assert classify("Sansibar Deluxe Chianti DOCG", "Sansibar Deluxe", leaf,
+                    "Rotwein, trocken Toskana/Italien Je 0,75-l-Fl.") == "alcoholic"
+
+
+def test_a_plant_sold_by_the_pot_is_household():
+    """`je topf` — 38 rows already household, 5 rescued. A potted herb is a plant you keep
+    alive, not an ingredient, which is the same call the `topfcover` veto already makes."""
+    assert classify("Naturgut Bio-Kräuter", "Naturgut", None, "je Topf, Versch. Sorten") == "household"
+    assert classify("Summer Breeze! Sommerstaude im Zinktopf", None, None, "je Topf") == "household"
+
+
+def test_this_weeks_nonfood_names_leave_the_food_list():
+    """Each of these fell through every rule to `other` — a paint sprayer, mop covers, a
+    security camera, a USB charger and a prepaid mobile plan, all served among the groceries.
+    They carry a FOOD-root path (`Lebensmittel und Getränke > Marken > …`), so layer 1's
+    non-food branch never sees them and only a name rule can reach them.
+    """
+    food_leaf = ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "GUT&GÜNSTIG"]
+    for name in ("FERREX Farbsprühpistole", "DECO CRAFT Maler-Streich-Set",
+                 "HOME CREATION Bodenwischbezüge", "REOLINK Akkukamera mit Solar Panel",
+                 "Wall-Charger USB-A/-C PD", "Aldi Talk Europa & Nordamerika"):
+        assert classify(name, None, food_leaf, "") == "household", name
+
+
+def test_the_umlaut_spelling_of_the_chew_token_reaches_pet_on_a_pet_path():
+    """`kaurollchen` had been a token since 2026-08-03 and never matched "Kauröllchen" — these
+    tables compare raw substrings, so the umlaut spelling simply missed. Same class as the
+    `bratwurst`/"Rostbratwürste" miss already recorded for the keyword layer.
+
+    The path fixture is deliberately the GENERIC `Marken für Tiere` node and not
+    `… > Hundefutter`: the latter is answered outright by `_DRUGSTORE_PATH_MAP` at layer 1, so
+    a test built on it passes whatever the chew tokens say — it was decorative in the first
+    version of this test, and the sabotage run is what said so. The generic node carries no
+    category, so `_DRUGSTORE_RULES` is the only thing that can reach the product.
+    """
+    generic = ["Tierbedarf und Tierfutter", "Marken für Tiere"]
+    assert classify("GUT&GÜNSTIG Lieblings-Kauröllchen", "GUT&GÜNSTIG", generic,
+                    "Ergänzungsfuttermittel für ausgewachsene Hunde") == "pet"
+    assert classify("GUT&GÜNSTIG Lieblings-Kauröllchen", None, None, "") == "pet"
+
+
+# --- 2026-08-25: the sweet-spread convention ----------------------------------------------
+
+
+def test_a_chocolate_or_nut_cream_is_a_confection():
+    """The user's convention call, and an ALIGNMENT rather than a new idea: the corpus already
+    holds ~49 rows of Nutella-family spread in `sweets` and ~49 rows of Konfitüre in `pantry`.
+    These are the products that were falling through to `other` instead."""
+    assert classify("Ovomaltine Crunchy Cream", "Ovomaltine", None, "Brotaufstrich 380g Glas") == "sweets"
+    assert classify("Bionella Nuss-Nougat-Creme", "Bionella", None, "vegan 400g Glas") == "sweets"
+    assert classify("Rigoni di Asiago Bio-Nocciolata", None, None, "Schokoladencreme 250g") == "sweets"
+
+
+def test_a_fruit_spread_is_a_pantry_staple_and_the_caption_is_the_handle():
+    """The other half. It has to be the caption: "Schwartau Samt" and "Schwartau Extra" are
+    product LINES whose names say nothing, and `schwartau` as a brand token would take the
+    Mövenpick/Schwartau "Gourmet-Frühstück" rows with it.
+
+    `fruchtaufstrich` is a DESIGNATION, which is this table's standing bar — unlike the bare
+    `brotaufstrich` rejected three times, which names a USE.
+    """
+    assert classify("Schwartau Samt", "Schwartau", None,
+                    "Fruchtaufstrich; versch. Sorten, z. B. Erdbeere") == "pantry"
+    assert classify("Schwartau Extra", "Schwartau", None,
+                    "fruchtiger Brotaufstrich, versch. Sorten") == "pantry"
+
+
+def test_the_fruit_spread_caption_outranks_the_brand_that_says_ice_cream():
+    """Not merely a rescue — this fixes rows that were confidently WRONG. `mövenpick` is a
+    multi-category brand deliberately kept in the brand map (layer 4), and its JAM range was
+    being served as ICE CREAM; this file already recorded that as an open mis-fire. A caption
+    signal is layer 2b, so it is the only thing above the brand map that can reach it.
+    """
+    assert classify("Mövenpick Gourmet-Frühstück", "Mövenpick", None,
+                    "Fruchtaufstrich/Konfitüre, versch. Sorten 220 g") == "pantry"
+    # And the brand's actual ice cream must still be ice cream.
+    assert classify("Mövenpick Eis", "Mövenpick", None, "versch. Sorten 900 ml") == "ice_cream"
+
+
+def test_the_nut_cream_rule_does_not_eat_the_croissant_filled_with_it():
+    """`nuss-nougat-creme` is a substring of "Nuss-Nougat-Creme-Croissant", of which the corpus
+    holds four — all correctly `bakery`. No guard entry was needed: `_FORM_OVERRIDES` is
+    first-hit-wins and `croissant` sits at index 96, so appending the sweets entry at the END
+    of the table protects them by ordering. That is why the entry is not beside its siblings.
+    """
+    assert classify("Gut&Günstig Nuss-Nougat-Creme-Croissant", "Gut&Günstig", None,
+                    "je 250 g") == "bakery"
+    assert classify("GUT&GÜNSTIG Nuss-Nougat-Creme", "GUT&GÜNSTIG", None, "400 g Glas") == "sweets"
+
+
+# --- 2026-08-25 audit: the food that was falling through to `other` ------------------------
+
+
+def test_this_weeks_rescues_land_in_the_right_chip():
+    """88 distinct products were reaching layer 7 — decided by NO rule at all. The tokens for
+    them sit at layer 6, immediately above `household`: a product that fell through every
+    other tuple cannot be taken FROM anything, so this placement is zero-regression by
+    construction, exactly like the drugstore splice."""
+    cases = [
+        ("Bionade", "Erfrischungsgetränk, versch. Sorten", "soft_drinks"),
+        ("GOURMET FINEST CUISINE LINGUINE", "Italien Pasta al Bronzo 500-g-Packung", "pantry"),
+        ("BÄCKERKRÖNUNG Bauernkruste", "je 500 g", "bakery"),
+        ("Casa Modena Italienischer Prosciutto di Parma", "original Schinken", "pork"),
+        ("Fresh Kitchen 1/2 Backhendl", "außen knusprig innen zart", "poultry"),
+        ("Makrelenfilet", "geräuchert natur 100g", "fish"),
+        ("Galbani Sandwich alla Caprese", "170-g-Pckg.", "cheese"),
+        ("Du Darfst Kinderroulade", "Fertiggerichte, versch. Sorten", "ready_meals"),
+        ("Weihenstephan Frischer Alpen-Schlagrahm", "mind. 32% Fett 250g", "dairy"),
+        ("funny-fresh Jumpys", "Paprika, Beutel, versch. Sorten", "snacks"),
+    ]
+    for name, caption, want in cases:
+        assert classify(name, None, None, caption) == want, name
+
+
+def test_the_space_guards_that_the_simulation_forced():
+    """Both were caught by diffing the corpus, not by reading the token. `zetti` is a SUFFIX of
+    "Mazzetti" and `vla` sits inside "Souvlaki" — the haystack is space-padded precisely so a
+    leading space can stand in for a word boundary."""
+    assert classify("ZETTI Bambina", "ZETTI", None, "Versch. Sorten, je 100 g") == "sweets"
+    # A BARE "Mazzetti": "Mazzetti Essig" is held by the `essig` rule whatever this guard says,
+    # so it cannot demonstrate the collision — the sabotage run said so. Without the leading
+    # space this row becomes a chocolate.
+    assert classify("Mazzetti", "Mazzetti", None, "Italien 250 ml") != "sweets"
+    assert classify("Milsani Vla", "Milsani", None, "Schoko-Vanille-Geschmack 800-g-Becher") == "dairy"
+    assert classify("MITAKOS Frische Souvlaki-Spieße", "MITAKOS", None, "400 g") != "dairy"
+
+
+def test_the_two_full_phrases_that_a_bare_token_could_not_be():
+    """The flyer writes Bull’s Eye with a CURLY apostrophe, so a straight-quote key matches
+    nothing at all — the token has to start after it. That half is load-bearing.
+
+    "manner neapolitaner" is PRECAUTIONARY and worth saying so rather than overclaiming: a
+    bare `neapolitaner` would read as taking Manner's Original Neapolitaner CREMELIKÖR, but
+    `likör` decides that row at layer 5, above anything in this block. The full phrase costs
+    nothing and does not depend on that staying true; its sabotage was dropped rather than
+    given an invented assertion.
+    """
+    assert classify("Manner Neapolitaner", "Manner", None, "200 g") == "sweets"
+    assert classify("Manner Original Neapolitaner Cremelikör", "Manner", None,
+                    "17% vol, 0,5-l-Fl.") != "sweets"
+    assert classify("Bull’s Eye Steakhouse", None, None, "BBQ Sauce, versch. Sorten") == "pantry"
+
+
+def test_scamorza_and_pollofino_have_to_beat_a_wrong_answer_not_fill_a_blank():
+    """These two are at layer 2, not 6, and that is the whole point: Scamorza is a cheese the
+    source files under a PANTRY path, and a Pollofino is a boneless chicken thigh that two
+    chains file as PORK. A layer-6 token would never get a turn."""
+    pantry_path = ["Lebensmittel und Getränke", "Produkte", "Nahrungsmittel", "Konserven"]
+    assert classify("ITALIAMO Scamorza", "ITALIAMO", pantry_path, "Versch. Sorten, Gekühlt 300 g") == "cheese"
+    pork_path = ["Lebensmittel und Getränke", "Produkte", "Fleisch", "Schweinefleisch"]
+    assert classify("Bauerngut Pollofino", "Bauerngut", pork_path,
+                    "saftiges Hähnchenkeulenfleisch ohne Knochen") == "poultry"
+
+
+def test_the_coffee_caption_catches_what_the_name_form_word_misses():
+    """`ganze bohnen` has been a layer-2 NAME form word for a while and 77 rows carry it
+    correctly. The two it missed say it only in the caption. Deliberately NOT fixed with a
+    `tchibo` brand token — 7 of that brand's 11 rows are clothing."""
+    assert classify("Tchibo Black & White", "Tchibo", None, "Ganze Bohnen 1kg") == "coffee"
+    assert classify("GUT&GÜNSTIG Gold entkoffeiniert", "GUT&GÜNSTIG", None,
+                    "Hochland-Kaffee, 100% Arabica 100g Glas") == "coffee"
+
+
+def test_the_holiday_caption_needs_both_the_singular_and_the_plural():
+    """"Sansibar" says "9-tägig inkl. Flug", the rest say "inkl. Flüge". These tables compare
+    raw substrings and ü is not u, so the singular token does NOT reach the plural spelling —
+    shipping only one of them silently dropped four adverts back into the food list, which the
+    corpus diff caught immediately."""
+    assert classify("Sansibar", None, None, "Zwischen Stone Town & Traumstrand, 9-tägig inkl. Flug") == "household"
+    assert classify("Madagaskar", None, None, "17-tägig inkl. Flüge Mittelklassehotels") == "household"
+
+
+# --- 2026-08-25: the previous sweep's backlog, re-adjudicated ------------------------------
+
+
+def test_a_savoury_tart_is_not_filed_by_its_topping():
+    """Recorded last sweep as "savoury tarts -> frozen". Measuring said otherwise: of 15
+    Flammkuchen the corpus already files 6 as bakery and 5 as frozen, and BOTH are right — the
+    frozen ones are Wagner/Ristorante, the bakery ones are chilled or dough bases. Only two
+    were wrong, each filed by what is ON it.
+
+    So the bare word goes at layer 6, where it is a no-op for everything already bakery and
+    fixes the one filed as CHEESE; the frozen rows are decided above it and never arrive.
+    """
+    assert classify("PAYS GOURMAND Flammkuchen 4 Käse", None, None, "Frankreich 255 g") == "bakery"
+    # …and the frozen ones must stay frozen. `wagner` is a brand at layer 4; `ristorante` a
+    # form word at layer 2. Both outrank layer 6, which is exactly why the token can be bare.
+    assert classify("Wagner Flammkuchen Elsässer Art", "Wagner", None, "je 320 g") == "frozen"
+    assert classify("Dr. Oetker Ristorante Pizza/Bistro Flammkuchen", "Dr. Oetker", None,
+                    "versch. Sorten") == "frozen"
+
+
+def test_the_mostly_pork_brand_does_not_own_its_tarts_and_dumplings():
+    """`steinhaus` is in the brand map as pork and is right for 7 of its 12 products. The other
+    five were collateral: a Flammkuchen, a Quiche Lorraine and a vegetable Gyoza all served as
+    PORK. These tokens are at layer 2 because only layer 2 beats the brand map.
+
+    "elsässer flammkuchen" and NOT a bare `flammkuchen`: at this layer the bare word would also
+    beat the `wagner` brand and turn four correctly-frozen products into bakery.
+    """
+    assert classify("Steinhaus Elsässer Flammkuchen", "Steinhaus", None, "je 350 g") == "bakery"
+    assert classify("Steinhaus Quiche Lorraine", "Steinhaus", None, "mit Speck 300-g-Pckg.") == "bakery"
+    assert classify("Steinhaus Gyoza Gemüse", "Steinhaus", None, "versch. Sorten 168-g") == "frozen"
+    # The brand's actual pork is untouched.
+    assert classify("Steinhaus Original Krustenbraten", "Steinhaus", None, "je 500 g") == "pork"
+
+
+def test_a_gyoza_sauce_is_a_condiment_not_a_dumpling():
+    """The guard the corpus diff forced. `gyoza` reads as obviously safe and takes a "VITASIA
+    Gyoza Sauce" — visible only by reading what MOVED, never from the token."""
+    assert classify("VITASIA Gyoza Sauce", "VITASIA", None, "250 ml") == "pantry"
+    assert classify("VITASIA Dumplings", "VITASIA", None, "Tiefgefroren, versch. Sorten") == "frozen"
+
+
+def test_the_asian_range_is_fixed_by_product_type_never_by_the_brand():
+    """The previous sweep filed this under "themed brand ranges", which implied a brand-map
+    entry. That is provably wrong: VITASIA spans TEN categories and 34 of its rows are
+    correctly pantry, so a brand token would mis-file every one of them. `dumplings` is plural
+    because a bare `dumpling` takes a "Trendhaus Squishy Dumpling", which is a toy.
+    """
+    assert classify("VITASIA Frühlingsrollen", "VITASIA", None, "Tiefgefroren 400 g") == "frozen"
+    assert classify("VITASIA Sticky Rice", "VITASIA", None, "250 g") == "ready_meals"
+    toys = ["Spielzeug und Freizeit", "Produkte", "Spielwaren"]
+    assert classify("Trendhaus Squishy Dumpling", "Trendhaus", toys, "versch. Sorten") == "household"
+    # The assertion above is documentation, not a guard: layer 1 decides it from the toy path
+    # and never falls through, so it holds whatever this token says. The PATHLESS form is what
+    # the plural actually protects — and the sabotage run is what made that distinction.
+    assert classify("Trendhaus Squishy Dumpling", "Trendhaus", None, "versch. Sorten") != "frozen"
+
+
+def test_a_plant_based_sausage_is_vegan_even_when_named_after_the_meat():
+    """Both packs say "100 % pflanzlich" and both were served as PORK: the meat word in the
+    name is what layer 0's vegan check cannot see past when the brand map also points at pork."""
+    assert classify("Peas of Heaven Perfekte Bratwurst", None, None, "100% pflanzlich 210-g") == "vegan"
+    assert classify("Greenforce Pflanzliche Cevapcici", "Greenforce", None, "vegan 250 g") == "vegan"
+
+
+def test_veal_is_beef_and_the_coffee_aisle_keeps_only_coffee():
+    """Two singles from the backlog. `kalbsleber` as a WHOLE compound — mixed "Kalbfleisch"
+    sausages are legitimately pork. And the coffee accessories needed two DIFFERENT layers: the
+    paper filter is claimed by `kaffee` at layer 6, but the electric grinder is claimed at
+    layer 1 by the `_FOOD_RESCUE` token, which never falls through — so only a `_RESCUE_VETO`
+    entry can reach it, exactly as the existing Kaffeevollautomat guard does.
+    """
+    assert classify("Bauerngut Frische Kalbsleber", "Bauerngut", None, "ideal zum Kurzbraten") == "beef"
+    assert classify("GUT&GÜNSTIG Kaffeefilter", "GUT&GÜNSTIG", None, "Größe 4 120er") == "household"
+    tech = ["Elektronik und Technik", "Produkte", "Küchengeräte"]
+    assert classify("SILVERCREST Elektrische Kaffeemühle", None, tech, "Edelstahl-Schlagwerk") == "household"
+
+
+def test_the_last_four_out_of_other_and_the_three_left_in_it():
+    """The tail of the audit. Each of these says its designation in a place the existing rules
+    were not looking: "Dr. Oetker Salame" carries "Ristorante" only in its CAPTION, and the
+    RIOS sandwich is sold in MILLILITRES, which is what makes it an ice cream.
+    """
+    assert classify("Dr. Oetker Salame", "Dr. Oetker", None, "Ristorante Pizza 320 g") == "frozen"
+    assert classify("RIOS Sandwich Classic", "RIOS", None, "XXL 10 x 90 ml") == "ice_cream"
+    assert classify("Grandessa Frucht-Curd Lemon", "Grandessa", None, "295-g-Glas") == "pantry"
+    drogerie = ["Drogerie und Haushalt", "Produkte", "Haushalt", "Reinigen"]
+    assert classify("GUT&GÜNSTIG Schwammtuch", "GUT&GÜNSTIG", drogerie, "18x20 cm") == "cleaning"
+    # …and the same product on a FOOD-root path, which is how it reached `other` at all.
+    food_leaf = ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "GUT&GÜNSTIG"]
+    assert classify("GUT&GÜNSTIG Schwammtuch", "GUT&GÜNSTIG", food_leaf, "18x20 cm") == "cleaning"
+
+
+def test_three_products_are_deliberately_left_in_other():
+    """Recorded so they are not re-chased, and so a later "tidy-up" has to argue with a test.
+
+    `streichcreme` looks like the obvious token for the Enerbio savoury spread and takes SIX
+    correctly-vegan REWE/EDEKA rows with it. `onigiri` has three rows and three defensible
+    answers (poultry for a chicken one, frozen for a frozen one), which is a convention call,
+    not a bug. And the toilet paper's name is "s000 weich" — the only handle is a
+    `toilettenpapier` caption, which also takes four tissue-paper rows out of `body`; whether
+    tissue belongs in `body` or `household` is its own decision.
+    """
+    assert classify("Enerbio Herzhafte Streichcreme", "Enerbio", None, "180 g") == "other"
+    assert classify("REWE Bio pflanzlich Streichcreme", "REWE Bio", None, "Tomate, Paprika") == "vegan"
+    assert classify("GUT&GÜNSTIG s000 weich", "GUT&GÜNSTIG", None,
+                    "Toilettenpapier, 4-lagig 10x200 Blatt") == "other"
