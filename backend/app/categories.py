@@ -776,7 +776,10 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # a blanket `brotaufstrich` is a documented REJECTED signal, and re-simulating it here
     # confirmed it still drags Rama (margarine) out of butter and the Brunch spread out of
     # cheese, so the specific products are named instead.
-    ("pantry", ["backmischung", "popp brot", "abendbrotaufstrich", "nougat-brotaufstrich"]),
+    # `nougat-brotaufstrich` MOVED to the sweets entry at the end of this table on 2026-08-25:
+    # it is a nut cream, and the convention now says confection. Blast radius is one row
+    # (Nudossi Haselnuss-Nougat-Brotaufstrich), which an earlier bakery rule was winning anyway.
+    ("pantry", ["backmischung", "popp brot", "abendbrotaufstrich"]),
     # --- end batch 3 --------------------------------------------------------------------------
     # --- 2026-07-31 image audit, batch 2 (meat / dairy / cheese sheets) ---------------------
     # These are GUARDS and must stay at the top: layer 2 is first-hit-wins, and each one
@@ -1080,7 +1083,17 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     ("bakery", ["käsekuchen"]),        # a Rührkuchen; the quark is an ingredient
     ("snacks", ["bacon-snack"]),       # puffed corn snack, bacon is the FLAVOUR
     ("fruits", ["quetschie"]),         # 100% fruit puree pouch, filed as dairy
-    ("frozen", ["knusper-minis"]),     # breaded cheese bites — the app's breaded-cheese rule
+    ("frozen", ["knusper-minis"]),
+    # --- 2026-08-25: the sweet-spread convention (the user's call) ---------------------------
+    # A chocolate or nut cream is a CONFECTION -> sweets; a fruit spread is a breakfast staple
+    # -> pantry (that half is a caption signal, see `_CAPTION_SIGNALS`). This is an ALIGNMENT,
+    # not a new rule: the corpus already splits them that way, 49 rows each side.
+    # Position matters and is why this sits at the END of the table rather than beside the
+    # other sweets entries: `croissant` -> bakery is at index 96, and four
+    # "Nuss-Nougat-Creme-CROISSANT" rows are correctly bakery. First-hit-wins means appending
+    # after it protects them for free, without a guard entry.
+    # `duo-creme` also FIXES a row: Choceur Milchmäuse-Duo-Creme was being served as `body`.
+    ("sweets", ["nuss-nougat-creme", "nougat-brotaufstrich", "crunchy cream", "nocciolata", "duo-creme"]),     # breaded cheese bites — the app's breaded-cheese rule
 ]
 
 # What the flyer CAPTION says the product is. Read from `Offer.unit`, which holds the source's
@@ -1184,6 +1197,15 @@ _CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
     # by blinding this entry and re-classifying. A `select category from offers` reads what was
     # persisted at scrape time, not what the rules say today.
     ("household", ["inkl. flüge", "je topf", "blühpflanzen"]),
+    # The other half of the sweet-spread convention. A DESIGNATION, which is this table's bar —
+    # unlike the bare `brotaufstrich` rejected three times above, which is a USE. The two-word
+    # "fruchtiger brotaufstrich" is safe for the same reason.
+    # This entry does more than rescue: all four non-`other` rows it moves are currently WRONG.
+    # Two Mövenpick "Gourmet-Frühstück" jams sit in ICE_CREAM (the brand map at layer 4, a
+    # mis-fire this file already documents as open), a GRANDESSA Gelee sits in FRUITS, and a
+    # Zörbiger fruit spread sits in ALCOHOLIC. Only a signal above the path and the brand map
+    # can reach any of them.
+    ("pantry", ["fruchtaufstrich", "fruchtiger brotaufstrich", "frucht-curd"]),
 ]
 
 # Flavour / drink-type tokens (and specific compounds that must beat a generic fruit

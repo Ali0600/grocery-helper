@@ -3268,3 +3268,52 @@ def test_the_umlaut_spelling_of_the_chew_token_reaches_pet_on_a_pet_path():
     assert classify("GUT&GÜNSTIG Lieblings-Kauröllchen", "GUT&GÜNSTIG", generic,
                     "Ergänzungsfuttermittel für ausgewachsene Hunde") == "pet"
     assert classify("GUT&GÜNSTIG Lieblings-Kauröllchen", None, None, "") == "pet"
+
+
+# --- 2026-08-25: the sweet-spread convention ----------------------------------------------
+
+
+def test_a_chocolate_or_nut_cream_is_a_confection():
+    """The user's convention call, and an ALIGNMENT rather than a new idea: the corpus already
+    holds ~49 rows of Nutella-family spread in `sweets` and ~49 rows of Konfitüre in `pantry`.
+    These are the products that were falling through to `other` instead."""
+    assert classify("Ovomaltine Crunchy Cream", "Ovomaltine", None, "Brotaufstrich 380g Glas") == "sweets"
+    assert classify("Bionella Nuss-Nougat-Creme", "Bionella", None, "vegan 400g Glas") == "sweets"
+    assert classify("Rigoni di Asiago Bio-Nocciolata", None, None, "Schokoladencreme 250g") == "sweets"
+
+
+def test_a_fruit_spread_is_a_pantry_staple_and_the_caption_is_the_handle():
+    """The other half. It has to be the caption: "Schwartau Samt" and "Schwartau Extra" are
+    product LINES whose names say nothing, and `schwartau` as a brand token would take the
+    Mövenpick/Schwartau "Gourmet-Frühstück" rows with it.
+
+    `fruchtaufstrich` is a DESIGNATION, which is this table's standing bar — unlike the bare
+    `brotaufstrich` rejected three times, which names a USE.
+    """
+    assert classify("Schwartau Samt", "Schwartau", None,
+                    "Fruchtaufstrich; versch. Sorten, z. B. Erdbeere") == "pantry"
+    assert classify("Schwartau Extra", "Schwartau", None,
+                    "fruchtiger Brotaufstrich, versch. Sorten") == "pantry"
+
+
+def test_the_fruit_spread_caption_outranks_the_brand_that_says_ice_cream():
+    """Not merely a rescue — this fixes rows that were confidently WRONG. `mövenpick` is a
+    multi-category brand deliberately kept in the brand map (layer 4), and its JAM range was
+    being served as ICE CREAM; this file already recorded that as an open mis-fire. A caption
+    signal is layer 2b, so it is the only thing above the brand map that can reach it.
+    """
+    assert classify("Mövenpick Gourmet-Frühstück", "Mövenpick", None,
+                    "Fruchtaufstrich/Konfitüre, versch. Sorten 220 g") == "pantry"
+    # And the brand's actual ice cream must still be ice cream.
+    assert classify("Mövenpick Eis", "Mövenpick", None, "versch. Sorten 900 ml") == "ice_cream"
+
+
+def test_the_nut_cream_rule_does_not_eat_the_croissant_filled_with_it():
+    """`nuss-nougat-creme` is a substring of "Nuss-Nougat-Creme-Croissant", of which the corpus
+    holds four — all correctly `bakery`. No guard entry was needed: `_FORM_OVERRIDES` is
+    first-hit-wins and `croissant` sits at index 96, so appending the sweets entry at the END
+    of the table protects them by ordering. That is why the entry is not beside its siblings.
+    """
+    assert classify("Gut&Günstig Nuss-Nougat-Creme-Croissant", "Gut&Günstig", None,
+                    "je 250 g") == "bakery"
+    assert classify("GUT&GÜNSTIG Nuss-Nougat-Creme", "GUT&GÜNSTIG", None, "400 g Glas") == "sweets"
