@@ -1198,11 +1198,16 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     marks a degraded run is stale: it existed only in `lidl.py`/`dm.py`, never for the
     meinprospekt chains — and `_get_or_create_store` sets `name` only on INSERT, while
     `/api/reset` deletes `Offer` rows and leaves `Store` rows, so an old name would persist.
-  - **The ALDI DIVISION SKIP records nothing, and now that is conspicuous.** When Overpass
-    can't resolve Nord vs SÜD, `run.py` skips ALDI and logs — deliberate fail-closed, but it
-    never reaches `record_scrape_failure`, so on 2026-08-17 prod served 5 grocery chains with
-    `/api/scrape-stats` reporting only `{'rossmann': 1}`. The gate catches it (`chains >= 6`);
-    the dashboard does not. Wire the skip into the same counter.
+  - **The ALDI DIVISION SKIP is counted since 2026-08-25.** When Overpass can't resolve Nord
+    vs SÜD, `run.py` skips ALDI and logs — deliberate fail-closed — but it used to be the one
+    degradation `/api/scrape-stats` could not see, because the failure happens BEFORE any
+    scraper is constructed and so never reaches `bonial.py`'s recording. Seen twice: 2026-08-17
+    (5 grocery chains, stats reporting only `{'rossmann': 1}`) and again on the 08-25 deploy's
+    boot re-scrape, where three Overpass mirrors were tried and `scrape_failures` still read
+    `{}`. It now calls `record_scrape_failure("aldi", "aldi_division_unresolved")`. This does
+    NOT change what is detected — the gate caught it both times via `chains >= 6` — it changes
+    whether the dashboard can say why. **A failed division is never cached**, so the next
+    scrape retries; the Sunday reset self-heals it.
   - **A Lidl failure still costs all six flyer chains**, sample flag or not: the Lidl Plus
     lookup resolves the store COORDINATES and `run_scrapers` gates every meinprospekt chain on
     `store.lat is not None`, and that path has never returned lat/lng. Its log now says so

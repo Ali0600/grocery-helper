@@ -23,7 +23,7 @@ from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import categories
+from .. import categories, metrics
 from ..dedup import dedup_scraped
 from ..models import Offer, Store
 from ..services.store_locator import aldi_division
@@ -174,6 +174,15 @@ def run_scrapers(session: Session, plz: str) -> int:
             logger.warning(
                 "aldi: could not determine Nord/SÜD for plz=%s; skipping ALDI this run", plz
             )
+            # Count it, exactly like a scraper that raised. This skip is a DEGRADED RUN — the
+            # chain serves nothing — but for a long time it was the one degradation that left
+            # `/api/scrape-stats` reading clean, because the failure happens BEFORE any scraper
+            # is constructed and so never reaches the recording in `bonial.py`. Observed twice:
+            # a whole flyer week with 5 grocery chains and `scrape_failures: {}` beside it,
+            # while three Overpass mirrors had been tried. The data gate caught it both times
+            # (`chains >= 6`), so this does not change what is DETECTED — it changes whether the
+            # dashboard can say why, which is the difference between a red gate and a diagnosis.
+            metrics.record_scrape_failure("aldi", "aldi_division_unresolved")
         else:
             aldi_scraper = AldiNordScraper() if division == "nord" else AldiSuedScraper()
             aldi = aldi_scraper.fetch(plz, store.lat, store.lng)
