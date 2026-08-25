@@ -36,6 +36,8 @@ The one-glance menu. Only `deferred` items appear here.
   *How far the umlaut fold reaches*.
 - **Prune the History entry when a basket add is undone** — History is append-only today, so a
   mis-tap leaves a row behind; see *What happens when you press the Basket button a second time*.
+- **Clear the transitive Dependabot alerts via an Expo SDK upgrade** — none of them ship to the
+  device (proven per platform); see *What to do about the Dependabot alerts that no PR can fix*.
 
 ---
 
@@ -317,3 +319,50 @@ list and the shopping-plan matcher can't drift.
   fold that spelling.
 - B — **rejected**: persisted-key normaliser, not a matching one.
 - D — **rejected**: over-broad, and a runtime-difference risk for no measured gain.
+
+---
+
+## What to do about the Dependabot alerts that no PR can fix
+
+**2026-08-25.** Nine open alerts (7 high, 2 moderate) against `image-size`, `js-yaml`,
+`nanoid` and `uuid`. None is a direct dependency; all arrive under `expo@56 → @expo/metro →
+metro`. No Dependabot PR exists for any of them, which is correct rather than broken: the
+Expo SDK pins its set in lockstep, so a per-package bump breaks `npm ci`.
+
+### The question that decides it: does any of this code ship to the phone?
+
+Answered by building the artifact rather than reading the dependency tree — `npx expo export
+--source-maps --no-bytecode` for **both** platforms, then reading the source map's `sources`
+array, which is the authoritative list of modules compiled into the bundle `eas update`
+publishes.
+
+| | iOS | Android |
+|---|---|---|
+| modules in bundle | 805 (748 from node_modules) | 803 (746) |
+| `image-size` / `js-yaml` / `nanoid` / `uuid` | **0** | **0** |
+| control: `react-native-gesture-handler` | 84 | 85 |
+
+The control matters: a check that reports "found nothing" has to be shown capable of finding
+something. Two stray TEXT matches in the minified bundle were chased and both are innocent —
+`image-size` is a Material Icons **glyph name** inside `@expo/vector-icons`, and the `uuid`
+code is `expo-modules-core`'s own wrapper delegating to a NATIVE generator
+(`globalThis?.expo?.uuidv4`), not the npm package whose JS carries the bounds bug.
+
+All nine advisories are also DoS/resource-exhaustion requiring hostile input (malformed
+ICNS/JXL images, quadratic YAML merge keys, a non-integer `nanoid` size). The only consumer is
+the build, and its inputs are this repo's own files.
+
+| Option | Tradeoff |
+|---|---|
+| **A. Leave them; re-check when the SDK moves** | Zero runtime exposure, proven per platform. The alert count stays visibly non-zero, which dulls the signal over time. |
+| B. Upgrade the Expo SDK now to clear them | Clears the list, but an SDK upgrade is a native-rebuild release with its own risk, driven by a build-time-only DoS. |
+| C. Add `overrides` to force patched transitives | Fights the lockstep set the framework pins; the exact shape that breaks `npm ci`. |
+
+**Chose A**, on evidence rather than on "probably dev-only".
+
+- B — **deferred — worth trying** at the next SDK upgrade, which should clear these for free.
+- C — **rejected**: it is the documented way to break an Expo install.
+
+**Revisit hook:** re-run the two-platform export above after any `npx expo install` SDK bump,
+and re-check the same four names. If a future advisory names a package that DOES appear in
+that `sources` list, this decision does not apply to it — the whole argument is the zero.
