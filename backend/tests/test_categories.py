@@ -3403,3 +3403,81 @@ def test_the_holiday_caption_needs_both_the_singular_and_the_plural():
     corpus diff caught immediately."""
     assert classify("Sansibar", None, None, "Zwischen Stone Town & Traumstrand, 9-tägig inkl. Flug") == "household"
     assert classify("Madagaskar", None, None, "17-tägig inkl. Flüge Mittelklassehotels") == "household"
+
+
+# --- 2026-08-25: the previous sweep's backlog, re-adjudicated ------------------------------
+
+
+def test_a_savoury_tart_is_not_filed_by_its_topping():
+    """Recorded last sweep as "savoury tarts -> frozen". Measuring said otherwise: of 15
+    Flammkuchen the corpus already files 6 as bakery and 5 as frozen, and BOTH are right — the
+    frozen ones are Wagner/Ristorante, the bakery ones are chilled or dough bases. Only two
+    were wrong, each filed by what is ON it.
+
+    So the bare word goes at layer 6, where it is a no-op for everything already bakery and
+    fixes the one filed as CHEESE; the frozen rows are decided above it and never arrive.
+    """
+    assert classify("PAYS GOURMAND Flammkuchen 4 Käse", None, None, "Frankreich 255 g") == "bakery"
+    # …and the frozen ones must stay frozen. `wagner` is a brand at layer 4; `ristorante` a
+    # form word at layer 2. Both outrank layer 6, which is exactly why the token can be bare.
+    assert classify("Wagner Flammkuchen Elsässer Art", "Wagner", None, "je 320 g") == "frozen"
+    assert classify("Dr. Oetker Ristorante Pizza/Bistro Flammkuchen", "Dr. Oetker", None,
+                    "versch. Sorten") == "frozen"
+
+
+def test_the_mostly_pork_brand_does_not_own_its_tarts_and_dumplings():
+    """`steinhaus` is in the brand map as pork and is right for 7 of its 12 products. The other
+    five were collateral: a Flammkuchen, a Quiche Lorraine and a vegetable Gyoza all served as
+    PORK. These tokens are at layer 2 because only layer 2 beats the brand map.
+
+    "elsässer flammkuchen" and NOT a bare `flammkuchen`: at this layer the bare word would also
+    beat the `wagner` brand and turn four correctly-frozen products into bakery.
+    """
+    assert classify("Steinhaus Elsässer Flammkuchen", "Steinhaus", None, "je 350 g") == "bakery"
+    assert classify("Steinhaus Quiche Lorraine", "Steinhaus", None, "mit Speck 300-g-Pckg.") == "bakery"
+    assert classify("Steinhaus Gyoza Gemüse", "Steinhaus", None, "versch. Sorten 168-g") == "frozen"
+    # The brand's actual pork is untouched.
+    assert classify("Steinhaus Original Krustenbraten", "Steinhaus", None, "je 500 g") == "pork"
+
+
+def test_a_gyoza_sauce_is_a_condiment_not_a_dumpling():
+    """The guard the corpus diff forced. `gyoza` reads as obviously safe and takes a "VITASIA
+    Gyoza Sauce" — visible only by reading what MOVED, never from the token."""
+    assert classify("VITASIA Gyoza Sauce", "VITASIA", None, "250 ml") == "pantry"
+    assert classify("VITASIA Dumplings", "VITASIA", None, "Tiefgefroren, versch. Sorten") == "frozen"
+
+
+def test_the_asian_range_is_fixed_by_product_type_never_by_the_brand():
+    """The previous sweep filed this under "themed brand ranges", which implied a brand-map
+    entry. That is provably wrong: VITASIA spans TEN categories and 34 of its rows are
+    correctly pantry, so a brand token would mis-file every one of them. `dumplings` is plural
+    because a bare `dumpling` takes a "Trendhaus Squishy Dumpling", which is a toy.
+    """
+    assert classify("VITASIA Frühlingsrollen", "VITASIA", None, "Tiefgefroren 400 g") == "frozen"
+    assert classify("VITASIA Sticky Rice", "VITASIA", None, "250 g") == "ready_meals"
+    toys = ["Spielzeug und Freizeit", "Produkte", "Spielwaren"]
+    assert classify("Trendhaus Squishy Dumpling", "Trendhaus", toys, "versch. Sorten") == "household"
+    # The assertion above is documentation, not a guard: layer 1 decides it from the toy path
+    # and never falls through, so it holds whatever this token says. The PATHLESS form is what
+    # the plural actually protects — and the sabotage run is what made that distinction.
+    assert classify("Trendhaus Squishy Dumpling", "Trendhaus", None, "versch. Sorten") != "frozen"
+
+
+def test_a_plant_based_sausage_is_vegan_even_when_named_after_the_meat():
+    """Both packs say "100 % pflanzlich" and both were served as PORK: the meat word in the
+    name is what layer 0's vegan check cannot see past when the brand map also points at pork."""
+    assert classify("Peas of Heaven Perfekte Bratwurst", None, None, "100% pflanzlich 210-g") == "vegan"
+    assert classify("Greenforce Pflanzliche Cevapcici", "Greenforce", None, "vegan 250 g") == "vegan"
+
+
+def test_veal_is_beef_and_the_coffee_aisle_keeps_only_coffee():
+    """Two singles from the backlog. `kalbsleber` as a WHOLE compound — mixed "Kalbfleisch"
+    sausages are legitimately pork. And the coffee accessories needed two DIFFERENT layers: the
+    paper filter is claimed by `kaffee` at layer 6, but the electric grinder is claimed at
+    layer 1 by the `_FOOD_RESCUE` token, which never falls through — so only a `_RESCUE_VETO`
+    entry can reach it, exactly as the existing Kaffeevollautomat guard does.
+    """
+    assert classify("Bauerngut Frische Kalbsleber", "Bauerngut", None, "ideal zum Kurzbraten") == "beef"
+    assert classify("GUT&GÜNSTIG Kaffeefilter", "GUT&GÜNSTIG", None, "Größe 4 120er") == "household"
+    tech = ["Elektronik und Technik", "Produkte", "Küchengeräte"]
+    assert classify("SILVERCREST Elektrische Kaffeemühle", None, tech, "Edelstahl-Schlagwerk") == "household"
