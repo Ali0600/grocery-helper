@@ -1963,3 +1963,37 @@ asserting the plan falls back to the cheapest.
 
 **Takeaway:** an uncaught sabotage is a decision point, not a footnote — write the test or drop
 the change; shipping the code with neither is the only wrong answer.
+
+## A persisted derived value is stale evidence the moment its rule changes
+
+A category, a score, a slug — anything computed once and written to a row — stops being
+evidence about the current rules as soon as those rules move. Querying the column tells you
+what the system *believed* at write time, which is a different question from what it believes
+now.
+
+**Why it came up:** twice in one audit I justified a classifier change by querying
+`offers.category`. Once it invented a bug that did not exist (a product the rules had already
+fixed, whose row simply had not been re-written), and once it hid one. The fix was a probe that
+calls `classify()` on every row instead of reading the column — and the give-away, both times,
+was that blinding the new rule changed nothing.
+
+**Takeaway:** when auditing a rule, recompute from the rule; read the stored value only when
+the question is genuinely "what did we persist?". If a change's justification can't survive
+blinding the change and re-deriving, it isn't a justification.
+
+## A counter-example only tests your rule if your rule is what holds it
+
+A test that asserts "X must NOT become Y" proves nothing when some *other* rule already
+guarantees it. The assertion passes, the sabotage survives, and the guard you wrote is
+decoration — worse, it reads as verified.
+
+**Why it came up:** six tests in one session, every one the same shape. "Mazzetti Essig" is
+held by an `essig` rule, a liqueur by `likör` one layer higher, a toy by its own path, a pet
+product by a path map that answers outright. Each fixture was chosen *because* it was the
+obvious counter-example, which is exactly why it was already protected.
+
+**Takeaway:** for every negative assertion, ask which rule actually decides that fixture — and
+if it is not the one under test, pick a fixture nothing else claims, or say plainly in the test
+that the guard is precautionary. Two of those sabotages were deleted rather than given an
+invented assertion; a guard honestly labelled defensive is worth more than a test that implies
+coverage it does not have.
