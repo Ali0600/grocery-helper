@@ -149,6 +149,29 @@ def test_run_scrapers_skips_aldi_when_the_division_is_undetermined(monkeypatch, 
     assert any("aldi" in r.message.lower() for r in caplog.records)
 
 
+def test_the_aldi_skip_is_counted_as_a_degraded_run_not_just_logged(monkeypatch):
+    """A skipped ALDI is a chain serving NOTHING, and for a long time it was the one
+    degradation `/api/scrape-stats` could not see: the failure happens before any scraper is
+    constructed, so it never reaches the recording in `bonial.py`.
+
+    Observed twice in production — a flyer week with 5 grocery chains and `scrape_failures: {}`
+    beside it, while three Overpass mirrors had been tried. The data gate caught it both times
+    (`chains >= 6`), so this does not change what is DETECTED; it changes whether the dashboard
+    can say why.
+    """
+    from app import metrics
+
+    _stub_everything_but_aldi(monkeypatch)
+    monkeypatch.setattr(run_mod, "aldi_division", lambda lat, lng: None)
+    monkeypatch.setattr(run_mod.AldiNordScraper, "fetch", _aldi_fetch("NORD"))
+    monkeypatch.setattr(run_mod.AldiSuedScraper, "fetch", _aldi_fetch("SUED"))
+
+    before = metrics.snapshot().get("scrape_failures", {}).get("aldi", 0)
+    run_mod.run_scrapers(_session(), "10115")
+    after = metrics.snapshot().get("scrape_failures", {}).get("aldi", 0)
+    assert after == before + 1
+
+
 def test_the_stub_tuple_covers_every_flyer_scraper_run_py_uses():
     """A scraper wired into `run.py` but missing from `_stub_everything_but_aldi` above does
     not fail the ALDI tests — it silently makes a live meinprospekt request. Derive the set
