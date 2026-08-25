@@ -3481,3 +3481,34 @@ def test_veal_is_beef_and_the_coffee_aisle_keeps_only_coffee():
     assert classify("GUT&GÜNSTIG Kaffeefilter", "GUT&GÜNSTIG", None, "Größe 4 120er") == "household"
     tech = ["Elektronik und Technik", "Produkte", "Küchengeräte"]
     assert classify("SILVERCREST Elektrische Kaffeemühle", None, tech, "Edelstahl-Schlagwerk") == "household"
+
+
+def test_the_last_four_out_of_other_and_the_three_left_in_it():
+    """The tail of the audit. Each of these says its designation in a place the existing rules
+    were not looking: "Dr. Oetker Salame" carries "Ristorante" only in its CAPTION, and the
+    RIOS sandwich is sold in MILLILITRES, which is what makes it an ice cream.
+    """
+    assert classify("Dr. Oetker Salame", "Dr. Oetker", None, "Ristorante Pizza 320 g") == "frozen"
+    assert classify("RIOS Sandwich Classic", "RIOS", None, "XXL 10 x 90 ml") == "ice_cream"
+    assert classify("Grandessa Frucht-Curd Lemon", "Grandessa", None, "295-g-Glas") == "pantry"
+    drogerie = ["Drogerie und Haushalt", "Produkte", "Haushalt", "Reinigen"]
+    assert classify("GUT&GÜNSTIG Schwammtuch", "GUT&GÜNSTIG", drogerie, "18x20 cm") == "cleaning"
+    # …and the same product on a FOOD-root path, which is how it reached `other` at all.
+    food_leaf = ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "GUT&GÜNSTIG"]
+    assert classify("GUT&GÜNSTIG Schwammtuch", "GUT&GÜNSTIG", food_leaf, "18x20 cm") == "cleaning"
+
+
+def test_three_products_are_deliberately_left_in_other():
+    """Recorded so they are not re-chased, and so a later "tidy-up" has to argue with a test.
+
+    `streichcreme` looks like the obvious token for the Enerbio savoury spread and takes SIX
+    correctly-vegan REWE/EDEKA rows with it. `onigiri` has three rows and three defensible
+    answers (poultry for a chicken one, frozen for a frozen one), which is a convention call,
+    not a bug. And the toilet paper's name is "s000 weich" — the only handle is a
+    `toilettenpapier` caption, which also takes four tissue-paper rows out of `body`; whether
+    tissue belongs in `body` or `household` is its own decision.
+    """
+    assert classify("Enerbio Herzhafte Streichcreme", "Enerbio", None, "180 g") == "other"
+    assert classify("REWE Bio pflanzlich Streichcreme", "REWE Bio", None, "Tomate, Paprika") == "vegan"
+    assert classify("GUT&GÜNSTIG s000 weich", "GUT&GÜNSTIG", None,
+                    "Toilettenpapier, 4-lagig 10x200 Blatt") == "other"

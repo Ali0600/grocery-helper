@@ -478,7 +478,8 @@ _RULES: list[tuple[str, list[str]]] = [
     # `neapolitaner` takes Manner's Original Neapolitaner CREMELIKÖR, and "eye steakhouse"
     # because the flyer writes Bull’s with a curly apostrophe that no straight-quote key hits.
     ("pantry", ["genuss pur", "al bronzo", "linguine", "sonnenweizen", "kokosöl",
-                "mittelscharf", "spreelinge", "tomato phantastico", "eye steakhouse", "-brösel"]),
+                "mittelscharf", "spreelinge", "tomato phantastico", "eye steakhouse", "-brösel",
+                "frucht-curd"]),
     ("bakery", ["bauernkruste", "rosinenstuten", "vital & fit", "schwarzwälder kruste",
                 "hefeteig", "pancakes", "ciambella"]),
     ("pork", ["prosciutto di parma", "bratensülze", "bauernsülze", "finesse aufschnitt",
@@ -497,7 +498,7 @@ _RULES: list[tuple[str, list[str]]] = [
                      "semmel-knödel", "dönerstyle"]),
     ("frozen", ["ristorante", "celebration mix"]),
     ("dairy", ["schlagrahm", "creme zum kochen", " vla", "tasty food"]),
-    ("ice_cream", ["florida-eis"]),
+    ("ice_cream", ["florida-eis", "rios sandwich"]),   # "XXL 10 x 90 ml" — sold by volume
     ("snacks", ["jumpys"]),
     ("vegetables", ["shiitake"]),
     ("household", [
@@ -1291,6 +1292,8 @@ _CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
     ("alcoholic", ["weinhalt"]),
     # A Spritzkuchen is a pastry; this also lifts one out of `household`.
     ("bakery", ["siedegebäck"]),
+    # "Dr. Oetker Salame" says Ristorante only in its CAPTION; the name form word misses it.
+    ("frozen", ["ristorante"]),
 ]
 
 # Flavour / drink-type tokens (and specific compounds that must beat a generic fruit
@@ -1750,7 +1753,10 @@ _DRUGSTORE_RULES: list[tuple[str, list[str]]] = [
                 "mückenschutz"]),
     # "raid essentials", never a bare "raid " — that sits inside "HydRAID Hydration Helper",
     # a drink.
-    ("cleaning", ["domestos", "drano", "wc ente", "essigreiniger", "raid essentials"]),
+    # `schwammtuch`: the same product arrives twice, once on a food-root path (which resolved
+    # to `other`) and once on a Drogerie path. It was on this week's self-disagreement list.
+    ("cleaning", ["domestos", "drano", "wc ente", "essigreiniger", "raid essentials",
+                  "schwammtuch"]),
 ]
 
 # `_DRUGSTORE_RULES` above runs INSIDE layer 1, which is only reached by a product carrying a
