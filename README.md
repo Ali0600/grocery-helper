@@ -140,9 +140,9 @@ build the cheapest basket across one or two stores.
   failure** — with least-privilege permissions, dependency caching, concurrency
   control, and **Dependabot raising pull requests for security advisories only** — routine
   version bumps are switched off, so a dependency PR always means there is a CVE.
-- **Automated test suite** — ~1,507 backend tests (pytest) covering the scrapers,
+- **Automated test suite** — ~1,549 backend tests (pytest) covering the scrapers,
   classifier, dedup, unit-price/validity logic, and HTTP-level API behavior
-  (filters, auth guards, throttling), plus a React Native **Jest** suite (~450 tests)
+  (filters, auth guards, throttling), plus a React Native **Jest** suite (~466 tests)
   for the app's pure business logic (basket matching, the deals filter pipeline,
   recipe filtering, store comparison, catalog trap-guards); a model-vs-migration
   **drift check** (`alembic check`) fails CI if the ORM and schema diverge.
