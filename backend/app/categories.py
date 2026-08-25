@@ -521,7 +521,15 @@ _RULES: list[tuple[str, list[str]]] = [
      # Reserva Rioja, a WINE on a brand-leaf path — is already sitting in `other`, so a
      # conflict count scores moving it as a free win. It is only visible by reading what MOVED.
      # `südafrika` was rejected too: one travel advert, against a word that is a produce ORIGIN.
-     "rtl+"]),
+     "rtl+",
+     # 2026-08-25 audit of the served `other` bucket. Same argument as every token above: this
+     # tuple runs LAST, so each can only catch what was already falling through to `other`.
+     # A paint sprayer, a paint-roller set, mop covers, a security camera, a USB charger, a
+     # prepaid mobile plan (the `lidl connect` class, one chain over) and two houseplants.
+     # `maler-streich` in full because a bare `streich` sits inside Streichcreme and
+     # Streichwurst; `wischbez` stemmed because the flyer sells them as "-bezüge".
+     "farbsprüh", "maler-streich", "wischbez", "akkukamera", "wall-charger", "aldi talk",
+     "moosrose", "blätterzeit"]),
 ]
 
 # Unambiguous brand -> category. Multi-category house brands (Milbona, Metzgerfrisch,
@@ -688,7 +696,11 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     # --- 2026-08-03 new-week audit: the `other` bucket (92 products on arrival) --------------
     # GUARD FIRST: `macadamia` below would otherwise claim a Nuii Stieleis for snacks.
     ("ice_cream", ["ice cream", "stieleis", "eis am stiel"]),
-    ("pet", ["ergänzungsfuttermittel", "kaurollchen"]),
+    # `kauröllchen` is NOT a duplicate of `kaurollchen`: these tables match a raw substring, so
+    # the umlaut spelling never hit the un-umlauted stem — the same class as the
+    # "Rostbratwürste"/`bratwurst` miss already recorded for the keyword layer. Found 2026-08-25
+    # with GUT&GÜNSTIG Lieblings-Kauröllchen sitting in `other`.
+    ("pet", ["ergänzungsfuttermittel", "kaurollchen", "kauröllchen"]),
     ("cheese", ["ziegenrolle", "kiri", "cheese tiger"]),
     ("pork", ["stickado", "doktorskaja", "stielkotelett", "sulzspezialität"]),
     ("fish", ["feinmarinaden", "mowi"]),                       # Mowi is a salmon brand
@@ -1157,6 +1169,21 @@ _CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
     # designation but is a USE, not an identity — it moved POPP Fleischsalat and Bauern Gut
     # Eiersalat out of pork and the Brunch cheese spread out of cheese. Same class as the
     # already-rejected "gebäck". A spread's category comes from what it is MADE of.
+    # --- 2026-08-25: the two non-food classes whose only handle is the caption ---------------
+    # A HOLIDAY sold at the till. It has to be caught here rather than by the destination: the
+    # names are "Sansibar", "Südafrika", "Madagaskar", and `sansibar` was already simulated and
+    # REJECTED above (it takes the SANSIBAR DELUXE wine range — 3 alcoholic rows). Every one of
+    # these adverts says "N-tägig inkl. Flüge" instead. Measured: 36 already household, 10
+    # rescued from `other`, and one genuine FIX — a 7-day trip to "Irland" that the source hung
+    # off `Bier > Biermarken > Kilkenny`, so it was being served as ALCOHOLIC. Only a signal
+    # above the path can reach that, which is exactly what this layer is.
+    # A living plant sold by the pot: 38 rows already household, 5 rescued from `other`.
+    # I first justified this with "it also fixes the Heidelbeere im Topfcover still sitting in
+    # Fruits" — WRONG, and worth leaving here. That row's stored category is merely STALE; the
+    # classifier already answers household for it at layer 1 via the `topfcover` veto, proven
+    # by blinding this entry and re-classifying. A `select category from offers` reads what was
+    # persisted at scrape time, not what the rules say today.
+    ("household", ["inkl. flüge", "je topf", "blühpflanzen"]),
 ]
 
 # Flavour / drink-type tokens (and specific compounds that must beat a generic fruit
@@ -1562,6 +1589,10 @@ _DRUGSTORE_RULES: list[tuple[str, list[str]]] = [
     ("pet", [
         "katzenfutter", "hundefutter", "katzennassfutter", "hundetrockennahrung", "katzenstreu",
         "perfect fit", "sheba", "whiskas", "felix katze", "pedigree", "purina", "kauknochen",
+     # Mirrored from `_FORM_OVERRIDES` 2026-08-25 because the drift ratchet demanded it, and it
+     # was right: a layer-2 pet token only fires for a PATHLESS product, and pet food normally
+     # arrives on a `Tierbedarf` path, where only this table is reachable.
+     "kauröllchen",
     ]),
     # --- 2026-08-03 photo audit: drugstore products stranded in the grocery `household` chip.
     # APPENDED on purpose — the existing, more specific rules above must keep priority. Putting

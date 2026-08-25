@@ -3186,3 +3186,85 @@ def test_mixed_mince_is_pork_but_the_token_never_claims_beef_or_turkey():
     assert classify("Gemischtes Hackfleisch", None, pets, "Deutschland 1 kg") == "pork"
     assert classify("Rinder-Hackfleisch", None, pets, "Deutschland 500 g") != "pork"
     assert classify("Frisches Putenhackfleisch", None, pets, "500 g") != "pork"
+
+
+# --- 2026-08-25 audit: non-food that was rendering in the food list ------------------------
+
+
+def test_a_holiday_is_caught_by_its_caption_not_by_the_destination():
+    """The flyers sell package holidays. `other` is NOT hidden by the app's Non-food toggle,
+    so they render between the yoghurt and the bread.
+
+    The destination CANNOT be the handle: `sansibar` was simulated and rejected because the
+    SANSIBAR DELUXE wine range carries the same word (see the test below). Every advert says
+    "N-tägig inkl. Flüge" instead, which is a designation and collides with nothing.
+    """
+    assert classify("Madagaskar", None, None,
+                    "17-tägig inkl. Flüge Mittelklassehotels mit Verpflegung") == "household"
+    assert classify("Vietnam, Kambodscha & Thailand", None, None,
+                    "17-tägig inkl. Flüge 3-/4-Sterne-Hotels mit Frühstück") == "household"
+
+
+def test_the_holiday_caption_beats_a_path_that_says_beer():
+    """A 7-day trip to Ireland, which the source hung off `Bier > Biermarken > Kilkenny` — so
+    it was served as ALCOHOLIC, not merely unclassified. Only a signal ABOVE the path can
+    reach it, which is why this lives in `_CAPTION_SIGNALS` (2b) and not in `_RULES` (6).
+    """
+    kilkenny = ["Lebensmittel und Getränke", "Produkte", "Getränke", "Alkoholische Getränke",
+                "Bier", "Biermarken", "Kilkenny"]
+    assert classify("Irland", None, kilkenny,
+                    "7-tägig inkl. Flüge Mittelklassehotels mit Frühstück") == "household"
+
+
+def test_the_sansibar_wine_survives_the_holiday_rule():
+    """The counter-example that made a `sansibar` token unshippable, and it is now LIVE on both
+    sides: a Zanzibar holiday and a Sansibar Deluxe Chianti are in the same week's flyers.
+
+    The fixture is deliberately a wine with NO usable path (a brand leaf), so nothing but the
+    name layer can hold it — if the destination word were ever added as a household token,
+    this is the row it would break, and it would score as a free "rescue" because the wine was
+    sitting in `other` when it was measured.
+    """
+    leaf = ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "SANSIBAR DELUXE"]
+    # Asserted as "not household" rather than "== alcoholic" ON PURPOSE: this wine is one of
+    # the products still sitting in `other`, which is precisely what makes the trap invisible
+    # to a conflict count. The guard here is that the HOLIDAY rule must never reach it.
+    assert classify("Sansibar Deluxe Chianti DOCG", "Sansibar Deluxe", leaf,
+                    "Rotwein, trocken Toskana/Italien Je 0,75-l-Fl.") != "household"
+
+
+def test_a_plant_sold_by_the_pot_is_household():
+    """`je topf` — 38 rows already household, 5 rescued. A potted herb is a plant you keep
+    alive, not an ingredient, which is the same call the `topfcover` veto already makes."""
+    assert classify("Naturgut Bio-Kräuter", "Naturgut", None, "je Topf, Versch. Sorten") == "household"
+    assert classify("Summer Breeze! Sommerstaude im Zinktopf", None, None, "je Topf") == "household"
+
+
+def test_this_weeks_nonfood_names_leave_the_food_list():
+    """Each of these fell through every rule to `other` — a paint sprayer, mop covers, a
+    security camera, a USB charger and a prepaid mobile plan, all served among the groceries.
+    They carry a FOOD-root path (`Lebensmittel und Getränke > Marken > …`), so layer 1's
+    non-food branch never sees them and only a name rule can reach them.
+    """
+    food_leaf = ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "GUT&GÜNSTIG"]
+    for name in ("FERREX Farbsprühpistole", "DECO CRAFT Maler-Streich-Set",
+                 "HOME CREATION Bodenwischbezüge", "REOLINK Akkukamera mit Solar Panel",
+                 "Wall-Charger USB-A/-C PD", "Aldi Talk Europa & Nordamerika"):
+        assert classify(name, None, food_leaf, "") == "household", name
+
+
+def test_the_umlaut_spelling_of_the_chew_token_reaches_pet_on_a_pet_path():
+    """`kaurollchen` had been a token since 2026-08-03 and never matched "Kauröllchen" — these
+    tables compare raw substrings, so the umlaut spelling simply missed. Same class as the
+    `bratwurst`/"Rostbratwürste" miss already recorded for the keyword layer.
+
+    The path fixture is deliberately the GENERIC `Marken für Tiere` node and not
+    `… > Hundefutter`: the latter is answered outright by `_DRUGSTORE_PATH_MAP` at layer 1, so
+    a test built on it passes whatever the chew tokens say — it was decorative in the first
+    version of this test, and the sabotage run is what said so. The generic node carries no
+    category, so `_DRUGSTORE_RULES` is the only thing that can reach the product.
+    """
+    generic = ["Tierbedarf und Tierfutter", "Marken für Tiere"]
+    assert classify("GUT&GÜNSTIG Lieblings-Kauröllchen", "GUT&GÜNSTIG", generic,
+                    "Ergänzungsfuttermittel für ausgewachsene Hunde") == "pet"
+    assert classify("GUT&GÜNSTIG Lieblings-Kauröllchen", None, None, "") == "pet"
