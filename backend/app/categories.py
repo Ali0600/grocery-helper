@@ -456,6 +456,41 @@ _RULES: list[tuple[str, list[str]]] = [
     # 2026-08-09: syrups, a honey speciality, a canned pulse and fresh pasta, all of which the
     # flyers publish under a brand-leaf path that carries no category.
     "ahornsirup", "gelée royale", "bihophar", "weiße bohnen", "eierspätzle"]),
+    # --- 2026-08-25 audit of the served `other` bucket ---------------------------------------
+    # These sit HERE, immediately above `household` and below every other food tuple, for the
+    # same reason the drugstore rules are spliced here: a product that reached `other` was
+    # decided by NO layer at all, so a token at layer 6 can only ever catch what was already
+    # falling through. Anything that needed to beat a wrong answer is at layer 2 or 2b instead.
+    #
+    # Space guards, each pinned by a test and each found by simulating rather than by reading:
+    #   " zetti"  — `zetti` is a suffix of "Ma[zzetti]" (Mazzetti Essig, pantry)
+    #   " vla"    — `vla` sits inside "Sou[vla]ki" (MITAKOS Souvlaki-Spieße, pork)
+    # And two full phrases for the same reason: "manner neapolitaner" because a bare
+    # `neapolitaner` takes Manner's Original Neapolitaner CREMELIKÖR, and "eye steakhouse"
+    # because the flyer writes Bull’s with a curly apostrophe that no straight-quote key hits.
+    ("pantry", ["genuss pur", "al bronzo", "linguine", "sonnenweizen", "kokosöl",
+                "mittelscharf", "spreelinge", "tomato phantastico", "eye steakhouse", "-brösel"]),
+    ("bakery", ["bauernkruste", "rosinenstuten", "vital & fit", "schwarzwälder kruste",
+                "hefeteig", "pancakes", "ciambella"]),
+    ("pork", ["prosciutto di parma", "bratensülze", "bauernsülze", "finesse aufschnitt",
+              "belly pork", "gyros-art", "hauchfein", "lucina"]),
+    ("poultry", ["backhendl"]),
+    ("fish", ["makrelenfilet"]),
+    ("cheese", ["der sahnige", "alla caprese"]),
+    ("vegan", ["bedda"]),
+    ("soft_drinks", ["28 black", "bionade", "charitea", "cupper", "bubble pop", "innocent",
+                     "water + lemon", "arancia spritz"]),
+    ("alcoholic", ["birra moretti", "chianti"]),
+    ("sweets", ["haselnuss-schnitte", "oblaten", "kinder duo", "nestlé lion", "raffaello",
+                " zetti", "coco fleur", "chunky cookies", "marmorette", "brownies",
+                "manner neapolitaner", "airwaves", "toblerone"]),
+    ("ready_meals", ["kinderroulade", "wirsingroulade", "quattroburger", "party-snackbox",
+                     "semmel-knödel", "dönerstyle"]),
+    ("frozen", ["ristorante", "celebration mix"]),
+    ("dairy", ["schlagrahm", "creme zum kochen", " vla", "tasty food"]),
+    ("ice_cream", ["florida-eis"]),
+    ("snacks", ["jumpys"]),
+    ("vegetables", ["shiitake"]),
     ("household", [
     # NB: `shampoo`, `duschgel`, `zahnbürste`, `rasierer`, `windel`,
     # `weichspüler`, `spülmittel`, `spülmaschinen` and `waschmittel` were REMOVED here on
@@ -1084,6 +1119,11 @@ _FORM_OVERRIDES: list[tuple[str, list[str]]] = [
     ("snacks", ["bacon-snack"]),       # puffed corn snack, bacon is the FLAVOUR
     ("fruits", ["quetschie"]),         # 100% fruit puree pouch, filed as dairy
     ("frozen", ["knusper-minis"]),
+    # Layer 2 rather than 6, because both of these have to BEAT a wrong answer rather than fill
+    # a blank: Scamorza is a cheese the source files as pantry (2 rows), and a Pollofino is a
+    # boneless chicken thigh that two chains file as pork.
+    ("cheese", ["scamorza"]),
+    ("poultry", ["pollofino"]),
     # --- 2026-08-25: the sweet-spread convention (the user's call) ---------------------------
     # A chocolate or nut cream is a CONFECTION -> sweets; a fruit spread is a breakfast staple
     # -> pantry (that half is a caption signal, see `_CAPTION_SIGNALS`). This is an ALIGNMENT,
@@ -1196,7 +1236,7 @@ _CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
     # classifier already answers household for it at layer 1 via the `topfcover` veto, proven
     # by blinding this entry and re-classifying. A `select category from offers` reads what was
     # persisted at scrape time, not what the rules say today.
-    ("household", ["inkl. flüge", "je topf", "blühpflanzen"]),
+    ("household", ["inkl. flug", "inkl. flüge", "je topf", "blühpflanzen"]),
     # The other half of the sweet-spread convention. A DESIGNATION, which is this table's bar —
     # unlike the bare `brotaufstrich` rejected three times above, which is a USE. The two-word
     # "fruchtiger brotaufstrich" is safe for the same reason.
@@ -1206,6 +1246,15 @@ _CAPTION_SIGNALS: list[tuple[str, list[str]]] = [
     # Zörbiger fruit spread sits in ALCOHOLIC. Only a signal above the path and the brand map
     # can reach any of them.
     ("pantry", ["fruchtaufstrich", "fruchtiger brotaufstrich", "frucht-curd"]),
+    # `ganze bohnen` was ALREADY a layer-2 name form word and 77 rows carry it correctly. The
+    # two it missed say it only in the CAPTION ("Tchibo Black & White", caption "GANZE BOHNEN
+    # 1kg") — the same name-vs-caption drift the drugstore ratchet exists for. Do NOT reach for
+    # a `tchibo` brand token instead: 7 of its 11 rows are clothing, and a test pins that.
+    ("coffee", ["ganze bohnen", "hochland-kaffee"]),
+    # "arom. weinhalt. Cocktail" — 17 rows already alcoholic carry it.
+    ("alcoholic", ["weinhalt"]),
+    # A Spritzkuchen is a pastry; this also lifts one out of `household`.
+    ("bakery", ["siedegebäck"]),
 ]
 
 # Flavour / drink-type tokens (and specific compounds that must beat a generic fruit

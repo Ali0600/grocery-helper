@@ -3226,11 +3226,15 @@ def test_the_sansibar_wine_survives_the_holiday_rule():
     sitting in `other` when it was measured.
     """
     leaf = ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "SANSIBAR DELUXE"]
-    # Asserted as "not household" rather than "== alcoholic" ON PURPOSE: this wine is one of
-    # the products still sitting in `other`, which is precisely what makes the trap invisible
-    # to a conflict count. The guard here is that the HOLIDAY rule must never reach it.
+    # The fixture is the RIOJA, not the Chianti, and the sabotage run is what forced that: the
+    # Chianti now carries a `chianti` token of its own, so it would survive the destination
+    # word whatever this table said. The Rioja names no varietal, still falls to `other`, and
+    # is therefore the row a `sansibar` token would actually take — scoring as a free "rescue"
+    # because it was already in the fallback bucket.
+    assert classify("SANSIBAR DELUXE Castillo de Albai Gran Reserva Rioja", "Sansibar Deluxe",
+                    leaf, "Rotwein, trocken 0,75-l-Fl.") != "household"
     assert classify("Sansibar Deluxe Chianti DOCG", "Sansibar Deluxe", leaf,
-                    "Rotwein, trocken Toskana/Italien Je 0,75-l-Fl.") != "household"
+                    "Rotwein, trocken Toskana/Italien Je 0,75-l-Fl.") == "alcoholic"
 
 
 def test_a_plant_sold_by_the_pot_is_household():
@@ -3317,3 +3321,85 @@ def test_the_nut_cream_rule_does_not_eat_the_croissant_filled_with_it():
     assert classify("Gut&Günstig Nuss-Nougat-Creme-Croissant", "Gut&Günstig", None,
                     "je 250 g") == "bakery"
     assert classify("GUT&GÜNSTIG Nuss-Nougat-Creme", "GUT&GÜNSTIG", None, "400 g Glas") == "sweets"
+
+
+# --- 2026-08-25 audit: the food that was falling through to `other` ------------------------
+
+
+def test_this_weeks_rescues_land_in_the_right_chip():
+    """88 distinct products were reaching layer 7 — decided by NO rule at all. The tokens for
+    them sit at layer 6, immediately above `household`: a product that fell through every
+    other tuple cannot be taken FROM anything, so this placement is zero-regression by
+    construction, exactly like the drugstore splice."""
+    cases = [
+        ("Bionade", "Erfrischungsgetränk, versch. Sorten", "soft_drinks"),
+        ("GOURMET FINEST CUISINE LINGUINE", "Italien Pasta al Bronzo 500-g-Packung", "pantry"),
+        ("BÄCKERKRÖNUNG Bauernkruste", "je 500 g", "bakery"),
+        ("Casa Modena Italienischer Prosciutto di Parma", "original Schinken", "pork"),
+        ("Fresh Kitchen 1/2 Backhendl", "außen knusprig innen zart", "poultry"),
+        ("Makrelenfilet", "geräuchert natur 100g", "fish"),
+        ("Galbani Sandwich alla Caprese", "170-g-Pckg.", "cheese"),
+        ("Du Darfst Kinderroulade", "Fertiggerichte, versch. Sorten", "ready_meals"),
+        ("Weihenstephan Frischer Alpen-Schlagrahm", "mind. 32% Fett 250g", "dairy"),
+        ("funny-fresh Jumpys", "Paprika, Beutel, versch. Sorten", "snacks"),
+    ]
+    for name, caption, want in cases:
+        assert classify(name, None, None, caption) == want, name
+
+
+def test_the_space_guards_that_the_simulation_forced():
+    """Both were caught by diffing the corpus, not by reading the token. `zetti` is a SUFFIX of
+    "Mazzetti" and `vla` sits inside "Souvlaki" — the haystack is space-padded precisely so a
+    leading space can stand in for a word boundary."""
+    assert classify("ZETTI Bambina", "ZETTI", None, "Versch. Sorten, je 100 g") == "sweets"
+    # A BARE "Mazzetti": "Mazzetti Essig" is held by the `essig` rule whatever this guard says,
+    # so it cannot demonstrate the collision — the sabotage run said so. Without the leading
+    # space this row becomes a chocolate.
+    assert classify("Mazzetti", "Mazzetti", None, "Italien 250 ml") != "sweets"
+    assert classify("Milsani Vla", "Milsani", None, "Schoko-Vanille-Geschmack 800-g-Becher") == "dairy"
+    assert classify("MITAKOS Frische Souvlaki-Spieße", "MITAKOS", None, "400 g") != "dairy"
+
+
+def test_the_two_full_phrases_that_a_bare_token_could_not_be():
+    """The flyer writes Bull’s Eye with a CURLY apostrophe, so a straight-quote key matches
+    nothing at all — the token has to start after it. That half is load-bearing.
+
+    "manner neapolitaner" is PRECAUTIONARY and worth saying so rather than overclaiming: a
+    bare `neapolitaner` would read as taking Manner's Original Neapolitaner CREMELIKÖR, but
+    `likör` decides that row at layer 5, above anything in this block. The full phrase costs
+    nothing and does not depend on that staying true; its sabotage was dropped rather than
+    given an invented assertion.
+    """
+    assert classify("Manner Neapolitaner", "Manner", None, "200 g") == "sweets"
+    assert classify("Manner Original Neapolitaner Cremelikör", "Manner", None,
+                    "17% vol, 0,5-l-Fl.") != "sweets"
+    assert classify("Bull’s Eye Steakhouse", None, None, "BBQ Sauce, versch. Sorten") == "pantry"
+
+
+def test_scamorza_and_pollofino_have_to_beat_a_wrong_answer_not_fill_a_blank():
+    """These two are at layer 2, not 6, and that is the whole point: Scamorza is a cheese the
+    source files under a PANTRY path, and a Pollofino is a boneless chicken thigh that two
+    chains file as PORK. A layer-6 token would never get a turn."""
+    pantry_path = ["Lebensmittel und Getränke", "Produkte", "Nahrungsmittel", "Konserven"]
+    assert classify("ITALIAMO Scamorza", "ITALIAMO", pantry_path, "Versch. Sorten, Gekühlt 300 g") == "cheese"
+    pork_path = ["Lebensmittel und Getränke", "Produkte", "Fleisch", "Schweinefleisch"]
+    assert classify("Bauerngut Pollofino", "Bauerngut", pork_path,
+                    "saftiges Hähnchenkeulenfleisch ohne Knochen") == "poultry"
+
+
+def test_the_coffee_caption_catches_what_the_name_form_word_misses():
+    """`ganze bohnen` has been a layer-2 NAME form word for a while and 77 rows carry it
+    correctly. The two it missed say it only in the caption. Deliberately NOT fixed with a
+    `tchibo` brand token — 7 of that brand's 11 rows are clothing."""
+    assert classify("Tchibo Black & White", "Tchibo", None, "Ganze Bohnen 1kg") == "coffee"
+    assert classify("GUT&GÜNSTIG Gold entkoffeiniert", "GUT&GÜNSTIG", None,
+                    "Hochland-Kaffee, 100% Arabica 100g Glas") == "coffee"
+
+
+def test_the_holiday_caption_needs_both_the_singular_and_the_plural():
+    """"Sansibar" says "9-tägig inkl. Flug", the rest say "inkl. Flüge". These tables compare
+    raw substrings and ü is not u, so the singular token does NOT reach the plural spelling —
+    shipping only one of them silently dropped four adverts back into the food list, which the
+    corpus diff caught immediately."""
+    assert classify("Sansibar", None, None, "Zwischen Stone Town & Traumstrand, 9-tägig inkl. Flug") == "household"
+    assert classify("Madagaskar", None, None, "17-tägig inkl. Flüge Mittelklassehotels") == "household"
