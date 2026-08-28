@@ -8,6 +8,7 @@ import { DEFAULT_RECIPE_PREFS } from './recipes';
 import {
   BasketItem,
   CategoryCount,
+  FlyerPagesMap,
   HistoryItem,
   MyStore,
   Offer,
@@ -42,9 +43,17 @@ const CACHE_KEYS = [DEALS_CACHE_KEY, PAYLOAD_CACHE_KEY, TRACE_CACHE_KEY] as cons
 
 const scoped = (base: string, vertical: Vertical): string => `${base}:${vertical}`;
 
-/** Every per-vertical cache key, so the clear paths can't miss one when a vertical is added. */
-const allCacheKeys = (): string[] =>
-  VERTICALS.flatMap((v) => CACHE_KEYS.map((base) => scoped(base, v)));
+// This week's flyer page scans, `{chain: [url, ...]}`. Deliberately UNSCOPED by vertical,
+// unlike the three caches above: a flyer belongs to a chain, and Grocery and Drinks are the
+// same six supermarkets, so scoping it would fetch and store the identical booklet twice.
+const FLYER_PAGES_KEY = 'flyerPagesCache';
+
+/** Every cache key the clear paths must reach, so neither can miss one when a vertical —
+ *  or an unscoped cache like the flyer pages — is added. */
+const allCacheKeys = (): string[] => [
+  ...VERTICALS.flatMap((v) => CACHE_KEYS.map((base) => scoped(base, v))),
+  FLYER_PAGES_KEY,
+];
 // Weekly price series from the grocery-price-history collector, projected to just the
 // products in this device's History. Deliberately NOT in CACHE_KEYS: it is a different
 // source on a different host with its own weekly cadence, so "Clear cached deals" should
@@ -410,6 +419,28 @@ export type CachedPayloads = {
   count: number;
   cachedAt: number; // ms epoch of the fetch
 };
+
+/** The flyer page scans for one PLZ, cached for the flyer week like the deals are. */
+export type CachedFlyerPages = { plz: string; byChain: FlyerPagesMap; cachedAt: number };
+
+export async function getFlyerPagesCache(): Promise<CachedFlyerPages | null> {
+  try {
+    const raw = await AsyncStorage.getItem(FLYER_PAGES_KEY);
+    return raw ? (JSON.parse(raw) as CachedFlyerPages) : null;
+  } catch (e) {
+    console.warn('storage: getFlyerPagesCache failed', e);
+    return null;
+  }
+}
+
+export async function setFlyerPagesCache(data: CachedFlyerPages): Promise<void> {
+  try {
+    await AsyncStorage.setItem(FLYER_PAGES_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.warn('storage: setFlyerPagesCache failed', e);
+    // best-effort — the links just cost a fetch next time the Stores sheet opens
+  }
+}
 
 export async function getPayloadCache(vertical: Vertical): Promise<CachedPayloads | null> {
   try {

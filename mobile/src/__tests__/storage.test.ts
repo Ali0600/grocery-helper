@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   clearAllData,
   clearDealsCache,
+  getFlyerPagesCache,
   getDealsCache,
   getStoredHistory,
   getStoredMyCategories,
@@ -12,6 +13,7 @@ import {
   setStoredMyCategories,
   setStoredSortByCategory,
   setDealsCache,
+  setFlyerPagesCache,
   setStoredStoreLens,
 } from '../storage';
 import { HistoryItem } from '../types';
@@ -278,5 +280,35 @@ describe('per-vertical caches', () => {
     await seedAll();
     await clearAllData();
     for (const v of VERTICALS) expect(await getDealsCache(v)).toBeNull();
+  });
+});
+
+describe('flyer pages cache', () => {
+  const cached = () => ({
+    plz: '10115',
+    byChain: { lidl: ['p0.jpg', 'p1.jpg'] },
+    cachedAt: Date.now(),
+  });
+
+  it('is stored UNSCOPED, because a flyer belongs to a chain and not to a section', async () => {
+    // Grocery and Drinks are the same six supermarkets, so a per-vertical key would fetch
+    // and store the identical booklet twice.
+    await setFlyerPagesCache(cached());
+
+    expect(await AsyncStorage.getItem('flyerPagesCache')).toBeTruthy();
+    expect(await AsyncStorage.getItem('flyerPagesCache:grocery')).toBeNull();
+    expect((await getFlyerPagesCache())?.byChain.lidl).toEqual(['p0.jpg', 'p1.jpg']);
+  });
+
+  it('"Clear cached deals" clears it too', async () => {
+    await setFlyerPagesCache(cached());
+    await clearDealsCache();
+    expect(await getFlyerPagesCache()).toBeNull();
+  });
+
+  it('"Reset all app data" clears it too', async () => {
+    await setFlyerPagesCache(cached());
+    await clearAllData();
+    expect(await getFlyerPagesCache()).toBeNull();
   });
 });

@@ -203,3 +203,8 @@ export type RecipePrefs = {
   onlyOnSale: boolean; // hide recipes that need a non-staple, non-on-sale ingredient
   cheapestKg: boolean; // rank recipes by their on-sale ingredients' €/kg
 };
+
+/** `{chain: [page image url, ...]}` from /api/flyer-pages — this week's brochure scans,
+ *  already ordered for reading. A chain with no flyer is ABSENT rather than empty, and
+ *  that absence is what gates the "View flyer" link (dm has no brochure, ever). */
+export type FlyerPagesMap = Record<string, string[]>;
