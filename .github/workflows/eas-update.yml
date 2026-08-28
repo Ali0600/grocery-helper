@@ -17,8 +17,17 @@ on:
 permissions:
   contents: read
 
+# Keyed on the COMMIT being published, never on the ref. Every workflow_run event for main
+# shares one ref, so a ref-keyed group made consecutive merges cancel each other — and
+# because the surviving run evaluates a DIFFERENT commit, the cancelled commit's mobile
+# changes are then never published by anything. Measured on 2026-08-28: a docs push one
+# minute after a mobile merge cancelled that merge's publish (which had already logged
+# "mobile/** changed — publishing"), and its replacement correctly skipped, because the
+# docs commit touches no mobile/**. The OTA was simply lost, with two green runs to show
+# for it. Same class as the 2026-08-03 ci.yml incident, which was fixed there and not here.
+# A commit-keyed group still collapses a genuine duplicate of the SAME commit.
 concurrency:
-  group: eas-update-${{ github.ref }}
+  group: eas-update-${{ github.event.workflow_run.head_sha || github.ref }}
   cancel-in-progress: true
 
 jobs:

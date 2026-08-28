@@ -62,6 +62,28 @@ def test_main_runs_are_never_cancelled_by_a_newer_push():
     )
 
 
+def test_the_ota_publish_is_not_cancelled_by_the_next_merge():
+    """The same lost-release bug as above, one workflow over — and it actually fired.
+
+    2026-08-28: a docs push a minute after a mobile merge cancelled that merge's OTA run,
+    which had already logged "mobile/** changed — publishing". Its replacement checked out
+    the DOCS commit, correctly found no mobile/** changes, and skipped. The update was never
+    published, and both runs are green — nothing anywhere reports a release that simply did
+    not happen.
+
+    Grouping by ref is what makes it possible: every workflow_run event for `main` shares one
+    ref, so consecutive merges collide, and the survivor evaluates a different commit than the
+    one it cancelled. Keying on the commit means two merges never cancel each other, while a
+    duplicate run of the SAME commit still collapses.
+    """
+    concurrency = _load("eas-update.yml")["concurrency"]
+    group = str(concurrency["group"])
+    assert "head_sha" in group, (
+        "group the OTA publish by the commit it publishes, not by the ref — a ref-keyed "
+        "group lets the next merge cancel a publish that nothing will retry"
+    )
+
+
 def test_the_deploy_job_still_depends_on_the_test_jobs():
     """A deploy racing CI is the other way this pipeline can ship something unverified."""
     jobs = _load("ci.yml")["jobs"]
