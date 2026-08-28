@@ -36,8 +36,57 @@ The one-glance menu. Only `deferred` items appear here.
   *How far the umlaut fold reaches*.
 - **Prune the History entry when a basket add is undone** — History is append-only today, so a
   mis-tap leaves a row behind; see *What happens when you press the Basket button a second time*.
+- **A flyer-thumbnail strip above the deals list** — the most discoverable place to surface
+  this week's flyers, at the cost of vertical space on the busiest screen; see *Where the
+  flyer pages are opened from*.
+- **Tap an offer to jump to its page in the flyer** — each offer's stored payload already
+  carries `parentContent.page.number` plus a normalised bounding box; see *Where the flyer
+  pages are opened from*.
 - **Clear the transitive Dependabot alerts via an Expo SDK upgrade** — none of them ship to the
   device (proven per platform); see *What to do about the Dependabot alerts that no PR can fix*.
+
+---
+
+## 2026-08-28 — Where the flyer pages are opened from, and how many
+
+The user asked to see "the first 5 (for now) flyer pages for each store — usually the first few
+pages have the best deal". Two forks fell out of it.
+
+**Fork A — the entry point.**
+
+- **A "View flyer" chip on each Stores-sheet row** — matches the mental model (this *store's*
+  flyer), costs no layout budget, reachable from every view. Two taps deep.
+- **A strip of page-1 thumbnails above the deals list** — the most discoverable option, but it
+  spends vertical space on the busiest screen and you would rarely see it when landing on My
+  Categories.
+- **Both**, sharing one viewer.
+
+**Chosen: the Stores-sheet chip** (user's call, from mockups). The header could not have been a
+third option — it is measured at 373 of 375pt.
+
+- Strip — `deferred — worth trying`. **Revisit hook:** `FlyerPagesView` and `flyerPagesCache`
+  are already shared and chain-keyed, so the strip is purely a new caller — no data work.
+- Both — `rejected — nothing to learn from shipping two entry points at once`.
+
+**Fork B — how many pages to store.**
+
+- **Store only the first 5** — smallest table, but "for now" then means a re-scrape to change,
+  and a scrape is weekly.
+- **Store every page, cap in the app** — the cap becomes one OTA-only constant.
+
+**Chosen: store everything, `FLYER_PAGE_CAP = 5` in `FlyerPagesView.tsx`.** The rows are tiny
+(a URL and two dates) and raising the cap must not have to wait for Sunday.
+
+**Also decided, with no real alternative once measured:** the brochures are ranked by **page
+count**, because REWE runs three in one week with identical title, type and validity (34/30/24).
+The brochure node's `score` field was **rejected** — relevance/ad-shaped, i.e. exactly the
+host-personalised kind of value that has bitten this repo before, and page count is
+deterministic.
+
+A third thing surfaced and is worth its own line: each offer's stored payload carries
+`parentContent.page.number` and a normalised bounding box, so "tap a deal, jump to its spot on
+the page" is buildable with no new capture. `deferred — worth trying`. **Revisit hook:**
+`FlyerModal` already has the payload in `payloadCache`; the pager takes an initial index.
 
 ---
 

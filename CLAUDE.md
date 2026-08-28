@@ -1428,6 +1428,50 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   The app badges Bio offers (green pill, `OfferCard`) + a **"Bio only"** option in the FilterSheet
   (shown only when some offer is `is_bio`; filters client-side, composes with
   store/category/search/special-days). ~6% of a Berlin PLZ's offers.
+- **The weekly flyer's PAGE SCANS are captured and viewable** (2026-08-28, `FlyerPage` +
+  `GET /api/flyer-pages` + `components/FlyerPagesView.tsx`): each chain row in the Stores sheet
+  carries a **"View flyer"** chip opening the first 5 pages as a swipeable pager. The user's ask
+  was "usually the first few pages have the best deal".
+  - **The capture is FREE and adds no outbound request.** Every `/pages` response the scrape
+    already makes carries, per page, an `images[]` ladder of four CDN renderings
+    (`75x96`/`768x1024`/`1600x1600`/`2800x2800` — the same `…/zoomlarge_page_N.jpg` with a
+    different `impolicy`, on the static `content-media.bonial.biz`). `_offers_from_pages` read
+    only `page["offers"]` and dropped the rest. We store the **1600 rung** (legible under pinch
+    zoom, no print master on a phone), largest-available as fallback.
+  - **Page order is the `contents` ARRAY INDEX, never the source's own `number`** — measured,
+    that field is 0-based on one publisher, 1-based on another and absent on a third, while the
+    array order matches the URL's `_page_N` suffix every time.
+  - **A chain's brochures rank by PAGE COUNT, because nothing else separates them.** Measured
+    live: REWE runs **three** brochures for one week (34/30/24 pages) with *identical* title,
+    type and validity. Rossmann's 23/7/1 is the same shape as the 2026-08-09 incident where a
+    tiny supplement shadowed the weekly. A `score` field exists on the brochure node and was
+    **rejected as the ranker** — it is relevance/ad-shaped, i.e. host-personalised, the class of
+    value this repo has been bitten by. Ties break on `valid_from` ASC so the flyer you can shop
+    TODAY outranks next week's, already-published one.
+  - **Written DELETE-then-INSERT every scrape, not upserted.** `/api/reset` deletes `Offer` rows
+    and keeps `Store` rows, so a merging writer would pile week on week, and a failed scrape
+    would serve last week's flyer as this week's — the same bargain as `scrape_sample_fallback`.
+  - **`/api/flyer-pages` is chain-level with NO `vertical` param** (the `/nearby-stores`
+    precedent; `_scoped` is Offer/category-coupled and must not be reused): a flyer belongs to a
+    shop, not a section, and one Lidl brochure backs both Grocery and Drinks. **A chain with no
+    pages is ABSENT, and that absence IS the app's gate for the link** — so dm (empty brochure,
+    permanently) and a failed chain need no special case, and no chain list lives in the app.
+  - **`FLYER_PAGE_CAP` lives in `FlyerPagesView.tsx`**, so "5 for now" is one OTA-only number;
+    the backend stores every page it captured.
+  - **Paging is driven by `onScroll`, NEVER `onMomentumScrollEnd`** — react-native-web accepts
+    that prop and passes it to a handler **nothing ever calls** (no DOM momentum-end event), so
+    on web the counter froze at "1 / N" while pages turned. Read from the installed RNW source;
+    pinned by a regression test.
+  - The pager is a **VIEW inside StoresModal**, like the "Change branch" picker — never a nested
+    `<Modal>` (the iOS sibling-presentation latch).
+  - **`flyerPagesCache` is a single UNSCOPED key**, unlike the three per-vertical caches: pages
+    are per-CHAIN and Grocery/Drinks share chains, so scoping would store one booklet twice. It
+    hangs off **`allCacheKeys()`**, not `CACHE_KEYS` (that array is mapped through `scoped()`),
+    so both clear paths reach it. Weekly freshness via `dealsStale`.
+  - **`tests/test_aldi.py` was making 20 LIVE outbound calls per run** (dm ×4, meinprospekt ×16,
+    unpaced — conftest zeroes the gap) because Rossmann and dm were never stubbed, and its guard
+    test exempted Rossmann on a comment that was untrue. Fixed in the same PR: 0 calls, 3.4s →
+    0.28s. If you add a scraper to `run.py`, stub it there.
 - **Store visibility IS "My stores"** (2026-07-15): which chains' deals you see is controlled from
   the **Stores modal** (`StoresModal`'s Add/Added ✓), **not** the FilterSheet — the "Stores shown"
   section was removed. Backed by the **existing `hiddenStores`** key (+ `stores.ts` helpers), NOT by

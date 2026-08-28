@@ -31,6 +31,15 @@ build the cheapest basket across one or two stores.
   at all. Grocery and Drinks are the same six shops, so the **Basket, Recipes and History
   read both** — a beer belongs on the same list as the bread — while the deals list stays
   scoped to the section you are in.
+- **Browse the actual paper flyer, page by page** — each store row opens the first pages
+  of its weekly brochure as a swipeable, pinch-zoomable pager, because that is where the
+  chains put their best deals. The page images cost **nothing extra to collect**: they were
+  already inside the JSON each scrape fetches for the offers, and were being discarded. The
+  chains publish several brochures a week under identical titles and dates (REWE ran three
+  at 34, 30 and 24 pages), so the largest is served first — the only signal that separates
+  them. A chain with no captured flyer is simply absent from the response, and that absence
+  is what hides the link, so a chain with no brochure at all needs no special case anywhere
+  in the app.
 - **Automated grocery-deal ETL pipeline** — scrapes and normalizes weekly offers
   from multiple German retail sources into a relational database on a scheduled,
   containerized cron job, computing per-item discount percentages.
@@ -140,9 +149,9 @@ build the cheapest basket across one or two stores.
   failure** — with least-privilege permissions, dependency caching, concurrency
   control, and **Dependabot raising pull requests for security advisories only** — routine
   version bumps are switched off, so a dependency PR always means there is a CVE.
-- **Automated test suite** — ~1,549 backend tests (pytest) covering the scrapers,
+- **Automated test suite** — ~1,570 backend tests (pytest) covering the scrapers,
   classifier, dedup, unit-price/validity logic, and HTTP-level API behavior
-  (filters, auth guards, throttling), plus a React Native **Jest** suite (~466 tests)
+  (filters, auth guards, throttling), plus a React Native **Jest** suite (~475 tests)
   for the app's pure business logic (basket matching, the deals filter pipeline,
   recipe filtering, store comparison, catalog trap-guards); a model-vs-migration
   **drift check** (`alembic check`) fails CI if the ORM and schema diverge.
@@ -298,6 +307,7 @@ numbers) and `mobile/app.json` (`ios.bundleIdentifier`). Set
 | GET    | `/api/offers`     | Offers; filter by `vertical` (`grocery\|drinks\|drugstore` — omitted means grocery; an unknown value 422s), `category`/`chain`/`plz`/`min_discount`, `sort=discount\|price` |
 | GET    | `/api/categories` | Categories that currently have offers, w/ counts; takes the same `vertical` scope as `/api/offers`, so the chips always describe the list they filter |
 | GET    | `/api/offers/{id}/payload` | The full raw source payload an offer was scraped from (for the app's "View payload") |
+| GET    | `/api/flyer-pages` | This week's brochure page scans, `{chain: [url, …]}`, ordered biggest-brochure-first; a chain with no flyer is absent |
 | GET    | `/api/stores`     | Known stores                                     |
 | GET    | `/api/nearby-stores` | Nearest branch of each major chain near a PLZ (OSM); `active` flag for chains we scrape |
 | POST   | `/api/optimize`   | Cheapest basket across 1–2 stores                |
@@ -445,6 +455,27 @@ zero-risk docs can still be pushed directly.
 
 Engineering practices demonstrated while building and operating this project:
 
+- **Extracting a new product feature from data already being discarded** — Delivered a
+  flyer-page browser with **zero additional load on the upstream sources**: the page images
+  were already inside the JSON responses the weekly scrape fetched for its offer data, and
+  were being parsed past. Verified the field's presence against three live publishers before
+  building, because only one saved test fixture still contained it. The result adds a
+  user-facing feature with no change to the scrape's request budget, rate-limit exposure, or
+  runtime.
+- **Diagnosing a silent cross-platform no-op by reading the framework source** — A page
+  counter updated correctly on iOS and never moved on web. Rather than debug the component,
+  read the installed react-native-web implementation and found the event handler was accepted
+  as a prop and never invoked, because the browser has no equivalent event. Switched to an
+  API implemented on both platforms and pinned it with a regression test. "The framework
+  accepted the prop without error" and "the framework implements the prop" are different
+  claims, and only the second is testable.
+- **Eliminating live third-party API calls from an automated test suite** — Found that one
+  test file was issuing 20 real outbound HTTP requests per run to production aggregator APIs,
+  unpaced, because two of nine collaborators were never stubbed and the guard test meant to
+  catch that had an incorrect exemption. Closed both, taking the file from 20 network calls to
+  zero and its runtime from 3.4s to 0.28s, and made the guard derive its expectations from the
+  application module so a future addition fails loudly rather than silently reaching the
+  network.
 - **Designing a regression gate that can tell a refinement from a defect** — A
   before/after diff over 17,000 records reported 48 "regressions" while a classification
   taxonomy was being deliberately refined; reading the moved rows showed 46 were exactly

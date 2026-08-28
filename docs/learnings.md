@@ -117,6 +117,42 @@ and a warning log on failed attempts.
 **Takeaway:** secrets ride in headers or bodies, never in URLs — and auth failures should log
 (who/where), or probing is invisible.
 
+## A cross-platform prop can be ACCEPTED and never called
+
+**What it is.** React Native's API surface is shared, but each platform implements it
+separately — and react-native-web sometimes wires a prop through to a handler that nothing
+ever invokes, because the underlying platform has no such event. No warning, no type error.
+
+**Why it came up here.** The flyer pager used `onMomentumScrollEnd` to update its "1 / 5"
+counter — the obvious choice, and correct on iOS. On web the counter sat frozen while the
+pages visibly turned. Reading the *installed* `react-native-web/dist/exports/ScrollView`
+settled it: `scrollResponderHandleMomentumScrollEnd` is passed to `ScrollViewBase` and never
+called, because the DOM has no momentum-scroll-end event. `onScroll` (with
+`scrollEventThrottle`) fires on both. Nothing failed loudly — the feature just quietly did
+half its job on one platform.
+
+**Takeaway.** When a cross-platform prop drives an observable and the observable does not
+move, grep the installed platform implementation for the prop name before debugging your own
+code — "accepted without error" is not "implemented". And QA the platform you did *not*
+develop against, because a silent no-op only shows up there.
+
+## The gate for a feature should be the DATA, not a list of who has it
+
+**What it is.** When some subset of things supports a feature, the tempting gate is a
+hardcoded list of that subset. The alternative is to let the payload answer: whoever appears
+in the response has it, whoever is absent does not.
+
+**Why it came up here.** Only 7 of 8 chains have a flyer — dm's publisher serves an empty
+brochure permanently. A `HAS_FLYER` set in the app would have been one more copy of "which
+chains are what", the exact drift `verticals.ts` refuses to allow. Instead `/api/flyer-pages`
+simply omits a chain it captured nothing for, and the app shows the link iff the chain is in
+the map. That one rule covers dm, a chain whose scrape failed this week, and a chain added
+next year — none of them named anywhere in the client.
+
+**Takeaway.** Prefer "absent from the response" over "absent from a list I maintain" — the
+data gate handles the cases you have not thought of yet, including failure, and it cannot
+drift from the thing it describes.
+
 ## iOS / mobile
 
 ### Gesture callbacks must not set state (the app-wide freeze)
