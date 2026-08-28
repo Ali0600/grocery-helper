@@ -367,7 +367,8 @@ class _CountingScraper(BonialScraper):
         outcome = self.script[min(self.calls - 1, len(self.script) - 1)]
         if isinstance(outcome, Exception):
             raise outcome
-        return outcome
+        # `_fetch_live` returns (offers, pages); scripts here only care about offers.
+        return outcome if isinstance(outcome, tuple) else (outcome, [])
 
     def _sample(self):
         return ["SAMPLE"]

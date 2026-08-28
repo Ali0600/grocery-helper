@@ -35,6 +35,23 @@ class ScrapedOffer:
 
 
 @dataclass
+class ScrapedPage:
+    """One page image of a brochure — the flyer as printed, not a product.
+
+    `page_number` is OUR index into the `/pages` `contents` array, deliberately not the
+    source's own `number` field: measured across publishers that field is 0-based here,
+    1-based there and absent in a third, while the array order matches the `_page_N`
+    suffix of the image URL every time. The array index is the only reliable order.
+    """
+
+    brochure_id: str
+    page_number: int
+    image_url: str
+    valid_from: Optional[date] = None
+    valid_to: Optional[date] = None
+
+
+@dataclass
 class ScrapeResult:
     """The output of one scraper run for one store."""
 
@@ -45,3 +62,6 @@ class ScrapeResult:
     lat: Optional[float] = None
     lng: Optional[float] = None
     offers: List[ScrapedOffer] = field(default_factory=list)
+    # The brochure page scans this run captured. Flyer chains only: Lidl's coupons and
+    # dm's clearance feed have no brochure, so they leave it empty.
+    pages: List["ScrapedPage"] = field(default_factory=list)

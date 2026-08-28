@@ -20,14 +20,14 @@ import json
 import logging
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .. import categories, metrics
 from ..dedup import dedup_scraped
-from ..models import Offer, Store
+from ..models import FlyerPage, Offer, Store
 from ..services.store_locator import aldi_division
-from .base import ScrapedOffer, ScrapeResult
+from .base import ScrapedOffer, ScrapedPage, ScrapeResult
 from .bonial import (
     AldiNordScraper,
     AldiSuedScraper,
@@ -113,6 +113,32 @@ def _upsert(session: Session, store: Store, offers: List[ScrapedOffer], source: 
     return count
 
 
+def _upsert_pages(session: Session, store: Store, pages: List[ScrapedPage]) -> None:
+    """Replace this store's flyer pages with the ones THIS scrape captured.
+
+    Delete-then-insert, not an upsert, and that is the whole design. `/api/reset` deletes
+    `Offer` rows but keeps `Store` rows, so a merging writer would leave last week's pages
+    hanging off the store with nothing to retire them. Replacing also means a failed scrape
+    (`pages == []`) clears them, which matches what we already decided about invented
+    prices: showing nothing is honest, showing last week's flyer as this week's is not.
+
+    Returns None deliberately — `run_scrapers`' running total is the OFFER count the API
+    reports as "rows scraped", and folding pages into it would silently inflate it.
+    """
+    session.execute(delete(FlyerPage).where(FlyerPage.store_id == store.id))
+    for page in pages:
+        session.add(
+            FlyerPage(
+                store_id=store.id,
+                brochure_id=page.brochure_id,
+                page_number=page.page_number,
+                image_url=page.image_url,
+                valid_from=page.valid_from,
+                valid_to=page.valid_to,
+            )
+        )
+
+
 def run_scrapers(session: Session, plz: str) -> int:
     """Scrape both sources for a postal code, upserting offers. Returns rows touched."""
     total = 0
@@ -137,24 +163,31 @@ def run_scrapers(session: Session, plz: str) -> int:
     if store.lat is not None and store.lng is not None:
         flyer = BonialScraper().fetch(plz, store.lat, store.lng)
         total += _upsert(session, store, flyer.offers, source="flyer")
+        # `store` here is the Lidl row from step 1 — same (chain, plz), so the coupon
+        # store and the flyer store are one row. Steps 1 and 2 get no _upsert_pages call:
+        # coupons and dm clearance have no brochure to scan.
+        _upsert_pages(session, store, flyer.pages)
 
         # 4. REWE's weekly flyer (same pipeline, second chain + store).
         rewe_scraper = ReweScraper()
         rewe = rewe_scraper.fetch(plz, store.lat, store.lng)
         rewe_store = _get_or_create_store(session, rewe)
         total += _upsert(session, rewe_store, rewe.offers, source=rewe_scraper.source)
+        _upsert_pages(session, rewe_store, rewe.pages)
 
         # 5. EDEKA's weekly flyer (same pipeline, third chain + store).
         edeka_scraper = EdekaScraper()
         edeka = edeka_scraper.fetch(plz, store.lat, store.lng)
         edeka_store = _get_or_create_store(session, edeka)
         total += _upsert(session, edeka_store, edeka.offers, source=edeka_scraper.source)
+        _upsert_pages(session, edeka_store, edeka.pages)
 
         # 6. E center (EDEKA's hypermarket format) — a separate publisher, chain + store.
         ecenter_scraper = EdekaCenterScraper()
         ecenter = ecenter_scraper.fetch(plz, store.lat, store.lng)
         ecenter_store = _get_or_create_store(session, ecenter)
         total += _upsert(session, ecenter_store, ecenter.offers, source=ecenter_scraper.source)
+        _upsert_pages(session, ecenter_store, ecenter.pages)
 
         # 7. Penny — the sixth grocery chain. Regional like REWE/EDEKA, so it reuses the same
         # Lidl-resolved coordinates and the `location` cookie does the rest; no division to
@@ -163,6 +196,7 @@ def run_scrapers(session: Session, plz: str) -> int:
         penny = penny_scraper.fetch(plz, store.lat, store.lng)
         penny_store = _get_or_create_store(session, penny)
         total += _upsert(session, penny_store, penny.offers, source=penny_scraper.source)
+        _upsert_pages(session, penny_store, penny.pages)
 
         # 8. ALDI — two independent companies with disjoint territories, and BOTH their
         #    publishers are national, so the feed can't tell us which one applies here.
@@ -188,6 +222,7 @@ def run_scrapers(session: Session, plz: str) -> int:
             aldi = aldi_scraper.fetch(plz, store.lat, store.lng)
             aldi_store = _get_or_create_store(session, aldi)
             total += _upsert(session, aldi_store, aldi.offers, source=aldi_scraper.source)
+            _upsert_pages(session, aldi_store, aldi.pages)
 
         # 9. Rossmann — the DRUGSTORE vertical. Scraped in the same run as the grocery
         #    chains (one scrape fills both verticals); which vertical it lands in is decided
@@ -196,6 +231,7 @@ def run_scrapers(session: Session, plz: str) -> int:
         rossmann = rossmann_scraper.fetch(plz, store.lat, store.lng)
         rossmann_store = _get_or_create_store(session, rossmann)
         total += _upsert(session, rossmann_store, rossmann.offers, source=rossmann_scraper.source)
+        _upsert_pages(session, rossmann_store, rossmann.pages)
 
     session.commit()
     return total
