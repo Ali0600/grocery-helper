@@ -44,7 +44,7 @@ import httpx
 from .. import metrics
 from ..core.config import settings
 from ..http import tracked_client
-from .base import ScrapedOffer, ScrapeResult
+from .base import ScrapedOffer, ScrapedPage, ScrapeResult
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,9 @@ HEADERS = {
 }
 # A weekly flyer runs <= ~2 weeks; this excludes long-running "Preisführer" lists.
 MAX_FLYER_DAYS = 14
+
+# Which rung of a page's image ladder we store; see `_page_image_url`.
+_PREFERRED_PAGE_SIZE = "1600x1600"
 # Between flyer weeks (e.g. Sunday) last week's brochure has ended and next week's
 # hasn't started, but meinprospekt already publishes next week's with a `validFrom` a
 # day or two out. Look this far ahead for it before falling back to sample data.
@@ -108,12 +111,14 @@ class MeinprospektScraper:
         failure: Optional[BaseException] = None
         for attempt in (1, 2):
             try:
-                offers = self._fetch_live(lat, lng, plz)
+                offers, pages = self._fetch_live(lat, lng, plz)
+                # The retry condition stays OFFERS-only: a brochure that yields page scans but
+                # no products is exactly the thin answer this loop exists to re-ask about.
                 if not offers:
                     raise RuntimeError(f"{self.chain}: meinprospekt returned no flyer offers")
                 return ScrapeResult(
                     chain=self.chain, store_name=store_name, plz=plz,
-                    lat=lat, lng=lng, offers=offers,
+                    lat=lat, lng=lng, offers=offers, pages=pages,
                 )
             except RuntimeError as exc:
                 failure = exc
@@ -147,7 +152,12 @@ class MeinprospektScraper:
 
     # -- live -----------------------------------------------------------------
 
-    def _fetch_live(self, lat: float, lng: float, plz: Optional[str] = None) -> List[ScrapedOffer]:
+    def _fetch_live(
+        self, lat: float, lng: float, plz: Optional[str] = None
+    ) -> Tuple[List[ScrapedOffer], List[ScrapedPage]]:
+        """Returns (offers, page scans) from the SAME `/pages` responses — the page images
+        ride along at zero extra outbound cost, so the scrape's request budget is unchanged.
+        """
         own = self._client is None
         client = self._client or tracked_client(timeout=30, headers=HEADERS)
         # Pin discovery to the *target* location (not the scraping host's IP) so the same
@@ -155,14 +165,22 @@ class MeinprospektScraper:
         cookie = _location_cookie(lat, lng, plz)
         try:
             offers: dict = {}
+            pages: List[ScrapedPage] = []
             for b in self._current_brochures(client, cookie):
                 resp = client.get(
                     f"{BE}/v1/brochures/{b['id']}/pages", params={"lat": lat, "lng": lng}
                 )
                 resp.raise_for_status()
-                for off in self._offers_from_pages(resp.json(), b["valid_from"], b["valid_to"]):
+                pages_json = resp.json()
+                for off in self._offers_from_pages(pages_json, b["valid_from"], b["valid_to"]):
                     offers[off.external_id] = off  # dedupe across brochures
-            return list(offers.values())
+                # Pages are deliberately NOT deduped the way offers are: a supplement whose
+                # every offer repeats the weekly is still its own booklet of scans, and
+                # collapsing them would drop real pages.
+                pages.extend(
+                    self._pages_from_pages(pages_json, str(b["id"]), b["valid_from"], b["valid_to"])
+                )
+            return list(offers.values()), pages
         finally:
             if own:
                 client.close()
@@ -213,6 +231,31 @@ class MeinprospektScraper:
                 offer = cls._parse_offer(content, valid_from, valid_to)
                 if offer:
                     out.append(offer)
+        return out
+
+    @classmethod
+    def _pages_from_pages(
+        cls, pages_json: dict, brochure_id: str, valid_from, valid_to
+    ) -> List[ScrapedPage]:
+        """The brochure's page scans, in `contents` order — the flyer as printed.
+
+        Junk-total like `_parse_offer`: a page we can't find an image for is skipped, never
+        raised on. The index is the page number (see `ScrapedPage`); a page that IS skipped
+        therefore leaves a gap in the numbering rather than shifting its neighbours.
+        """
+        out = []
+        for index, page in enumerate(_dicts(pages_json.get("contents"))):
+            url = _page_image_url(_dicts(page.get("images")))
+            if url:
+                out.append(
+                    ScrapedPage(
+                        brochure_id=brochure_id,
+                        page_number=index,
+                        image_url=url,
+                        valid_from=valid_from,
+                        valid_to=valid_to,
+                    )
+                )
         return out
 
     @staticmethod
@@ -552,6 +595,32 @@ def _dicts(value) -> List[dict]:
     if not isinstance(value, list):
         return []
     return [v for v in value if isinstance(v, dict)]
+
+
+def _page_image_url(images: List[dict]) -> Optional[str]:
+    """Pick one rendering of a brochure page from the source's size ladder.
+
+    Every page carries the SAME scan at four sizes (`75x96`, `768x1024`, `1600x1600`,
+    `2800x2800` — measured identical across Lidl, REWE and Rossmann), differing only in an
+    `impolicy` query param. We take 1600x1600: legible when the reader pinch-zooms a
+    dense flyer page, without paying for the 2800 print master on a phone.
+
+    Falls back to the largest parseable size so an unfamiliar ladder still yields a page
+    rather than nothing, and returns None when there is no usable URL at all.
+    """
+    best_url, best_area = None, -1
+    for image in images:
+        url = image.get("url")
+        if not isinstance(url, str) or not url:
+            continue
+        size = str(image.get("size") or "")
+        if size == _PREFERRED_PAGE_SIZE:
+            return url
+        match = re.fullmatch(r"(\d+)x(\d+)", size)
+        area = int(match.group(1)) * int(match.group(2)) if match else 0
+        if area > best_area:
+            best_url, best_area = url, area
+    return best_url
 
 
 def _deal(content: dict, deal_type: str) -> Optional[float]:

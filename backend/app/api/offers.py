@@ -6,6 +6,7 @@ import secrets
 import time
 from collections import Counter
 from dataclasses import asdict
+from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
@@ -17,7 +18,7 @@ from ..categories import CATEGORIES
 from ..core.config import settings
 from ..db import SessionDep
 from ..dedup import dedup_offers
-from ..models import Offer, Store
+from ..models import FlyerPage, Offer, Store
 from ..schemas import (
     CategoryCount,
     NearbyStoreOut,
@@ -365,6 +366,54 @@ def scrape_stats():
     from ..metrics import snapshot
 
     return snapshot()
+
+
+def _ordered_pages(rows: List[FlyerPage]) -> List[FlyerPage]:
+    """One store's pages: biggest brochure first, then in printed order.
+
+    A chain can publish several brochures for the same week — measured live, REWE ran
+    three at once (34, 30 and 24 pages) carrying the IDENTICAL title, type and validity,
+    so page count is the only thing that separates the main weekly from a supplement.
+    Ties break on `valid_from` ascending, which matters on the day next week's flyer is
+    already published beside this week's: the one you can shop today comes first.
+    """
+    brochures: dict = {}
+    for row in rows:
+        brochures.setdefault(row.brochure_id, []).append(row)
+    ranked = sorted(
+        brochures.values(),
+        key=lambda group: (-len(group), group[0].valid_from or date.min, group[0].brochure_id),
+    )
+    return [page for group in ranked for page in sorted(group, key=lambda p: p.page_number)]
+
+
+@router.get("/flyer-pages")
+def flyer_pages(session: SessionDep, plz: Optional[str] = None):
+    """`{chain: [image_url, ...]}` — this week's brochure scans, ordered for reading.
+
+    Keyed on CHAIN, with no `vertical` parameter: a flyer belongs to a shop, not to a
+    section, and the same Lidl brochure backs both Grocery and Drinks. A chain with no
+    captured pages is simply ABSENT, and that absence is the app's gate for showing the
+    "View flyer" link — which is why dm needs no special case here (its publisher serves
+    an empty brochure, so it never has pages) and why an unscraped chain hides itself.
+
+    Same validity filter as `/api/offers`, so a flyer retires exactly when its deals do.
+    """
+    stmt = select(FlyerPage).options(selectinload(FlyerPage.store)).join(Store)
+    if plz:
+        stmt = stmt.where(Store.plz == plz)
+    stmt = stmt.where((FlyerPage.valid_to.is_(None)) | (FlyerPage.valid_to >= berlin_today()))
+    by_chain: dict = {}
+    for row in session.scalars(stmt).all():
+        by_chain.setdefault(row.store.chain, {}).setdefault(row.store_id, []).append(row)
+    # Callers pass a PLZ, but without one a chain could span two cities' stores. Serve the
+    # freshest single store rather than interleaving two towns' flyers into one booklet.
+    return {
+        chain: [page.image_url for page in _ordered_pages(
+            max(stores.values(), key=lambda g: (max((p.valid_to or date.min) for p in g), g[0].store_id))
+        )]
+        for chain, stores in by_chain.items()
+    }
 
 
 @router.get("/nearby-stores", response_model=List[NearbyStoreOut])

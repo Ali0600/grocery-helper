@@ -81,15 +81,24 @@ def _stub_everything_but_aldi(monkeypatch):
     resolves the coordinates every flyer chain reuses.
 
     This tuple is load-bearing and nothing else guards it: a scraper added to `run.py` but
-    missed here does not fail — it makes a LIVE meinprospekt request during the test run.
-    `test_run_scrapers_registers_every_flyer_chain` below derives the expected set so that
-    omission fails loudly instead."""
+    missed here does not fail — it makes a LIVE request during the test run.
+    `test_the_stub_tuple_covers_every_flyer_scraper_run_py_uses` below derives the expected
+    set so that omission fails loudly instead.
+
+    Rossmann and dm were missing here until 2026-08-28, and the cost was measured, not
+    theorised: this one file made 20 live outbound calls per run (dm's API x4, meinprospekt
+    x16) — unpaced, because conftest zeroes the request gap for the suite. That is exactly
+    the datacenter-IP burst the aggregators answer by serving less content."""
     def lidl_result(self, plz):
         return ScrapeResult(chain="lidl", store_name=f"Lidl {plz}", plz=plz,
                             lat=52.5, lng=13.4, offers=[])
     monkeypatch.setattr(run_mod.LidlScraper, "fetch", lidl_result)
+    monkeypatch.setattr(
+        run_mod.DmScraper, "fetch",
+        lambda self, plz: ScrapeResult(chain="dm", store_name=f"dm {plz}", plz=plz, offers=[]),
+    )
     for cls in (run_mod.BonialScraper, run_mod.ReweScraper, run_mod.EdekaScraper,
-                run_mod.EdekaCenterScraper, run_mod.PennyScraper):
+                run_mod.EdekaCenterScraper, run_mod.PennyScraper, run_mod.RossmannScraper):
         monkeypatch.setattr(
             cls, "fetch",
             lambda self, plz, lat, lng: ScrapeResult(
@@ -182,16 +191,17 @@ def test_the_stub_tuple_covers_every_flyer_scraper_run_py_uses():
 
     from app.scrapers.bonial import MeinprospektScraper
 
-    # Every Meinprospekt subclass `run.py` imported, minus the ALDI pair (under test) and the
-    # drugstore chain (a different vertical, stubbed by its own test).
+    # Every Meinprospekt subclass `run.py` imported, minus the ALDI pair (under test).
+    # Rossmann is NOT exempt: the comment here used to wave it off as "stubbed by its own
+    # test", which was simply untrue — it was making a live request on every ALDI test.
     wired = {
         obj for _n, obj in vars(run_mod).items()
         if inspect.isclass(obj) and issubclass(obj, MeinprospektScraper)
         and obj is not MeinprospektScraper and getattr(obj, "publisher_id", "")
     }
-    grocery = {c for c in wired if c.chain not in ("aldi", "rossmann")}
+    others = {c for c in wired if c.chain != "aldi"}
     src = inspect.getsource(_stub_everything_but_aldi)
-    missing = sorted(c.__name__ for c in grocery if c.__name__ not in src)
+    missing = sorted(c.__name__ for c in others if c.__name__ not in src)
     assert not missing, (
         f"{missing} is wired into run.py but not stubbed — the ALDI tests would hit the "
         "network for it"

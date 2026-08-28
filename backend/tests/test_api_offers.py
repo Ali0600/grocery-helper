@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.db import get_session
 from app.dedup import _key, dedup_offers
 from app.main import app
-from app.models import Base, Offer, Store
+from app.models import Base, FlyerPage, Offer, Store
 from app.throttle import RateLimiter
 from app.validity import berlin_today
 from app.verticals import DRINK_CATEGORIES, VERTICALS
@@ -83,6 +83,25 @@ def _seed(session: Session) -> None:
             o(edeka, "j", "Pils", 599, category="alcoholic"),
         ]
     )
+
+    # Flyer page scans. Lidl gets TWO brochures — a 3-page weekly and a 1-page supplement,
+    # added in a deliberately jumbled order so a test that passes can only be reading the
+    # ordering rule, not the insertion order. Edeka's are all expired; the far-PLZ REWE's
+    # are current, so the plz filter has something to exclude.
+    def page(store, brochure, number, url, valid_to=TODAY + timedelta(days=3),
+             valid_from=TODAY):
+        return FlyerPage(store_id=store.id, brochure_id=brochure, page_number=number,
+                         image_url=url, valid_from=valid_from, valid_to=valid_to)
+
+    session.add_all([
+        page(lidl, "supplement", 0, "supp-p0.jpg"),
+        page(lidl, "weekly", 2, "weekly-p2.jpg"),
+        page(lidl, "weekly", 0, "weekly-p0.jpg"),
+        page(lidl, "weekly", 1, "weekly-p1.jpg"),
+        page(edeka, "old", 0, "last-week.jpg", valid_to=TODAY - timedelta(days=1)),
+        page(far, "weekly", 0, "far-p0.jpg"),
+        page(rossmann, "weekly", 0, "rossmann-p0.jpg"),
+    ])
     session.commit()
 
 
@@ -460,3 +479,51 @@ def test_the_bulk_trace_carries_a_post_layer_redirect(client):
     # ...and an un-redirected offer must not carry the key at all (it is a size budget).
     plain = _compact(explain("Nektarinen", None, None, "Klasse I 1 kg"))
     assert "redirect" not in plain
+
+
+# --------------------------------------------------------------------------- #
+# GET /api/flyer-pages — the app's flyer viewer
+# --------------------------------------------------------------------------- #
+def test_flyer_pages_puts_the_bigger_brochure_first_and_pages_in_printed_order(client):
+    """A chain can run several brochures in one week carrying the identical title and
+    validity — measured live, REWE ran three (34/30/24 pages) — so page count is the only
+    thing that names the main weekly. Rows are seeded shuffled, so insertion order can't
+    be what makes this pass."""
+    pages = client.get("/api/flyer-pages?plz=10115").json()
+
+    assert pages["lidl"] == ["weekly-p0.jpg", "weekly-p1.jpg", "weekly-p2.jpg", "supp-p0.jpg"]
+
+
+def test_flyer_pages_drops_a_chain_whose_flyer_has_expired(client):
+    """Absence IS the app's gate for the "View flyer" link, so an expired flyer must take
+    the whole chain out rather than leaving a link onto last week's scans."""
+    pages = client.get("/api/flyer-pages?plz=10115").json()
+
+    assert "edeka" not in pages
+
+
+def test_flyer_pages_filters_by_plz(client):
+    assert "rewe" not in client.get("/api/flyer-pages?plz=10115").json()
+    assert "rewe" in client.get("/api/flyer-pages?plz=99999").json()
+
+
+def test_flyer_pages_serves_every_vertical_at_once(client):
+    """No `vertical` parameter on purpose: a flyer belongs to a shop, not a section, and
+    one Lidl brochure backs both Grocery and Drinks."""
+    pages = client.get("/api/flyer-pages?plz=10115").json()
+
+    assert {"lidl", "rossmann"} <= set(pages)  # grocery and drugstore side by side
+
+
+def test_flyer_pages_breaks_a_page_count_tie_on_validity(client):
+    """On the day next week's flyer is published beside this week's, both are the same size.
+    The one you can shop TODAY has to come first."""
+    from app.api.offers import _ordered_pages
+
+    this_week = FlyerPage(store_id=1, brochure_id="now", page_number=0, image_url="now.jpg",
+                          valid_from=TODAY, valid_to=TODAY + timedelta(days=3))
+    next_week = FlyerPage(store_id=1, brochure_id="next", page_number=0, image_url="next.jpg",
+                          valid_from=TODAY + timedelta(days=4),
+                          valid_to=TODAY + timedelta(days=10))
+
+    assert [p.image_url for p in _ordered_pages([next_week, this_week])] == ["now.jpg", "next.jpg"]

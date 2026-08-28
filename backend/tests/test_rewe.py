@@ -63,7 +63,10 @@ def test_collect_brochures_filters_publisher_and_guards_list():
 
 
 def test_dedup_across_brochures(monkeypatch):
-    """Offers shared by two brochures collapse to one (keyed by external_id)."""
+    """Offers shared by two brochures collapse to one (keyed by external_id).
+
+    This fixture predates page capture and carries no `images`, so it says nothing about
+    pages; the "pages do NOT dedupe" half of the rule lives in test_flyer_pages.py."""
     with open(FIXTURE, encoding="utf-8") as f:
         pages = json.load(f)
 
@@ -86,7 +89,7 @@ def test_dedup_across_brochures(monkeypatch):
             {"id": "B", "valid_from": VALID_FROM, "valid_to": VALID_TO},
         ],
     )
-    offers = rewe._fetch_live(52.52, 13.405, "10115")
+    offers, _pages = rewe._fetch_live(52.52, 13.405, "10115")
     assert len(offers) == 6  # both "brochures" return the same 6 -> deduped
 
 

@@ -37,6 +37,9 @@ class Store(Base):
     offers: Mapped[list["Offer"]] = relationship(
         back_populates="store", cascade="all, delete-orphan"
     )
+    flyer_pages: Mapped[list["FlyerPage"]] = relationship(
+        back_populates="store", cascade="all, delete-orphan"
+    )
 
 
 class Offer(Base):
@@ -78,3 +81,30 @@ class Offer(Base):
     scraped_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     store: Mapped["Store"] = relationship(back_populates="offers")
+
+
+class FlyerPage(Base):
+    """One scanned page of a chain's weekly brochure — the flyer as printed.
+
+    Written by the scraper as a DELETE-then-INSERT of the store's whole set, every run.
+    That is what keeps it honest: `/api/reset` deletes `Offer` rows and leaves `Store`
+    rows, so anything hanging off a store that merely upserts would accumulate last
+    week's pages forever, and a failed scrape would keep serving them as if current.
+    """
+
+    __tablename__ = "flyer_pages"
+    __table_args__ = (
+        UniqueConstraint("store_id", "brochure_id", "page_number", name="uq_flyer_page"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
+    brochure_id: Mapped[str] = mapped_column(String(64))
+    # Index into the source's `contents` array, 0-based — see `ScrapedPage`.
+    page_number: Mapped[int] = mapped_column(Integer)
+    image_url: Mapped[str] = mapped_column(String(512))
+    # Copied from the brochure, so pages retire on the same clock as its offers.
+    valid_from: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    valid_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    store: Mapped["Store"] = relationship(back_populates="flyer_pages")
