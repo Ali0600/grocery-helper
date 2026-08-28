@@ -7,12 +7,15 @@ import {
   View,
 } from 'react-native';
 import { AppModal } from './AppModal';
+import { FlyerPagesView } from './FlyerPagesView';
 
 import { api } from '../api';
 import { chainColors, chainLabel } from '../chains';
 import { CHAIN_ORDER } from '../dealFilters';
-import { colors } from '../theme';
-import { MyStore, NearbyStore } from '../types';
+import { dealsStale } from '../format';
+import { getFlyerPagesCache, setFlyerPagesCache } from '../storage';
+import { colors, radius } from '../theme';
+import { FlyerPagesMap, MyStore, NearbyStore } from '../types';
 
 // A row in the stores list. `placeholder` marks an ACTIVE chain the nearest-stores
 // lookup (2.5 km) found no OSM branch for — rendered so the user can still tap
@@ -90,10 +93,36 @@ export function StoresModal({
   const [branchesLoading, setBranchesLoading] = useState(false);
   const [branchesError, setBranchesError] = useState<string | null>(null);
 
+  // This week's flyer scans, `{chain: [url, ...]}`. A chain the backend has no pages for is
+  // ABSENT from the map, and that absence is the whole gate for the "View flyer" link —
+  // no hardcoded list of which chains have a flyer, which would drift the moment one is
+  // added (and would have to special-case dm, whose publisher serves an empty brochure).
+  const [flyerPages, setFlyerPages] = useState<FlyerPagesMap>({});
+  const [viewingFlyer, setViewingFlyer] = useState<{ chain: string; label: string } | null>(null);
+
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
     setPicking(null);
+    setViewingFlyer(null);
+    // Flyer pages load beside the stores, with their OWN try/catch: a backend that predates
+    // /api/flyer-pages 404s, and that must cost the links, never the stores list.
+    (async () => {
+      try {
+        const cached = await getFlyerPagesCache();
+        if (cancelled) return;
+        if (cached && cached.plz === plz && !dealsStale(cached.cachedAt)) {
+          setFlyerPages(cached.byChain);
+          return; // flyers are weekly, like the deals cache — a fresh one asks nothing
+        }
+        const byChain = await api.flyerPages(plz);
+        if (cancelled) return;
+        setFlyerPages(byChain);
+        await setFlyerPagesCache({ plz, byChain, cachedAt: Date.now() });
+      } catch {
+        if (!cancelled) setFlyerPages({});
+      }
+    })();
     (async () => {
       setLoading(true);
       setError(null);
@@ -167,17 +196,36 @@ export function StoresModal({
   };
 
   return (
-    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <AppModal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      testID="stores-modal"
+    >
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Nearby stores</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            {/* Named, because the flyer view nested below carries its own Back and this
+                sheet is no longer the only thing with a dismiss control in it. */}
+            <Pressable
+              onPress={onClose}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Close stores"
+            >
               <Text style={styles.close}>Close</Text>
             </Pressable>
           </View>
 
-          {picking ? (
+          {viewingFlyer ? (
+            <FlyerPagesView
+              label={viewingFlyer.label}
+              pages={flyerPages[viewingFlyer.chain] ?? []}
+              onBack={() => setViewingFlyer(null)}
+            />
+          ) : picking ? (
             <>
               <View style={styles.pickerBar}>
                 <Pressable onPress={() => setPicking(null)} hitSlop={10}>
@@ -291,6 +339,21 @@ export function StoresModal({
                               Deals coming soon
                             </Text>
                           )}
+                          {/* Gated on the DATA, never on a list of "chains with a flyer":
+                              the backend omits a chain it captured no pages for, which
+                              covers dm (no brochure, ever) and a chain whose scrape failed
+                              without either needing to be named here. */}
+                          {(flyerPages[chain]?.length ?? 0) > 0 ? (
+                            <Pressable
+                              onPress={() => setViewingFlyer({ chain, label: s.label })}
+                              accessibilityRole="button"
+                              accessibilityLabel={`View ${s.label} flyer`}
+                              hitSlop={6}
+                              style={styles.flyerChip}
+                            >
+                              <Text style={styles.flyerChipText}>View flyer ›</Text>
+                            </Pressable>
+                          ) : null}
                         </View>
 
                         <View style={styles.actions}>
@@ -394,6 +457,19 @@ const styles = StyleSheet.create({
   meta: { color: colors.muted, fontSize: 12, marginTop: 4 },
   dealCount: { color: colors.accent, fontSize: 12, fontWeight: '600', marginTop: 2 },
   soon: { color: colors.muted, fontSize: 12, fontStyle: 'italic', marginTop: 2 },
+  // A bordered chip, NOT another line of accent text: `dealCount` directly above is already
+  // accent 12/600, and an identical-looking line that happens to be tappable reads as more
+  // of the same information. The border and the chevron are what say "this does something".
+  flyerChip: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+  },
+  flyerChipText: { color: colors.accent, fontSize: 12, fontWeight: '600' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   action: {
     minWidth: 64,

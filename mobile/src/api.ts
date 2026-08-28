@@ -1,5 +1,6 @@
 import {
   CategoryCount,
+  FlyerPagesMap,
   NearbyStore,
   Offer,
   OfferCategoryTrace,
@@ -148,6 +149,16 @@ export const api = {
     if (plz) q.set('plz', plz);
     q.set('chain', chain);
     return get<NearbyStore[]>(`/api/nearby-stores?${q.toString()}`);
+  },
+
+  // This week's brochure page scans, keyed by chain. No `vertical`: a flyer belongs to a
+  // shop, not a section — one Lidl brochure backs both Grocery and Drinks. A backend that
+  // predates this endpoint 404s, which `isRetryable` treats as final, so the caller sees
+  // one quick failure and simply shows no flyer links.
+  flyerPages(plz?: string) {
+    const q = new URLSearchParams();
+    if (plz) q.set('plz', plz);
+    return get<FlyerPagesMap>(`/api/flyer-pages?${q.toString()}`);
   },
 
   // Scrape the nearest store for a PLZ on demand and return the resolved store(s).

@@ -30,6 +30,7 @@ jest.mock('../api', () => ({
     offerPayloads: jest.fn(),
     nearbyStores: jest.fn(),
     chainBranches: jest.fn(),
+    flyerPages: jest.fn().mockResolvedValue({}),
   },
 }));
 

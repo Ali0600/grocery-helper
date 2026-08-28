@@ -3,8 +3,10 @@
 // behaviour worth pinning — above all the default the user expected: a chain we track
 // reads as "Added ✓" without them having to do anything.
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
+import { Dimensions } from 'react-native';
 
 import { StoresModal } from '../components/StoresModal';
 import { CHAIN_ORDER } from '../dealFilters';
@@ -15,6 +17,7 @@ jest.mock('../api', () => ({
     base: 'http://test',
     nearbyStores: jest.fn(),
     chainBranches: jest.fn(),
+    flyerPages: jest.fn(),
   },
 }));
 
@@ -67,6 +70,7 @@ async function setup(props: Partial<React.ComponentProps<typeof StoresModal>> = 
 beforeEach(() => {
   jest.clearAllMocks();
   api.nearbyStores.mockResolvedValue(NEARBY);
+  api.flyerPages.mockResolvedValue({});
 });
 
 describe('StoresModal — Add/Added drives deal visibility', () => {
@@ -133,5 +137,91 @@ describe('StoresModal — loading', () => {
       />,
     );
     await waitFor(() => expect(screen.getByText(/Couldn't find nearby stores/i)).toBeTruthy());
+  });
+});
+
+describe('the flyer viewer', () => {
+  // Derived, not guessed: the view lays each page out at the window width minus the
+  // sheet's 1px borders, and a hardcoded number here would silently stop landing on a
+  // page boundary if that changed.
+  const PAGE_W = Math.max(1, Math.round(Dimensions.get('window').width) - 2);
+  const PAGES = ['p0.jpg', 'p1.jpg', 'p2.jpg', 'p3.jpg', 'p4.jpg', 'p5.jpg', 'p6.jpg', 'p7.jpg'];
+
+  it('offers "View flyer" only for chains the backend actually captured pages for', async () => {
+    api.flyerPages.mockResolvedValue({ lidl: PAGES, rewe: ['r0.jpg'] });
+    await setup();
+
+    expect(await screen.findByLabelText('View lidl flyer')).toBeTruthy();
+    expect(screen.getByLabelText('View rewe flyer')).toBeTruthy();
+    // Absent from the map = no link, which is how dm (no brochure, ever) and any chain
+    // whose scrape failed are handled without naming either of them in the app.
+    expect(screen.queryByLabelText('View edeka flyer')).toBeNull();
+    expect(screen.queryByLabelText('View Netto flyer')).toBeNull();
+  });
+
+  it('shows only the first FLYER_PAGE_CAP pages of a longer flyer', async () => {
+    api.flyerPages.mockResolvedValue({ lidl: PAGES });
+    await setup();
+    await fireEvent.press(await screen.findByLabelText('View lidl flyer'));
+
+    // Assert the COUNTER, not the number of rendered <Image>s: under jest a FlatList
+    // renders its whole initial window, so counting testIDs would pass even uncapped.
+    expect(await screen.findByText('1 / 5')).toBeTruthy();
+  });
+
+  it('advances the page counter as the flyer is paged', async () => {
+    // Regression for a WEB-ONLY defect: react-native-web accepts `onMomentumScrollEnd` and
+    // never calls it (the DOM has no momentum-end event), so the counter sat frozen at
+    // "1 / 5" while the pages turned. `onScroll` fires on both platforms.
+    api.flyerPages.mockResolvedValue({ lidl: PAGES });
+    await setup();
+    await fireEvent.press(await screen.findByLabelText('View lidl flyer'));
+    expect(await screen.findByText('1 / 5')).toBeTruthy();
+
+    const pager = screen.getByTestId('flyer-pager');
+    await fireEvent.scroll(pager, {
+      nativeEvent: {
+        contentOffset: { x: 2 * PAGE_W, y: 0 },
+        contentSize: { width: 5 * PAGE_W, height: 400 },
+        layoutMeasurement: { width: PAGE_W, height: 400 },
+      },
+    });
+
+    expect(await screen.findByText('3 / 5')).toBeTruthy();
+  });
+
+  it('goes back to the store list', async () => {
+    api.flyerPages.mockResolvedValue({ lidl: PAGES });
+    await setup();
+    await fireEvent.press(await screen.findByLabelText('View lidl flyer'));
+    expect(screen.queryByText('Deals coming soon')).toBeNull();
+
+    await fireEvent.press(screen.getByLabelText('Back to stores'));
+
+    expect(await screen.findByText('Deals coming soon')).toBeTruthy();
+  });
+
+  it('serves a fresh cached map without calling the backend', async () => {
+    // Flyers are weekly, like the deals — a mid-week open must not spend a round trip
+    // (and on the free tier, possibly a cold start) re-fetching an unchanged booklet.
+    await AsyncStorage.setItem(
+      'flyerPagesCache',
+      JSON.stringify({ plz: '10115', byChain: { lidl: PAGES }, cachedAt: Date.now() }),
+    );
+
+    await setup();
+
+    expect(await screen.findByLabelText('View lidl flyer')).toBeTruthy();
+    expect(api.flyerPages).not.toHaveBeenCalled();
+  });
+
+  it('keeps the stores list when the flyer endpoint fails', async () => {
+    // An older backend 404s here. That may cost the links; it must not cost the list.
+    api.flyerPages.mockRejectedValue(new Error('API 404'));
+
+    await setup();
+
+    expect(screen.getByText('Deals coming soon')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByLabelText('View lidl flyer')).toBeNull());
   });
 });
