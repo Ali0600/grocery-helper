@@ -46,7 +46,9 @@ jobs:
     timeout-minutes: 20
     steps:
       # Needed for the data-quality gate script below; the reset step itself is pure curl.
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
       # Wake the service BEFORE the reset, and let it settle.
       #
@@ -141,7 +143,7 @@ jobs:
       # A silent weekly failure is invisible; surface it as a (deduplicated) issue.
       - name: Alert on repeated failure
         if: failure()
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
@@ -175,7 +177,7 @@ jobs:
       # (https://github.com/Ali0600/self-healing-script) consumes these issues.
       - name: Close recovery issues
         if: success()
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const { data: open } = await github.rest.issues.listForRepo({

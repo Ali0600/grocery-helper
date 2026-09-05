@@ -40,8 +40,10 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.12' # matches backend/Dockerfile (Render runtime)
           cache: pip
@@ -62,7 +64,7 @@ jobs:
       # Optional: skipped (CI stays green) until the CODECOV_TOKEN secret is set.
       - name: Upload coverage to Codecov
         if: env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ env.CODECOV_TOKEN }}
           files: backend/coverage.xml
@@ -76,8 +78,10 @@ jobs:
       run:
         working-directory: mobile
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: '22'
           cache: npm
@@ -96,7 +100,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
       # Build-only (no push) so a broken Dockerfile/dependency fails here, not on Render.
       # Retry transient registry hiccups (e.g. Docker Hub 503 pulling the base image) so
       # an upstream blip doesn't fail the build.
@@ -121,9 +127,10 @@ jobs:
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 2 # need HEAD~1 to diff what this merge changed
+          persist-credentials: false
       # Only the backend runs on Render, so a mobile-only / docs merge doesn't need a
       # redeploy — and on the free tier a redeploy wipes the ephemeral DB (and re-scrapes
       # only DEFAULT_PLZ). Deploy when this merge touched a RUNTIME backend file, but skip
@@ -187,6 +194,10 @@ jobs:
         if: steps.trigger.outputs.fired == 'true'
         env:
           BASE: https://grocery-helper-sw6c.onrender.com
+          # Through env, not interpolated into the script below: an expression expanded inside
+          # `run:` is pasted in as text before the shell ever sees it, so the shell's quoting
+          # cannot protect it. Cheap discipline, applied uniformly rather than case by case.
+          BEFORE: ${{ steps.trigger.outputs.before }}
         run: |
           want="${GITHUB_SHA}"
           echo "Waiting for /health to report commit ${want}…"
@@ -209,7 +220,7 @@ jobs:
           # curl timed out, `before` was empty, the equality could not fire, and a Render build
           # that never landed was reported GREEN — with the next step then counting offers
           # served by the OLD code. Ancestry needs no pre-deploy reading at all.
-          before="${{ steps.trigger.outputs.before }}"
+          before="$BEFORE"
           echo "commit live before this deploy: '${before:-unknown}'; live now: '${live:-none}'"
           git fetch --quiet --depth=100 origin main || true
           if [ -n "$live" ] && git merge-base --is-ancestor "$want" "$live" 2>/dev/null; then
