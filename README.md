@@ -312,8 +312,8 @@ numbers) and `mobile/app.json` (`ios.bundleIdentifier`). Set
 | GET    | `/api/nearby-stores` | Nearest branch of each major chain near a PLZ (OSM); `active` flag for chains we scrape |
 | POST   | `/api/optimize`   | Cheapest basket across 1–2 stores                |
 | POST   | `/api/scrape`     | Re-run scrapers on demand (throttled: per-PLZ cooldown + global rate limit) |
-| POST   | `/api/recategorize` | Re-apply the classifier to stored offers (requires `X-Admin-Token` when `ADMIN_TOKEN` is set) |
-| POST   | `/api/reset`      | Wipe all offers + re-scrape (weekly refresh; requires `X-Admin-Token` when `ADMIN_TOKEN` is set) |
+| POST   | `/api/recategorize` | Re-apply the classifier to stored offers (requires `X-Admin-Token`; **denied on a deployed instance until `ADMIN_TOKEN` is set**) |
+| POST   | `/api/reset`      | Wipe all offers + re-scrape (weekly refresh; requires `X-Admin-Token`; **denied on a deployed instance until `ADMIN_TOKEN` is set**) |
 | GET    | `/api/scrape-stats` | Outbound calls to the scraped sites, by source/host (total + a timestamped recent-calls log); on-demand dashboard at `/stats` (Refresh button) |
 
 ## Scrapers

@@ -15,7 +15,7 @@ from sqlalchemy.orm import selectinload
 
 from .. import categories
 from ..categories import CATEGORIES
-from ..core.config import settings
+from ..core.config import is_deployed, settings
 from ..db import SessionDep
 from ..dedup import dedup_offers
 from ..models import FlyerPage, Offer, Store
@@ -96,6 +96,17 @@ def _require_admin(
     probing is visible. Non-str values are normalized (direct function calls in tests
     pass the FastAPI `Header(None)` default marker)."""
     if not settings.admin_token:
+        if is_deployed():
+            # Fail CLOSED: a deployed instance with no token configured refuses rather than
+            # waving the caller through. The client-visible detail is identical to a bad-token
+            # refusal, so a prober cannot tell "misconfigured" from "wrong token"; the reason
+            # is logged server-side for whoever has to fix it.
+            logger.error(
+                "admin endpoint %s refused: ADMIN_TOKEN is not set on this deployed instance. "
+                "Set it in the host's environment (Render \u2192 Environment) to enable it.",
+                request.url.path if request else "?",
+            )
+            raise HTTPException(status_code=403, detail="invalid or missing admin token")
         return
     provided = next((v for v in (x_admin_token, token) if isinstance(v, str)), "")
     if not secrets.compare_digest(provided, settings.admin_token):

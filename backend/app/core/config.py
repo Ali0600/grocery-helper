@@ -1,3 +1,5 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,8 +15,13 @@ class Settings(BaseSettings):
     # (local) or the host's env (Render dashboard) to use your own postal code.
     default_plz: str = "10115"  # Berlin Mitte
     cors_origins: str = "*"  # comma-separated list, or "*"
-    # Optional guard for the destructive POST /api/reset (DB wipe). When unset (default),
-    # reset is open like /api/scrape; set it (env ADMIN_TOKEN) to require a matching token.
+    # Guard for the destructive admin endpoints (POST /api/reset wipes every offer).
+    #
+    # Empty is NOT "no guard": on a deployed instance an empty token DENIES those endpoints
+    # (see `_require_admin`). "Off unless configured" is fail-open, and a value that has to be
+    # remembered in a dashboard forever is exactly the kind that stays unset — which is what
+    # happened here: this comment used to say the guard was simply off, and the public URL's
+    # DB-wipe endpoint was unauthenticated for as long as that was true. Local dev stays open.
     admin_token: str = ""
     # Root log level (env LOG_LEVEL): DEBUG/INFO/WARNING/...
     log_level: str = "INFO"
@@ -53,6 +60,16 @@ class Settings(BaseSettings):
     # same shape as the ADMIN_TOKEN dashboard value that is still outstanding. Local dev opts
     # in via backend/.env so the app is usable offline.
     scrape_sample_fallback: bool = False
+
+
+def is_deployed() -> bool:
+    """True on a hosted instance, false locally and in CI.
+
+    Render injects both of these into every service it runs, and neither exists on a laptop or
+    a GitHub runner. Deriving it from the platform's own signal means there is no third value
+    to set and forget — the case that produced the open endpoint in the first place.
+    """
+    return bool(os.getenv("RENDER") or os.getenv("RENDER_GIT_COMMIT"))
 
 
 settings = Settings()
