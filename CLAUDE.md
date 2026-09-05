@@ -1921,8 +1921,10 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `Alert.alert`, which drops its buttons on react-native-web). `POST /api/reset` deletes
   **all** offers then re-scrapes one PLZ (unlike `/api/scrape`'s in-place upsert, so it also
   clears stale rows the scrape no longer touches). **Admin guard (2026-07-03)**: `/api/reset`
-  AND `/api/recategorize` require **`ADMIN_TOKEN`** *when that env is set* (else open for local
-  dev) — sent as an **`X-Admin-Token` header** (query `token` is a deprecated fallback;
+  AND `/api/recategorize` require **`ADMIN_TOKEN`**. Empty is not "unguarded": on a DEPLOYED
+  instance (Render sets `RENDER`/`RENDER_GIT_COMMIT`) an empty token makes both endpoints 403 —
+  fail-closed, because a dashboard value that must be remembered forever is the kind that stays
+  unset. Local dev and CI (neither env var present) stay open, so no one needs to invent a token
   headers stay out of access logs), compared timing-safe, failures logged with the client
   host. The app sends `EXPO_PUBLIC_ADMIN_TOKEN` if present (local `mobile/.env`; OTA bundles
   get it from the `EXPO_PUBLIC_ADMIN_TOKEN` GH secret injected in `eas-update.yml`).

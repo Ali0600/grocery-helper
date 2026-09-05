@@ -35,11 +35,24 @@ jobs:
     name: Publish OTA update
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Only after a *successful* CI run on main (or a manual dispatch). workflow_run fires
-    # regardless of the triggering run's conclusion, so the success gate is explicit.
+    # Only after a *successful* CI run on a PUSH to main (or a manual dispatch). Two separate
+    # gates, both load-bearing:
+    #
+    #   conclusion == 'success'  workflow_run fires whatever the triggering run concluded, so
+    #                            without this a RED CI run would still publish.
+    #   event == 'push'          `branches: [main]` above filters the TRIGGERING RUN'S HEAD
+    #                            BRANCH, not "a push to our main". CI also runs on
+    #                            `pull_request`, so a fork PR from a branch named `main` matches
+    #                            it — and this job then checks out that fork's head_sha, runs
+    #                            `npm ci` against their lockfile and publishes their bundle to
+    #                            every installed app with EXPO_TOKEN. A push to main requires
+    #                            write access; a fork PR never has it.
+    #
+    # Pinned by backend/tests/test_workflows.py, because nothing in a green run would show it.
     if: >
       github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7

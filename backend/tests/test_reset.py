@@ -71,3 +71,49 @@ def test_reset_requires_token_when_configured(monkeypatch):
     # correct token proceeds with the wipe
     result = trigger_reset(session, plz="10115", token="secret")
     assert result["deleted"] == 2
+
+
+def test_a_deployed_instance_refuses_the_wipe_when_no_token_is_configured(monkeypatch):
+    """The guard used to return early whenever ADMIN_TOKEN was empty — which is the state the
+    deployed instance was actually in (`config.py` called the Render dashboard value "still
+    outstanding"). So the one endpoint that DELETEs every offer was unauthenticated on a public
+    URL, and the code read as if it were protected.
+
+    "Off unless configured" is fail-OPEN, and the thing it leaves open is destructive. Absent
+    configuration must deny where it counts and stay permissive only in local dev, so a
+    forgotten dashboard value can never be the difference between guarded and wide open.
+    """
+    session = _session()
+    _seed(session)
+    monkeypatch.setattr(settings, "admin_token", "")
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "deadbeef")  # what Render injects at runtime
+    monkeypatch.setattr("app.scrapers.run.run_scrapers", lambda s, p: 0)
+
+    with pytest.raises(HTTPException) as exc:
+        trigger_reset(session, plz="10115", token=None)
+    assert exc.value.status_code == 403
+    # The outcome, not the status code: the table must still be there.
+    assert len(session.scalars(select(Offer)).all()) == 2
+
+
+def test_local_dev_without_a_token_is_still_open(monkeypatch):
+    """The deny above is scoped to a DEPLOYED instance on purpose. Requiring a token locally
+    would mean every contributor has to invent one before they can reset their own SQLite file,
+    and the fix for that friction is people switching the guard off again."""
+    session = _session()
+    store = _seed(session)
+    monkeypatch.setattr(settings, "admin_token", "")
+    monkeypatch.delenv("RENDER_GIT_COMMIT", raising=False)
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.setattr(
+        "app.scrapers.run.run_scrapers",
+        lambda sess, plz: (
+            sess.add(Offer(store_id=store.id, external_id="fresh", source="flyer",
+                           name="Banana", category="fruits", price_cents=59)),
+            sess.commit(),
+            1,
+        )[-1],
+    )
+
+    result = trigger_reset(session, plz="10115", token=None)
+    assert result["deleted"] == 2

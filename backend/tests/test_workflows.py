@@ -84,6 +84,34 @@ def test_the_ota_publish_is_not_cancelled_by_the_next_merge():
     )
 
 
+def test_the_ota_publish_only_ever_fires_for_a_push_to_main():
+    """`branches: [main]` does NOT mean "a push to our main" — it matches the TRIGGERING run's
+    head branch, and a pull request from a fork whose branch is itself named `main` produces a
+    run with exactly that head branch.
+
+    CI runs on `pull_request`, so without an event check the chain is: fork the repo, name the
+    branch `main`, open a PR, let CI go green on code the attacker wrote — and this workflow
+    then checks out `workflow_run.head_sha` (their tree), runs `npm ci` (their lockfile, their
+    install scripts) and publishes `eas update --branch production` with EXPO_TOKEN. That ships
+    an attacker's JS bundle to every installed app, over the air.
+
+    The sibling repo rpg-template carries this guard with a comment explaining exactly this;
+    this workflow was written from the same pattern and did not. `event == 'push'` is the whole
+    fix: a push to main requires write access, a fork PR never has it.
+    """
+    job = _load("eas-update.yml")["jobs"]["update"]
+    condition = str(job["if"])
+    assert "workflow_run.event == 'push'" in condition, (
+        "the OTA publish must require the triggering run to be a PUSH — `branches: [main]` "
+        "matches a fork PR whose head branch is named `main`, which would publish a "
+        "stranger's bundle to users' phones"
+    )
+    # And the success gate must survive alongside it: a failed CI run must not publish either.
+    assert "conclusion == 'success'" in condition, (
+        "the OTA publish must still require the triggering CI run to have succeeded"
+    )
+
+
 def test_the_deploy_job_still_depends_on_the_test_jobs():
     """A deploy racing CI is the other way this pipeline can ship something unverified."""
     jobs = _load("ci.yml")["jobs"]
