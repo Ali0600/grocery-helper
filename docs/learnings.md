@@ -2033,3 +2033,19 @@ if it is not the one under test, pick a fixture nothing else claims, or say plai
 that the guard is precautionary. Two of those sabotages were deleted rather than given an
 invented assertion; a guard honestly labelled defensive is worth more than a test that implies
 coverage it does not have.
+
+## A fail-closed auth change can silently switch off the job that authenticates against it
+
+Hardening an endpoint so it refuses requests without a credential is right, and it instantly breaks
+every automated caller that lacks that credential *in the environment the endpoint runs in* —
+usually without an alarm that names the real cause.
+
+**Why it came up:** a security PR made `/api/reset` answer 403 on a deployed host with no
+`ADMIN_TOKEN`. The weekly GitHub job had the secret; Render never had its own copy. The next Sunday
+refresh failed with 403 three times, and because the data-quality gate only ran after a successful
+reset, the data check silently stopped too: that week Rossmann serving 25 offers and ALDI missing
+were both found by hand.
+
+**Takeaway:** before a fail-closed change deploys, list every automated caller and prove each holds
+the credential where the endpoint runs; and never let a check run only when the step it observes
+succeeded — a gate has to report precisely when the step before it failed.
