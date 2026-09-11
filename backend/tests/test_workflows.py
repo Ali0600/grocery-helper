@@ -29,6 +29,7 @@ def _load(name: str) -> dict:
 RESET_STEP = "POST /api/reset (retry transient failures)"
 GATE_AFTER_RESET = "Data-quality gate on the served deals"
 GATE_VERIFY_ONLY = "Data-quality gate (verify-only)"
+GATE_AFTER_FAILED_RESET = "Data-quality gate after a failed reset"
 
 
 def _triggers(wf: dict) -> dict:
@@ -268,3 +269,34 @@ def test_the_verify_only_gate_never_claims_a_reset_just_ran():
     # would prove prod healthy and leave the issue open anyway — the whole point of the path.
     names = [s.get("name") or "" for s in wf["jobs"]["refresh"]["steps"]]
     assert names.index(GATE_VERIFY_ONLY) < names.index("Close recovery issues")
+
+def test_the_data_verdict_survives_a_failed_reset():
+    """The scheduled gate only runs after a SUCCESSFUL reset, because a step whose `if:` names
+    no status function is skipped once an earlier step failed. So when #184 made the admin
+    endpoints fail closed on a host without ADMIN_TOKEN, every Sunday reset returned 403 and
+    the data check stopped running entirely: the alert issue said "refresh failed" and said
+    nothing about what prod was serving (that week Rossmann was down to 25 offers, found by
+    hand). A second gate, conditioned on the reset having failed, keeps the verdict in the log.
+    """
+    wf = _load("scrape.yml")
+    steps = wf["jobs"]["refresh"]["steps"]
+    reset = _step(wf, "refresh", RESET_STEP)
+    fallback = _step(wf, "refresh", GATE_AFTER_FAILED_RESET)
+    assert reset.get("id"), "the reset step needs an id for a later step to read its outcome"
+    cond = fallback.get("if", "")
+    assert "failure()" in cond, (
+        "without a status function GitHub skips this step after the very failure it exists for"
+    )
+    assert f"steps.{reset['id']}.outcome == 'failure'" in cond, (
+        "run only when the RESET failed, not after the gate fails on a successful reset"
+    )
+    assert "--post-reset" not in fallback["run"], (
+        "a failed reset re-scraped nothing, so the per-chain floor would assert something false"
+    )
+    assert "${{" not in fallback["run"], (
+        "workflow inputs belong in env:, never interpolated into a run: block"
+    )
+    alert = _step(wf, "refresh", "Alert on repeated failure")
+    assert steps.index(reset) < steps.index(fallback) < steps.index(alert), (
+        "the verdict has to be in the log before the alert issue links to it"
+    )
