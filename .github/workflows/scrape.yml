@@ -80,6 +80,7 @@ jobs:
           VERIFY_ONLY: ${{ inputs.verify_only }}
 
       - name: POST /api/reset (retry transient failures)
+        id: reset
         if: ${{ ! inputs.verify_only }}
         env:
           # SCRAPE_PLZ is a *secret* (not a variable) so a personal postal code is masked
@@ -134,6 +135,24 @@ jobs:
       # that exists to catch a genuinely dark chain.
       - name: Data-quality gate (verify-only)
         if: ${{ inputs.verify_only }}
+        env:
+          PLZ: ${{ github.event.inputs.plz || secrets.SCRAPE_PLZ || '10115' }}
+        run: |
+          python3 .github/scripts/verify_deals.py \
+            --url "https://grocery-helper-sw6c.onrender.com/api/offers" --plz "${PLZ}"
+
+      # The data verdict has to survive a FAILED reset. The gate above only runs after a successful
+      # one: a step whose `if:` names no status function gets an implicit `success() &&`, so GitHub
+      # skips it once an earlier step failed. When #184 made the admin endpoints fail closed on a
+      # host without ADMIN_TOKEN, every Sunday reset returned 403 and the data check stopped running
+      # at all. The alert issue said "refresh failed" and nothing about what prod was serving; that
+      # week Rossmann was down to 25 offers, and it was found by hand.
+      #
+      # No --post-reset, for the verify-only twin's reason: nothing was re-scraped, so the per-chain
+      # floor would assert something false. This cannot turn the run green (the job has already
+      # failed); it only puts the verdict in the log the alert issue links to.
+      - name: Data-quality gate after a failed reset
+        if: ${{ failure() && steps.reset.outcome == 'failure' }}
         env:
           PLZ: ${{ github.event.inputs.plz || secrets.SCRAPE_PLZ || '10115' }}
         run: |
