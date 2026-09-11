@@ -1248,7 +1248,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     `{}`. It now calls `record_scrape_failure("aldi", "aldi_division_unresolved")`. This does
     NOT change what is detected — the gate caught it both times via `chains >= 6` — it changes
     whether the dashboard can say why. **A failed division is never cached**, so the next
-    scrape retries; the next cold start retries it. A third sighting on 2026-09-11 (on a mid-week wake) makes it a recurring Overpass flake rather than a one-off.
+    scrape (a cold start included) retries it. A third sighting on 2026-09-11, on a mid-week
+    wake, makes it a recurring Overpass flake rather than a one-off.
   - **A Lidl failure still costs all six flyer chains**, sample flag or not: the Lidl Plus
     lookup resolves the store COORDINATES and `run_scrapers` gates every meinprospekt chain on
     `store.lat is not None`, and that path has never returned lat/lng. Its log now says so
