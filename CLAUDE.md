@@ -873,6 +873,47 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   - **The preserved-produce redirect SHIPPED 2026-08-15** — see the `_redirect` note above.
     Still deferred: the mixed "Tapas Selektion"/"Tapasplatte", which the sweep read as cured
     meats but whose names do not say so — pinned as a decision rather than left as an oversight.
+  **The 2026-09-11 audit ran the path-vs-name contradiction detector as well as reading `other`,
+  and it found more** (one PR; over 17,992 stored products: 118 rescued from `other`, 88 unhidden
+  from `household`, 43 refined, 0 regressions; this week's grocery `other` went 79 → 6 offers,
+  4.9% → 0.4%). What to carry forward:
+  - **Run both detectors every week.** Classify each live product with and without its path and
+    list the pairs where both answers are real categories: that caught a pomegranate served as
+    CHEESE (`grana` ⊂ GRANAtapfel), frozen sugar snaps as sugar (`zucker` ⊂ ZUCKERschoten), a frozen
+    Wagner flatbread as cheese, and eggs as a baking ingredient. Then list what is served
+    `household` while its name alone says food: ~30 live products, ~90 in the corpus, all invisible
+    behind the Non-food toggle. The pathed copies of these were fine, which is what hid them.
+  - **Food hides under PROMO and HOUSE-BRAND nodes** (`Aktionen > Vegan`, `REWE > REWE to go` /
+    `Feine Welt` / `Beste Wahl`, `Dienstleistungen > Gastronomie`). Exempting the food-only nodes
+    from `_path_nonfood` was SIMULATED AND REJECTED (42 regressions): their products already lean
+    on `_FOOD_RESCUE`, so skipping layer 1 dropped them to `other`. Per-product rescue tokens
+    instead, and a test pins the dependency. Several tokens carry a TRAILING space so the compound
+    they begin stays household (`feigen ` vs Feigenkaktus, `müsli ` vs Müslischale, `rotwein ` vs
+    Rotweingläser), and `_FOOD_RESCUE` now lists **vegetables before fruits**: it is walked in key
+    order, and `pflaume` sat inside Mini-Pflaumentomaten.
+  - **Wine is named by grape or region in the late `_RULES` block, never by a `, trocken` caption.**
+    Maybach sells an alcohol-free SKU and a Riesling as ONE offer under an `alkoholfreier Wein` path;
+    a caption rule would outrank that path on rows no text can decide. `% vol.` WITH the period did
+    ship as a caption, since the period separates an alcohol strength from the rejected `% vol`
+    (⊂ "20% Vollmilch"). Its alcohol-free guard needs a LEADING space: unspaced, " 0% vol." matches
+    inside "40% Vol.", which turned 56 spirits into soft drinks in simulation.
+  - **Two conventions, both the user's: the Christmas range is `sweets`** (Lebkuchen, Stollen,
+    Dominosteine, Spekulatius: one seasonal shelf), **and breaded fish is `frozen`** (Fischstäbchen,
+    consistent with breaded cheese; the stored rows were 13 fish / 6 frozen and the recommendation
+    had been fish). Both at layer 2.
+  - **Health tokens go in `_DRUGSTORE_RULES`, never beside `protein-pulver` at layer 2.** The drift
+    ratchet rejected `whey` there, correctly; spliced into `_RULES`, the drugstore table reaches the
+    pathless products and the non-food-path ones alike.
+  - **A new token can disarm an OLD test.** Two existing pins would have gone decorative and were
+    re-pointed rather than relaxed: the SANSIBAR household-token pin (the new `rioja` token now holds
+    its Rioja fixture) and the `Babynahrung` rejection (a new `trinkmahlzeit` rescue takes its Huel
+    fixture at layer 1, before any path map runs). Sabotage the old pins a change touches, not only
+    the new tests.
+  - **Rejected, with a pinning test:** the node exemption; captions `, trocken`, `rotwein` and
+    `abtropfgewicht`; mapping the parent `Fleisch in Aspik` (it holds beef in aspic). **Rejected and
+    only recorded here:** `fertiggerichte` as a path node (the parent of frozen pizzas, nuggets and
+    burger patties: 86 moves), a bare `hot-dog`, and a blanket `rewe to go` rescue (it filed
+    cold-pressed juice as a ready meal).
   **Don't hardcode absolute `_FORM_OVERRIDES` indices in tests** — inserting a guard shifts them
   all; derive the index instead (two trace tests were fixed this way).
   **`_FORM_OVERRIDES` is first-hit-wins, so ORDER is part of the fix.** Two guards had to be
@@ -1179,7 +1220,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `SCRAPE_SAMPLE_FALLBACK=true` in `backend/.env`; the default is off so **Render is correct
   with zero configuration** — a default-on flag would have to be switched off in the dashboard
   and remembered forever, which is the `ADMIN_TOKEN` shape.
-  - **What prompted it**: on 2026-08-16 Rossmann's 23–26pp weekly simply **was not published**.
+  - **What prompted it**: on 2026-08-16 Rossmann's 23–26pp weekly simply **was not published**. It happened again the week of 2026-09-07: the publisher listed one 7-page brochure and Rossmann served 25 offers. `/api/flyer-pages` reporting `rossmann=7` is the quick tell that it is upstream, not selection.
     Upstream had only the `Schulaktion` (correctly dropped by `MAX_FLYER_DAYS`) and a **6-page**
     "Mein Drogeriemarkt" whose `/pages` returns page IMAGES and no product data, so the parser
     correctly yielded 0 offers → `RuntimeError` → 8s retry → samples. `_select_brochures` was
@@ -1207,7 +1248,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     `{}`. It now calls `record_scrape_failure("aldi", "aldi_division_unresolved")`. This does
     NOT change what is detected — the gate caught it both times via `chains >= 6` — it changes
     whether the dashboard can say why. **A failed division is never cached**, so the next
-    scrape retries; the Sunday reset self-heals it.
+    scrape retries; the next cold start retries it. A third sighting on 2026-09-11 (on a mid-week wake) makes it a recurring Overpass flake rather than a one-off.
   - **A Lidl failure still costs all six flyer chains**, sample flag or not: the Lidl Plus
     lookup resolves the store COORDINATES and `run_scrapers` gates every meinprospekt chain on
     `store.lat is not None`, and that path has never returned lat/lng. Its log now says so
@@ -2066,7 +2107,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   because flyers are Mon–Sat so they're spent by then and next week's are already discoverable,
   refreshing before the app's weekly cache expires past Sunday — retries 3× and opens/comments a
   `scrape-failure` issue on total failure; passes the `ADMIN_TOKEN` secret as an **`X-Admin-Token`
-  header**, enforced once that env is also set on Render).
+  header**. Since #184 a deployed host with no `ADMIN_TOKEN` of its own refuses it with 403, so the
+  refresh fails every Sunday until the Render value is set to match. Since #189 the verify-only gate
+  still runs after a failed reset, so the run log keeps the data verdict).
   **`ci.yml` must NEVER cancel an in-flight run on `main`** (2026-08-03, cost a week): the
   deploy job lives in this workflow, and `concurrency.cancel-in-progress: true` applies to
   pushes as well as PRs — so a docs commit pushed a minute after a backend merge **cancelled

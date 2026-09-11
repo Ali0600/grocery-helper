@@ -85,7 +85,8 @@ jobs:
           # SCRAPE_PLZ is a *secret* (not a variable) so a personal postal code is masked
           # in the public Actions logs; falls back to a neutral central default if unset.
           PLZ: ${{ github.event.inputs.plz || secrets.SCRAPE_PLZ || '10115' }}
-          # Optional: only enforced if ADMIN_TOKEN is also set on Render (else /api/reset is open).
+          # Required on the deployed host since #184: Render answers /api/reset with 403 unless its
+          # own ADMIN_TOKEN environment value matches this secret.
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
         run: |
           for attempt in 1 2 3; do

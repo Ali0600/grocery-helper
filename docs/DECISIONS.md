@@ -44,6 +44,10 @@ The one-glance menu. Only `deferred` items appear here.
   pages are opened from*.
 - **Clear the transitive Dependabot alerts via an Expo SDK upgrade** — none of them ship to the
   device (proven per platform); see *What to do about the Dependabot alerts that no PR can fix*.
+- **Let layer 1 fall through (not default to `household`) under food-only promo nodes** — hidden food
+  would surface in `other`, where the weekly audit reads it, instead of behind the Non-food toggle.
+  Costs ~34 uncategorised foods and a few wrong landings today. See *How to un-hide food filed under
+  promo and house-brand nodes*.
 
 ---
 
@@ -415,3 +419,74 @@ the build, and its inputs are this repo's own files.
 **Revisit hook:** re-run the two-platform export above after any `npx expo install` SDK bump,
 and re-check the same four names. If a future advisory names a package that DOES appear in
 that `sources` list, this decision does not apply to it — the whole argument is the zero.
+
+## Where the Christmas range goes
+
+**2026-09-11.** ALDI's seasonal range arrived in September (Dominosteine, Mini Stollen and
+Stollenkonfekt, all in `other`), and the stored data had already split it: two Lebkuchen in Bakery,
+two Spekulatius in Sweets. The range grows through December, so it was decided once.
+
+| Option | Tradeoff |
+|---|---|
+| **All in Sweets** | One seasonal shelf, one chip; matches the packaged-cake convention. Moves the two Lebkuchen out of Bakery. |
+| All in Bakery | Treats the range as baked goods; moves Spekulatius, Marzipanbrot and the "Weihnachtsgebäck" biscuits out of Sweets. |
+| Split by form | Biscuits and confectionery in Sweets, a whole Stollen loaf in Bakery: two chips for one shelf. |
+
+**Chosen: all in Sweets** (the user's call). *All in Bakery* — rejected: the user chose Sweets.
+*Split by form* — rejected: the user chose one chip for the whole range.
+
+**Revisit hook:** the `("sweets", ["lebkuchen", "stollen", …])` tuple at the end of
+`_FORM_OVERRIDES`, pinned by `test_the_christmas_range_is_sweets`.
+
+## Breaded fish: Fish or Frozen
+
+**2026-09-11.** Iglo Fischstäbchen was served as Fish at E center and as Frozen at EDEKA, and the
+stored rows split 13 fish / 6 frozen.
+
+| Option | Tradeoff |
+|---|---|
+| Fish | The stored majority; the Fish chip already holds frozen fillets, so it is where you would look. |
+| **Frozen** | Consistent with the earlier breaded-cheese call (Mozzarella-Sticks and Back-Camembert are Frozen). |
+
+**Chosen: Frozen** (the user's call; the recommendation had been Fish). *Fish* — rejected: the user
+chose consistency with breaded cheese over the stored majority.
+
+**Revisit hook:** `("frozen", ["fischstäbchen", "rustipani"])` near the end of `_FORM_OVERRIDES`,
+pinned by `test_breaded_fish_is_frozen_like_breaded_cheese`. A plain frozen fillet stays Fish: the
+freezer is a shelf, not a category.
+
+## How to un-hide food filed under promo and house-brand nodes
+
+**2026-09-11.** About 30 live products (about 90 in the corpus) were served as `household`, which the
+Non-food toggle hides, because the source files them under nodes like `Aktionen > Vegan`,
+`REWE > REWE to go` and `Dienstleistungen > Gastronomie`. Layer 1 decides on any non-food root and
+never falls through.
+
+| Option | Measured over the corpus |
+|---|---|
+| Exempt the four food-only node PAIRS from `_path_nonfood` | 44 unhidden, **42 regressions**: products there already lean on `_FOOD_RESCUE` (guacamole, baba ganoush and a ginger shot fell to `other`), and a vegan sunscreen lost its Body aisle. |
+| Exempt them only when layer 1 found nothing | Keeps the rescues, but sends 34 foods to `other` and still files vine leaves as wine and a red wine as sweets. |
+| **Per-product `_FOOD_RESCUE` tokens** | 88 unhidden, 0 regressions; long-tail work every week. |
+
+**Chosen: per-product tokens.** *Exemption* — rejected: 42 regressions. *Fall-through-only
+exemption* — deferred, worth trying: it turns hidden food into VISIBLE uncategorised food, which the
+weekly `other` read would then catch.
+
+**Revisit hook:** the `elif not _path_nonfood(path)` seam at layer 1 in `_layers`;
+`test_a_node_exemption_was_rejected_because_the_node_leans_on_the_rescue_table` pins the dependency
+a plain exemption would break.
+
+## Where the wine signal lives: the caption or the name
+
+**2026-09-11.** Five wines sat in `other` with no usable path, each with "trocken" in its caption.
+
+| Option | Tradeoff |
+|---|---|
+| A `, trocken` / `, halbtrocken` caption signal (layer 2b) | Catches dry wine by its designation, but outranks the PATH. That moves Maybach offers the source files under `alkoholfreier Wein`, whose payloads bundle an alcohol-free SKU and a Riesling as one offer. |
+| **Grape and region tokens in the late `_RULES` block** | Only catches what nothing else claimed; needs a list of varietals. |
+
+**Chosen: late-block tokens.** *Caption signal* — rejected: it would override the path on rows no
+text can decide.
+
+**Revisit hook:** the `("alcoholic", ["birra moretti", "chianti", "rioja", …])` tuple;
+`test_wine_is_named_by_grape_or_region_never_by_a_dry_caption` pins the Maybach row.
