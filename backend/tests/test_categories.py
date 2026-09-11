@@ -1259,9 +1259,11 @@ def test_fresh_produce_is_untouched_by_the_preserved_rule():
 def test_a_bare_tiefgefroren_caption_is_rejected():
     """Simulated and rejected: a generic "tiefgefroren" caption signal moved 84 rows —
     every Eis out of ice_cream, Fischstäbchen out of fish, Chicken Nuggets out of poultry.
-    The freezer is a shelf, not a category; only produce DESIGNATIONS ("erntefrisch") count."""
-    assert classify("NORDSEE Fischstäbchen XXL", "NORDSEE", None,
-                    "tiefgefroren, 450 g") == "fish"
+    The freezer is a shelf, not a category; only produce DESIGNATIONS ("erntefrisch") count.
+
+    Fischstäbchen themselves are `frozen` since 2026-09-11, by a NAME convention (the user's call),
+    so the fish half of this pin uses a plain fillet that nothing but its fish keyword holds."""
+    assert classify("Forellenfilet", None, None, "tiefgefroren, 400 g") == "fish"
     assert classify("Chef Select Chicken Nuggets XXL", "Chef Select", None,
                     "Tiefgefroren. 750 g") == "poultry"
     assert classify("BON GELATI Stieleis Mandel XXL", "BON GELATI", None,
@@ -1531,8 +1533,10 @@ def test_drugstore_aisles(name, path, expected):
         # spans face AND body (a RAMA Cremefine hangs off it too).
         ("NIVEA Pflegedusche", _DRUG + ["Hautpflege", "Hautpflegeprodukte", "Creme"], "body",
          "a Pflegedusche is a shower product; the `Hautpflege` NODE is still unmapped"),
-        ("Huel Trinkmahlzeit Banana", ["Baby und Kinder", "Baby", "Babynahrung"], "household",
-         "`Babynahrung` is a FOOD node; an adult meal drink must not become a drugstore aisle"),
+        # 2026-09-11: this was "Huel Trinkmahlzeit Banana", which a `trinkmahlzeit` rescue token now
+        # takes to soft_drinks at layer 1, BEFORE any path map runs — so it could no longer catch this.
+        ("Huel Black Edition", ["Baby und Kinder", "Baby", "Babynahrung"], "household",
+         "`Babynahrung` is a FOOD node; an adult meal powder must not become a drugstore aisle"),
         ("Gillette Fusion5", _DRUG + ["Körperpflege", "Haarentfernung"], "body",
          "hair REMOVAL is shaving — body, not hair care"),
         ("LEIFHEIT Wäscheschirm", _HAUS + ["Textilreinigung", "Textiltrocknung"], "household",
@@ -3123,7 +3127,7 @@ def test_sansibar_is_rejected_as_a_household_token():
     make this test decorative.
     """
     brand_leaf = ["Lebensmittel und Getränke", "Marken", "Marken Lebensmittel", "Deluxe"]
-    assert classify("SANSIBAR DELUXE Castillo de Albai Gran Reserva Rioja", "Sansibar Deluxe",
+    assert classify("SANSIBAR DELUXE Castillo de Albai Gran Reserva", "Sansibar Deluxe",
                     brand_leaf, "Spanien Rotwein, trocken") != "household"
     # `südafrika` was rejected on the other side of the same trade: one travel advert, against
     # a word that is a produce ORIGIN and will recur.
@@ -3231,7 +3235,9 @@ def test_the_sansibar_wine_survives_the_holiday_rule():
     # word whatever this table said. The Rioja names no varietal, still falls to `other`, and
     # is therefore the row a `sansibar` token would actually take — scoring as a free "rescue"
     # because it was already in the fallback bucket.
-    assert classify("SANSIBAR DELUXE Castillo de Albai Gran Reserva Rioja", "Sansibar Deluxe",
+    # 2026-09-11: `rioja` has a token of its own now, so the fixture drops that word — the same
+    # move the Chianti forced, one grape later. Stripped, it still reaches `other`, which is the point.
+    assert classify("SANSIBAR DELUXE Castillo de Albai Gran Reserva", "Sansibar Deluxe",
                     leaf, "Rotwein, trocken 0,75-l-Fl.") != "household"
     assert classify("Sansibar Deluxe Chianti DOCG", "Sansibar Deluxe", leaf,
                     "Rotwein, trocken Toskana/Italien Je 0,75-l-Fl.") == "alcoholic"
@@ -3512,3 +3518,190 @@ def test_three_products_are_deliberately_left_in_other():
     assert classify("REWE Bio pflanzlich Streichcreme", "REWE Bio", None, "Tomate, Paprika") == "vegan"
     assert classify("GUT&GÜNSTIG s000 weich", "GUT&GÜNSTIG", None,
                     "Toilettenpapier, 4-lagig 10x200 Blatt") == "other"
+
+
+# --- 2026-09-11 weekly audit ----------------------------------------------------------------------
+REWE_BRAND = ["Marken", "REWE", "REWE Beste Wahl"]
+REWE_TO_GO = ["Marken", "REWE", "REWE to go"]
+AKTIONEN_VEGAN = ["Saison und Events", "Produkte", "Aktionen", "Vegan"]
+GASTRO = ["Dienstleistungen", "Gastronomie"]
+KITCHEN = ["Elektronik und Technik", "Produkte", "Küchenkleingeräte", "Küchenmaschine", "Mixer"]
+
+
+def test_substring_traps_found_by_the_path_vs_name_detector():
+    """Each was live, and each was found the same way: classifying a product with and without its
+    path. The pathed copies were right, which is what hid the pathless ones — a token of another
+    category sitting inside the product's own name."""
+    assert classify("Granatapfel", None, None, "Je Stück (max. 24 Stück)") == "fruits"  # GRANAtapfel
+    assert classify("EDEKA Herzstücke Zuckerschoten", "EDEKA", None, None) == "vegetables"  # ZUCKERschoten
+    assert classify("Feinzucker", None, None, "1 kg") == "pantry"  # ...and sugar is still sugar
+    assert classify("Chef Select Tortelloni", "Chef Select", None, None) == "pantry"  # TORTElloni
+    assert classify("1001 DELIGHTS Weinblätter", "1001 DELIGHTS", None, "gefüllt 400 g") == "pantry"  # WEINblätter
+
+
+def test_the_weeks_non_food_leaves_other():
+    """`other` renders among the groceries; only `household` is hidden by the Non-food toggle."""
+    assert classify("Center Parcs Comfort-Ferienhaus", "Center Parcs", None,
+                    "3 Übernachtungen für bis zu 6 Personen") == "household"
+    assert classify("Germini", None, None, "Versch. Farben. 10 Stiele je Bund") == "household"
+    assert classify("Bunter Herbst", None, None, "Deutschland Mix aus versch. Herbstpflanzen") == "household"
+    assert classify("GUT&GÜNSTIG Öko-Kamin- & Grillanzünder", "GUT&GÜNSTIG", None, None) == "household"
+    assert classify("Unisex-Regenhose", None, None, "Wassersäule bis 5.000 mm.") == "household"
+    assert classify("TRUE STYLE Herren-Retroshorts", "TRUE STYLE", None, None) == "household"
+    assert classify("Body Kurzarm mit Hund-Applikation, braun", "ALANA", None, None) == "household"
+    assert classify("VITALIS Sportbandage", "VITALIS", None, "Medizinprodukt") == "health"
+
+
+@pytest.mark.parametrize(
+    "name, path, expected",
+    [
+        ("REWE Beste Wahl Bananen", REWE_BRAND, "fruits"),
+        ("REWE Beste Wahl Mandarinen", REWE_BRAND, "fruits"),
+        ("Blaue Feigen", REWE_BRAND, "fruits"),
+        ("EDEKA Herzstücke Mini-Pflaumentomaten", GARDEN, "vegetables"),
+        ("REWE Regional Gewürzgurken", REWE_BRAND, "pantry"),
+        ("EDEKA Bio Tomatensauce", AKTIONEN_VEGAN, "pantry"),
+        ("Thüringer Rostbratwurst grob", REWE_BRAND, "pork"),
+        ("Wagner Rustipani Ofenbrot", _NONFOOD, "frozen"),
+        ("Bibigo Gyoza", AKTIONEN_VEGAN, "frozen"),
+        ("HARIBO Kiddies Box Sauer", PET, "sweets"),
+        ("Lorenz Crunchips Stackers", PROMO, "snacks"),
+        ("Krustenbrot", GASTRO, "bakery"),
+        ("Fleischkäse im Brötchen", GASTRO, "ready_meals"),
+        ("REWE to go Caesar", REWE_TO_GO, "ready_meals"),
+        ("REWE to go Karottini", REWE_TO_GO, "vegetables"),
+        ("REWE To Go Frische Säfte kaltgepresst", REWE_TO_GO, "soft_drinks"),
+        ("REWE Feine Welt Karibik Rum 8 Anos", REWE_BRAND, "alcoholic"),
+        ("REWE Bio Hafer Drink", REWE_BRAND, "vegan"),
+    ],
+)
+def test_food_hidden_behind_the_non_food_toggle_is_rescued(name, path, expected):
+    """Layer 1 decides on a non-food path and never falls through, so every fixture carries a REAL
+    kind of non-food path; a pathless call would prove nothing about `_FOOD_RESCUE`."""
+    assert classify(name, None, path, None) == expected
+
+
+def test_the_narrowed_rescue_tokens_leave_their_compounds_alone():
+    """The trailing spaces and the veto that separate a food word from the non-food compound it
+    begins. Each asserts the product is NOT pulled into the food chip the loose token would pick."""
+    assert classify("Feigenkaktus „Hands up«", None, GARDEN, "in dekorativem Potcover") != "fruits"
+    assert classify("Müslischale", None, _HAUS, None) != "pantry"
+    assert classify("Rotweingläser 4er-Set", None, KITCHEN, None) != "alcoholic"
+    assert classify("Smoothie-Maker", None, KITCHEN, "Flaschen und Deckel spülmaschinengeeignet") != "soft_drinks"
+    assert classify("HARIBO Duftkerze", None, _HAUS, None) != "sweets"
+    assert classify("Porridge Kinder mit Bananen-Flocken", None, REWE_BRAND, None) == "pantry"
+    # `pflaume` still rescues plums; the reorder only lets the tomato token win first.
+    assert classify("Frische Pflaumen", None, PET, "500 g") == "fruits"
+
+
+def test_a_node_exemption_was_rejected_because_the_node_leans_on_the_rescue_table():
+    """Exempting `Aktionen > Vegan` (and three REWE food-line nodes) from the non-food check was
+    simulated first: 42 regressions. Its products already depend on layer 1's rescue, so skipping
+    layer 1 drops them to `other`. This pins the dependency an exemption would break."""
+    assert classify("WONNEMEYER Guacamole", None, AKTIONEN_VEGAN, None) == "pantry"
+
+
+def test_a_caption_stating_alcohol_strength_is_alcoholic():
+    assert classify("Kräuterglut", None, None, "Kräuterlikör, 35% Vol. 0,7 l Flasche") == "alcoholic"
+    assert classify("Diplomatico Reserva Exclusiva", "Diplomatico", None, "40% Vol. 0,7l Flasche") == "alcoholic"
+    assert classify("Werder Erdbeere", "Werder", None, "Fruchtwein, 9 % Vol. 0,75-L-Flasche") == "alcoholic"
+    # The guard — and why its leading space matters: "40% vol." CONTAINS "0% vol.".
+    assert classify("Pallini Limoncello", None, None, "0,0% Vol. 0,5-l-Fl.") == "soft_drinks"
+
+
+def test_wine_is_named_by_grape_or_region_never_by_a_dry_caption():
+    """Why wine lives in the late name block: Maybach files an alcohol-free SKU and a Riesling as ONE
+    offer under an `alkoholfreier Wein` path. A `, trocken` caption rule would outrank that path."""
+    assert classify("Zeller Schwarze Katz Riesling QbA", None, None, None) == "alcoholic"
+    assert classify("Faustino Rivero Ulecia", "Faustino", None, "Spanien Rioja, trocken 0,75-l-Fl.") == "alcoholic"
+    alcohol_free_wine = [_FOOD, "Produkte", "Getränke", "Alkoholfreie Getränke", "alkoholfreier Wein"]
+    assert classify("Maybach Qualitätswein", "Maybach", alcohol_free_wine,
+                    "Pfalz/Rheinhessen Qualitätswein, versch. Sorten, trocken je 0,75-l-Fl.") == "soft_drinks"
+
+
+def test_leaf_nodes_that_name_the_product_beat_their_parent():
+    lm = [_FOOD, "Produkte", "Lebensmittel"]
+    assert classify("COLUMBUS Eier", "COLUMBUS", lm + ["Backzutaten", "Eier"], None) == "eggs"
+    assert classify("Kalbs-Steaks", None, lm + ["Fleisch", "Fleischzubereitungen", "Braten", "Kalbsbraten",
+                                                "Kalbsrückenbraten"], None) == "beef"
+    assert classify("SUNTAT Tosun Pastirma Rinderformschinken", "SUNTAT",
+                    lm + ["Wurstwaren", "Schinken", "Rinderschinken"], None) == "beef"
+    aspik = lm + ["Feinkost", "Aspik", "Fleisch in Aspik"]
+    assert classify("Puttkammer Aspiktorte mit Schinkenwürfeln", "Puttkammer",
+                    aspik + ["Schinken in Aspik"], None) == "pork"
+    # NOT the parent node: `Fleisch in Aspik` also holds beef in aspic.
+    assert classify("Rindfleisch in Aspik", None, aspik + ["Rindfleisch in Aspik"], None) != "pork"
+
+
+def test_breaded_fish_is_frozen_like_breaded_cheese():
+    """The user's convention (2026-09-11): consistent with Mozzarella-Sticks -> frozen."""
+    fish_path = [_FOOD, "Produkte", "Lebensmittel", "Fisch", "Fischzubereitung", "Fischstäbchen"]
+    assert classify("Iglo Fischstäbchen", "Iglo", fish_path, "versch. Sorten, z. B. 450g Packung") == "frozen"
+    assert classify("Wagner Rustipani geräucherter Käse", "Wagner",
+                    [_FOOD, "Produkte", "Lebensmittel", "Milchprodukte", "Käse", "Schnittkäse", "Räucherkäse"],
+                    None) == "frozen"
+
+
+def test_the_christmas_range_is_sweets():
+    """The user's convention (2026-09-11): one seasonal shelf, one chip."""
+    assert classify("Runde braune Lebkuchen", None, None, None) == "sweets"
+    assert classify("Mini Stollen", None, None, "200-g-Packung, Mit Butter oder Edelmarzipan") == "sweets"
+    assert classify("Domino-steine", None, None, "Versch. Sorten, z. B. doppelt gefüllt") == "sweets"
+
+
+def test_protein_bars_are_snacks_and_a_yoghurt_flavoured_sweet_is_not_dairy():
+    assert classify("ALDI SPORTS Proteinriegel", "ALDI SPORTS", None, None) == "snacks"
+    assert classify("ESN Designer Whey Protein", "ESN", None, "300 g") == "health"
+    assert classify("Knoppers Himbeer-Joghurt 8er-Pack", None, None, None) == "sweets"
+    assert classify("Nimm 2 Lachgummi + Joghurt", None, None, None) == "sweets"
+
+
+@pytest.mark.parametrize(
+    "name, brand, caption, expected",
+    [
+        ("NESTLÉ After Eight", "NESTLÉ", "200 g", "sweets"),
+        ("Lindt Lindor Kugeln", "Lindt", "Versch. Sorten, je 137 g", "sweets"),
+        ("Arla Buko India", "Arla", "Versch. Sorten, Gekühlt. 200 g", "cheese"),
+        ("Rügener Bade Junge", "Rügener", "Der Sahnige 150-g-Pckg.", "cheese"),
+        ("Metzgerfrisch Frische Maispoularde", "METZGERFRISCH", "Ca. 1,4 kg", "poultry"),
+        ("Müller Doppel-Decker", "Müller", "Versch. Sorten", "dairy"),
+        ("Bioland Vollkorn-Körner-Krusti", "Bioland", "3 Stück", "bakery"),
+        ("HAK Linsen", "HAK", "200-g-Abtropfgew. 205-g-Btl.", "pantry"),
+        ("NISSIN Demae Ramen", "NISSIN", "japanische Nudelsuppe", "pantry"),
+        ("MÜHLENHOF XXL Aufschnitt", "MÜHLENHOF", "Versch. Sorten 250 g", "pork"),
+        ("GREENLAND Sonnenmais", "GREENLAND", "je 12 x 330 g, Abtropfgewicht = 12 x 285 g", "pantry"),
+        ("followfood Junge Bio-Erbsen", "followfood", None, "frozen"),
+        ("Volkswagen Hot-Dog", "Volkswagen", "mit der original Currywurst", "ready_meals"),
+        ("Alpenschmaus Kaiserschmarrn", "Alpenschmaus", None, "ready_meals"),
+        ("Schwip Schwap Erfrischungsgetränk", "Schwip Schwap", "versch. Sorten je 1,25 l", "soft_drinks"),
+        ("FOOD FOR FUTURE Bio Matcha Haferdrink", "FOOD FOR FUTURE", "je 1 l", "vegan"),
+        ("Wellmix Protein Complex Vanilla Flavour", "Wellmix", "350 g", "health"),
+        ("TÚNEL de Mallorca Mezcladas", "TÚNEL", None, "alcoholic"),
+        ("WIESN SCHMANKERL Bayerischer Leberkäs", "WIESN SCHMANKERL", "Zum Fertigbacken 1.000-g-Packung", "pork"),
+        ("Rack & Rüther Stracke", "Rack & Rüther", "die Rohwurst-Spezialität 100g", "pork"),
+        ("GUT&GÜNSTIG Red Prince", "GUT&GÜNSTIG", "Deutschland Tafeläpfel, Kl. II 2kg Beutel", "fruits"),
+        ("EDEKA Herzstücke Gemüse", "EDEKA Herzstücke", "schonend tiefgefroren, versch. Sorten", "frozen"),
+        ("GUT&GÜNSTIG Italian Style", "GUT&GÜNSTIG", "Gemüsepfanne 750g Beutel", "frozen"),
+    ],
+)
+def test_this_weeks_other_bucket_resolves(name, brand, caption, expected):
+    assert classify(name, brand, None, caption) == expected
+
+
+def test_the_signals_this_audit_simulated_and_rejected():
+    """Pinned so they are not re-"found". Each fixture is decided AFTER the caption layer, so the
+    rejected caption signal is exactly the thing that would move it."""
+    # A `rotwein` caption: a beef stew in red-wine sauce is still beef.
+    assert classify("Rindergulasch", None, None, "in Rotweinsauce, 400 g") == "beef"
+    # An `abtropfgewicht` caption: buffalo mozzarella in brine is still cheese.
+    assert classify("ITALIAMO Mozzarella di Bufala", "ITALIAMO", None, "125 g Abtropfgewicht") == "cheese"
+    # ` linsen` keeps its leading space, so the drugstore's `kontaktlinsen` stays reachable.
+    assert classify("Kontaktlinsen-Kochsalzlösung", None, None, None) == "health"
+
+
+def test_the_bavarian_leberkaes_spelling_and_the_waldquell_container_path():
+    """`leberkäs` sits at layer 2 beside `fleischkäse`. It covers the spelling with no final -e, and at
+    that layer it also beats the `Thüringer Waldquell` brand-container node (a WATER brand the source
+    files regional Thuringian food under), which was serving a Leberkäse as a soft drink."""
+    waldquell = [_FOOD, "Produkte", "Getränke", "Wasser", "Wassermarken", "Thüringer Waldquell"]
+    assert classify("Thüringer Leberkäse oder Jagdwurst", None, waldquell, None) == "pork"
