@@ -1,0 +1,70 @@
+name: Probe — can a runner scrape?
+
+# A one-question experiment, kept so the answer can be re-checked rather than remembered.
+#
+# The backend is moving off Render, where an ephemeral disk forces a ~15-call boot scrape on
+# every cold start (that wait is the whole reason for the move). The replacement scrapes ONCE a
+# week on a GitHub runner and ships the result as data. That rests on an assumption nobody has
+# tested: that the flyer aggregators answer a GitHub runner's IP the way they answer a Berlin
+# laptop. The location cookie is proven to override IP geo for *which* brochures get listed
+# (bonial.py `_location_cookie`), but throttling by IP range is a different mechanism, and its
+# documented shape here is HTTP 200 with LESS CONTENT — no error, no status code, just a thin
+# answer that a naive check reads as success.
+#
+# So this prints the three things that separate "blocked" from "fine", and nothing else:
+#   * offers per CHAIN, against the data gate's own per-chain floor
+#   * the outbound throttle counters (429/5xx/403 give-ups), by host
+#   * the degraded-scrape counters (a chain that yielded nothing), by chain
+#
+# Everything printed is keyed on `chain`, never `store_name` — bonial.py builds store names as
+# f"{store_label} {plz}", so a store name in a public log leaks the postal code this repo had
+# to rewrite its history to remove. The PLZ reaches exactly one step, through env, and is
+# never echoed.
+#
+# Deliberately NOT a gate and NOT scheduled: it writes nothing, deploys nothing, and only
+# needs asking again if the weekly pipeline starts coming back thin.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Scrape on a runner and report counts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # A throwaway SQLite file in the runner's workspace; nothing is uploaded or persisted.
+      DATABASE_URL: sqlite:///./probe.db
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create the schema
+        run: alembic upgrade head
+
+      # The scrape and the report run in ONE process on purpose: app/metrics.py counts
+      # outbound calls in module-level state, so a separate reporting process would read an
+      # empty snapshot and a throttled run would look clean.
+      #
+      # SCRAPE_SAMPLE_FALLBACK is deliberately left unset (it defaults to False), so a blocked
+      # chain yields NOTHING rather than invented sample prices. A chain at 0 here is the
+      # signal; a chain sitting at its sample size would be a lie.
+      - name: Scrape and report (counts only)
+        env:
+          PLZ: ${{ secrets.SCRAPE_PLZ || '10115' }}
+        run: python ../.github/scripts/probe_runner_scrape.py
