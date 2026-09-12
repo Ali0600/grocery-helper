@@ -1,164 +1,243 @@
 name: Weekly refresh
 
-# Wipes the deployed backend's offers and re-scrapes once a week (flyers are weekly).
-# Runs SUNDAY MORNING: the current week's flyers are Mon–Sat, so by Sunday they're spent
-# and the next week's brochures are already discoverable — refreshing now means fresh deals
-# are loaded before the app's weekly cache goes stale (it expires past Sunday).
-# Uses POST /api/reset (wipe + re-scrape), not /api/scrape (in-place upsert), so stale rows
-# the new scrape no longer touches are cleared too — a clean weekly set, not an accreting one.
-# NOTE: Render free-tier SQLite is ephemeral (wiped on the next idle sleep), so this is
-# transient until the backend moves to a persistent DB — but it demonstrates the scheduled
-# data-refresh automation and keeps deals fresh between cold starts.
+# Scrapes this week's flyers, GATES the result, and only then ships it — as data, inside a
+# new version of the Lambda package (infra/template.yaml). Flyers are weekly, so this is the
+# one thing that changes what the API serves.
+#
+# Runs SUNDAY MORNING: the current week's flyers are Mon-Sat, so by Sunday they are spent and
+# next week's brochures are already discoverable — which lands fresh deals before the app's
+# weekly cache expires past Sunday.
+#
+# The ORDER is the design. Scrape, export exactly what the API will serve, judge THAT with the
+# data gate, and deploy only if it passes. A bad week therefore cannot reach the app at all:
+# the job fails, nothing is deployed, and last week's package keeps serving. Before the move
+# to a packaged database this was impossible — the scrape wrote straight into the live
+# database and the gate could only report on damage already done.
 on:
   schedule:
     - cron: '0 6 * * 0' # Sundays 06:00 UTC (07:00 CET / 08:00 CEST Berlin)
   workflow_dispatch:
     inputs:
-      plz:
-        description: Postal code to scrape (blank → SCRAPE_PLZ secret, else 10115)
-        required: false
-      # Re-run the data gate against the DEPLOYED backend without touching its data.
+      # Re-run the data gate against the DEPLOYED function without scraping or deploying.
       #
-      # Until this existed the only way to re-verify prod was the wipe-and-re-scrape below, so
-      # a bug fixed mid-week left its `scrape-failure` issue open until the next Sunday — and
-      # that open issue is what the self-heal poller consumes, so a stale one actively burns
-      # healing attempts on a repo that is already fixed. A green verify-only run closes the
-      # issue through the same machinery a real refresh does.
+      # Until this existed the only way to re-verify production was a full wipe-and-re-scrape,
+      # so a bug fixed mid-week left its `scrape-failure` issue open until Sunday — and that
+      # open issue is what the self-heal poller consumes, so a stale one burns healing
+      # attempts on a repo that is already fixed. A green verify-only run closes the issue
+      # through the same machinery a real refresh does.
       #
       # Declared `type: boolean` and read via the `inputs` context, which PRESERVES the boolean
       # (`github.event.inputs` stringifies it). Every guard below is therefore plain truthiness:
       # `inputs.verify_only == 'true'` would compare a boolean to a string, which coerces to
       # false, and the guard would silently never fire.
       verify_only:
-        description: Re-check the served deals WITHOUT wiping and re-scraping
+        description: Re-check the deployed deals WITHOUT scraping or deploying
         type: boolean
         default: false
         required: false
+      # There is deliberately no `plz` input. The scrape's output IS production's data now, so
+      # a one-off postal code would not be a test — it would replace the week every user sees.
 
 permissions:
   contents: read
   issues: write # open/update an alert issue when the refresh keeps failing
+  id-token: write # mint the OIDC token that assumes the AWS deploy role
 
 jobs:
   refresh:
-    name: Wipe and re-scrape
+    name: Scrape, gate and deploy this week's data
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    env:
+      # A throwaway file in the runner's workspace. It becomes the deployed database, and it
+      # is never uploaded as a workflow artifact: a public repo's artifacts are downloadable,
+      # and store names embed the postal code (bonial.py builds f"{store_label} {plz}").
+      DATABASE_URL: sqlite:///./week.db
     steps:
-      # Needed for the data-quality gate script below; the reset step itself is pure curl.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
-      # Wake the service BEFORE the reset, and let it settle.
-      #
-      # The free tier sleeps, so POSTing /api/reset cold makes the container start, run its own
-      # boot scrape of DEFAULT_PLZ (~13 outbound calls), and only then serve our reset — which
-      # deletes everything that boot scrape just wrote and scrapes again, hitting the same five
-      # publisher pages a second time within about a minute. On 2026-07-19 that doubled burst came
-      # back thin: three chains got an empty brochure list (HTTP 200, no error) and silently fell
-      # back to sample data; the identical request ten minutes later was fine.
-      #
-      # /health only answers once startup — boot scrape included — has finished, so this both
-      # absorbs the cold start and spaces our two bursts apart.
-      # This is a warm-up, not a gate: if /health can't be reached the reset step's own retries
-      # are the place to fail, so never fail the job here.
-      - name: Wake the service and let its boot scrape settle
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      # Runtime dependencies only — this job builds the package the function runs, and the
+      # data gate itself is standard library.
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Assume the deploy role
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: eu-central-1
+          role-session-name: grocery-helper-weekly-${{ github.run_id }}
+
+      - name: Resolve the live API
+        id: live
         run: |
-          BASE=https://grocery-helper-sw6c.onrender.com
-          curl -fsS --max-time 300 --retry 2 --retry-all-errors --retry-delay 15 \
-               "$BASE/health" -w " (health answered in %{time_total}s)\n" \
-            || echo "::warning::health check did not answer — continuing to the reset anyway"
-          if [ "${VERIFY_ONLY}" = "true" ]; then
-            echo "verify-only run - no reset follows, so there is no second burst to space out"
+          base=$(aws cloudformation describe-stacks --stack-name grocery-helper \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" \
+            --output text 2>/dev/null || true)
+          if [ -z "$base" ] || [ "$base" = "None" ]; then
+            echo "::notice::no stack yet — this run will create it."
           else
-            echo "pausing ${SETTLE_S}s so our scrape isn't a second burst on the same pages…"
-            sleep "${SETTLE_S}"
+            echo "base=${base%/}" >> "$GITHUB_OUTPUT"
+            echo "Live API: ${base%/}"
           fi
-        env:
-          SETTLE_S: 60
-          VERIFY_ONLY: ${{ inputs.verify_only }}
 
-      - name: POST /api/reset (retry transient failures)
-        id: reset
+      # SCRAPE_SAMPLE_FALLBACK is deliberately left unset (it defaults to False), so a chain
+      # that cannot be reached yields NOTHING rather than invented sample prices. A missing
+      # chain is caught by the gate's per-chain floor below; a fabricated 1,59 € shampoo would
+      # be indistinguishable from a real deal, and the price-history collector would record it.
+      - name: Scrape this week's deals into week.db
+        id: scrape
         if: ${{ ! inputs.verify_only }}
+        working-directory: backend
         env:
-          # SCRAPE_PLZ is a *secret* (not a variable) so a personal postal code is masked
-          # in the public Actions logs; falls back to a neutral central default if unset.
-          PLZ: ${{ github.event.inputs.plz || secrets.SCRAPE_PLZ || '10115' }}
-          # Required on the deployed host since #184: Render answers /api/reset with 403 unless its
-          # own ADMIN_TOKEN environment value matches this secret.
-          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          # A *secret*, not a variable, so it is masked in this public repo's logs. Reaches
+          # the scraper through env and is never echoed; every count printed is keyed on chain.
+          PLZ: ${{ secrets.SCRAPE_PLZ || '10115' }}
         run: |
-          for attempt in 1 2 3; do
-            echo "Attempt $attempt: wiping + re-scraping (free-tier cold start can take ~30s)…"
-            if curl -fsS --max-time 300 -X POST \
-                 -H "X-Admin-Token: ${ADMIN_TOKEN}" \
-                 "https://grocery-helper-sw6c.onrender.com/api/reset?plz=${PLZ}" \
-                 -w "HTTP %{http_code} in %{time_total}s\n"; then
-              exit 0
-            fi
-            echo "::warning::refresh attempt $attempt failed — retrying in 30s"
-            sleep 30
-          done
-          echo "::error::refresh failed after 3 attempts"
-          exit 1
+          alembic upgrade head
+          python -m app.scripts.scrape --plz "$PLZ"
 
-      # A successful reset can still have produced BAD data (a chain silently skipped, a
-      # feed shape drift collapsing the parse rates, samples instead of real offers). The
-      # gate asserts the served OUTCOME against measured floors; a violation fails this
-      # job, which flows into the exact same alert-issue + close-on-recovery machinery
-      # below — no new plumbing. Prints counts only (the PLZ secret never echoes).
+      # Exports what /api/offers will actually return, per vertical, by calling the real route
+      # against this very file opened read-only exactly as the function will open it. The gate
+      # below then judges those files — so it is reading the app's own output rather than a
+      # second implementation of the route's filtering, dedup and sort, and cannot approve a
+      # week the function would serve differently.
+      - name: Export the served set and stamp meta.json
+        if: ${{ ! inputs.verify_only }}
+        working-directory: backend
+        env:
+          PLZ: ${{ secrets.SCRAPE_PLZ || '10115' }}
+        run: |
+          python -m app.scripts.package_week \
+            --db week.db --out ../infra/build --plz "$PLZ" --commit "$GITHUB_SHA"
+
+      # The gate that decides whether this week ships at all.
       #
-      # --post-reset arms the per-chain floor, and it is only honest HERE: a chain empties
-      # legitimately between brochures (Rossmann's week ends Friday, so on a Saturday it
-      # really does serve ~2 offers), but this step runs immediately after the wipe-and-
-      # re-scrape above, where every chain is supposed to have a fresh brochure. A thin one
-      # at this point is an incident. Keep this step AFTER the reset or the flag is a lie.
+      # --post-reset arms the per-chain floor, and it is honest HERE and almost nowhere else:
+      # a chain empties legitimately between brochures (Rossmann's week ends Friday, so a
+      # Saturday really does serve ~2 offers), but this file was scraped minutes ago, when
+      # every chain is supposed to have a fresh brochure. A thin one at this point is an
+      # incident, and the deploy below must not happen.
       - name: Data-quality gate on the served deals
         if: ${{ ! inputs.verify_only }}
-        env:
-          PLZ: ${{ github.event.inputs.plz || secrets.SCRAPE_PLZ || '10115' }}
         run: |
-          python3 .github/scripts/verify_deals.py --post-reset \
-            --url "https://grocery-helper-sw6c.onrender.com/api/offers" --plz "${PLZ}"
+          for vertical in grocery drugstore drinks; do
+            echo "--- $vertical ---"
+            python3 .github/scripts/verify_deals.py --post-reset \
+              --file "infra/build/served_${vertical}.json" --vertical "$vertical"
+          done
 
-      # The verify-only twin. Deliberately a SEPARATE step rather than one gate that builds its
-      # flags in the shell: a conditional inside `run:` would leave the literal `--post-reset`
-      # in the step body, so the test asserting the scheduled path passes it would stay green
-      # whether or not the flag ever applied — a gate reporting on something it never checked.
+      - name: Build the Lambda package
+        if: ${{ ! inputs.verify_only }}
+        run: infra/build.sh infra/build
+
+      - uses: aws-actions/setup-sam@89ddb14d60e682855e3fea4be85b3c56485de310 # v3
+        if: ${{ ! inputs.verify_only }}
+        with:
+          use-installer: true
+
+      - name: Deploy this week's data
+        id: deploy
+        if: ${{ ! inputs.verify_only }}
+        env:
+          BUCKET: ${{ secrets.AWS_ARTIFACT_BUCKET }}
+        run: |
+          # A merge deploying code shares this stack, so an overlapping run would otherwise
+          # collide mid-update.
+          for i in $(seq 1 30); do
+            status=$(aws cloudformation describe-stacks --stack-name grocery-helper \
+              --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NONE)
+            case "$status" in
+              *_IN_PROGRESS) echo "stack is $status — waiting (poll $i)"; sleep 20 ;;
+              *) echo "stack is $status"; break ;;
+            esac
+          done
+          sam deploy --config-file "$GITHUB_WORKSPACE/infra/samconfig.toml" \
+            --template-file infra/template.yaml \
+            --s3-bucket "$BUCKET" \
+            --no-progressbar \
+            --parameter-overrides "GitCommit=$GITHUB_SHA"
+
+      # "The deploy succeeded" says nothing about which week is being served, so /health
+      # carries the packaged week's build timestamp and this polls for the one just built.
+      # Then the gate runs again against the live URL — the same thresholds, now measured on
+      # the deployed function rather than on a file on this runner.
+      - name: Verify the deployed deals
+        if: ${{ ! inputs.verify_only }}
+        env:
+          PLZ: ${{ secrets.SCRAPE_PLZ || '10115' }}
+        run: |
+          base=$(aws cloudformation describe-stacks --stack-name grocery-helper \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" --output text)
+          base="${base%/}"
+          want=$(python3 -c 'import json;print(json.load(open("infra/build/meta.json"))["built_at"])')
+          echo "Waiting for /health to report the week built at ${want}…"
+          for i in $(seq 1 30); do
+            live=$(curl -fsS --max-time 30 "$base/health" | python3 -c \
+              'import sys,json;print(json.load(sys.stdin).get("data_built_at") or "")' 2>/dev/null || true)
+            [ "$live" = "$want" ] && { echo "this week is live (poll $i)"; break; }
+            sleep 10
+            if [ "$i" -eq 30 ]; then
+              echo "::error::the deployed function is still serving the week built at '${live:-none}'"
+              exit 1
+            fi
+          done
+          python3 .github/scripts/verify_deals.py --post-reset \
+            --url "$base/api/offers" --plz "$PLZ"
+          # The response cap that would make every per-chain number lie. Lambda refuses a
+          # buffered response over 6 MB outright, and the payload bundle is the endpoint that
+          # grows with raw_payload, so it is measured rather than assumed.
+          size=$(curl -fsS --max-time 60 -o /dev/null -w '%{size_download}' \
+            "$base/api/offers/payloads?plz=$PLZ&vertical=grocery")
+          echo "payload bundle: $size bytes"
+          if [ "$size" -gt 5500000 ]; then
+            echo "::error::the payload bundle is ${size} bytes, approaching Lambda's 6 MB response limit"
+            exit 1
+          fi
+
+      # The verify-only twin. Deliberately a SEPARATE step rather than one gate that builds
+      # its flags in the shell: a conditional inside `run:` would leave the literal
+      # `--post-reset` in the step body, so the test asserting the scheduled path passes it
+      # would stay green whether or not the flag ever applied.
       #
       # No --post-reset here, and that is the whole point. The flag arms the per-chain floor by
-      # asserting "every chain has a fresh brochure", which is true right after the wipe and
-      # false at any other moment: a chain empties legitimately between brochures (Rossmann's
-      # week ends Friday, so a Saturday really does serve ~2 offers). Passing it mid-week would
-      # fail the gate on healthy data, and the tempting fix for that red is to loosen the floor
-      # that exists to catch a genuinely dark chain.
+      # asserting "every chain has a fresh brochure", which is true right after a scrape and
+      # false at any other moment. Passing it mid-week would fail the gate on healthy data,
+      # and the tempting fix for that red is to loosen the floor that exists to catch a
+      # genuinely dark chain.
       - name: Data-quality gate (verify-only)
         if: ${{ inputs.verify_only }}
         env:
-          PLZ: ${{ github.event.inputs.plz || secrets.SCRAPE_PLZ || '10115' }}
+          PLZ: ${{ secrets.SCRAPE_PLZ || '10115' }}
+          BASE: ${{ steps.live.outputs.base }}
         run: |
-          python3 .github/scripts/verify_deals.py \
-            --url "https://grocery-helper-sw6c.onrender.com/api/offers" --plz "${PLZ}"
+          python3 .github/scripts/verify_deals.py --url "$BASE/api/offers" --plz "$PLZ"
 
-      # The data verdict has to survive a FAILED reset. The gate above only runs after a successful
-      # one: a step whose `if:` names no status function gets an implicit `success() &&`, so GitHub
-      # skips it once an earlier step failed. When #184 made the admin endpoints fail closed on a
-      # host without ADMIN_TOKEN, every Sunday reset returned 403 and the data check stopped running
-      # at all. The alert issue said "refresh failed" and nothing about what prod was serving; that
-      # week Rossmann was down to 25 offers, and it was found by hand.
+      # The data verdict has to survive a FAILED scrape. A step whose `if:` names no status
+      # function gets an implicit `success() &&`, so GitHub skips it once an earlier step
+      # failed — which is how a fail-closed auth change once silenced this check entirely:
+      # every Sunday refresh returned 403, the data check stopped running, the alert issue
+      # said "refresh failed" and nothing about what production was serving, and a chain down
+      # to 25 offers was found by hand a week later.
       #
-      # No --post-reset, for the verify-only twin's reason: nothing was re-scraped, so the per-chain
-      # floor would assert something false. This cannot turn the run green (the job has already
-      # failed); it only puts the verdict in the log the alert issue links to.
-      - name: Data-quality gate after a failed reset
-        if: ${{ failure() && steps.reset.outcome == 'failure' }}
+      # No --post-reset: nothing was scraped, and the deployed function is still serving last
+      # week, where a chain may legitimately have emptied. This cannot turn the run green —
+      # the job has already failed — it only puts the verdict in the log the alert issue links.
+      - name: Data-quality gate after a failed scrape
+        if: ${{ failure() && steps.scrape.outcome == 'failure' }}
         env:
-          PLZ: ${{ github.event.inputs.plz || secrets.SCRAPE_PLZ || '10115' }}
+          PLZ: ${{ secrets.SCRAPE_PLZ || '10115' }}
+          BASE: ${{ steps.live.outputs.base }}
         run: |
-          python3 .github/scripts/verify_deals.py \
-            --url "https://grocery-helper-sw6c.onrender.com/api/offers" --plz "${PLZ}"
+          python3 .github/scripts/verify_deals.py --url "$BASE/api/offers" --plz "$PLZ"
 
       # A silent weekly failure is invisible; surface it as a (deduplicated) issue.
       - name: Alert on repeated failure
@@ -191,10 +270,9 @@ jobs:
               });
             }
 
-      # Completes the loop: a healthy refresh closes any open alert issue, so a
-      # transient outage (or a merged self-heal fix) ends the cycle without
-      # human bookkeeping. The local self-heal poller
-      # (https://github.com/Ali0600/self-healing-script) consumes these issues.
+      # Completes the loop: a healthy refresh closes any open alert issue, so a transient
+      # outage (or a merged self-heal fix) ends the cycle without human bookkeeping. The local
+      # self-heal poller (https://github.com/Ali0600/self-healing-script) consumes these.
       - name: Close recovery issues
         if: success()
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0

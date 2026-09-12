@@ -1,0 +1,14 @@
+# Defaults for `sam deploy`, so both pipelines invoke it identically and the stack name
+# cannot drift between them.
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "grocery-helper"
+region = "eu-central-1"          # Frankfurt: the flyers, the users and the data are German
+s3_prefix = "grocery-helper"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false        # unattended
+# A re-run that changes nothing (a docs-only dispatch, a retried job) is a success, not a
+# failure: CloudFormation otherwise exits non-zero on an empty changeset and would open an
+# alert issue for a no-op.
+fail_on_empty_changeset = false

@@ -96,6 +96,29 @@ def test_a_deployed_instance_refuses_the_wipe_when_no_token_is_configured(monkey
     assert len(session.scalars(select(Offer)).all()) == 2
 
 
+def test_a_lambda_is_a_deployed_host_too(monkeypatch):
+    """The same fail-closed refusal, keyed on the NEW host's marker.
+
+    The guard derives "am I deployed?" from the platform's own injected environment so there
+    is no third value to set and forget. That derivation is per-platform, so moving hosts is
+    exactly when it silently reverts to fail-open: the marker it looks for stops existing, the
+    endpoint reads as local dev, and the public URL's wipe endpoint is unauthenticated again.
+    Asserted on the OUTCOME — the offers are still there — not just the status code.
+    """
+    session = _session()
+    _seed(session)
+    monkeypatch.setattr(settings, "admin_token", "")
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.delenv("RENDER_GIT_COMMIT", raising=False)
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "grocery-helper-api")  # Lambda injects this
+    monkeypatch.setattr("app.scrapers.run.run_scrapers", lambda s, p: 0)
+
+    with pytest.raises(HTTPException) as exc:
+        trigger_reset(session, plz="10115", token=None)
+    assert exc.value.status_code == 403
+    assert len(session.scalars(select(Offer)).all()) == 2
+
+
 def test_local_dev_without_a_token_is_still_open(monkeypatch):
     """The deny above is scoped to a DEPLOYED instance on purpose. Requiring a token locally
     would mean every contributor has to invent one before they can reset their own SQLite file,

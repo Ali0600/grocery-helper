@@ -12,10 +12,11 @@ the cheapest basket across one or two stores.
 > Berlin prices, resolved from your postal code through the Lidl Plus endpoints, the
 > meinprospekt weekly-flyer feed and dm's clearance API. Eight chains are what make the
 > basket optimizer, the per-product grouping and the **Compare Stores** face-off worth
-> having. The **backend runs on Render** (HTTPS), and the iOS app ships through
-> **EAS → TestFlight** (build 1.1.0) with OTA updates — new code delivered straight to
-> the phone, without an App Store release.
-> See [Deploy](#deploy-to-render-free-https-for-testflight) and [Roadmap](#roadmap).
+> having. The **backend runs on AWS Lambda**, serving each week's deals from a database
+> that ships inside its own deployment package — so there is no server to wake up and no
+> cold-start scrape. The iOS app ships through **EAS → TestFlight** (build 1.1.0) with OTA
+> updates — new code delivered straight to the phone, without an App Store release.
+> See [Deploy](#deploy-the-backend-aws-lambda) and [Roadmap](#roadmap).
 
 ## Highlights
 
@@ -149,14 +150,14 @@ the cheapest basket across one or two stores.
   a legacy pre-migration database is auto-stamped rather than re-created.
 - **CI/CD pipeline (GitHub Actions)** — every push and PR runs test, lint, type-check and
   Docker-build gates in parallel (backend `pytest` **with coverage reporting** + mobile
-  **Jest**, ruff, ESLint, `tsc`). Production deploys to Render go out through deploy hooks,
-  and only when the build is green. Mobile updates ship over the air through EAS Update. A
+  **Jest**, ruff, ESLint, `tsc`), plus a build of the arm64 Lambda package itself. Production
+  deploys run `sam deploy` through a short-lived OIDC role, and only when the build is green. Mobile updates ship over the air through EAS Update. A
   scheduled weekly data-refresh cron **retries and opens a GitHub issue on failure**. The
   pipeline uses least-privilege permissions, dependency caching and concurrency control,
   and **Dependabot raises pull requests for security advisories only** — routine version
   bumps are switched off, so a dependency PR always means there is a CVE (a published
   security flaw).
-- **Automated test suite** — ~1,630 backend tests (pytest) cover the scrapers, classifier,
+- **Automated test suite** — ~1,650 backend tests (pytest) cover the scrapers, classifier,
   dedup, unit-price and validity logic, and HTTP-level API behavior (filters, auth guards,
   throttling). A React Native **Jest** suite (~475 tests) covers the app's pure business
   logic: basket matching, the deals filter pipeline, recipe filtering, store comparison and
@@ -224,8 +225,8 @@ the cheapest basket across one or two stores.
 | ---------- | ------------------------------------------------- |
 | Mobile app | React Native (Expo), TypeScript                   |
 | Backend    | Python, FastAPI, SQLAlchemy 2.0, Pydantic v2      |
-| Database   | SQLite (local dev) / PostgreSQL (prod)            |
-| Infra      | Docker, Docker Compose, PaaS (Railway/Render/Fly) |
+| Database   | SQLite (local dev, and the deployed week) / PostgreSQL (compose) |
+| Infra      | AWS Lambda + SAM/CloudFormation, Docker, Docker Compose |
 
 ## Repository layout
 
@@ -252,7 +253,7 @@ install.
 ```bash
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn app.main:app --reload
 ```
 
@@ -277,21 +278,29 @@ curl -X POST http://localhost:8000/api/optimize \
 docker compose up --build
 ```
 
-### Deploy to Render (free HTTPS, for TestFlight)
+### Deploy the backend (AWS Lambda)
 
-The backend ships an **Infrastructure-as-Code** [`render.yaml`](render.yaml)
-Blueprint. It deploys [`backend/Dockerfile`](backend/Dockerfile) as a Render web service
-with a free managed HTTPS URL (`https://<name>.onrender.com`). That URL is what the
-iOS/TestFlight build talks to: a real device can't reach `localhost`, and iOS requires
-HTTPS. Apply it in the Render dashboard → **New → Blueprint**, which reads `render.yaml`
-from the repo. The container binds to Render's `$PORT`, and `/health` is the health check.
-The mobile production build points at this URL via `EXPO_PUBLIC_API_URL` in
-[`mobile/eas.json`](mobile/eas.json).
+The backend is one AWS Lambda function in Frankfurt, and **each week's deals ship inside its
+deployment package** as a read-only SQLite file. Everything is Infrastructure-as-Code in
+[`infra/`](infra/) — a SAM/CloudFormation stack, deployed from GitHub Actions through OIDC,
+with no AWS keys stored anywhere. Setup is one manual CloudFormation apply; see
+[`infra/README.md`](infra/README.md).
 
-> Free-tier note: the instance sleeps after ~15 min idle and cold-starts on the next
-> request. The app re-seeds by scraping on boot, so the first call after a sleep is slow.
-> For data that lasts, attach a Render Postgres or a persistent disk and set
-> `DATABASE_URL` (the app already supports Postgres — see `docker-compose.yml`).
+The interesting part is why the data travels with the code. The previous host slept after 15
+minutes of idling and gave the container a disk that did not survive, so on every cold start
+the app rebuilt its data from scratch: ~15 scraping requests, 30–60 seconds before the API
+would answer anything. The wait was never the host starting up — it was the data having
+nowhere to live.
+
+Shipping the week as part of the artifact also makes a bad week unshippable. The weekly
+pipeline scrapes, exports exactly what `/api/offers` will return, and runs the data gate on
+*those files*; only if it passes does anything deploy, so a failed scrape leaves last week
+serving. Previously the scrape wrote straight into the live database and the gate could only
+report damage that had already happened.
+
+> Trade-off: only pre-published postal codes work. An unpublished one honestly reads "no deals
+> published yet" instead of scraping on demand. `docker-compose.yml` still runs the whole
+> thing against Postgres locally.
 
 ### Build for iOS / TestFlight (EAS)
 
@@ -421,9 +430,9 @@ Three workflows under [`.github/workflows/`](.github/workflows/):
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
-| `ci.yml` | push / PR to `main` | Backend `ruff` + `pytest`, mobile ESLint + `tsc`, and a backend Docker image build. On green pushes to `main` it triggers the Render deploy. |
+| `ci.yml` | push / PR to `main` | Backend `ruff` + `pytest`, mobile ESLint + `tsc`, a backend Docker image build, and a build of the arm64 Lambda package (which is where a dependency with no aarch64 wheel fails, on the PR rather than mid-deploy). On green pushes to `main` it deploys the backend, carrying the live week's data forward. |
 | `eas-update.yml` | after a green CI run on `main` + manual | Publishes an EAS Update (OTA) to the `production` channel — gated on a successful CI run (via `workflow_run`), and only when `mobile/**` changed, so a failing build can't reach users. |
-| `scrape.yml` | Sunday cron + manual | Wipes & re-scrapes via `POST /api/reset` (flyers are weekly, spent by Sunday) — retries 3× and opens/comments a self-alerting failure issue. A `verify_only` dispatch input re-checks the deployed data **without** wiping it, so a mid-week fix can clear a stale alert. |
+| `scrape.yml` | Sunday cron + manual | Scrapes the week (flyers are weekly, spent by Sunday), exports exactly what the API will serve, runs the data gate on **those files**, and deploys only if it passes — so a bad week never reaches the app and last week keeps serving. Opens a self-alerting failure issue that closes itself on recovery. A `verify_only` dispatch re-checks the deployed data without scraping. |
 
 Least-privilege permissions, dependency caching and concurrency cancellation apply
 throughout. CI is hermetic: the tests use JSON fixtures, so they need no network and no
@@ -434,12 +443,13 @@ secrets.
 The deploy and EAS Update steps **skip quietly** until their secrets exist, so CI is green
 out of the box. To turn them on:
 
-**Gated Render deploy** (deploy only when CI is green):
-1. Render dashboard → service → **Settings → turn OFF Auto-Deploy**. Otherwise it deploys
-   on every push and bypasses the gate.
-2. Settings → **Deploy Hook** → copy the URL.
-3. GitHub repo → Settings → Secrets and variables → Actions → add
-   **`RENDER_DEPLOY_HOOK_URL`**.
+**Gated AWS deploy** (deploy only when CI is green):
+1. An AWS account on the Paid plan, in `eu-central-1` (this runs inside the always-free
+   allowances; the Free plan closes the account after six months).
+2. Apply [`infra/bootstrap.yaml`](infra/bootstrap.yaml) once in CloudFormation (creates the
+   GitHub OIDC trust, an artifact bucket and two narrowly scoped IAM roles).
+3. GitHub repo → Settings → Secrets and variables → Actions → add its outputs as
+   **`AWS_DEPLOY_ROLE_ARN`** and **`AWS_ARTIFACT_BUCKET`**.
 
 **EAS Update (OTA):**
 1. expo.dev → Account → **Access Tokens** → create one.
@@ -468,13 +478,15 @@ What building and running this project demonstrates:
   source by measuring three candidate feeds against the gate's parse-quality thresholds.
 - Audited ~4,000 stored payloads and 2,700 products against their own photos: recovered
   prices for ~21% of offers, lifted €/kg coverage 53% → 72%, reclassified 107 records.
-- Wrote ~1,630 backend pytest and ~475 mobile Jest tests behind a `--cov-fail-under=85`
+- Wrote ~1,650 backend pytest and ~475 mobile Jest tests behind a `--cov-fail-under=85`
   floor, plus Hypothesis property tests (auto-generated inputs) that found four latent bugs.
 - Cut one test file from 20 live third-party HTTP calls to zero (3.4s → 0.28s), and built a
   mutation harness that caught two tests passing for the wrong reason.
-- Built a 3-workflow GitHub Actions pipeline that gates the Render deploy and the EAS
-  over-the-air release on green CI, and retries the weekly scrape 3× before filing an issue.
-- Containerized the FastAPI backend and deployed it from one version-controlled
-  `render.yaml` Blueprint, with Alembic migrations spanning SQLite and PostgreSQL.
+- Built a 3-workflow GitHub Actions pipeline that gates the Lambda deploy and the EAS
+  over-the-air release on green CI, and files an issue that closes itself on recovery.
+- Migrated the backend from a sleeping PaaS to AWS Lambda with each week's data shipped inside
+  the deployment artifact, cutting a 30–60s cold-start scrape to a warm read: SAM/CloudFormation
+  IaC, GitHub OIDC with no stored keys, a deploy role scoped to one stack, and a weekly
+  scrape → gate → deploy pipeline where a failed data check leaves last week serving.
 - Hardened the deployed surface with two GitHub rulesets, SHA-pinned Actions, Dependabot
   cut to CVEs only, a timing-safe admin token, and a non-root container image.

@@ -11,8 +11,9 @@ class Settings(BaseSettings):
     app_name: str = "Grocery Helper API"
     # Local dev defaults to SQLite (zero setup). Prod sets DATABASE_URL to Postgres.
     database_url: str = "sqlite:///./grocery.db"
-    # Neutral central-Berlin default for the public repo. Set DEFAULT_PLZ in .env
-    # (local) or the host's env (Render dashboard) to use your own postal code.
+    # Neutral central-Berlin default for the public repo. Set DEFAULT_PLZ in .env to use your
+    # own postal code locally; the deployed function never reads it (it serves a packaged
+    # week), and the weekly pipeline passes the SCRAPE_PLZ secret explicitly.
     default_plz: str = "10115"  # Berlin Mitte
     cors_origins: str = "*"  # comma-separated list, or "*"
     # Guard for the destructive admin endpoints (POST /api/reset wipes every offer).
@@ -61,15 +62,37 @@ class Settings(BaseSettings):
     # in via backend/.env so the app is usable offline.
     scrape_sample_fallback: bool = False
 
+    # --- Snapshot mode (the deployed Lambda) -------------------------------------
+    # The deployed function serves a read-only SQLite file that was scraped, gated and
+    # packaged by the weekly pipeline, so it must NOT migrate and must NOT scrape at startup:
+    # Lambda caps the init phase at 10 seconds, and a boot scrape takes 30-60. That boot
+    # scrape is the whole reason the backend left Render, where an ephemeral disk made the
+    # offers table empty — its only trigger — on every single cold start.
+    #
+    # Off by default so local dev, CI and the Docker/compose path are untouched. Turning it on
+    # requires a read-only DATABASE_URL; `lifespan` refuses to start otherwise, because a
+    # writable URL here would mean the template is wrong and the function is quietly serving
+    # something other than the gated week.
+    snapshot_mode: bool = False
+    # Where the packaged week's provenance lives (built_at, commit, per-vertical counts).
+    # Empty means "meta.json next to the app package", which is where the build script puts it.
+    snapshot_meta_path: str = ""
+
 
 def is_deployed() -> bool:
     """True on a hosted instance, false locally and in CI.
 
-    Render injects both of these into every service it runs, and neither exists on a laptop or
-    a GitHub runner. Deriving it from the platform's own signal means there is no third value
-    to set and forget — the case that produced the open endpoint in the first place.
+    Each host injects its own marker into every process it runs, and none of them exists on a
+    laptop or a GitHub runner. Deriving it from the platform's own signal means there is no
+    third value to set and forget — the case that produced the open endpoint in the first
+    place. AWS_LAMBDA_FUNCTION_NAME is Lambda's; the RENDER ones are kept while that service
+    is still reachable during the cutover.
     """
-    return bool(os.getenv("RENDER") or os.getenv("RENDER_GIT_COMMIT"))
+    return bool(
+        os.getenv("AWS_LAMBDA_FUNCTION_NAME")
+        or os.getenv("RENDER")
+        or os.getenv("RENDER_GIT_COMMIT")
+    )
 
 
 settings = Settings()

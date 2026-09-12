@@ -6,23 +6,15 @@ alembic>=1.18.5
 pydantic>=2.7
 pydantic-settings>=2.3
 httpx>=0.28.1
-# Postgres driver (used in Docker/PaaS; local dev uses SQLite and won't import it)
+# Postgres driver, for the Docker/compose path. The deployed function serves a packaged
+# SQLite file and never imports this, but it ships in the Lambda package anyway (~3 MB, and
+# an aarch64 wheel exists) so one requirements file describes one runtime.
 psycopg2-binary>=2.9
-# Bundled IANA tz data so zoneinfo("Europe/Berlin") works on slim images (Render) that
-# strip the system tzdb — keeps per-offer validity dates host-independent.
+# Bundled IANA tz data so zoneinfo("Europe/Berlin") works where the system tzdb is stripped
+# (slim images, the Lambda runtime) — keeps per-offer validity dates host-independent, and
+# the serve-time `valid_to >= berlin_today()` filter is what retires day-limited deals
+# mid-week from an otherwise static weekly snapshot.
 tzdata>=2024.1
 # Error tracking (opt-in): only initialises when SENTRY_DSN is set. The [fastapi] extra
 # pulls the Starlette/FastAPI integration so unhandled 500s are captured automatically.
 sentry-sdk[fastapi]>=2.63.0
-# Dev / testing (also used by CI: pytest + ruff lint + coverage)
-# Pillow builds the weekly audit's contact sheets (app/scripts/contact_sheets.py). It was
-# installed ad-hoc in a long-lived venv and never declared, so a fresh checkout could not
-# run the audit at all — the drift only a from-scratch install exposes.
-pillow>=11.0
-pytest>=9.1.1
-pytest-cov>=7.1.0
-ruff>=0.15
-# Property-based testing for the parsers that eat external junk (Grundpreis strings,
-# discount labels, validity timestamps). CI runs it derandomized (see tests/conftest.py),
-# so it can never flake there; randomness only hunts locally.
-hypothesis>=6.100

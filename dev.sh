@@ -18,7 +18,7 @@ WEB_PORT=8081
 # --- preflight -------------------------------------------------------------
 if [[ ! -x "$ROOT/backend/.venv/bin/uvicorn" ]]; then
   echo "✗ backend venv not found at backend/.venv" >&2
-  echo "  create it:  cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt" >&2
+  echo "  create it:  cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements-dev.txt" >&2
   exit 1
 fi
 

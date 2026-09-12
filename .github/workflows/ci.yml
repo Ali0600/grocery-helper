@@ -6,9 +6,9 @@ on:
   pull_request:
     branches: [main]
   # Recovery hatch. The deploy job lives in this workflow and only fires on a push that touched a
-  # runtime backend file, so a deploy that was cancelled, timed out, or failed on Render could
-  # previously only be re-run by inventing another backend commit — the fix itself (a workflow or
-  # tests/ change) is excluded by that very filter. Hit this instead.
+  # runtime backend file, so a deploy that was cancelled, timed out, or failed could previously
+  # only be re-run by inventing another backend commit — the fix itself (a workflow or tests/
+  # change) is excluded by that very filter. Hit this instead.
   workflow_dispatch:
     inputs:
       force_deploy:
@@ -16,14 +16,16 @@ on:
         type: boolean
         default: false
 
-# Least privilege: jobs only read the repo; the deploy step uses a secret webhook.
+# Least privilege by default. The deploy job raises its own scope to `id-token: write` so it
+# can mint a short-lived OIDC token and assume the AWS deploy role; nothing else needs it, and
+# there are no long-lived AWS keys anywhere in this repo.
 permissions:
   contents: read
 
 # A newer push to a PR cancels the in-flight run — but NEVER on `main`, because the deploy job
 # lives in this workflow. On 2026-08-03 a docs commit pushed one minute after a backend merge
-# cancelled that merge's run, and the Render deploy died with it: the fix was on `main` and not
-# in production, with a green tick on the merge commit and no failure anywhere to notice.
+# cancelled that merge's run, and the deploy died with it: the fix was on `main` and not in
+# production, with a green tick on the merge commit and no failure anywhere to notice.
 # Superseded PR runs are still worth cancelling; a superseded `main` run is a lost deploy.
 concurrency:
   group: ci-${{ github.ref }}
@@ -45,10 +47,10 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: '3.12' # matches backend/Dockerfile (Render runtime)
+          python-version: '3.12' # matches backend/Dockerfile and the Lambda runtime
           cache: pip
-          cache-dependency-path: backend/requirements.txt
-      - run: pip install -r requirements.txt
+          cache-dependency-path: backend/requirements*.txt
+      - run: pip install -r requirements-dev.txt
       - run: ruff check .
       # HYPOTHESIS_PROFILE=ci derandomizes the property tests (tests/conftest.py) so this
       # gate can never flake; randomness only hunts locally. --cov-fail-under is a ratchet:
@@ -103,7 +105,9 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-      # Build-only (no push) so a broken Dockerfile/dependency fails here, not on Render.
+      # Build-only (no push) so a broken Dockerfile/dependency fails here. The image is no
+      # longer what production runs (the Lambda package is), but it is still the local and
+      # docker-compose path, and it is the only thing that exercises the Postgres driver.
       # Retry transient registry hiccups (e.g. Docker Hub 503 pulling the base image) so
       # an upstream blip doesn't fail the build.
       - name: Build backend image
@@ -118,11 +122,38 @@ jobs:
           echo "::error::docker build failed after 3 attempts"
           exit 1
 
-  deploy:
-    name: Deploy to Render
+  lambda-package:
+    name: Lambda package builds
     runs-on: ubuntu-latest
-    timeout-minutes: 25 # the verify steps poll a slow free-tier build+swap
-    needs: [backend, docker-build] # gate on the backend artifact's checks
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.12'
+      # Proves on every PR what would otherwise only be discovered mid-deploy: that every
+      # runtime dependency has a linux/aarch64 wheel (`pip install --platform` fails loudly
+      # if one does not), and that the package clears Lambda's size limits. An empty week.db
+      # stands in for the real one — it is the dependency resolution and the limits that are
+      # under test here, and the data has its own gate.
+      - name: Build a package around an empty week
+        run: |
+          mkdir -p infra/build
+          pip install -r backend/requirements.txt
+          (cd backend && DATABASE_URL=sqlite:///../infra/build/week.db alembic upgrade head)
+          printf '{"built_at": null, "commit": "ci", "offers": {}}\n' > infra/build/meta.json
+          infra/build.sh infra/build
+
+  deploy:
+    name: Deploy to AWS Lambda
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [backend, lambda-package] # gate on the tests AND on the package building
+    permissions:
+      contents: read
+      id-token: write # mint the OIDC token that assumes the AWS deploy role
     if: >-
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
@@ -131,14 +162,14 @@ jobs:
         with:
           fetch-depth: 2 # need HEAD~1 to diff what this merge changed
           persist-credentials: false
-      # Only the backend runs on Render, so a mobile-only / docs merge doesn't need a
-      # redeploy — and on the free tier a redeploy wipes the ephemeral DB (and re-scrapes
-      # only DEFAULT_PLZ). Deploy when this merge touched a RUNTIME backend file, but skip
-      # lint/test/example files that never enter the image (backend/Dockerfile COPYs only
-      # app/, alembic/, requirements.txt). This is a denylist, NOT an allowlist of runtime
-      # paths, so a NEW runtime file still deploys — err toward deploying: a missed deploy
-      # ships stale code, an extra one just re-scrapes the ephemeral DB. A mixed change
-      # (e.g. app/ + tests/) still deploys because the app/ line survives the filter.
+
+      # Only the backend runs on Lambda, so a mobile-only / docs merge needs no redeploy.
+      # Deploy when this merge touched a RUNTIME backend file or the infrastructure, but skip
+      # lint/test/example files that never enter the package (infra/build.sh copies app/ and
+      # installs requirements.txt, nothing else). This is a denylist, NOT an allowlist of
+      # runtime paths, so a NEW runtime file still deploys — err toward deploying: a missed
+      # deploy ships stale code, while an extra one is now genuinely free of side effects,
+      # because a code deploy carries the live week forward rather than re-scraping.
       - name: Detect runtime-affecting backend changes
         id: detect
         env:
@@ -151,8 +182,8 @@ jobs:
             exit 0
           fi
           CHANGED=$(git diff --name-only HEAD~1 HEAD \
-            | grep -E '^(backend/|render\.yaml$)' \
-            | grep -vE '^backend/(ruff\.toml$|pytest\.ini$|\.env\.example$|tests/)' \
+            | grep -E '^(backend/|infra/)' \
+            | grep -vE '^backend/(ruff\.toml$|pytest\.ini$|\.env\.example$|requirements-dev\.txt$|tests/)' \
             || true)
           if [ -n "$CHANGED" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -162,95 +193,172 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "Only lint/test/example (or mobile/docs) files changed — skipping deploy."
           fi
-      - name: Trigger Render deploy hook
+
+      - name: Check for the deploy role
         id: trigger
         if: steps.detect.outputs.changed == 'true'
         env:
-          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
         run: |
-          if [ -z "$HOOK" ]; then
-            echo "RENDER_DEPLOY_HOOK_URL not set — skipping deploy."
-            echo "Add the secret (and turn off Render auto-deploy) to enable gated deploys."
+          if [ -z "$ROLE" ]; then
+            echo "AWS_DEPLOY_ROLE_ARN not set — skipping deploy."
+            echo "Apply infra/bootstrap.yaml once, then add its outputs as repo secrets."
             echo "fired=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          before=$(curl -fsS --max-time 30 "https://grocery-helper-sw6c.onrender.com/health" \
-            | python3 -c 'import sys,json;print(json.load(sys.stdin).get("commit") or "")' \
-            2>/dev/null || true)
-          echo "before=${before}" >> "$GITHUB_OUTPUT"
-          echo "Commit live before this deploy: '${before:-unknown}'"
-          curl -fsS -X POST "$HOOK"
           echo "fired=true" >> "$GITHUB_OUTPUT"
-          echo "Triggered Render deploy."
 
-      # The hook only TRIGGERS Render — "success" above means the curl fired, nothing
-      # more; Render then builds + swaps for several minutes. This bit for real: a
-      # feature shipped green and never appeared in prod because its degraded path fired
-      # on every run. So: poll /health until the RUNNING commit is the merged SHA (the
-      # backend exposes RENDER_GIT_COMMIT), then verify the served FEATURE, not the
-      # trigger. If a newer merge deployed over us mid-poll, note it and stand down —
-      # that run's own verify covers prod.
-      - name: Wait until the new code is live
+      - name: Assume the deploy role
         if: steps.trigger.outputs.fired == 'true'
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: eu-central-1
+          role-session-name: grocery-helper-ci-${{ github.run_id }}
+
+      - name: Resolve the live function
+        id: live
+        if: steps.trigger.outputs.fired == 'true'
+        run: |
+          base=$(aws cloudformation describe-stacks --stack-name grocery-helper \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiBaseUrl'].OutputValue" \
+            --output text 2>/dev/null || true)
+          if [ -z "$base" ] || [ "$base" = "None" ]; then
+            echo "::warning::the grocery-helper stack does not exist yet — run the Weekly refresh workflow once to create it (it is the job that has data to deploy)."
+            echo "fired=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "base=${base%/}" >> "$GITHUB_OUTPUT"
+          echo "fired=true" >> "$GITHUB_OUTPUT"
+          echo "Live API: ${base%/}"
+
+      # THE load-bearing step of a code deploy. The function's database ships inside its
+      # package, so building a package here without the live week would DELETE this week's
+      # deals — a code change silently becoming a data change. Taking the file from the
+      # currently-live function keeps the two deploy paths strictly separate: this one can
+      # only change code, and the weekly one is the only thing that can change data.
+      - name: Fetch the live week's data
+        if: steps.live.outputs.fired == 'true'
+        run: |
+          mkdir -p infra/build
+          url=$(aws lambda get-function --function-name grocery-helper-api \
+            --query 'Code.Location' --output text)
+          curl -fsSL -o live.zip "$url"
+          unzip -o -j live.zip week.db meta.json -d infra/build/
+          for required in week.db meta.json; do
+            if [ ! -s "infra/build/$required" ]; then
+              echo "::error::the live function carries no $required — deploy this week's data via the Weekly refresh workflow before deploying code."
+              exit 1
+            fi
+          done
+          python3 -c "import json;m=json.load(open('infra/build/meta.json'));print('carrying forward the week built at', m.get('built_at'), '-', m.get('offers'))"
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        if: steps.live.outputs.fired == 'true'
+        with:
+          python-version: '3.12'
+
+      - name: Build the Lambda package
+        if: steps.live.outputs.fired == 'true'
+        run: infra/build.sh infra/build
+
+      - uses: aws-actions/setup-sam@89ddb14d60e682855e3fea4be85b3c56485de310 # v3
+        if: steps.live.outputs.fired == 'true'
+        with:
+          use-installer: true
+
+      - name: Deploy
+        if: steps.live.outputs.fired == 'true'
         env:
-          BASE: https://grocery-helper-sw6c.onrender.com
-          # Through env, not interpolated into the script below: an expression expanded inside
-          # `run:` is pasted in as text before the shell ever sees it, so the shell's quoting
-          # cannot protect it. Cheap discipline, applied uniformly rather than case by case.
-          BEFORE: ${{ steps.trigger.outputs.before }}
+          BUCKET: ${{ secrets.AWS_ARTIFACT_BUCKET }}
+        run: |
+          # The weekly data deploy and this one share one stack, so a Sunday run that
+          # overlaps a merge would otherwise collide mid-update.
+          for i in $(seq 1 30); do
+            status=$(aws cloudformation describe-stacks --stack-name grocery-helper \
+              --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo NONE)
+            case "$status" in
+              *_IN_PROGRESS) echo "stack is $status — waiting (poll $i)"; sleep 20 ;;
+              *) echo "stack is $status"; break ;;
+            esac
+          done
+          sam deploy --config-file "$GITHUB_WORKSPACE/infra/samconfig.toml" \
+            --template-file infra/template.yaml \
+            --s3-bucket "$BUCKET" \
+            --no-progressbar \
+            --parameter-overrides "GitCommit=$GITHUB_SHA"
+
+      # `sam deploy` returning 0 means CloudFormation accepted the change set, not that the
+      # new code is serving. This bit for real once: a feature shipped green and never
+      # appeared in production. So poll /health until the RUNNING commit is the merged SHA.
+      - name: Wait until the new code is live
+        if: steps.live.outputs.fired == 'true'
+        env:
+          BASE: ${{ steps.live.outputs.base }}
         run: |
           want="${GITHUB_SHA}"
           echo "Waiting for /health to report commit ${want}…"
-          for i in $(seq 1 45); do
+          for i in $(seq 1 30); do
             live=$(curl -fsS --max-time 30 "$BASE/health" | python3 -c \
               'import sys,json;print(json.load(sys.stdin).get("commit") or "")' 2>/dev/null || true)
             if [ "$live" = "$want" ]; then
               echo "New code is live (poll $i)."
               exit 0
             fi
-            sleep 20
+            sleep 10
           done
-          # "Superseded by a newer deploy" is the ONLY benign reason our commit never went live,
-          # so it must be PROVEN, never inferred from `live != want`. A newer deploy means our
-          # commit is an ANCESTOR of whatever is live; a failed build leaves an ancestor of ours
-          # live instead. Anything else fails closed.
+          # "Superseded by a newer deploy" is the ONLY benign reason our commit never went
+          # live, so it must be PROVEN, never inferred from `live != want`. A newer deploy
+          # means our commit is an ANCESTOR of whatever is live; a failed one leaves an
+          # ancestor of ours live instead. Anything else fails closed.
           #
-          # This previously compared `live` against the pre-deploy commit, which fails open the
-          # moment that probe doesn't answer: on 2026-08-04 the free tier was asleep, the 30s
-          # curl timed out, `before` was empty, the equality could not fire, and a Render build
-          # that never landed was reported GREEN — with the next step then counting offers
-          # served by the OLD code. Ancestry needs no pre-deploy reading at all.
-          before="$BEFORE"
-          echo "commit live before this deploy: '${before:-unknown}'; live now: '${live:-none}'"
+          # This previously compared against a pre-deploy reading, which fails open the moment
+          # that probe does not answer: on 2026-08-04 a 30s curl against a sleeping host timed
+          # out, the equality could not fire, and a build that never landed reported GREEN.
+          # Ancestry needs no pre-deploy reading at all.
+          echo "live now: '${live:-none}'"
           git fetch --quiet --depth=100 origin main || true
           if [ -n "$live" ] && git merge-base --is-ancestor "$want" "$live" 2>/dev/null; then
             echo "::warning::a strictly newer commit (${live}) is live — superseded; standing down."
             exit 0
           fi
-          echo "::error::deploy never became live within ~15 min (live='${live:-none}', wanted ${want}) — the Render build likely failed"
+          echo "::error::deploy never became live (live='${live:-none}', wanted ${want})"
           exit 1
 
       - name: Verify the served deals (the feature, not the deploy)
-        if: steps.trigger.outputs.fired == 'true'
+        if: steps.live.outputs.fired == 'true'
         env:
-          BASE: https://grocery-helper-sw6c.onrender.com
+          BASE: ${{ steps.live.outputs.base }}
         run: |
-          # The boot-scrape runs at startup; give it a few retries before judging.
-          # Deliberately NOT filtered by plz: the boot-scrape fills whatever DEFAULT_PLZ is
-          # set to in the Render dashboard, which this workflow can't see (it's off-repo, and
-          # a real postal code must never be committed). Pinning a plz here silently asserts
-          # a value the server may not use — which is exactly how this gate went red on a
-          # perfectly healthy deploy once DEFAULT_PLZ was set. "Serves any deals at all" is
-          # the invariant we actually care about, and it can't drift.
-          for i in $(seq 1 10); do
-            count=$(curl -fsS --max-time 60 "$BASE/api/offers?limit=2000" \
+          # Deliberately NOT filtered by plz: the served week is scraped for whatever
+          # SCRAPE_PLZ holds, which this job cannot see (it is a secret, and a real postal
+          # code must never be committed). Pinning one here would assert a value the function
+          # may not carry — which is exactly how this gate once went red on a healthy deploy.
+          # "Serves any deals at all" is the invariant we actually care about, and the weekly
+          # pipeline's own gate is what judges the data properly.
+          for i in $(seq 1 5); do
+            count=$(curl -fsS --max-time 30 "$BASE/api/offers?limit=2000" \
               | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
             echo "poll $i: served offers = $count"
             if [ "$count" -gt 0 ] 2>/dev/null; then
-              echo "Prod serves data on the new code."
+              echo "The new code serves the week it carried forward."
               exit 0
             fi
-            sleep 30
+            sleep 10
           done
-          echo "::error::prod serves no offers on the new deploy — the boot-scrape likely failed"
+          echo "::error::the deployed function serves no offers — the packaged week.db is empty or unreadable"
           exit 1
+
+      # Not a gate: documentation. The cold start is the number this whole migration exists to
+      # improve, so it gets measured on the real function rather than estimated.
+      - name: Measure the cold start
+        if: steps.live.outputs.fired == 'true'
+        continue-on-error: true
+        run: |
+          sleep 15
+          aws logs filter-log-events \
+            --log-group-name /aws/lambda/grocery-helper-api \
+            --start-time "$(( ($(date +%s) - 900) * 1000 ))" \
+            --filter-pattern '"Init Duration"' \
+            --query 'events[].message' --output text | tr '\t' '\n' | tail -5 \
+            || echo "no Init Duration lines yet (the deploy may not have been invoked cold)"

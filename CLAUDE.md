@@ -338,9 +338,9 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `DealsScreen.tsx` `DEFAULT_PLZ`). The real local PLZ lives only in **gitignored** `.env`
   files: backend `backend/.env` (`DEFAULT_PLZ=…`, read by pydantic-settings) and mobile
   `mobile/.env` (`EXPO_PUBLIC_DEFAULT_PLZ=…`, inlined by Expo). Prod overrides off-repo too:
-  Render dashboard env (`render.yaml` has `DEFAULT_PLZ` as `sync: false`, not committed) and the
-  weekly scrape's optional **`SCRAPE_PLZ`** GitHub Actions **secret** (`scrape.yml`, else
-  `10115`). It's a *secret*, not a variable, on purpose: this is a public repo and the scrape
+  weekly pipeline's **`SCRAPE_PLZ`** GitHub Actions **secret** (`scrape.yml`, else `10115`),
+  which since the Lambda move is the ONLY place the real value lives off-repo — the deployed
+  function serves a packaged week and never reads `DEFAULT_PLZ` at all. It's a *secret*, not a variable, on purpose: this is a public repo and the scrape
   job's logs are world-readable, so a variable would leak the PLZ — secrets are masked (`***`).
   The repo was history-rewritten on 2026-06-30 to purge a personal PLZ — do NOT reintroduce one
   in any committed file (code, docs, tests, CI, compose, blueprint).
@@ -1009,7 +1009,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   meats, `eggs` by dairy, `ready_meals` by frozen). New food categories get the €/kg per-category sort
   default for free (`sort.ts` `DISCOUNT_DEFAULT_CATEGORIES` is a **denylist** = `{household}`), so no
   mobile change is needed — new chips are fully data-driven. Both are a re-classification →
-  need a recategorize / re-scrape to backfill (Render's deploy boot-scrape does it).
+  need a recategorize / re-scrape to backfill — which now means the **weekly pipeline**, since the deployed function has no boot scrape and cannot be made to re-scrape.
   **`vegan` is a cross-cutting category that wins FIRST** (`app/vegan.py` `is_vegan`, a layer-0
   check in `classify` before the household path): explicitly-vegan products (word `vegan`/
   `pflanzlich`, or a **vegan-only** brand — Vemondo/Like Meat/Garden Gourmet/Beyond/…; NOT mixed
@@ -1217,8 +1217,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   Basket totals, not Compare, not the `grocery-price-history` collector, which would record
   them as that week's real price. A missing chain is visible (the data gate's per-chain floor
   names it); a fabricated 1,59 € shampoo is not. Local dev opts in via
-  `SCRAPE_SAMPLE_FALLBACK=true` in `backend/.env`; the default is off so **Render is correct
-  with zero configuration** — a default-on flag would have to be switched off in the dashboard
+  `SCRAPE_SAMPLE_FALLBACK=true` in `backend/.env`; the default is off so **the deployed
+  pipeline is correct with zero configuration** — a default-on flag would have to be switched off in the dashboard
   and remembered forever, which is the `ADMIN_TOKEN` shape.
   - **What prompted it**: on 2026-08-16 Rossmann's 23–26pp weekly simply **was not published**. It happened again the week of 2026-09-07: the publisher listed one 7-page brochure and Rossmann served 25 offers. `/api/flyer-pages` reporting `rossmann=7` is the quick tell that it is upstream, not selection.
     Upstream had only the `Schulaktion` (correctly dropped by `MAX_FLYER_DAYS`) and a **6-page**
@@ -1365,8 +1365,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   button that lazily fetches + pretty-prints it (every field the source returns, incl. ones we
   drop: flyer `parentContent`/`publisher`/`linkOuts`/alt images/`deals[].min`; coupon
   `offerType`/`redemptionChannel`/`productIds`/`featured`). **Set at scrape time** → `raw_payload`
-  is null for pre-capture/sample rows (UI shows "not captured yet"); Render's Sunday reset
-  backfills prod. Migration `210fa9f3d7a9`. **Payloads are prefetched + cached on-device for
+  is null for pre-capture/sample rows (UI shows "not captured yet"); the weekly pipeline's
+  scrape backfills it, since every week's database is built from scratch. Migration `210fa9f3d7a9`. **Payloads are prefetched + cached on-device for
   offline, cold-start-free viewing** (the per-offer fetch otherwise cold-starts the sleepy free
   tier every inspection): **`GET /api/offers/payloads?plz=`** returns *every* deduped offer's
   payload keyed by id (mirrors `/api/offers`' dedup + validity filter so ids line up; ~2 MB; not
@@ -1438,7 +1438,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   30 Stück", "500 g 1 kg") → None; a lone hyphenated weight ("500-g-Schale") is fine
   because the range rule needs a digit on **both** sides of the separator. Feeds the
   card display + `unit_price_cents`; serve-time only (no DB column/migration), so it
-  applies on Render right after deploy without a re-scrape. Lifts live €/kg coverage
+  applies on the next deploy without a re-scrape. Lifts live €/kg coverage
   **~52% → ~69%** of offers (+~230). **Scrape-time twin — the `kg-Preis` flag**
   (`bonial.py` `_kg_price`): by-weight items (loose Honigmelone) flag the SALES_PRICE
   deal with a `conditions[].other == "kg-Preis"` while `priceByBaseUnit` is empty — the
@@ -1454,7 +1454,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   `Offer.valid_from`/`valid_to` **instead of the whole-brochure window** — so a Thu–Sat deal
   no longer reads as valid all week, and the `/api/offers` `valid_to >= today` filter drops
   ended day-deals correctly. **No schema change** (reuses the date columns), but it's set at
-  **scrape time** → Render needs a re-scrape (not just recategorize) to backfill. `tzdata` is
+  **scrape time** → it is backfilled by the next weekly scrape (a recategorize cannot do it). `tzdata` is
   a dep so the Berlin conversion is host-independent (slim Docker strips the system tzdb).
   `app/validity.py` derives **computed** `OfferOut.valid_days` ("Do–Sa"/"Fr") + `day_limited`
   (window < the Mon–Sat week) in the serializer; the app shows an orange day pill on the card
@@ -1466,7 +1466,7 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   serve-time deterministic detection of organic offers from the name/brand — a word-boundary
   `bio`/`öko`/`organic` + organic brands (Bioland/Demeter/Naturland/Alnatura/dennree); the word
   boundary guards substring traps ("…symbiose", "antibiotikafrei"). **No DB column / migration /
-  re-scrape** (like `unit_price_cents`/`valid_days`), so it applies on Render right after deploy.
+  re-scrape** (like `unit_price_cents`/`valid_days`), so it applies on the next code deploy.
   The app badges Bio offers (green pill, `OfferCard`) + a **"Bio only"** option in the FilterSheet
   (shown only when some offer is `is_bio`; filters client-side, composes with
   store/category/search/special-days). ~6% of a Berlin PLZ's offers.
@@ -1772,7 +1772,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   deals` section in the FilterSheet): dismisses a deal you're not interested in. Scope was the
   user's call: **this chain's copy, this flyer week** — hiding Edeka's Schnaps leaves Lidl's alone,
   and it returns when the flyers refresh. **NOT keyed on `offer.id`, deliberately**: `/api/reset`
-  does `delete(Offer)` + re-scrape and Render's SQLite is ephemeral, so rowids are reused — an
+  does `delete(Offer)` + re-scrape, and the deployed database is now rebuilt from scratch
+  every week, so rowids are reused across weeks by construction — an
   id-keyed hide would un-hide itself *and* silently hide a different product after any cold start.
   Identity is `` `${chain}:${normName(name)}` `` (reuses `edekaVs`' normName) and the week expiry
   reuses **`format.ts` `dealsStale(hiddenAt)`** — one weekly rule, not a second one. `activeHidden`
@@ -1915,18 +1916,62 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   - **`BasketModal` prunes orphan `picks`** in an effect keyed on `basket`: the sheet stays
     mounted for the screen's lifetime, so without it a pick outlives its item — and now that
     undo is one tap, remove-then-re-add would resurrect a stale pick.
-- **Deployment**: backend is live on **Render** (free tier) at
-  `https://grocery-helper-sw6c.onrender.com` via the IaC `render.yaml` Blueprint
-  (Docker, `backend/Dockerfile`, binds `$PORT`, `/health` check). Render free tier
-  **sleeps after ~15 min idle** → cold start re-runs the boot scrape (slow first
-  request) and its SQLite is **ephemeral**, so startup `alembic upgrade head` rebuilds
-  the schema from migrations every deploy — meaning **new `Offer` columns auto-apply on
-  Render** (the migration runs there) while local dev applies them via the same upgrade
-  (or a `grocery.db` recreate) + re-scrape. iOS /
-  TestFlight config: `mobile/eas.json` (production profile; `EXPO_PUBLIC_API_URL` →
-  the Render URL) + `mobile/app.json` (`ios.bundleIdentifier` `com.groceryhelper.berlin`,
-  EAS project `@mhassan0600/grocery-helper`, `extra.eas.projectId`). `eas
-  login`/`build`/`submit` are **user-run** (their Apple/Expo creds + build credits).
+- **Deployment: ONE AWS Lambda serving a week that ships INSIDE its own package**
+  (2026-09-12, `infra/`; read `infra/README.md` before touching any of it). eu-central-1,
+  python3.12, **arm64**, 1024 MB, 30 s timeout, a public Function URL, and the **Lambda Web
+  Adapter** as a layer so the same uvicorn app runs there, in Docker and locally with no
+  Lambda-specific code. SAM/CloudFormation IaC; GitHub Actions deploys via **OIDC** with a
+  role only `main` can assume — no AWS keys exist in this repo.
+  - **The old wait was never the host's spin-up, it was the boot scrape.** Render slept after
+    15 min AND gave the container an ephemeral disk, so `main.py`'s boot scrape — whose only
+    condition is "the offers table is empty" — ran on every cold start: ~15 paced requests,
+    30-60 s before `/health` answered. Lambda would not tolerate it at all: **init is capped
+    at 10 s**. Measured on a runner, the scrape is 20 calls / 39 s and `week.db` is **7.6 MB**
+    vacuumed — 76 MB unzipped, 25 MB zipped, against limits of 250/50 MB.
+  - **`SNAPSHOT_MODE=1` is the whole contract** (`app/snapshot.py`): no migrations, no boot
+    scrape, database opened read-only, and the three write endpoints (`/api/scrape`,
+    `/api/reset`, `/api/recategorize`) answer **405** via `_require_writable`, which runs
+    BEFORE `_require_admin` and before any DB read. `is_deployed()` now also recognises
+    `AWS_LAMBDA_FUNCTION_NAME`, so the fail-closed admin guard keeps working here.
+  - **`DATABASE_URL` needs `mode=ro` AND `uri=true`, and the app refuses to start without
+    both.** Drop `uri=true` and SQLAlchemy hands the whole string to sqlite3 as a *filename*:
+    sqlite3 creates it and serves an **empty** database — every endpoint 200s with `[]`, the
+    app shows "no deals", nothing errors. That fail-open-with-no-signal is why it is asserted
+    at startup rather than trusted.
+  - **`week.db` must not be in WAL mode** — a WAL database needs to write sidecars, so it
+    cannot be opened at all on a read-only filesystem. `app/scripts/package_week.py` refuses
+    to package one. Measured 2026-09-12, correcting the folklore: an idle second connection
+    does NOT block leaving WAL, and one holding a transaction makes SQLite raise `database is
+    locked` — **loudly**. The reachable failure is calling `export()` without `compact()`.
+  - **Two deploy paths that cannot do each other's job.** The weekly pipeline is the only
+    thing that can change data; a code merge **copies `week.db` out of the currently-live
+    function** before building (`aws lambda get-function` → `Code.Location`), because building
+    without it would turn a backend merge into a silent data wipe. Both wait for the shared
+    stack to leave `*_IN_PROGRESS`.
+  - **In-memory state is per execution environment** and that is accepted: `_NEARBY_LIMITER`,
+    `app/http.py`'s pacing lock, `store_locator`'s 24 h caches and `app/metrics.py` all reset
+    per cold start. Consequences: a burst spawns N environments each with its own 30/min
+    bucket (Overpass rate-limits us itself, and a real session makes ~1 call), and **`/stats`
+    mostly reads zeros** because nothing scrapes on the function.
+  - **Do NOT add a `Cors` block to the Function URL** — the app's `CORSMiddleware` already
+    sets the header, and two owners send it twice, which browsers reject outright.
+  - **`/health` carries `commit` AND `data_built_at`.** The code question and the data
+    question are now separate deploys, so "the deploy succeeded" says nothing about which week
+    is live; the weekly pipeline polls `data_built_at` for the week it just packaged.
+  - **Only published postal codes work.** The app no longer scrapes on demand — an unpublished
+    PLZ honestly reads "no deals published yet". `SCRAPE_PLZ` (a secret) is the one published.
+  - **Render is still reachable during the cutover** (`https://grocery-helper-sw6c.onrender.com`)
+    and its `RENDER*` markers are still honoured, because old app bundles keep calling it
+    until the OTA lands. `render.yaml` and those fallbacks go in the cleanup PR.
+  - iOS / TestFlight config: `mobile/eas.json` (production profile; `EXPO_PUBLIC_API_URL` →
+    the Function URL) + `mobile/app.json` (`ios.bundleIdentifier` `com.groceryhelper.berlin`,
+    EAS project `@mhassan0600/grocery-helper`, `extra.eas.projectId`). `eas
+    login`/`build`/`submit` are **user-run** (their Apple/Expo creds + build credits).
+  - **`requirements.txt` is runtime-only since the split**; dev tooling lives in
+    `requirements-dev.txt` (which is what a venv and CI install). `pyyaml` is declared there
+    explicitly — it used to arrive only as an extra of `uvicorn[standard]` while
+    `test_workflows.py` skipped itself when the import failed, so every guard over the deploy
+    pipeline could have gone silently unrun.
 - **Deals are cached client-side** (`mobile/src/storage.ts` `dealsCache` — **one key per vertical**
   since 2026-07-30, see the verticals note above; still one PLZ each +
   `DealsScreen`): the app shows the last good offers/cats/storeName for the PLZ
@@ -1964,7 +2009,8 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   **all** offers then re-scrapes one PLZ (unlike `/api/scrape`'s in-place upsert, so it also
   clears stale rows the scrape no longer touches). **Admin guard (2026-07-03)**: `/api/reset`
   AND `/api/recategorize` require **`ADMIN_TOKEN`**. Empty is not "unguarded": on a DEPLOYED
-  instance (Render sets `RENDER`/`RENDER_GIT_COMMIT`) an empty token makes both endpoints 403 —
+  instance (Lambda sets `AWS_LAMBDA_FUNCTION_NAME`; Render set `RENDER`/`RENDER_GIT_COMMIT`)
+  an empty token makes both endpoints 403 —
   fail-closed, because a dashboard value that must be remembered forever is the kind that stays
   unset. Local dev and CI (neither env var present) stay open, so no one needs to invent a token
   headers stay out of access logs), compared timing-safe, failures logged with the client
@@ -1973,7 +2019,10 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   **`/api/scrape` stays tokenless but throttled**: a PLZ that already has offers re-scrapes at
   most once/10 min + a global 15s min-gap (skip → `scraped=0, skipped=true`); an **empty PLZ
   always scrapes** so the app's cold-start on-demand path never blocks. **Validity filters use
-  `berlin_today()`** (`app/validity.py`), not server-local `date.today()` — Render runs UTC.
+  `berlin_today()`** (`app/validity.py`), not server-local `date.today()` — the host runs UTC.
+  This filter is what keeps a STATIC weekly snapshot honest: validity is evaluated per
+  request, so day-limited (Thu-Sat) deals and Rossmann's Friday week retire mid-week even
+  though the database does not change until Sunday.
   The wipe self-heals via the immediate re-scrape but comes back sparse on a
   sample-fallback (re-run when the source is reachable).
 - **AI Recipes are offline-authored, OTA-shipped — NO runtime LLM/API** (`mobile/src/data/
@@ -2069,20 +2118,22 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   Full workflow + launchd install + gotchas (git-push-under-launchd, PATH/fnm) in `docs/recipes.md`.
 - **CI/CD is GitHub Actions** (`.github/workflows/`): `ci.yml` (backend
   `ruff`+`pytest --cov`+`alembic upgrade head`/`alembic check`, mobile
-  ESLint+`tsc`+`jest`, backend Docker build; on green `main` pushes a `deploy` job curls
-  the Render deploy hook **only when the merge touched a *runtime* `backend/**` file or
-  `render.yaml`** — a `git diff HEAD~1 HEAD` gate (fetch-depth 2) that **excludes lint/test/
-  example files not in the image** (`ruff.toml`, `pytest.ini`, `.env.example`, `tests/`; the
-  Dockerfile COPYs only `app/`+`alembic/`+`requirements.txt`) via a **denylist** — a *new*
-  runtime file still deploys (err toward deploying: a missed deploy ships stale code, an extra
-  one just re-scrapes the ephemeral DB), and a mixed `app/`+`tests/` change still deploys. So
-  mobile-only / docs / lint-only merges don't redeploy Render and wipe its ephemeral DB; the
-  *same* filter idea as eas-update's `mobile/**` gate, inverted). **The deploy job then verifies the OUTCOME, not the trigger** (2026-07-15): `/health`
-  exposes the running commit (`RENDER_GIT_COMMIT`), the job polls it until the merged SHA is
-  actually live (~15 min bound; a newer deploy superseding mid-poll stands down with a warning),
-  then asserts `/api/offers` serves >0 offers — a red here means the boot-scrape failed even
-  though the deploy "succeeded". `scrape.yml` additionally runs a **data-quality gate** after the
-  Sunday reset (`.github/scripts/verify_deals.py`, offline-testable via `--file`; **covered by
+  ESLint+`tsc`+`jest`, backend Docker build, **`lambda-package`** (builds the arm64 package
+  around an empty week on every PR — `pip install --platform` fails loudly if a runtime
+  dependency has no aarch64 wheel, and the size limits are checked there rather than mid-deploy);
+  on green `main` pushes a `deploy` job runs `sam deploy` **only when the merge touched a
+  *runtime* `backend/**` file or `infra/**`** — a `git diff HEAD~1 HEAD` gate (fetch-depth 2)
+  that **excludes lint/test/example files not in the package** (`ruff.toml`, `pytest.ini`,
+  `.env.example`, `requirements-dev.txt`, `tests/`) via a **denylist** — a *new* runtime file
+  still deploys (err toward deploying: a missed deploy ships stale code, and an extra one is now
+  genuinely side-effect-free because a code deploy carries the live week forward), and a mixed
+  `app/`+`tests/` change still deploys; the *same* filter idea as eas-update's `mobile/**` gate,
+  inverted. **The deploy job then verifies the OUTCOME, not the trigger** (2026-07-15): `/health`
+  exposes the running commit (`GIT_COMMIT` from the template), the job polls it until the merged
+  SHA is actually live (a newer deploy superseding mid-poll stands down **only on proven git
+  ancestry**), then asserts `/api/offers` serves >0 offers. It also prints the measured
+  `Init Duration` from CloudWatch, so the cold start is documented rather than estimated.
+  `scrape.yml` additionally runs a **data-quality gate** on the scraped week BEFORE it ships (`.github/scripts/verify_deals.py`, offline-testable via `--file`; **covered by
   `backend/tests/test_verify_deals.py` since 2026-08-08** — it loads the script via
   `importlib.util.spec_from_file_location`, because ruff runs with `working-directory: backend`
   and pytest has `testpaths = tests`, so **nothing under `.github/scripts/` is linted or collected
@@ -2103,14 +2154,22 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   on a green CI run**: triggers via `workflow_run` *after* the `CI` workflow succeeds on `main`,
   not on raw push — so a broken bundle can't ship; `workflow_run` can't path-filter, so the job
   pins checkout to the passing commit's SHA and re-applies the `mobile/**` filter via `git diff
-  HEAD~1 HEAD`, skipping backend-only commits), `scrape.yml` (**Sunday 06:00 UTC** cron → `POST /api/reset`
-  — wipe + re-scrape, *not* upsert, so the prior week's stale offers are cleared; runs Sunday
-  because flyers are Mon–Sat so they're spent by then and next week's are already discoverable,
-  refreshing before the app's weekly cache expires past Sunday — retries 3× and opens/comments a
-  `scrape-failure` issue on total failure; passes the `ADMIN_TOKEN` secret as an **`X-Admin-Token`
-  header**. Since #184 a deployed host with no `ADMIN_TOKEN` of its own refuses it with 403, so the
-  refresh fails every Sunday until the Render value is set to match. Since #189 the verify-only gate
-  still runs after a failed reset, so the run log keeps the data verdict).
+  HEAD~1 HEAD`, skipping backend-only commits), `scrape.yml` (**Sunday 06:00 UTC** cron;
+  runs Sunday because flyers are Mon–Sat so they're spent by then and next week's are already
+  discoverable, refreshing before the app's weekly cache expires past Sunday).
+  **`scrape.yml` is the ONLY thing that changes what the API serves**, and its order is the
+  design: scrape into a local `week.db` → `app.scripts.package_week` exports exactly what
+  `/api/offers` will return per vertical → the **gate judges those files** → only then
+  `sam deploy`. So a bad week cannot reach the app at all; the job fails, nothing deploys, and
+  last week's package keeps serving. Before this the scrape wrote straight into the live
+  database and the gate could only report damage already done. There is no `/api/reset` and no
+  `ADMIN_TOKEN` in the pipeline any more, which also retires the #184 problem (a fail-closed
+  admin endpoint the scheduled job could not authenticate against). The `plz` dispatch input
+  was **removed**: the scrape's output IS production's data now, so a manual postal code would
+  replace the week every user sees rather than probe it. Two gates still guard the blind spots:
+  a verify-only dispatch re-checks the deployed function without scraping, and a
+  `failure() && steps.scrape.outcome == 'failure'` twin keeps the data verdict in the log when
+  the scrape itself dies.
   **`ci.yml` must NEVER cancel an in-flight run on `main`** (2026-08-03, cost a week): the
   deploy job lives in this workflow, and `concurrency.cancel-in-progress: true` applies to
   pushes as well as PRs — so a docs commit pushed a minute after a backend merge **cancelled
@@ -2152,10 +2211,14 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   **`mobile/.npmrc` pins the public registry** so that security fetch doesn't abort on an
   auto-injected `npm.pkg.github.com` (don't delete it). Deploy + OTA + **Codecov upload**
   **skip gracefully** until their secrets exist (`RENDER_DEPLOY_HOOK_URL`, `EXPO_TOKEN`,
-  `CODECOV_TOKEN`), so CI stays green; gated deploy assumes Render **auto-deploy is off**. Python is
-  **3.12 everywhere** now — Dockerfile/Render, CI, AND the local dev venv (recreate with
-  `/opt/homebrew/bin/python3.12 -m venv backend/.venv`); `backend/ruff.toml` targets **`py312`** to
-  match (no `UP`/pyupgrade rule, so the target bump adds no churn). The `requirements.txt` floors
+  `CODECOV_TOKEN`), so CI stays green — the AWS ones are `AWS_DEPLOY_ROLE_ARN` and
+  `AWS_ARTIFACT_BUCKET`, and without them the deploy job skips with a warning rather than
+  failing (apply `infra/bootstrap.yaml` once to create them). Python is
+  **3.12 everywhere** now — Dockerfile, the Lambda runtime, CI, AND the local dev venv (recreate with
+  `/opt/homebrew/bin/python3.12 -m venv backend/.venv` then
+  `pip install -r requirements-dev.txt` — **not** `requirements.txt`, which is runtime-only
+  since the Lambda move and carries no pytest/ruff); `backend/ruff.toml` targets **`py312`** to
+  match (no `UP`/pyupgrade rule, so the target bump adds no churn). The `requirements*.txt` floors
   (`fastapi>=0.138.1`, `uvicorn>=0.49.0`, `pytest>=9.1.1`) need **≥3.10**, so a **fresh** venv must
   be built on 3.12 — a 3.9 venv can't install them (only the old pre-bump 3.9 venv still ran).
   **Lint must pass** before a
@@ -2186,4 +2249,5 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
   (`deletion` + `non_fast_forward`, **no bypass** — no force-push/delete) and *require green PR*
   (`required_linear_history` + `pull_request` 0-approvals squash-only + `required_status_checks`:
   Backend / Mobile / Backend image builds), the latter with **admin bypass** so direct docs pushes
-  still work. "Deploy to Render" is **not** a required check (it only runs post-merge on `main`).
+  still work. "Deploy to AWS Lambda" is **not** a required check (it only runs post-merge on
+  `main`); "Lambda package builds" is a PR-time job and is worth adding to the ruleset.

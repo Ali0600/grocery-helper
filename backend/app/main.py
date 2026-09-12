@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 
+from . import snapshot
 from .api.offers import router as offers_router
 from .core.config import settings
 from .db import SessionLocal
@@ -29,6 +30,16 @@ if settings.sentry_dsn:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # The deployed function serves a week that was scraped, gated and packaged by the weekly
+    # pipeline, so there is nothing to migrate and nothing to seed — see app/snapshot.py.
+    # Skipping this is the entire point of the move: on the previous host an ephemeral disk
+    # left the offers table empty on every cold start, so the condition below fired every
+    # time and the API could not answer for 30-60s. Lambda caps init at 10s regardless.
+    if settings.snapshot_mode:
+        snapshot.verify_ready()
+        yield
+        return
+
     # Migrate to the latest schema, then seed once so a fresh checkout has data.
     run_migrations()
     with SessionLocal() as session:
@@ -56,10 +67,26 @@ app.include_router(offers_router, prefix="/api")
 
 @app.get("/health")
 def health():
-    # `commit` makes "is my code live yet?" a queryable fact: Render injects
-    # RENDER_GIT_COMMIT at runtime, and the CI deploy job polls this until it matches the
-    # merged SHA before verifying the served feature. None locally / off-Render.
-    return {"status": "ok", "commit": os.getenv("RENDER_GIT_COMMIT")}
+    """Liveness, plus the two facts the deploy pipelines poll for.
+
+    `commit` makes "is my code live yet?" a queryable fact — the CI deploy job polls it until
+    it matches the merged SHA before it will verify the served feature. GIT_COMMIT is set from
+    the template on the Lambda; RENDER_GIT_COMMIT is the previous host's own injected value,
+    kept until that service is switched off. None locally.
+
+    `data_built_at` is the same question about the DATA, which is now a separately deployed
+    artifact: the weekly pipeline polls this until it sees the week it just packaged. Without
+    it, "the deploy succeeded" would say nothing about whether the new week is being served —
+    the shape of failure that let a green tick sit over stale data before.
+
+    This is also the Lambda Web Adapter's readiness check, so it must stay cheap and must not
+    touch the database.
+    """
+    return {
+        "status": "ok",
+        "commit": os.getenv("GIT_COMMIT") or os.getenv("RENDER_GIT_COMMIT"),
+        "data_built_at": snapshot.read_meta().get("built_at"),
+    }
 
 
 @app.get("/stats", response_class=HTMLResponse)

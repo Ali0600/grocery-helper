@@ -2049,3 +2049,61 @@ were both found by hand.
 **Takeaway:** before a fail-closed change deploys, list every automated caller and prove each holds
 the credential where the endpoint runs; and never let a check run only when the step it observes
 succeeded — a gate has to report precisely when the step before it failed.
+
+## A boot-time step under a cold-start budget has to become a build-time step
+
+When a service rebuilds state at startup, the "slow host" you are trying to escape is often just
+the startup work — and moving to a faster host makes it worse, because faster hosts have tighter
+startup budgets.
+
+**Why it came up:** the backend felt slow on a free PaaS that sleeps after 15 minutes, so the
+obvious read was "find a host that does not sleep". Measured, the wait was `main.py`'s boot scrape:
+the host's disk was ephemeral, so the offers table was empty on every cold start, which is that
+scrape's only trigger — ~15 paced outbound requests and 30–60 seconds before `/health` answered.
+Lambda would have been strictly worse, since its init phase is capped at **10 seconds**. Scraping
+weekly in CI and shipping the resulting SQLite file inside the deployment package removed the
+startup work entirely, and the "which host" question turned out to be downstream of "where does the
+data live between requests".
+
+**Takeaway:** before shopping for infrastructure, measure which part of the request is actually
+slow and ask whether it belongs at startup at all. Work that produces the same answer for everyone
+until the next deploy is build-time work. And once data ships as an artifact, the deploy paths
+multiply: a *code* deploy must explicitly carry the live data forward, or it quietly becomes a data
+deploy that wipes it.
+
+## A gate that runs after the deploy can only report damage; the same gate before it prevents
+
+Ordering decides whether a quality check is a protection or a post-mortem, and both versions look
+identical in a green run.
+
+**Why it came up:** the weekly data check used to run against production *after* the scrape had
+already written into the live database — so a bad week was already being served by the time the
+gate spoke, and the only remedy was a human noticing the alert. Making the data a deployment
+artifact allowed the same script, with the same thresholds, to judge an exported copy *before
+anything ships*: a failed check now fails the job with last week still serving. Nothing about the
+check changed. Its position did.
+
+**Takeaway:** for any validate-then-publish pipeline, ask what the gate is standing between. If the
+artifact is already live when it runs, the gate is a monitor — useful, but it cannot prevent
+anything, and the fix is usually to produce a candidate artifact first rather than to strengthen
+the check.
+
+## Verify a SQLite URL's flags, because the failure mode is an empty database with no error
+
+A read-only SQLite URI needs `mode=ro` *and* `uri=true`. Dropping the second one does not raise:
+SQLAlchemy passes the whole string to sqlite3 as a filename, sqlite3 creates that file, and the
+application serves an empty database — every endpoint answers 200 with `[]`.
+
+**Why it came up:** writing the Lambda's `DATABASE_URL`. The consequence of a typo would have been
+an API that looks healthy, an app that says "no deals", and no error anywhere to explain it — so
+the app now refuses to start unless both flags are present, and a test proves each half separately.
+The first version of that test passed with the `mode=ro` check deleted, because a URL missing both
+flags is caught by the `uri=true` check one line later: two guards, one fixture, and only one of
+them actually under test.
+
+**Takeaway:** when a config value's failure mode is silent and benign-looking, assert it at startup
+rather than trusting it, and give each half of a compound guard a fixture only that half can catch.
+Related: the same session's measured correction to SQLite folklore — an idle second connection does
+*not* block leaving WAL mode, and a connection holding a transaction makes SQLite raise `database
+is locked` loudly, so the "silently refuses" hazard everyone repeats does not exist. The reachable
+version of that hazard was ordinary caller error: packaging the file without compacting it first.

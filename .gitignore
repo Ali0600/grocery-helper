@@ -27,3 +27,12 @@ web-build/
 # Weekly recipe automation (local-only artifacts)
 .recipe-candidates.json
 .recipe-regen.status
+
+# Lambda packaging artifacts and the scraped weeks they are built around. week.db holds
+# store names, which embed the postal code, so it must never be committed or uploaded.
+infra/build/
+backend/week.db
+backend/week.db-*
+backend/probe.db
+backend/probe.db-*
+live.zip

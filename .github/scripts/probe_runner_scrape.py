@@ -21,13 +21,20 @@ import importlib.util
 import os
 import pathlib
 import sqlite3
+import sys
 import time
 
-from app import metrics
-from app.db import SessionLocal
-from app.models import FlyerPage, Offer, Store
-from app.scrapers.run import run_scrapers
-from sqlalchemy import func, select
+# `python path/to/script.py` puts the SCRIPT's directory on sys.path, not the working
+# directory, so importing `app` needs backend/ added explicitly — resolved from this file
+# rather than from the cwd. The first run of this probe died right here instead of reporting a
+# verdict, which is the right way round: a harness fault must never read as an answer.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "backend"))
+
+from app import metrics  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
+from app.models import FlyerPage, Offer, Store  # noqa: E402
+from app.scrapers.run import run_scrapers  # noqa: E402
+from sqlalchemy import func, select  # noqa: E402
 
 # All eight chains the scrape covers: six grocery (lidl, rewe, edeka, edeka_center, penny,
 # aldi) plus the two drugstore ones (rossmann via the flyer, dm via its clearance API).
