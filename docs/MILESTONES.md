@@ -80,6 +80,11 @@ What shipped, one line each, oldest first. Unchecked boxes are still planned. Th
       collector rather than here
 - [x] Weekly price history on History rows, read from the companion
       `grocery-price-history` collector and tiered by how much evidence exists
+- [x] Backend moved from a sleeping PaaS to **AWS Lambda**, with each week's deals shipped
+      inside the deployment package as a read-only SQLite file — no boot scrape, no server to
+      wake, and a weekly pipeline that gates the data *before* it can ship, so a failed scrape
+      leaves last week serving. SAM/CloudFormation IaC, deployed via GitHub OIDC with no
+      stored AWS keys
 - [ ] Production monitoring/alerting (uptime + scraper health) on a persistent DB
 - [ ] "Store scorecard" compare view — per-store summary (deal count, avg discount,
       which categories each store wins)

@@ -442,17 +442,35 @@ def test_nearby_stores_is_rate_limited(client, monkeypatch):
     assert calls["n"] == 2  # the 3rd request was rate-limited → locator never invoked
 
 
-def test_health_exposes_the_running_commit(monkeypatch):
-    """The deploy job polls /health until `commit` equals the merged SHA — that's what
-    makes "is my code live yet?" a queryable fact instead of an inference from data
-    shapes. None when not on Render (local dev)."""
+def test_health_exposes_the_running_commit_and_the_packaged_week(monkeypatch, tmp_path):
+    """/health answers the two "is it live yet?" questions the pipelines poll for.
+
+    `commit` is the CODE question: the deploy job polls until it equals the merged SHA, which
+    makes "is my code live?" a queryable fact instead of an inference from data shapes.
+    `data_built_at` is the same question about the DATA, which is now deployed separately —
+    the weekly pipeline polls until it sees the week it just packaged, because otherwise a
+    successful deploy says nothing about whether the new week is being served.
+
+    Both are None locally, where there is no host marker and no packaged artifact.
+    """
     from app.main import health
 
+    monkeypatch.delenv("GIT_COMMIT", raising=False)
     monkeypatch.delenv("RENDER_GIT_COMMIT", raising=False)
-    assert health() == {"status": "ok", "commit": None}
+    monkeypatch.setattr(settings, "snapshot_meta_path", str(tmp_path / "absent.json"))
+    assert health() == {"status": "ok", "commit": None, "data_built_at": None}
 
-    monkeypatch.setenv("RENDER_GIT_COMMIT", "abc123")
-    assert health() == {"status": "ok", "commit": "abc123"}
+    # The new host sets GIT_COMMIT from its template; the old one injected its own name.
+    monkeypatch.setenv("GIT_COMMIT", "abc123")
+    assert health()["commit"] == "abc123"
+    monkeypatch.delenv("GIT_COMMIT")
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "def456")
+    assert health()["commit"] == "def456"
+
+    meta = tmp_path / "meta.json"
+    meta.write_text(json.dumps({"built_at": "2026-09-13T06:12:00+00:00", "commit": "abc123"}))
+    monkeypatch.setattr(settings, "snapshot_meta_path", str(meta))
+    assert health()["data_built_at"] == "2026-09-13T06:12:00+00:00"
 
 
 def test_the_bulk_trace_carries_a_post_layer_redirect(client):

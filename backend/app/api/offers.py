@@ -115,6 +115,33 @@ def _require_admin(
         raise HTTPException(status_code=403, detail="invalid or missing admin token")
 
 
+def _require_writable(request: Optional[Request] = None) -> None:
+    """Refuse a data-changing endpoint when this deployment serves a packaged snapshot.
+
+    The deployed function's database ships inside the artifact, read-only: there is nothing to
+    scrape into and nothing to wipe. 405 rather than 403 because the refusal is about the
+    METHOD not existing on this deployment, not about who is asking — no token makes it work.
+
+    This runs BEFORE `_require_admin` and before any database read, deliberately. A guard
+    placed after them would still refuse, but only after a wipe had been attempted against a
+    read-only file — turning a clear "not here" into a driver-level error, and leaving the
+    honest answer to depend on SQLite's permissions rather than on our own contract.
+    """
+    if not settings.snapshot_mode:
+        return
+    logger.info(
+        "refused %s: this deployment serves a read-only weekly snapshot",
+        request.url.path if request else "?",
+    )
+    raise HTTPException(
+        status_code=405,
+        detail=(
+            "This deployment serves a read-only weekly snapshot; data is refreshed by the "
+            "Sunday pipeline (.github/workflows/scrape.yml)."
+        ),
+    )
+
+
 # On-demand scrape throttle: a PLZ that already has offers is re-scraped at most once
 # per cooldown, and scrape kickoffs are globally rate-limited — so a stranger hitting
 # the public URL can't hammer the flyer sites from this server. An EMPTY PLZ always
@@ -504,7 +531,9 @@ def optimize(req: OptimizeRequest, session: SessionDep):
 
 
 @router.post("/scrape")
-def trigger_scrape(session: SessionDep, plz: Optional[str] = None):
+def trigger_scrape(
+    session: SessionDep, plz: Optional[str] = None, request: Request = None
+):
     """Scrape a postal code on demand and return the resolved store(s).
 
     Used by the app when the user sets/changes their PLZ. A store with a null
@@ -512,7 +541,10 @@ def trigger_scrape(session: SessionDep, plz: Optional[str] = None):
     a PLZ that already has offers is re-scraped at most once per cooldown (and
     kickoffs are globally rate-limited) — the skip returns `scraped=0, skipped=True`.
     An empty PLZ always scrapes, so the app's cold-start path never blocks.
+
+    Answers 405 on a deployment serving a packaged snapshot (see `_require_writable`).
     """
+    _require_writable(request)
     global _last_any_scrape
     from ..scrapers.run import run_scrapers
 
@@ -563,7 +595,9 @@ def trigger_recategorize(
 ):
     """Re-apply the classifier to all stored offers (admin/maintenance).
 
-    Guarded by ADMIN_TOKEN when that env is set (otherwise open, for local dev)."""
+    Guarded by ADMIN_TOKEN when that env is set (otherwise open, for local dev); answers 405
+    on a deployment serving a packaged snapshot (see `_require_writable`)."""
+    _require_writable(request)
     _require_admin(x_admin_token, token, request)
     from ..scripts.recategorize import recategorize
 
@@ -586,7 +620,9 @@ def trigger_reset(
     sample-data fallback the table comes back sparse (re-run when the source is reachable).
     Guarded by ADMIN_TOKEN when that env var is set (otherwise open, for local dev);
     send the token as an `X-Admin-Token` header (query `token` is a deprecated fallback).
+    Answers 405 on a deployment serving a packaged snapshot (see `_require_writable`).
     """
+    _require_writable(request)
     _require_admin(x_admin_token, token, request)
 
     from ..scrapers.run import run_scrapers

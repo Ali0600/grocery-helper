@@ -48,6 +48,95 @@ The one-glance menu. Only `deferred` items appear here.
   would surface in `other`, where the weekly audit reads it, instead of behind the Non-food toggle.
   Costs ~34 uncategorised foods and a few wrong landings today. See *How to un-hide food filed under
   promo and house-brand nodes*.
+- **Publish more than one postal code** — `SCRAPE_PLZ` becomes a list and the weekly scrape
+  loops; `/api/offers` already filters by `Store.plz`. See *Where the backend lives after
+  Render*.
+- **Serve the week as static JSON instead of a function** — zero wait, no cloud account. Needs
+  a client-side `valid_to` filter and precomputed nearby-stores; the exporter already produces
+  the files. See *Where the backend lives after Render*.
+- **Lambda + a hosted Postgres** — the variant that keeps on-demand scraping of any postal
+  code, at the cost of a second vendor. See *Where the backend lives after Render*.
+- **Precompute nearby stores into `week.db`** — would make `/api/nearby-stores` a pure read and
+  remove the only endpoint that can outlive its timeout on a cold environment. See *Where the
+  backend lives after Render*.
+
+---
+
+## 2026-09-12 — Where the backend lives after Render, and where the week's data lives
+
+The user: *"I want to host the backend somewhere else. It's so annoying to have to wait.
+Couldn't just use serverless functions? Or another free method?"*
+
+**The wait was diagnosed before anything was chosen, and it was not the host.** Render slept
+after 15 minutes of idling *and* gave the container an ephemeral disk, so `main.py`'s boot
+scrape — whose only condition is "the offers table is empty" — ran on every cold start: ~15
+paced outbound requests, 30–60 seconds before `/health` would answer. Any host would have had
+the same problem, and Lambda would have been *worse*, because its init phase is capped at 10
+seconds. So the real fork was never "which host" but **where the data lives between requests**.
+
+### Fork 1 — the host
+
+| option | tradeoff |
+| --- | --- |
+| **AWS Lambda, the week's SQLite inside the deployment package** (chosen) | $0 inside the always-free tier (1M requests, 400k GB-s, 100 GB egress/month), no database server, nothing to keep warm, and a week becomes a function version so rollback is a CloudFormation operation. Costs: an AWS account on the Paid plan with a card, and on-demand scraping of arbitrary postal codes has to go (Fork 3). |
+| Static JSON on GitHub Pages | The only option with a genuinely zero wait and no card at all. Rejected for now rather than on merit: it needs a client-side validity filter (the app has none — the serve-time `valid_to >= berlin_today()` filter is what retires day-limited deals mid-week), precomputed nearby-stores, and it gives up the live store lookup. |
+| Lambda + a free hosted Postgres (Neon) | Keeps on-demand scraping and the admin endpoints. Adds a second vendor, a cold-start database connection, and migrations have to move into the deploy step. |
+| Koyeb free (Frankfurt) + Neon | Keeps every feature and needs no card, but sleeps after an hour and wakes in 1–5s — the same shape of problem, just shorter. |
+| Keep Render, ping `/health` every 10 minutes | ~10 lines, within the 750 free instance-hours. Does not leave Render, keeps the ephemeral disk, and spends a scheduled job hiding a design problem. |
+| Oracle Cloud Always Free VM | Genuinely always-on and free. Oracle reclaims Always Free instances idle under 20% CPU for 7 days — which describes this API exactly. |
+| Google Cloud Run | Good scale-to-zero, but needs a billing account and EU egress is outside the free 1 GB allowance. |
+
+**Chosen: Lambda with the data in the artifact.** Statuses: static Pages —
+`deferred — worth trying`; Lambda + Neon — `deferred — worth trying`; Koyeb —
+`rejected — same sleeping shape, and the least to learn from`; Render keep-alive —
+`rejected — hides the problem instead of fixing it`; Oracle —
+`rejected — reclaims idle instances, and this API is idle by design`; Cloud Run —
+`rejected — billing account required and EU egress is not free`.
+
+**Revisit hook (static Pages):** `app/scripts/package_week.py` already exports
+`served_<vertical>.json` — the exact files the gate judges — so the static variant is a publish
+step plus a client-side `valid_to` filter, not a rewrite. **Revisit hook (Neon):**
+`settings.database_url` plus the one `snapshot_mode` branch in `lifespan`.
+
+### Fork 2 — how the data reaches the function
+
+| option | tradeoff |
+| --- | --- |
+| **Inside the deployment package** (chosen) | Zero moving parts at runtime, and it makes a bad week *unshippable*: the gate judges the exported week and the deploy only happens if it passes. A week is a function version, so rollback is free. Costs: a code deploy must explicitly carry the live data forward, or it silently wipes the week. |
+| A Lambda layer holding `week.db` | Separates data from code cleanly. But a stack update resets `Layers` from the template, so a code deploy would drop the data layer and 500 every request — a silent, total failure with an obvious-looking cause. |
+| EFS, or S3 fetched per invocation | Both keep data and code independent. EFS needs a VPC (and NAT for outbound calls); S3 adds a per-request fetch and a fail path on the hot read path. Neither earns its complexity for 7.6 MB that changes weekly. |
+
+**Chosen: in the package.** The one sharp edge is recorded as a test
+(`test_a_code_deploy_carries_the_live_week_forward_and_never_scrapes`) and a workflow step that
+pulls `week.db` off the live function before building. Layer —
+`rejected — a template deploy resets Layers and the data vanishes`; EFS/S3 —
+`deferred — only if week.db outgrows the package limits`.
+
+### Fork 3 — what happens to an unpublished postal code
+
+Scraping on demand is what made any PLZ work, and it cannot survive a read-only deployment.
+
+- **Publish one PLZ; an unpublished one reads "no deals published yet"** (chosen — the user's
+  call). Honest, and the app already handles an empty read without destroying its cache.
+- **Publish several**, one store set per PLZ in the same `week.db`. `deferred — worth trying`.
+  **Revisit hook:** `SCRAPE_PLZ` becomes a list and the scrape loops; nothing else changes,
+  because `/api/offers` already filters by `Store.plz`.
+- Keep a second writable host just for on-demand scrapes —
+  `rejected — two backends to keep in agreement, for a case one user hits once`.
+
+This also removed the weekly workflow's `plz` dispatch input: the scrape's output *is*
+production's data now, so a manual postal code would replace the week every user sees rather
+than probe it. Pinned by a test.
+
+### Two smaller calls, recorded because both look arbitrary later
+
+- **`sam deploy` through a CloudFormation stack, not `aws lambda update-function-code`.** The
+  direct call is simpler and has a 50 MB ceiling the package will eventually cross, but the
+  real reason is drift: it would leave the live function's code diverged from what
+  CloudFormation last saw, so the next template-only deploy would silently overwrite the data
+  with whatever that run happened to package.
+- **No `Cors` block on the Function URL.** The app's own `CORSMiddleware` sets the header;
+  two owners send it twice and browsers reject the response outright. One owner per header.
 
 ---
 

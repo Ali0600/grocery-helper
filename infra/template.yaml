@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >-
+  grocery-helper API — one Lambda serving a week of deals that ships inside its own
+  deployment package. Deployed twice a week for different reasons: by the weekly pipeline
+  with fresh data, and by CI when backend code merges (carrying the live week forward).
+
+Parameters:
+  GitCommit:
+    Type: String
+    Description: >-
+      The commit this package was built from. Served at /health so "is my code live yet?"
+      is a queryable fact rather than an inference; the CI deploy job polls for it.
+    Default: unknown
+  FunctionName:
+    Type: String
+    Default: grocery-helper-api
+  LogRetentionDays:
+    Type: Number
+    Default: 14
+    Description: Logs are a debugging aid for the last couple of weekly runs, not an archive.
+
+Resources:
+  # Declared rather than left to Lambda, which would create it on first invocation with
+  # retention set to "never expire" — a bill that grows forever for logs nobody reads.
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${FunctionName}
+      RetentionInDays: !Ref LogRetentionDays
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: ApiLogGroup
+    Properties:
+      FunctionName: !Ref FunctionName
+      CodeUri: build/
+      Handler: run.sh
+      Runtime: python3.12
+      Architectures: [arm64]
+      MemorySize: 1024
+      # Reads only. The one endpoint that can take real time is /api/nearby-stores, which
+      # fans out to Overpass mirrors; 30s bounds it without letting a hung mirror bill for
+      # minutes. Nothing here scrapes, so the 15-minute ceiling is irrelevant.
+      Timeout: 30
+      # Created by infra/bootstrap.yaml, which the deploy role cannot modify — so a
+      # compromised pipeline cannot widen what the function itself is allowed to do.
+      Role: !ImportValue grocery-helper-bootstrap:ExecutionRoleArn
+      Layers:
+        # The Lambda Web Adapter: runs as an extension, translates each invocation into a
+        # local HTTP request, and lets the same uvicorn app run here, in Docker and locally
+        # with no Lambda-specific code. Pinned; bump deliberately.
+        - !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerArm64:28
+      Environment:
+        Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/bootstrap
+          AWS_LWA_PORT: '8080'
+          # Readiness is checked against /health, which deliberately touches no database:
+          # the adapter polls it during init, and the init phase is capped at 10 seconds.
+          AWS_LWA_READINESS_CHECK_PATH: /health
+          # No migrations, no boot scrape, database opened read-only. See app/snapshot.py —
+          # both query flags below are load-bearing, and the app refuses to start without
+          # them rather than serving an empty database with a green tick.
+          SNAPSHOT_MODE: '1'
+          DATABASE_URL: sqlite:///file:/var/task/week.db?mode=ro&uri=true
+          GIT_COMMIT: !Ref GitCommit
+          # The app serves a public read-only API to a mobile client with no fixed origin.
+          CORS_ORIGINS: '*'
+          LOG_LEVEL: INFO
+          # /var/task is read-only, so there is nowhere to write bytecode.
+          PYTHONDONTWRITEBYTECODE: '1'
+      FunctionUrlConfig:
+        # Public, like the URL it replaces: the app ships no credentials, and every
+        # data-changing endpoint answers 405 here (app/api/offers.py `_require_writable`).
+        AuthType: NONE
+        # Deliberately NO Cors block. The app already sets CORS headers via its own
+        # middleware, and a Function URL configured with CORS as well would send the header
+        # twice — which browsers reject outright, failing every request from the web build.
+        # One owner for one header.
+
+Outputs:
+  ApiBaseUrl:
+    Description: Base URL of the API (both pipelines read this output rather than hardcoding).
+    Value: !GetAtt ApiFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub ${AWS::StackName}:ApiBaseUrl
+  FunctionName:
+    Value: !Ref FunctionName

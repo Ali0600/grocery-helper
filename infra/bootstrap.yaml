@@ -1,0 +1,259 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  One-time prerequisites for deploying grocery-helper from GitHub Actions: an OIDC trust so
+  the pipeline needs no long-lived AWS keys, a private bucket for deployment artifacts, and
+  two narrowly scoped roles. Apply this by hand once (CloudFormation -> Create stack), then
+  put its outputs into the repo's Actions SECRETS. Everything after that is `sam deploy`.
+
+  Deliberately separate from infra/template.yaml: the deploy role created here cannot create
+  or modify IAM roles, so the pipeline is unable to widen its own permissions or the
+  function's. The two privileged decisions in this file are made by a human, once.
+
+Parameters:
+  GitHubOrg:
+    Type: String
+    Default: Ali0600
+  GitHubRepo:
+    Type: String
+    Default: grocery-helper
+  Branch:
+    Type: String
+    Default: main
+    Description: >-
+      The ONLY branch whose workflow runs may assume the deploy role. A pull request from a
+      fork gets a different `sub` claim and is refused, which is what keeps a public repo's
+      CI from being a deployment vector.
+  FunctionName:
+    Type: String
+    Default: grocery-helper-api
+  CreateOidcProvider:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+    Description: >-
+      Set false if this account already trusts GitHub Actions — the provider is
+      account-singleton and a second one fails the stack.
+
+Conditions:
+  NeedsOidcProvider: !Equals [!Ref CreateOidcProvider, 'true']
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: NeedsOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      # Required by the API. AWS validates GitHub's certificate chain against its own trusted
+      # CAs and no longer relies on this value, so it does not need rotating.
+      ThumbprintList: [6938fd4d98bab03faadb97b34396831e3780aea1]
+
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    # Keep the bucket if the stack is ever deleted: an in-flight deploy referencing an
+    # artifact in a deleted bucket fails in a much more confusing way than a leftover bucket.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub grocery-helper-artifacts-${AWS::AccountId}-${AWS::Region}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      LifecycleConfiguration:
+        Rules:
+          # Artifacts are consumed by CloudFormation within minutes of upload; keeping them
+          # is a slowly growing bill for files nothing reads. Each one carries week.db.
+          - Id: expire-deployment-artifacts
+            Status: Enabled
+            ExpirationInDays: 14
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyUnencryptedTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt ArtifactBucket.Arn
+              - !Sub ${ArtifactBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  # What the FUNCTION may do. Writing its own log stream, and nothing else: it serves a
+  # packaged SQLite file and calls no AWS API. Deliberately not AWSLambdaBasicExecutionRole,
+  # whose resource is "*".
+  FunctionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${FunctionName}-execution
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: write-own-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${FunctionName}:*
+      # No logs:CreateLogGroup: the app stack owns the group so it can set retention.
+
+  # What the PIPELINE may do. Every statement is scoped to one stack, one bucket, one
+  # function, one layer, one log group and one role — so the blast radius of a compromised
+  # workflow is this application, not this account.
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${GitHubRepo}-github-deploy
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - NeedsOidcProvider
+                - !Ref GitHubOidcProvider
+                - !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                # EXACT match on the branch ref, not StringLike with a wildcard. A wildcard
+                # here is the classic mistake: `repo:org/repo:*` also matches pull_request
+                # runs, which on a public repo means anyone who opens a PR can deploy.
+                #
+                # Note for later: adding `environment:` to a deploying job CHANGES this claim
+                # to `repo:org/repo:environment:<name>` and the role stops being assumable.
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/${Branch}
+      Policies:
+        - PolicyName: deploy-this-stack
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: OneStackOnly
+                Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:ListStackResources
+                  - cloudformation:GetTemplate
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/grocery-helper/*
+              - Sid: SamTransform
+                # `sam deploy` expands the Serverless transform through CloudFormation, which
+                # needs CreateChangeSet on the transform's own pseudo-ARN. Omitting it fails
+                # the very first deploy with an error that names nothing useful.
+                Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31
+              - Sid: TemplateInspection
+                # These take a template body rather than a resource, so they have no
+                # resource-level form to scope to. Both are read-only.
+                Effect: Allow
+                Action: [cloudformation:GetTemplateSummary, cloudformation:ListExports]
+                Resource: '*'
+              - Sid: UploadArtifacts
+                Effect: Allow
+                Action: [s3:PutObject, s3:GetObject]
+                Resource: !Sub ${ArtifactBucket.Arn}/*
+              - Sid: ListArtifactBucket
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt ArtifactBucket.Arn
+              - Sid: ManageTheFunction
+                Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:DeleteFunction
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:ListTags
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                  - lambda:CreateFunctionUrlConfig
+                  - lambda:UpdateFunctionUrlConfig
+                  - lambda:GetFunctionUrlConfig
+                  - lambda:DeleteFunctionUrlConfig
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:GetPolicy
+                Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${FunctionName}
+              - Sid: ReadTheAdapterLayer
+                Effect: Allow
+                Action: lambda:GetLayerVersion
+                Resource: !Sub arn:aws:lambda:${AWS::Region}:753240598075:layer:LambdaAdapterLayerArm64:*
+              - Sid: PassOnlyTheExecutionRole
+                # The single most important scope in this file. With `iam:PassRole` on "*" a
+                # compromised pipeline could attach any role in the account to a Lambda it
+                # controls and run as it. This permits exactly one role, only to Lambda, and
+                # the pipeline has no iam:Create/Attach/Put at all, so it cannot mint another.
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt FunctionExecutionRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: lambda.amazonaws.com
+              - Sid: ManageTheFunctionsLogGroup
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:PutRetentionPolicy
+                  - logs:DeleteRetentionPolicy
+                  - logs:TagResource
+                  - logs:UntagResource
+                  - logs:ListTagsForResource
+                  - logs:ListTagsLogGroup
+                  - logs:FilterLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${FunctionName}*
+              - Sid: DescribeLogGroups
+                # No resource-level support; CloudFormation calls it while reconciling.
+                Effect: Allow
+                Action: logs:DescribeLogGroups
+                Resource: '*'
+
+Outputs:
+  DeployRoleArn:
+    Description: Store as the Actions secret AWS_DEPLOY_ROLE_ARN (it contains the account id).
+    Value: !GetAtt DeployRole.Arn
+  ArtifactBucketName:
+    Description: Store as the Actions secret AWS_ARTIFACT_BUCKET.
+    Value: !Ref ArtifactBucket
+  ExecutionRoleArn:
+    Description: Consumed by infra/template.yaml via ImportValue; nothing to copy.
+    Value: !GetAtt FunctionExecutionRole.Arn
+    Export:
+      # Hardcoded rather than derived from the stack name, so applying this file under a
+      # different stack name cannot silently break the app stack's ImportValue.
+      Name: grocery-helper-bootstrap:ExecutionRoleArn

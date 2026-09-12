@@ -1,0 +1,24 @@
+# Everything the runtime needs, plus the tooling that never ships.
+#
+# Split out on 2026-09-12, when the backend moved to a deployment artifact built with
+# `pip install --target`: the test and lint packages were being installed into the runtime
+# image too (and would have been packaged into the function), which is both wasted space and
+# a larger attack surface than the thing actually needs.
+-r requirements.txt
+
+# Pillow builds the weekly audit's contact sheets (app/scripts/contact_sheets.py). It was
+# installed ad-hoc in a long-lived venv and never declared, so a fresh checkout could not
+# run the audit at all — the drift only a from-scratch install exposes.
+pillow>=11.0
+pytest>=9.1.1
+pytest-cov>=7.1.0
+ruff>=0.15
+# Property-based testing for the parsers that eat external junk (Grundpreis strings,
+# discount labels, validity timestamps). CI runs it derandomized (see tests/conftest.py),
+# so it can never flake there; randomness only hunts locally.
+hypothesis>=6.100
+# tests/test_workflows.py parses the workflow YAML. It arrived only as an extra of
+# uvicorn[standard] until this split, while that test skipped itself when the import failed —
+# so every guard over the deploy pipeline could have gone silently unrun. Declared here, and
+# the test imports it outright rather than skipping.
+pyyaml>=6.0
