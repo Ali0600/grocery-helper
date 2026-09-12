@@ -300,3 +300,57 @@ def test_the_data_verdict_survives_a_failed_reset():
     assert steps.index(reset) < steps.index(fallback) < steps.index(alert), (
         "the verdict has to be in the log before the alert issue links to it"
     )
+
+
+def test_every_action_is_pinned_to_a_commit_sha():
+    """A floating tag is a supply-chain hole: whoever controls the tag controls what runs in a
+    workflow holding this repo's secrets. Tags are mutable; a commit SHA is not.
+
+    Pinned as a ratchet over ALL workflows rather than a review habit, because the failure mode
+    is a NEW workflow (or a new step in an old one) written the natural way — `@v4` — and
+    nothing about a green run says the difference.
+    """
+    import re
+
+    sha = re.compile(r"^[0-9a-f]{40}$")
+    for path in sorted(WORKFLOWS.glob("*.yml")):
+        wf = yaml.safe_load(path.read_text())
+        for job_name, job in wf["jobs"].items():
+            for step in job.get("steps", []):
+                uses = step.get("uses")
+                if not uses:
+                    continue
+                assert "@" in uses, f"{path.name}/{job_name}: {uses!r} has no version at all"
+                ref = uses.rsplit("@", 1)[1]
+                assert sha.match(ref), (
+                    f"{path.name}/{job_name}: {uses!r} is pinned to a mutable ref — use the "
+                    "commit SHA with the tag as a trailing comment"
+                )
+
+
+def test_the_scrape_probe_reports_counts_without_leaking_the_postal_code():
+    """The Step 0 probe prints what a runner's scrape returned, and its log is world-readable.
+
+    Two traps, both of which read as fine while being wrong:
+      * the PLZ interpolated into `run:` — an expression is pasted in as TEXT before the shell
+        exists, so the shell's quoting cannot protect it and the value lands in the log;
+      * a `schedule:` trigger added later, turning a one-off experiment into a weekly scrape
+        of the flyer sites for no consumer.
+    """
+    path = WORKFLOWS / "probe-runner-scrape.yml"
+    if not path.exists():  # pragma: no cover - the probe is deletable once answered
+        pytest.skip("the runner-scrape probe has been retired")
+    wf = yaml.safe_load(path.read_text())
+    triggers = _triggers(wf)
+    assert set(triggers) == {"workflow_dispatch"}, (
+        "the probe writes nothing and has no consumer — it must stay manual only"
+    )
+    assert wf["permissions"] == {"contents": "read"}, "a probe needs no write scope"
+    step = _step(wf, "probe", "Scrape and report (counts only)")
+    assert "PLZ" in (step.get("env") or {}), "the postal code must arrive via env"
+    assert "${{" not in step["run"], (
+        "an interpolated expression is pasted into the script as text — env, always"
+    )
+    assert "echo" not in step["run"], (
+        "nothing in this step should echo; the script prints counts keyed on chain"
+    )

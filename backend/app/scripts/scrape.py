@@ -26,7 +26,11 @@ def main() -> None:
     plz = args.plz or settings.default_plz
     with SessionLocal() as session:
         n = run_scrapers(session, plz)
-    print(f"scraped {n} offers for PLZ {plz}")
+    # Counts only, never the PLZ: this runs in the weekly GitHub Actions pipeline, whose logs
+    # are world-readable on a public repo. GitHub masks a secret's exact value, but the rule
+    # here is the same one `verify_deals.py` follows and the reason store names never appear
+    # in any diagnostic — they are built as f"{store_label} {plz}".
+    print(f"scraped {n} offers")
 
 
 if __name__ == "__main__":
