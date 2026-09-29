@@ -444,8 +444,11 @@ The deploy and EAS Update steps **skip quietly** until their secrets exist, so C
 out of the box. To turn them on:
 
 **Gated AWS deploy** (deploy only when CI is green):
-1. An AWS account on the Paid plan, in `eu-central-1` (this runs inside the always-free
-   allowances; the Free plan closes the account after six months).
+1. An AWS account that can be billed, in `eu-central-1`. This runs inside the **Always Free**
+   tier, which does not expire — so the bill is a few cents of S3 and nothing else. A brand-new
+   account's credit-funded onboarding plan is the part that expires (AWS closes the account
+   after six months unless it is upgraded); an account made before 2025-07-15 is on the legacy
+   free tier and is unaffected. See [`infra/README.md`](infra/README.md).
 2. Apply [`infra/bootstrap.yaml`](infra/bootstrap.yaml) once in CloudFormation (creates the
    GitHub OIDC trust, an artifact bucket and two narrowly scoped IAM roles).
 3. GitHub repo → Settings → Secrets and variables → Actions → add its outputs as

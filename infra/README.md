@@ -38,10 +38,22 @@ deals published yet" instead of scraping on demand. See `docs/DECISIONS.md`.
 
 ## One-time setup
 
-1. **An AWS account on the Paid plan.** The Free plan closes the account after six months; the
-   always-free allowances this runs inside (1M Lambda requests, 400k GB-seconds and 100 GB of
-   egress per month) continue indefinitely on the Paid plan. Both require a card. Expected
-   bill: a few cents of S3 for deployment artifacts.
+1. **An AWS account that can be billed** — which does not mean it will be.
+
+   This runs inside the **Always Free** tier: 1M Lambda requests, 400k GB-seconds and 100 GB of
+   egress per month, available *"as long as you are an AWS customer"* and on both plans. It does
+   not expire, so the expected bill is a few cents of S3 for deployment artifacts and nothing
+   else. Set a budget alarm anyway (step 4).
+
+   The confusing part is the **onboarding plan**, which is a separate thing from that allowance.
+   A brand-new account starts on the credit-funded *Free plan*, and in AWS's words *"When your
+   free plan expires, AWS closes your account"* — expiry being the earlier of six months or the
+   $200 of credits running out (90 days to upgrade and recover the data). Upgrading to the
+   *Paid plan* is therefore what makes the deployment permanent; it changes nothing about the
+   Always Free allowance the function actually lives in, and bills $0 while you stay inside it.
+
+   **An account created before 2025-07-15 skips all of that** — it is on the legacy free tier,
+   which has no six-month clock. If you already have an AWS account, use it.
 
 2. **Apply `bootstrap.yaml`** — CloudFormation → Create stack → upload the file, in
    `eu-central-1`. Parameters: `GitHubOrg`, `GitHubRepo`, `Branch` (`main`), and
