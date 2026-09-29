@@ -171,6 +171,7 @@ jobs:
       # Then the gate runs again against the live URL — the same thresholds, now measured on
       # the deployed function rather than on a file on this runner.
       - name: Verify the deployed deals
+        id: verify_live
         if: ${{ ! inputs.verify_only }}
         env:
           PLZ: ${{ secrets.SCRAPE_PLZ || '10115' }}
@@ -221,22 +222,39 @@ jobs:
         run: |
           python3 .github/scripts/verify_deals.py --url "$BASE/api/offers" --plz "$PLZ"
 
-      # The data verdict has to survive a FAILED scrape. A step whose `if:` names no status
-      # function gets an implicit `success() &&`, so GitHub skips it once an earlier step
-      # failed — which is how a fail-closed auth change once silenced this check entirely:
-      # every Sunday refresh returned 403, the data check stopped running, the alert issue
-      # said "refresh failed" and nothing about what production was serving, and a chain down
-      # to 25 offers was found by hand a week later.
+      # When this week does not ship, the log must still say what production is serving. A
+      # step whose `if:` names no status function gets an implicit `success() &&`, so GitHub
+      # skips it once an earlier step failed — which is how a fail-closed auth change once
+      # silenced the data check entirely: every Sunday refresh returned 403, the alert issue
+      # said "refresh failed" and nothing about production, and a chain down to 25 offers was
+      # found by hand a week later.
       #
-      # No --post-reset: nothing was scraped, and the deployed function is still serving last
-      # week, where a chain may legitimately have emptied. This cannot turn the run green —
-      # the job has already failed — it only puts the verdict in the log the alert issue links.
-      - name: Data-quality gate after a failed scrape
-        if: ${{ failure() && steps.scrape.outcome == 'failure' }}
+      # Keyed on the LIVE verify not having run, never on one earlier step having failed. The
+      # first version of this twin fired only when `steps.scrape.outcome == 'failure'`, and it
+      # went blind the first three Sundays it existed: the job died at "Assume the deploy role",
+      # so the scrape was SKIPPED, not failed, and this step skipped with it — the same hole it
+      # was built to close, one step further up. A failure anywhere before the live verify
+      # (install, auth, scrape, export, the gate rejecting the new week, the build, the deploy)
+      # leaves production serving last week, and that is exactly when it needs reporting.
+      #
+      # Not on a verify-only dispatch, whose own gate already produced the production verdict.
+      # No --post-reset: nothing new is live, and last week's chains may legitimately have
+      # emptied. This cannot turn the run green — the job has already failed — it only puts the
+      # verdict in the log the alert issue links to.
+      - name: Data-quality gate when this week did not ship
+        if: ${{ failure() && ! inputs.verify_only && steps.verify_live.outcome == 'skipped' }}
         env:
           PLZ: ${{ secrets.SCRAPE_PLZ || '10115' }}
           BASE: ${{ steps.live.outputs.base }}
         run: |
+          # The API's address lives in the CloudFormation stack, so a run that failed before it
+          # could read the stack (usually AWS authentication) cannot check production at all.
+          # Say so and fail this step, rather than probe an empty URL and print a verdict about
+          # nothing — "could not check" must never look like a check.
+          if [ -z "$BASE" ]; then
+            echo "::error::production was NOT checked: this run failed before it could resolve the API from the grocery-helper stack (usually AWS authentication). Last week is still serving, unverified."
+            exit 1
+          fi
           python3 .github/scripts/verify_deals.py --url "$BASE/api/offers" --plz "$PLZ"
 
       # A silent weekly failure is invisible; surface it as a (deduplicated) issue.

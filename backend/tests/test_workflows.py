@@ -31,7 +31,8 @@ SCRAPE_STEP = "Scrape this week's deals into week.db"
 DEPLOY_STEP = "Deploy this week's data"
 GATE_ON_THE_WEEK = "Data-quality gate on the served deals"
 GATE_VERIFY_ONLY = "Data-quality gate (verify-only)"
-GATE_AFTER_FAILED_SCRAPE = "Data-quality gate after a failed scrape"
+GATE_WHEN_NOT_SHIPPED = "Data-quality gate when this week did not ship"
+VERIFY_LIVE_STEP = "Verify the deployed deals"
 WAIT_FOR_LIVE_STEP = "Wait until the new code is live"
 
 
@@ -295,35 +296,62 @@ def test_the_verify_only_gate_never_claims_a_reset_just_ran():
     names = [s.get("name") or "" for s in wf["jobs"]["refresh"]["steps"]]
     assert names.index(GATE_VERIFY_ONLY) < names.index("Close recovery issues")
 
-def test_the_data_verdict_survives_a_failed_scrape():
-    """The main gate only runs after a SUCCESSFUL scrape, because a step whose `if:` names no
-    status function is skipped once an earlier step failed. So when #184 made the admin
-    endpoints fail closed on a host without ADMIN_TOKEN, every Sunday refresh failed and the
-    data check stopped running entirely: the alert issue said "refresh failed" and said
-    nothing about what production was serving (that week Rossmann was down to 25 offers, found
-    by hand). A second gate, conditioned on the scrape having failed, keeps the verdict in the
-    log — and it reports on the DEPLOYED function, which is still serving last week.
+def test_the_data_verdict_survives_any_failure_before_the_week_ships():
+    """When a week does not ship, the log must still say what production is serving.
+
+    The main gate only runs after a SUCCESSFUL scrape, because a step whose `if:` names no
+    status function is skipped once an earlier step failed. When #184 made the admin
+    endpoints fail closed, every Sunday refresh failed and the data check stopped running:
+    the alert issue said "refresh failed" and nothing about production (that week Rossmann
+    was down to 25 offers, found by hand). So a second gate reports on production.
+
+    Its first version keyed on `steps.scrape.outcome == 'failure'`, and it went blind the
+    first three Sundays it existed: those runs died at "Assume the deploy role", so the
+    scrape was SKIPPED rather than failed, and the twin skipped with it — the original hole,
+    one step further up. The rule it has to keep is broader than any single step: production
+    is still serving last week whenever the job failed before the LIVE verify ran, so that
+    is the one step it may key on.
     """
+    import re
+
     wf = _load("scrape.yml")
     steps = wf["jobs"]["refresh"]["steps"]
-    scrape = _step(wf, "refresh", SCRAPE_STEP)
-    fallback = _step(wf, "refresh", GATE_AFTER_FAILED_SCRAPE)
-    assert scrape.get("id"), "the scrape step needs an id for a later step to read its outcome"
+    verify_live = _step(wf, "refresh", VERIFY_LIVE_STEP)
+    fallback = _step(wf, "refresh", GATE_WHEN_NOT_SHIPPED)
+    assert verify_live.get("id"), "the live verify needs an id for the fallback to read"
     cond = fallback.get("if", "")
     assert "failure()" in cond, (
         "without a status function GitHub skips this step after the very failure it exists for"
     )
-    assert f"steps.{scrape['id']}.outcome == 'failure'" in cond, (
-        "run only when the SCRAPE failed, not after the gate fails on a scraped week"
+    assert f"steps.{verify_live['id']}.outcome == 'skipped'" in cond, (
+        "fire whenever the live verify never ran — that is when production went unreported"
     )
-    assert "--post-reset" not in fallback["run"], (
-        "a failed scrape produced nothing, so the per-chain floor would assert something false"
+    # The invariant that the first version broke: no narrowing to one earlier step's failure.
+    # A failure at install, auth, export, the gate, the build or the deploy leaves production
+    # serving last week exactly as a failed scrape does.
+    keyed_on = set(re.findall(r"steps\.(\w+)\.outcome", cond))
+    assert keyed_on == {verify_live["id"]}, (
+        f"the condition also keys on {sorted(keyed_on - {verify_live['id']})}, which makes it "
+        "blind to every failure upstream of that step — a skipped step is not a failed one"
     )
-    assert "${{" not in fallback["run"], (
-        "workflow inputs belong in env:, never interpolated into a run: block"
+    assert "inputs.verify_only" in cond, (
+        "a verify-only run's own gate already reported on production; don't report twice"
+    )
+    run = fallback["run"]
+    assert "--post-reset" not in run, (
+        "nothing new is live, so the per-chain floor would assert something false"
+    )
+    assert "${{" not in run, "workflow inputs belong in env:, never interpolated into run:"
+    assert '-z "$BASE"' in run, (
+        "a failure before the stack was read leaves no URL; probing an empty one prints a "
+        "verdict about nothing, so the step must say production was not checked, and fail"
     )
     alert = _step(wf, "refresh", "Alert on repeated failure")
-    assert steps.index(scrape) < steps.index(fallback) < steps.index(alert), (
+    deploy = _step(wf, "refresh", DEPLOY_STEP)
+    assert steps.index(deploy) < steps.index(verify_live) < steps.index(fallback), (
+        "the fallback reads the live verify's outcome, so it must come after it"
+    )
+    assert steps.index(fallback) < steps.index(alert), (
         "the verdict has to be in the log before the alert issue links to it"
     )
 
