@@ -1964,9 +1964,26 @@ API) + React Native (Expo) app. See [README.md](README.md) for the full picture.
     and its `RENDER*` markers are still honoured, because old app bundles keep calling it
     until the OTA lands. `render.yaml` and those fallbacks go in the cleanup PR.
   - iOS / TestFlight config: `mobile/eas.json` (production profile; `EXPO_PUBLIC_API_URL` →
-    the Function URL) + `mobile/app.json` (`ios.bundleIdentifier` `com.groceryhelper.berlin`,
-    EAS project `@mhassan0600/grocery-helper`, `extra.eas.projectId`). `eas
-    login`/`build`/`submit` are **user-run** (their Apple/Expo creds + build credits).
+    the Render URL until the mobile cutover, then the Function URL) + `mobile/app.json`
+    (`ios.bundleIdentifier` `com.groceryhelper.berlin`, EAS project `@mhassan0600/grocery-helper`,
+    `extra.eas.projectId`). Builds spend the user's EAS credits, so **ask before starting one**.
+  - **A TestFlight build EXPIRES 90 days after upload, and OTAs do not extend it.** They replace
+    the JS inside the binary; the binary still stops opening on day 90 ("Grocery Helper Beta has
+    expired"). Build 6 (2026-07-01) lapsed that way on 2026-09-29 with nothing newer behind it;
+    **build 7 was uploaded 2026-10-02, so it expires around 2026-12-31.** Rebuild at the SAME
+    version (1.1.0 keeps the runtime, so every published OTA still applies; `autoIncrement` with
+    `appVersionSource: remote` picks the build number):
+    `cd mobile && eas build -p ios --profile production --auto-submit --non-interactive`.
+    - **Non-interactive submission needs `submit.production.ios.ascAppId`** (the app's numeric
+      App Store Connect ID, now in `eas.json`). It was missing because every earlier submission
+      was interactive, and the app is TestFlight-only, so Apple's public lookup cannot supply
+      it. Without it the build still succeeds and only the submission fails.
+    - **A pending Apple agreement makes App Store Connect refuse every API call** (403
+      `FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED`), which eas-cli 23.0 reported only as
+      "Failed to fetch Apple provisioning profiles … unexpected validation error". Accept
+      anything pending under App Store Connect → Business before blaming the config.
+    - Build time is mostly free-tier QUEUE and varies wildly: builds 4-6 took 3.5-4 h, build 7
+      took 4 minutes, and its submission sat in a queue for ~30 minutes. Start well before day 90.
   - **`requirements.txt` is runtime-only since the split**; dev tooling lives in
     `requirements-dev.txt` (which is what a venv and CI install). `pyyaml` is declared there
     explicitly — it used to arrive only as an extra of `uvicorn[standard]` while
