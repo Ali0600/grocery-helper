@@ -4,7 +4,7 @@ Concepts that came up while building this project — a Berlin grocery-deal app
 (FastAPI backend + Expo/React Native app, deployed to Render + TestFlight). Each
 entry is: **what it is**, **why it came up _here_**, and a one-line **takeaway**.
 The general, transferable ones are also promoted to a cross-project TIL repo
-(`~/til`).
+(`~/projects/notes/til`).
 
 ## Deployment & infrastructure
 
